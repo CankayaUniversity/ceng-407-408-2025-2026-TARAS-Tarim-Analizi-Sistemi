@@ -4,6 +4,7 @@
   "slug": "tarasmobil",
   "version": "1.0.0",
   "assetBundlePatterns": ["**/*"],
+  "userInterfaceStyle": "automatic",
   "plugins": [
     [
       "expo-camera",
@@ -14,9 +15,11 @@
   ],
   "ios": {
     "supportsTabletMode": true,
-    "bundleIdentifier": "com.tarasmobil.app"
+    "bundleIdentifier": "com.tarasmobil.app",
+    "userInterfaceStyle": "automatic"
   },
   "android": {
-    "package": "com.tarasmobil.app"
+    "package": "com.tarasmobil.app",
+    "userInterfaceStyle": "automatic"
   }
 }

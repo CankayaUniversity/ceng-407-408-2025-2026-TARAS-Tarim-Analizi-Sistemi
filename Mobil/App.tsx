@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, Pressable, useWindowDimensions } from 'react-native';
+import { Text, View, TouchableOpacity, Pressable, useWindowDimensions, useColorScheme } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCameraPermissions } from 'expo-camera';
@@ -11,17 +11,35 @@ import { useKeyboard } from './src/hooks/useKeyboard';
 import { useChat } from './src/hooks/useChat';
 import { getTheme } from './src/utils/theme';
 import { ChatWindow } from './src/components/ChatWindow';
-import { LoginScreen, HomeScreen, DiseaseScreen, TimetableScreen, SettingsScreen } from './src/screens';
+import { LoginScreen, HomeScreen, DiseaseScreen, TimetableScreen, SettingsScreen, ThemeMode } from './src/screens';
 
 export default function App() {
-  const { effectiveIsDark, overrideDarkMode, setOverrideDarkMode } = useTheme();
+  const systemColorScheme = useColorScheme();
   const { keyboardHeight } = useKeyboard();
   const [screen, setScreen] = useState<ScreenType>(SCREEN_TYPE.LOGIN);
   const [showPopup, setShowPopup] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>('system');
   const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen);
   const { height: windowHeight } = useWindowDimensions();
   const [permission, requestPermissionFn] = useCameraPermissions();
-  const theme = getTheme(effectiveIsDark);
+  
+  // Determine effective dark mode based on themeMode
+  const getEffectiveDarkMode = () => {
+    if (themeMode === 'light') return false;
+    if (themeMode === 'dark') return true;
+    if (themeMode === 'system') {
+      // Use systemColorScheme from useColorScheme hook
+      return systemColorScheme === 'dark';
+    }
+    if (themeMode === 'weather') {
+      // TODO: Implement weather-based logic
+      return systemColorScheme === 'dark';
+    }
+    return systemColorScheme === 'dark';
+  };
+
+  const effectiveIsDarkMode = getEffectiveDarkMode();
+  const theme = getTheme(effectiveIsDarkMode);
   const chatHeight = keyboardHeight > 0
     ? windowHeight - keyboardHeight - 80
     : Math.min(windowHeight * 0.6, 500);
@@ -46,7 +64,7 @@ export default function App() {
     }
 
     if (screen === SCREEN_TYPE.HOME) {
-      return <HomeScreen theme={theme} effectiveIsDark={effectiveIsDark} />;
+      return <HomeScreen theme={theme} effectiveIsDark={effectiveIsDarkMode} />;
     }
 
     if (screen === SCREEN_TYPE.DISEASE) {
@@ -61,11 +79,11 @@ export default function App() {
       return (
         <SettingsScreen
           theme={theme}
-          effectiveIsDark={effectiveIsDark}
-          overrideDarkMode={overrideDarkMode}
-          onDarkModeChange={setOverrideDarkMode}
+          effectiveIsDark={effectiveIsDarkMode}
+          themeMode={themeMode}
+          onThemeModeChange={setThemeMode}
           onLogout={() => {
-            setOverrideDarkMode(null);
+            setThemeMode('system');
             setScreen(SCREEN_TYPE.LOGIN);
           }}
         />
@@ -79,15 +97,13 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
         <View style={[appStyles.container, { backgroundColor: theme.background }]}>
-          <StatusBar style={effectiveIsDark ? 'light' : 'dark'} />
+          <StatusBar style={effectiveIsDarkMode ? 'light' : 'dark'} />
           {renderContent()}
 
           {screen !== SCREEN_TYPE.LOGIN && (
             <View style={[appStyles.bottomNavWrapper, { backgroundColor: theme.surface }]}>
               <View style={appStyles.bottomNav}>
-                      {NAV_ITEMS
-                        .filter((item) => item.id !== SCREEN_TYPE.SETTINGS)
-                        .map((item) => (
+                      {NAV_ITEMS.map((item) => (
                   <Pressable
                     key={item.id}
                     style={[

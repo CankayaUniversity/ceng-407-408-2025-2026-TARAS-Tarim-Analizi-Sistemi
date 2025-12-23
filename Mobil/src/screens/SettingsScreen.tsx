@@ -1,25 +1,47 @@
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { appStyles } from '../styles';
 import { HEADER_TEXT } from '../constants';
 
+export type ThemeMode = 'light' | 'dark' | 'system' | 'weather';
+
 interface SettingsScreenProps {
   theme: any;
   effectiveIsDark: boolean;
-  overrideDarkMode: boolean | null;
-  onDarkModeChange: (isDark: boolean | null) => void;
+  themeMode: ThemeMode;
+  onThemeModeChange: (mode: ThemeMode) => void;
   onLogout: () => void;
 }
 
 export const SettingsScreen = ({
   theme,
   effectiveIsDark,
-  overrideDarkMode,
-  onDarkModeChange,
+  themeMode,
+  onThemeModeChange,
   onLogout,
 }: SettingsScreenProps) => {
+  const getModeDescription = (mode: ThemeMode) => {
+    switch (mode) {
+      case 'light':
+        return 'Açık';
+      case 'dark':
+        return 'Koyu';
+      case 'system':
+        return `Sistem (${effectiveIsDark ? 'Koyu' : 'Açık'})`;
+      case 'weather':
+        return 'Hava Durumu';
+    }
+  };
+
+  const themeOptions: { mode: ThemeMode; label: string; icon: string }[] = [
+    { mode: 'light', label: 'Açık', icon: 'white-balance-sunny' },
+    { mode: 'dark', label: 'Koyu', icon: 'moon-waning-crescent' },
+    { mode: 'system', label: 'Sistem', icon: 'cog' },
+    { mode: 'weather', label: 'Hava Durumu', icon: 'cloud' },
+  ];
+
   return (
-    <View style={[appStyles.settingsContainer, { backgroundColor: theme.background }]}>
+    <ScrollView style={[appStyles.settingsContainer, { backgroundColor: theme.background }]}>
       <Text style={[appStyles.placeholderText, { color: theme.text }]}>{HEADER_TEXT.settings}</Text>
       <Text style={[appStyles.placeholderSub, { color: theme.textSecondary, marginBottom: 32 }]}>
         Tercihlerinizi yönetin
@@ -33,31 +55,50 @@ export const SettingsScreen = ({
             style={{ marginRight: 12 }}
           />
           <View>
-            <Text style={[appStyles.settingLabel, { color: theme.text }]}>Koyu Mod</Text>
+            <Text style={[appStyles.settingLabel, { color: theme.text }]}>Tema Modu</Text>
             <Text style={[appStyles.settingDesc, { color: theme.textSecondary }]}>
-              {overrideDarkMode !== null
-                ? (overrideDarkMode ? 'Açık' : 'Kapalı')
-                : 'Sistem'}
+              {getModeDescription(themeMode)}
             </Text>
           </View>
         </View>
-        <View style={appStyles.themeButtons}>
-          <TouchableOpacity
-            style={[appStyles.themeButton, overrideDarkMode === false && { backgroundColor: theme.accent }]}
-            onPress={() => onDarkModeChange(false)}
-          >
-            <Text style={[appStyles.themeButtonText, { color: overrideDarkMode === false ? '#fff' : theme.text }]}>
-              Açık
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[appStyles.themeButton, overrideDarkMode === true && { backgroundColor: theme.accent }]}
-            onPress={() => onDarkModeChange(true)}
-          >
-            <Text style={[appStyles.themeButtonText, { color: overrideDarkMode === true ? '#fff' : theme.text }]}>
-              Koyu
-            </Text>
-          </TouchableOpacity>
+      </View>
+      <View style={{ paddingHorizontal: 16, paddingVertical: 16 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {themeOptions.map((option) => (
+            <TouchableOpacity
+              key={option.mode}
+              style={[
+                {
+                  flex: 0.47,
+                  borderRadius: 8,
+                  padding: 12,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor:
+                    themeMode === option.mode ? theme.accent : theme.surface,
+                  borderWidth: themeMode === option.mode ? 2 : 1,
+                  borderColor: themeMode === option.mode ? theme.accent : theme.accentDim,
+                },
+              ]}
+              onPress={() => onThemeModeChange(option.mode)}
+            >
+              <MaterialCommunityIcons
+                name={option.icon}
+                size={24}
+                color={themeMode === option.mode ? '#fff' : theme.accent}
+                style={{ marginBottom: 4 }}
+              />
+              <Text
+                style={{
+                  color: themeMode === option.mode ? '#fff' : theme.text,
+                  fontSize: 12,
+                  fontWeight: '600',
+                }}
+              >
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
       <TouchableOpacity
@@ -67,6 +108,6 @@ export const SettingsScreen = ({
         <MaterialCommunityIcons name="logout" size={20} color="#fff" style={{ marginRight: 8 }} />
         <Text style={appStyles.logoutButtonText}>Çıkış Yap</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 };
