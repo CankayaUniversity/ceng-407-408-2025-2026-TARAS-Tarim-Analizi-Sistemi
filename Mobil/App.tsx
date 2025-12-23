@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, Pressable, useWindowDimensions, useColorScheme } from 'react-native';
+import { Text, View, TouchableOpacity, Pressable, useWindowDimensions, useColorScheme, LogBox } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCameraPermissions } from 'expo-camera';
@@ -12,6 +12,9 @@ import { useChat } from './src/hooks/useChat';
 import { getTheme } from './src/utils/theme';
 import { ChatWindow } from './src/components/ChatWindow';
 import { LoginScreen, HomeScreen, DiseaseScreen, TimetableScreen, SettingsScreen, ThemeMode } from './src/screens';
+
+// Suppress SafeAreaView deprecation warnings coming from third-party libs
+LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
 
 export default function App() {
   const systemColorScheme = useColorScheme();
