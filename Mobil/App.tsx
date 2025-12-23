@@ -224,7 +224,9 @@ export default function App() {
           {screen !== SCREEN_TYPE.LOGIN && (
             <View style={[appStyles.bottomNavWrapper, { backgroundColor: theme.surface }]}>
               <View style={appStyles.bottomNav}>
-                {NAV_ITEMS.map((item) => (
+                      {NAV_ITEMS
+                        .filter((item) => item.id !== SCREEN_TYPE.SETTINGS)
+                        .map((item) => (
                   <Pressable
                     key={item.id}
                     style={[
