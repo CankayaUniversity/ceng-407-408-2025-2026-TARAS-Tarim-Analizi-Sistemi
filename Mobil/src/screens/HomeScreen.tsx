@@ -107,7 +107,7 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
             theme={theme}
             label="Hava Sıcaklığı"
             value={airTemp}
-            unit="°C"
+            unit="°C "
             icon={
               <FontAwesome6
                 name="temperature-three-quarters"
@@ -136,7 +136,7 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
         <View style={{ flexDirection: 'row', marginTop: 4 }}>
           <MetricItem
             theme={theme}
-            label="Toprak Nem Kayıp Hızı"
+            label="Nem Kaybı"
             value={soilLossRate}
             unit="%"
             icon={
@@ -177,7 +177,7 @@ export const HomeScreen = ({ theme, effectiveIsDark }: HomeScreenProps) => {
         setLoading(true);
 
         // Şimdilik sabit koordinat (Berlin örneği senin verdiğin):
-        const result = await fetchWeatherInfo(52.52, 13.41);
+        const result = await fetchWeatherInfo(39.92, 32.85);
 
         console.log('Open-Meteo sonucu:', result);
         setWeather(result);
