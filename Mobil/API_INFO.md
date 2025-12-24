@@ -1,7 +1,7 @@
 # API Configuration
 
 ## Backend URL
-The app connects to: `http://localhost:3000/api`
+The app connects to: `http://172.29.224.1/api`
 
 ## Demo Credentials
 For testing, use these credentials:

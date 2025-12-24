@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Use your computer's IP address when testing on a physical device
 // Use 'localhost' when testing on emulator/simulator
-const API_BASE_URL = 'http://192.168.1.6:3000/api';
+const API_BASE_URL = 'http://172.25.142.181:3000/api';
 const TOKEN_KEY = 'auth_token';
 
 interface LoginResponse {

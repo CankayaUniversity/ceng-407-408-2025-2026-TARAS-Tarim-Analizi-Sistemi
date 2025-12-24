@@ -136,12 +136,12 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
         <View style={{ flexDirection: 'row', marginTop: 4 }}>
           <MetricItem
             theme={theme}
-            label="Nem Kaybı"
+            label="Sulama fSaati"
             value={soilLossRate}
             unit="%"
             icon={
               <FontAwesome6
-                name="droplet-slash"
+                name="clock"
                 size={24}
                 color={theme.text}
               />
@@ -200,9 +200,8 @@ export const HomeScreen = ({ theme, effectiveIsDark }: HomeScreenProps) => {
         </Text>
       </View>
       <StatusCard theme={theme} weather={weather} loading={loading} />
-      <View style={appStyles.spacer} />
       <View style={appStyles.canvasContainer}>
-        <Canvas camera={{ position: [0, 8, 11.3], fov: 50 }} style={{ flex: 1 }}>
+        <Canvas camera={{ position: [0, 16, 22.6], fov: 35 }} style={{ flex: 1 }}>
           <color attach="background" args={[theme.background]} />
           <Suspense fallback={null}>
             <ColorPlane isDark={effectiveIsDark} />
