@@ -47,7 +47,7 @@ const MetricItem = ({ label, value, unit, icon, theme }: MetricItemProps) => {
             fontWeight: '700',
           }}
         >
-          {value !== null ? `${value}${unit ?? '%'}` : '-'}
+          {value !== null ? `${unit ?? '%'}${value}` : '-'}
         </Text>
       </View>
     </View>
@@ -67,7 +67,7 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
 
   // 🔸 Şimdilik mock sensör verileri (sonra endpoint ile değiştireceğiz)
   const soilMoisture = '40';
-  const soilLossRate = '2';
+  const soilLossRate = '40';
 
   return (
     <View style={{ paddingHorizontal: 24, marginTop: 16 }}>
@@ -132,16 +132,16 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
           />
         </View>
 
-        {/* Alt satır: Bir sonraki sulama / Toprak Nemi */}
+        {/* Alt satır: Toprak Nem Kaybı / Toprak Nemi */}
         <View style={{ flexDirection: 'row', marginTop: 4 }}>
           <MetricItem
             theme={theme}
-            label="Sonraki Sulama"
+            label="Nem Kaybı"
             value={soilLossRate}
-            unit=" saat sonra "
+            unit="%"
             icon={
               <FontAwesome6
-                name="clock"
+                name="droplet-slash"
                 size={24}
                 color={theme.text}
               />
@@ -195,10 +195,14 @@ export const HomeScreen = ({ theme, effectiveIsDark }: HomeScreenProps) => {
     <>
       <View style={appStyles.header}>
         <Text style={[appStyles.headerTitle, { color: theme.accent }]}>{HEADER_TEXT.home}</Text>
+        <Text style={[appStyles.headerSubtitle, { color: theme.textSecondary }]}>
+          Döndürmek için sürükleyin • Rengi değiştirmek için dokunun
+        </Text>
       </View>
       <StatusCard theme={theme} weather={weather} loading={loading} />
+      <View style={appStyles.spacer} />
       <View style={appStyles.canvasContainer}>
-        <Canvas camera={{ position: [0, 16, 22.6], fov: 35 }} style={{ flex: 1 }}>
+        <Canvas camera={{ position: [0, 8, 11.3], fov: 50 }} style={{ flex: 1 }}>
           <color attach="background" args={[theme.background]} />
           <Suspense fallback={null}>
             <ColorPlane isDark={effectiveIsDark} />

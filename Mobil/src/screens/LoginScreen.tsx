@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { Text, View, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { appStyles } from '../styles';
 import { authAPI } from '../utils/api';
-
-
-
 
 interface LoginScreenProps {
   theme: any;
@@ -88,6 +86,7 @@ export const LoginScreen = ({ theme, onLoginSuccess, onSkip }: LoginScreenProps)
 
   return (
     <View style={[appStyles.loginContainer, { backgroundColor: theme.background }]}>
+      <MaterialCommunityIcons name="hospital-box" size={64} color={theme.accent} style={{ marginBottom: 24 }} />
       <Text style={[appStyles.loginTitle, { color: theme.text }]}>TARAS</Text>
       <Text style={[appStyles.loginSubtitle, { color: theme.textSecondary }]}>
         Tarım Dijital İkiz Platformu
