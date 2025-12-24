@@ -141,9 +141,9 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
   const currentColor = COLORS[colorIndex];
 
   return (
-    <group ref={groupRef} position={[0, 0, 0]}>
+    <group ref={groupRef} position={[0, 0.8, 0]}>
       <mesh ref={meshRef} position={[0, 0, 0]} castShadow receiveShadow>
-        <boxGeometry args={[8, 1.5, 8]} />
+        <boxGeometry args={[10, 1.5, 10]} />
         <meshStandardMaterial
           color={currentColor}
           metalness={0.4}
