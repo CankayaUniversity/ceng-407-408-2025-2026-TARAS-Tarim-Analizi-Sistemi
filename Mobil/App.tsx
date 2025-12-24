@@ -12,9 +12,14 @@ import { useChat } from './src/hooks/useChat';
 import { getTheme } from './src/utils/theme';
 import { ChatWindow } from './src/components/ChatWindow';
 import { LoginScreen, HomeScreen, DiseaseScreen, TimetableScreen, SettingsScreen, ThemeMode } from './src/screens';
+import { authAPI } from './src/utils/api';
 
 // Suppress SafeAreaView deprecation warnings coming from third-party libs
-LogBox.ignoreLogs(['SafeAreaView has been deprecated']);
+LogBox.ignoreLogs([
+  'SafeAreaView has been deprecated',
+  'EXGL',
+  'THREE.WebGLRenderer',
+]);
 
 export default function App() {
   const systemColorScheme = useColorScheme();
@@ -22,9 +27,22 @@ export default function App() {
   const [screen, setScreen] = useState<ScreenType>(SCREEN_TYPE.LOGIN);
   const [showPopup, setShowPopup] = useState(false);
   const [themeMode, setThemeMode] = useState<ThemeMode>('system');
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen);
   const { height: windowHeight } = useWindowDimensions();
   const [permission, requestPermissionFn] = useCameraPermissions();
+  
+  // Check for existing authentication on app start
+  useEffect(() => {
+    const checkAuth = async () => {
+      const isAuthenticated = await authAPI.isAuthenticated();
+      if (isAuthenticated) {
+        setScreen(SCREEN_TYPE.HOME);
+      }
+      setIsCheckingAuth(false);
+    };
+    checkAuth();
+  }, []);
   
   // Determine effective dark mode based on themeMode
   const getEffectiveDarkMode = () => {
@@ -46,6 +64,19 @@ export default function App() {
   const chatHeight = keyboardHeight > 0
     ? windowHeight - keyboardHeight - 80
     : Math.min(windowHeight * 0.6, 500);
+
+  // Show loading screen while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
+          <View style={[appStyles.container, { backgroundColor: theme.background, justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={{ color: theme.text }}>Yükleniyor...</Text>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
 
   const requestPermission = async () => {
     try {
@@ -85,7 +116,8 @@ export default function App() {
           effectiveIsDark={effectiveIsDarkMode}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
-          onLogout={() => {
+          onLogout={async () => {
+            await authAPI.logout();
             setThemeMode('system');
             setScreen(SCREEN_TYPE.LOGIN);
           }}

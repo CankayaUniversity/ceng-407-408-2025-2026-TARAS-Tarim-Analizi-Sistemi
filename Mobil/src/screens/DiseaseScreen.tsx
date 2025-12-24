@@ -1,11 +1,10 @@
 import { View, Text, TouchableOpacity } from 'react-native';
-import { CameraView, CameraPermissionStatus } from 'expo-camera';
+import { CameraView, PermissionResponse } from 'expo-camera';
 import { appStyles } from '../styles';
-import { HEADER_TEXT } from '../constants';
 
 interface DiseaseScreenProps {
   theme: any;
-  permission: CameraPermissionStatus | null;
+  permission: PermissionResponse | null;
   onRequestPermission: () => void;
 }
 

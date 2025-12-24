@@ -83,7 +83,7 @@ export const SettingsScreen = ({
               onPress={() => onThemeModeChange(option.mode)}
             >
               <MaterialCommunityIcons
-                name={option.icon}
+                name={option.icon as any}
                 size={24}
                 color={themeMode === option.mode ? '#fff' : theme.accent}
                 style={{ marginBottom: 4 }}
