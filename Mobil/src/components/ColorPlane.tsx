@@ -18,7 +18,6 @@ const TAP_DISTANCE_THRESHOLD = 15;
 
 interface ColorPlaneProps {
   isDark?: boolean;
-  backgroundColor?: string;
 }
 
 interface Position {

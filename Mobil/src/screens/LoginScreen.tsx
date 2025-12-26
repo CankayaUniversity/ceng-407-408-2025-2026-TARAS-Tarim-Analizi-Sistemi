@@ -24,26 +24,16 @@ export const LoginScreen = ({ theme, onLoginSuccess, onSkip }: LoginScreenProps)
     }
 
     setIsLoading(true);
-    try {
-      console.log('Attempting login with:', email.trim());
-      const response = await authAPI.login(email.trim(), password);
-      
-      console.log('Login response:', response);
-      
-      if (response.success) {
-        Alert.alert('Başarılı', `Hoş geldiniz, ${response.data?.user.username}!`);
-        setEmail('');
-        setPassword('');
-        onLoginSuccess();
-      } else {
-        console.error('Login failed:', response.error);
-        Alert.alert('Giriş Başarısız', response.error || 'Kullanıcı adı/e-posta veya şifre hatalı.');
-      }
-    } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı. Lütfen backend sunucusunun çalıştığından emin olun.');
-    } finally {
-      setIsLoading(false);
+    const response = await authAPI.login(email.trim(), password);
+    setIsLoading(false);
+
+    if (response.success) {
+      Alert.alert('Başarılı', `Hoş geldiniz, ${response.data?.user.username}!`);
+      setEmail('');
+      setPassword('');
+      onLoginSuccess();
+    } else {
+      Alert.alert('Giriş Başarısız', response.error || 'Kullanıcı adı/e-posta veya şifre hatalı.');
     }
   };
 
@@ -54,27 +44,17 @@ export const LoginScreen = ({ theme, onLoginSuccess, onSkip }: LoginScreenProps)
     }
 
     setIsLoading(true);
-    try {
-      console.log('Attempting registration with:', username.trim(), email.trim());
-      const response = await authAPI.register(username.trim(), email.trim(), password);
-      
-      console.log('Registration response:', response);
-      
-      if (response.success) {
-        Alert.alert('Başarılı', `Hesabınız oluşturuldu, hoş geldiniz ${response.data?.user.username}!`);
-        setEmail('');
-        setPassword('');
-        setUsername('');
-        onLoginSuccess();
-      } else {
-        console.error('Registration failed:', response.error);
-        Alert.alert('Kayıt Başarısız', response.error || 'Kayıt işlemi başarısız oldu.');
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      Alert.alert('Bağlantı Hatası', 'Sunucuya bağlanılamadı.');
-    } finally {
-      setIsLoading(false);
+    const response = await authAPI.register(username.trim(), email.trim(), password);
+    setIsLoading(false);
+
+    if (response.success) {
+      Alert.alert('Başarılı', `Hesabınız oluşturuldu, hoş geldiniz ${response.data?.user.username}!`);
+      setEmail('');
+      setPassword('');
+      setUsername('');
+      onLoginSuccess();
+    } else {
+      Alert.alert('Kayıt Başarısız', response.error || 'Kayıt işlemi başarısız oldu.');
     }
   };
 

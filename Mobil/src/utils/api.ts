@@ -1,134 +1,35 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { io, Socket } from 'socket.io-client';
 
-// Use your computer's IP address when testing on a physical device
-// Use 'localhost' when testing on emulator/simulator
-const API_BASE_URL = 'http://172.25.142.181:3000/api';
+const API_HOST = 'http://13.61.7.197:3000';
+const API_BASE_URL = `${API_HOST}/api`;
 const TOKEN_KEY = 'auth_token';
 
-interface LoginResponse {
+let socket: Socket | null = null;
+
+// Types
+interface ApiResponse<T> {
   success: boolean;
-  data?: {
-    token: string;
-    user: {
-      user_id: number;
-      username: string;
-      email: string;
-      role: string;
-    };
-  };
+  data?: T;
   error?: string;
 }
 
-interface UserResponse {
-  success: boolean;
-  data?: {
-    user_id: number;
-    username: string;
-    email: string;
-    role: string;
-    farms: any[];
-    unread_alerts: number;
-  };
-  error?: string;
+interface User {
+  user_id: number;
+  username: string;
+  email: string;
+  role: string;
 }
 
-export const authAPI = {
-  async login(identifier: string, password: string): Promise<LoginResponse> {
-    try {
-      console.log('Sending login request to:', `${API_BASE_URL}/auth/login`);
-      console.log('With credentials:', { identifier, password: '***' });
-      
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ identifier, password }),
-      });
+interface LoginData {
+  token: string;
+  user: User;
+}
 
-      console.log('Response status:', response.status);
-      const data = await response.json();
-      console.log('Response data:', data);
-
-      if (data.success && data.data?.token) {
-        await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Login API error:', error);
-      return {
-        success: false,
-        error: 'Bağlantı hatası. Backend sunucusuna erişilemiyor.',
-      };
-    }
-  },
-
-  async register(username: string, email: string, password: string): Promise<LoginResponse> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, email, password }),
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.data?.token) {
-        await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Register error:', error);
-      return {
-        success: false,
-        error: 'Bağlantı hatası. Lütfen tekrar deneyin.',
-      };
-    }
-  },
-
-  async getProfile(): Promise<UserResponse> {
-    try {
-      const token = await AsyncStorage.getItem(TOKEN_KEY);
-      if (!token) {
-        return {
-          success: false,
-          error: 'Oturum bulunamadı',
-        };
-      }
-
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      return response.json();
-    } catch (error) {
-      console.error('Profile error:', error);
-      return {
-        success: false,
-        error: 'Profil yüklenemedi',
-      };
-    }
-  },
-
-  async logout(): Promise<void> {
-    await AsyncStorage.removeItem(TOKEN_KEY);
-  },
-
-  async getToken(): Promise<string | null> {
-    return AsyncStorage.getItem(TOKEN_KEY);
-  },
-
-  async isAuthenticated(): Promise<boolean> {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
-    return !!token;
-  },
-};
+interface ProfileData extends User {
+  farms: any[];
+  unread_alerts: number;
+}
 
 interface SensorReading {
   sensor_node_id: string;
@@ -138,120 +39,191 @@ interface SensorReading {
   timestamp: string;
 }
 
-interface SensorData {
-  success: boolean;
-  data?: {
-    zone_id: string;
-    zone_name: string;
-    sensors: Array<{
-      sensor_node_id: string;
-      sensor_type: string;
-      latest_reading?: SensorReading;
-    }>;
-  };
-  error?: string;
+interface Zone {
+  zone_id: string;
+  zone_name: string;
+  field_name: string;
+  farm_name: string;
 }
 
-interface HistoricalSensorData {
-  success: boolean;
-  data?: {
-    zone_id: string;
-    zone_name: string;
-    readings: SensorReading[];
-  };
-  error?: string;
+// Helpers
+async function getAuthHeaders() {
+  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  return token ? { Authorization: `Bearer ${token}` } : null;
 }
 
-interface ZonesResponse {
-  success: boolean;
-  data?: {
-    zones: Array<{
+async function authFetch<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+  const headers = await getAuthHeaders();
+  if (!headers) return { success: false, error: 'Oturum bulunamadı' };
+
+  try {
+    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: { ...headers, ...options.headers },
+    });
+    return res.json();
+  } catch {
+    return { success: false, error: 'Bağlantı hatası' };
+  }
+}
+
+// Auth API
+export const authAPI = {
+  async login(identifier: string, password: string): Promise<ApiResponse<LoginData>> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.data?.token) {
+        await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'Sunucuya bağlanılamadı' };
+    }
+  },
+
+  async register(username: string, email: string, password: string): Promise<ApiResponse<LoginData>> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, password }),
+      });
+      const data = await res.json();
+
+      if (data.success && data.data?.token) {
+        await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+      }
+      return data;
+    } catch {
+      return { success: false, error: 'Sunucuya bağlanılamadı' };
+    }
+  },
+
+  async getProfile(): Promise<ApiResponse<ProfileData>> {
+    return authFetch('/auth/me');
+  },
+
+  async logout() {
+    await AsyncStorage.removeItem(TOKEN_KEY);
+  },
+
+  async getToken() {
+    return AsyncStorage.getItem(TOKEN_KEY);
+  },
+
+  async isAuthenticated() {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    return !!token;
+  },
+};
+
+// Sensor API
+export const sensorAPI = {
+  async getUserZones(): Promise<ApiResponse<{ zones: Zone[] }>> {
+    return authFetch('/sensors/zones');
+  },
+
+  async getZoneSensors(zoneId: string) {
+    return authFetch<{
       zone_id: string;
       zone_name: string;
-      field_name: string;
-      farm_name: string;
-    }>;
-  };
-  error?: string;
+      sensors: Array<{ sensor_node_id: string; sensor_type: string; latest_reading?: SensorReading }>;
+    }>(`/sensors/zone/${zoneId}/latest`);
+  },
+
+  async getZoneHistory(zoneId: string, hours = 24) {
+    return authFetch<{
+      zone_id: string;
+      zone_name: string;
+      readings: SensorReading[];
+    }>(`/sensors/zone/${zoneId}/history?hours=${hours}`);
+  },
+};
+
+// Socket API
+export interface SensorDataEvent {
+  sensor_node_id: string;
+  sensor_type: string;
+  value: number;
+  unit: string;
+  timestamp: string;
 }
 
-export const sensorAPI = {
-  async getUserZones(): Promise<ZonesResponse> {
+export const socketAPI = {
+  async connect(): Promise<Socket | null> {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) return null;
+    if (socket?.connected) return socket;
+
+    socket = io(API_HOST, {
+      auth: { token },
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    return socket;
+  },
+
+  onSensorData(callback: (data: SensorDataEvent) => void) {
+    socket?.on('sensor-data', callback);
+  },
+
+  offSensorData(callback?: (data: SensorDataEvent) => void) {
+    callback ? socket?.off('sensor-data', callback) : socket?.off('sensor-data');
+  },
+
+  disconnect() {
+    socket?.disconnect();
+    socket = null;
+  },
+
+  isConnected: () => socket?.connected ?? false,
+  getSocket: () => socket,
+};
+
+// Images API
+export const imagesAPI = {
+  async upload(imageUri: string, fileName = 'image.jpg') {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) return { success: false, error: 'Oturum bulunamadı' };
+
+    const formData = new FormData();
+    formData.append('image', { uri: imageUri, type: 'image/jpeg', name: fileName } as any);
+
     try {
-      const token = await AsyncStorage.getItem(TOKEN_KEY);
-      if (!token) {
-        return { success: false, error: 'Oturum bulunamadı' };
-      }
-
-      console.log('Fetching zones from:', `${API_BASE_URL}/sensors/zones`);
-      const response = await fetch(`${API_BASE_URL}/sensors/zones`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const res = await fetch(`${API_BASE_URL}/images/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' },
+        body: formData,
       });
-
-      const data = await response.json();
-      console.log('Zones response:', data);
-      return data;
-    } catch (error) {
-      console.error('Zones fetch error:', error);
-      return {
-        success: false,
-        error: 'Zonalar yüklenemedi',
-      };
+      return res.json();
+    } catch {
+      return { success: false, error: 'Görsel yüklenemedi' };
     }
   },
 
-  async getZoneSensors(zoneId: string): Promise<SensorData> {
-    try {
-      const token = await AsyncStorage.getItem(TOKEN_KEY);
-      if (!token) {
-        return { success: false, error: 'Oturum bulunamadı' };
-      }
-
-      const response = await fetch(`${API_BASE_URL}/sensors/zone/${zoneId}/latest`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      return response.json();
-    } catch (error) {
-      console.error('Sensor data error:', error);
-      return {
-        success: false,
-        error: 'Sensör verileri yüklenemedi',
-      };
-    }
+  async list() {
+    return authFetch<Array<{ image_id: string; url: string; created_at: string }>>('/images');
   },
+};
 
-  async getZoneHistory(zoneId: string, hours: number = 24): Promise<HistoricalSensorData> {
+// Health API
+export const healthAPI = {
+  async check() {
     try {
-      const token = await AsyncStorage.getItem(TOKEN_KEY);
-      if (!token) {
-        return { success: false, error: 'Oturum bulunamadı' };
-      }
-
-      const url = `${API_BASE_URL}/sensors/zone/${zoneId}/history?hours=${hours}`;
-      console.log('Fetching sensor history from:', url);
-      
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      console.log('Sensor history response status:', response.status);
-      const data = await response.json();
-      console.log('Sensor history data:', JSON.stringify(data).substring(0, 200));
-      
-      return data;
-    } catch (error) {
-      console.error('Sensor history error:', error);
-      return {
-        success: false,
-        error: 'Sensör geçmişi yüklenemedi',
-      };
+      const res = await fetch(`${API_HOST}/health`);
+      const data = await res.json();
+      return { success: true, status: data.status || 'ok' };
+    } catch {
+      return { success: false, error: 'Sunucuya erişilemiyor' };
     }
   },
 };

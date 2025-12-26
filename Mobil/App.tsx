@@ -1,12 +1,12 @@
+import 'react-native-url-polyfill/auto';
 import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, TouchableOpacity, Pressable, useWindowDimensions, useColorScheme, LogBox } from 'react-native';
+import { Text, View, TouchableOpacity, Pressable, useWindowDimensions, useColorScheme } from 'react-native';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCameraPermissions } from 'expo-camera';
 import { SCREEN_TYPE, NAV_ITEMS, ScreenType } from './src/constants';
 import { appStyles } from './src/styles';
-import { useTheme } from './src/hooks/useTheme';
 import { useKeyboard } from './src/hooks/useKeyboard';
 import { useChat } from './src/hooks/useChat';
 import { getTheme } from './src/utils/theme';
@@ -14,59 +14,31 @@ import { ChatWindow } from './src/components/ChatWindow';
 import { LoginScreen, HomeScreen, DiseaseScreen, TimetableScreen, SettingsScreen, ThemeMode } from './src/screens';
 import { authAPI } from './src/utils/api';
 
-// Suppress SafeAreaView deprecation warnings coming from third-party libs
-LogBox.ignoreLogs([
-  'SafeAreaView has been deprecated',
-  'EXGL',
-  'THREE.WebGLRenderer',
-]);
-
 export default function App() {
   const systemColorScheme = useColorScheme();
   const { keyboardHeight } = useKeyboard();
-  const [screen, setScreen] = useState<ScreenType>(SCREEN_TYPE.LOGIN);
-  const [showPopup, setShowPopup] = useState(false);
-  const [themeMode, setThemeMode] = useState<ThemeMode>('system');
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen);
   const { height: windowHeight } = useWindowDimensions();
-  const [permission, requestPermissionFn] = useCameraPermissions();
+  const [permission, requestPermission] = useCameraPermissions();
   
-  // Check for existing authentication on app start
+  const [screen, setScreen] = useState<ScreenType>(SCREEN_TYPE.LOGIN);
+  const [showChat, setShowChat] = useState(false);
+  const [themeMode, setThemeMode] = useState<ThemeMode>('system');
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen);
+
   useEffect(() => {
-    const checkAuth = async () => {
-      const isAuthenticated = await authAPI.isAuthenticated();
-      if (isAuthenticated) {
-        setScreen(SCREEN_TYPE.HOME);
-      }
-      setIsCheckingAuth(false);
-    };
-    checkAuth();
+    authAPI.isAuthenticated().then((auth) => {
+      if (auth) setScreen(SCREEN_TYPE.HOME);
+      setIsLoading(false);
+    });
   }, []);
-  
-  // Determine effective dark mode based on themeMode
-  const getEffectiveDarkMode = () => {
-    if (themeMode === 'light') return false;
-    if (themeMode === 'dark') return true;
-    if (themeMode === 'system') {
-      // Use systemColorScheme from useColorScheme hook
-      return systemColorScheme === 'dark';
-    }
-    if (themeMode === 'weather') {
-      // TODO: Implement weather-based logic
-      return systemColorScheme === 'dark';
-    }
-    return systemColorScheme === 'dark';
-  };
 
-  const effectiveIsDarkMode = getEffectiveDarkMode();
-  const theme = getTheme(effectiveIsDarkMode);
-  const chatHeight = keyboardHeight > 0
-    ? windowHeight - keyboardHeight - 80
-    : Math.min(windowHeight * 0.6, 500);
+  const isDark = themeMode === 'dark' || (themeMode !== 'light' && systemColorScheme === 'dark');
+  const theme = getTheme(isDark);
+  const chatHeight = keyboardHeight > 0 ? windowHeight - keyboardHeight - 80 : Math.min(windowHeight * 0.6, 500);
 
-  // Show loading screen while checking authentication
-  if (isCheckingAuth) {
+  if (isLoading) {
     return (
       <SafeAreaProvider>
         <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
@@ -78,61 +50,34 @@ export default function App() {
     );
   }
 
-  const requestPermission = async () => {
-    try {
-      await requestPermissionFn();
-    } catch (error) {
-      console.error('Camera permission error:', error);
-    }
+  const handleLogout = async () => {
+    await authAPI.logout();
+    setThemeMode('system');
+    setScreen(SCREEN_TYPE.LOGIN);
   };
 
   const renderContent = () => {
-    if (screen === SCREEN_TYPE.LOGIN) {
-      return (
-        <LoginScreen
-          theme={theme}
-          onLoginSuccess={() => setScreen(SCREEN_TYPE.HOME)}
-          onSkip={() => setScreen(SCREEN_TYPE.HOME)}
-        />
-      );
+    switch (screen) {
+      case SCREEN_TYPE.LOGIN:
+        return <LoginScreen theme={theme} onLoginSuccess={() => setScreen(SCREEN_TYPE.HOME)} onSkip={() => setScreen(SCREEN_TYPE.HOME)} />;
+      case SCREEN_TYPE.HOME:
+        return <HomeScreen theme={theme} isDark={isDark} />;
+      case SCREEN_TYPE.DISEASE:
+        return <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} />;
+      case SCREEN_TYPE.TIMETABLE:
+        return <TimetableScreen theme={theme} />;
+      case SCREEN_TYPE.SETTINGS:
+        return <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} />;
+      default:
+        return null;
     }
-
-    if (screen === SCREEN_TYPE.HOME) {
-      return <HomeScreen theme={theme} effectiveIsDark={effectiveIsDarkMode} />;
-    }
-
-    if (screen === SCREEN_TYPE.DISEASE) {
-      return <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} />;
-    }
-
-    if (screen === SCREEN_TYPE.TIMETABLE) {
-      return <TimetableScreen theme={theme} />;
-    }
-
-    if (screen === SCREEN_TYPE.SETTINGS) {
-      return (
-        <SettingsScreen
-          theme={theme}
-          effectiveIsDark={effectiveIsDarkMode}
-          themeMode={themeMode}
-          onThemeModeChange={setThemeMode}
-          onLogout={async () => {
-            await authAPI.logout();
-            setThemeMode('system');
-            setScreen(SCREEN_TYPE.LOGIN);
-          }}
-        />
-      );
-    }
-
-    return null;
   };
 
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
         <View style={[appStyles.container, { backgroundColor: theme.background }]}>
-          <StatusBar style={effectiveIsDarkMode ? 'light' : 'dark'} />
+          <StatusBar style={isDark ? 'light' : 'dark'} />
           {renderContent()}
 
           {screen !== SCREEN_TYPE.LOGIN && (
@@ -161,21 +106,18 @@ export default function App() {
           )}
 
           {screen !== SCREEN_TYPE.LOGIN && (
-            <TouchableOpacity
-              style={[appStyles.fab, { backgroundColor: theme.accent }]}
-              onPress={() => setShowPopup(true)}
-            >
+            <TouchableOpacity style={[appStyles.fab, { backgroundColor: theme.accent }]} onPress={() => setShowChat(true)}>
               <MaterialCommunityIcons name="chat" size={28} color="#fff" />
             </TouchableOpacity>
           )}
 
           <ChatWindow
-            visible={showPopup}
+            visible={showChat}
             messages={messages}
             chatInput={chatInput}
             chatHeight={chatHeight}
             theme={theme}
-            onClose={() => setShowPopup(false)}
+            onClose={() => setShowChat(false)}
             onSendMessage={sendMessage}
             onInputChange={setChatInput}
           />

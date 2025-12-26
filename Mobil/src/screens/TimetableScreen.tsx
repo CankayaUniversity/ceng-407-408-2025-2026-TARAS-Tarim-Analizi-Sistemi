@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator, Dimensions, RefreshControl } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
+import { View, Text, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { LineChart } from 'react-native-gifted-charts';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { appStyles } from '../styles';
 import { HEADER_TEXT } from '../constants';
 import { sensorAPI } from '../utils/api';
+import { Theme } from '../types';
 
 interface TimetableScreenProps {
-  theme: any;
+  theme: Theme;
 }
 
 interface SensorReading {
@@ -18,91 +19,60 @@ interface SensorReading {
   timestamp: string;
 }
 
+interface ChartDataPoint {
+  value: number;
+  label?: string;
+}
+
 export const TimetableScreen = ({ theme }: TimetableScreenProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [temperatureData, setTemperatureData] = useState<number[]>([]);
-  const [humidityData, setHumidityData] = useState<number[]>([]);
-  const [soilMoistureData, setSoilMoistureData] = useState<number[]>([]);
-  const [labels, setLabels] = useState<string[]>([]);
+  const [temperatureData, setTemperatureData] = useState<ChartDataPoint[]>([]);
+  const [humidityData, setHumidityData] = useState<ChartDataPoint[]>([]);
+  const [soilMoistureData, setSoilMoistureData] = useState<ChartDataPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [zoneName, setZoneName] = useState<string>('');
-  const [zoneId, setZoneId] = useState<string | null>(null);
+  const [zoneName, setZoneName] = useState('');
 
   const fetchSensorData = async () => {
     try {
       setError(null);
-      
-      // Step 1: Get available zones
-      console.log('Step 1: Fetching zones...');
+
       const zonesResponse = await sensorAPI.getUserZones();
-      
+
       if (!zonesResponse.success || !zonesResponse.data?.zones.length) {
         setError(zonesResponse.error || 'Erişilebilir zona bulunamadı');
-        setIsLoading(false);
-        setRefreshing(false);
         return;
       }
-      
-      // Use the first available zone
+
       const firstZone = zonesResponse.data.zones[0];
-      const currentZoneId = firstZone.zone_id;
-      setZoneId(currentZoneId);
       setZoneName(`${firstZone.zone_name} - ${firstZone.field_name}`);
-      
-      console.log('Step 2: Fetching sensor data for zone:', currentZoneId);
-      
-      // Step 2: Get sensor data for the zone
-      const response = await sensorAPI.getZoneHistory(currentZoneId, 24);
-      
-      console.log('Step 3: Got sensor response:', response.success);
-      console.log('Response has data:', !!response.data);
-      
-      if (response.success && response.data) {
-        const readings = response.data.readings;
-        console.log('Number of readings:', readings?.length || 0);
-        
-        if (!readings || readings.length === 0) {
-          console.log('No readings available for this zone');
-          setError('Bu zona için henüz veri bulunmuyor');
-          setIsLoading(false);
-          setRefreshing(false);
-          return;
-        }
-        
-        // Group readings by sensor type
-        const tempReadings = readings.filter(r => r.sensor_type === 'temperature');
-        const humidReadings = readings.filter(r => r.sensor_type === 'humidity');
-        const soilReadings = readings.filter(r => r.sensor_type === 'soil_moisture');
-        
-        console.log('Temp readings:', tempReadings.length, 'Humid:', humidReadings.length, 'Soil:', soilReadings.length);
-        
-        // Take last 10 readings for each type
-        const getLastN = (arr: SensorReading[], n: number = 10) => arr.slice(-n);
-        
-        const lastTemp = getLastN(tempReadings);
-        const lastHumid = getLastN(humidReadings);
-        const lastSoil = getLastN(soilReadings);
-        
-        // Extract values
-        setTemperatureData(lastTemp.map(r => r.value));
-        setHumidityData(lastHumid.map(r => r.value));
-        setSoilMoistureData(lastSoil.map(r => r.value));
-        
-        // Extract time labels from temperature readings
-        const timeLabels = lastTemp.map(r => {
-          const date = new Date(r.timestamp);
-          return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-        });
-        setLabels(timeLabels.length > 0 ? timeLabels : ['--']);
-        
-        console.log('Data successfully processed and set');
-      } else {
-        console.log('Response error:', response.error);
+
+      const response = await sensorAPI.getZoneHistory(firstZone.zone_id, 24);
+
+      if (!response.success || !response.data) {
         setError(response.error || 'Sensör verileri yüklenemedi');
+        return;
       }
-    } catch (error) {
-      console.error('Sensor fetch error:', error);
+
+      const readings = response.data.readings;
+      if (!readings?.length) {
+        setError('Bu zona için henüz veri bulunmuyor');
+        return;
+      }
+
+      const toChartData = (arr: SensorReading[]): ChartDataPoint[] =>
+        arr.slice(-10).map((r, i) => {
+          const date = new Date(r.timestamp);
+          return {
+            value: r.value,
+            label: i % 2 === 0 ? `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}` : '',
+          };
+        });
+
+      setTemperatureData(toChartData(readings.filter(r => r.sensor_type === 'temperature')));
+      setHumidityData(toChartData(readings.filter(r => r.sensor_type === 'humidity')));
+      setSoilMoistureData(toChartData(readings.filter(r => r.sensor_type === 'soil_moisture')));
+    } catch {
       setError('Bağlantı hatası');
     } finally {
       setIsLoading(false);
@@ -117,21 +87,6 @@ export const TimetableScreen = ({ theme }: TimetableScreenProps) => {
   const onRefresh = () => {
     setRefreshing(true);
     fetchSensorData();
-  };
-
-  const screenWidth = Dimensions.get('window').width;
-
-  const chartConfig = {
-    backgroundGradientFrom: theme.background,
-    backgroundGradientTo: theme.background,
-    color: (opacity = 1) => `rgba(76, 175, 80, ${opacity})`,
-    strokeWidth: 2,
-    useShadowColorFromDataset: false,
-    decimalPlaces: 1,
-    propsForLabels: {
-      fontSize: 10,
-      fill: theme.textSecondary,
-    },
   };
 
   if (isLoading) {
@@ -162,6 +117,37 @@ export const TimetableScreen = ({ theme }: TimetableScreenProps) => {
     );
   }
 
+  const ChartCard = ({ title, icon, color, data }: { title: string; icon: string; color: string; data: ChartDataPoint[] }) => {
+    if (data.length === 0) return null;
+    return (
+      <View style={{ marginBottom: 24, backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <MaterialCommunityIcons name={icon as any} size={24} color={color} />
+          <Text style={{ marginLeft: 8, fontSize: 16, fontWeight: '600', color: theme.text }}>{title}</Text>
+        </View>
+        <LineChart
+          data={data}
+          width={280}
+          height={180}
+          color={color}
+          thickness={2}
+          hideDataPoints={false}
+          dataPointsColor={color}
+          xAxisColor={theme.textSecondary}
+          yAxisColor={theme.textSecondary}
+          xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
+          yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
+          curved
+          areaChart
+          startFillColor={color}
+          endFillColor={theme.background}
+          startOpacity={0.3}
+          endOpacity={0}
+        />
+      </View>
+    );
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.background }}
@@ -175,74 +161,9 @@ export const TimetableScreen = ({ theme }: TimetableScreenProps) => {
           {zoneName || 'Yükleniyor...'} - Son 24 Saat
         </Text>
 
-        {/* Temperature Chart */}
-        {temperatureData.length > 0 && (
-          <View style={{ marginBottom: 24, backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <MaterialCommunityIcons name="thermometer" size={24} color="#FF6B6B" />
-              <Text style={{ marginLeft: 8, fontSize: 16, fontWeight: '600', color: theme.text }}>
-                Sıcaklık (°C)
-              </Text>
-            </View>
-            <LineChart
-              data={{
-                labels: labels,
-                datasets: [{ data: temperatureData, color: () => '#FF6B6B', strokeWidth: 2 }],
-              }}
-              width={screenWidth - 64}
-              height={200}
-              chartConfig={{ ...chartConfig, color: () => '#FF6B6B' }}
-              bezier
-              style={{ borderRadius: 8 }}
-            />
-          </View>
-        )}
-
-        {/* Humidity Chart */}
-        {humidityData.length > 0 && (
-          <View style={{ marginBottom: 24, backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <MaterialCommunityIcons name="water-percent" size={24} color="#4ECDC4" />
-              <Text style={{ marginLeft: 8, fontSize: 16, fontWeight: '600', color: theme.text }}>
-                Nem (%)
-              </Text>
-            </View>
-            <LineChart
-              data={{
-                labels: labels,
-                datasets: [{ data: humidityData, color: () => '#4ECDC4', strokeWidth: 2 }],
-              }}
-              width={screenWidth - 64}
-              height={200}
-              chartConfig={{ ...chartConfig, color: () => '#4ECDC4' }}
-              bezier
-              style={{ borderRadius: 8 }}
-            />
-          </View>
-        )}
-
-        {/* Soil Moisture Chart */}
-        {soilMoistureData.length > 0 && (
-          <View style={{ marginBottom: 24, backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-              <MaterialCommunityIcons name="flower" size={24} color="#95E1D3" />
-              <Text style={{ marginLeft: 8, fontSize: 16, fontWeight: '600', color: theme.text }}>
-                Toprak Nemi (%)
-              </Text>
-            </View>
-            <LineChart
-              data={{
-                labels: labels,
-                datasets: [{ data: soilMoistureData, color: () => '#95E1D3', strokeWidth: 2 }],
-              }}
-              width={screenWidth - 64}
-              height={200}
-              chartConfig={{ ...chartConfig, color: () => '#95E1D3' }}
-              bezier
-              style={{ borderRadius: 8 }}
-            />
-          </View>
-        )}
+        <ChartCard title="Sıcaklık (°C)" icon="thermometer" color="#FF6B6B" data={temperatureData} />
+        <ChartCard title="Nem (%)" icon="water-percent" color="#4ECDC4" data={humidityData} />
+        <ChartCard title="Toprak Nemi (%)" icon="flower" color="#95E1D3" data={soilMoistureData} />
       </View>
     </ScrollView>
   );

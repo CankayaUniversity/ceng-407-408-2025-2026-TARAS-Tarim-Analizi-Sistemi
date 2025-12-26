@@ -18,7 +18,7 @@ export async function fetchWeatherInfo(
   const params = new URLSearchParams({
     latitude: latitude.toString(),
     longitude: longitude.toString(),
-    // Günlük veriler – şimdilik kullanmıyoruz ama sende URL’de vardı, bırakıyorum:
+    // Günlük veriler – şimdilik kullanmıyoruz ama sende URL'de vardı, bırakıyorum:
     daily: 'sunrise,sunset',
     // Saatlik almak istediğimiz değişkenler:
     hourly: 'temperature_2m,soil_temperature_18cm,relative_humidity_2m',

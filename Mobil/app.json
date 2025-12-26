@@ -9,7 +9,7 @@
     [
       "expo-camera",
       {
-        "cameraPermission": "Allow TarasMobil to access your camera to detect diseases."
+        "cameraPermission": "Allow TarasMobil to access your camera."
       }
     ]
   ],
