@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+package-lock.json
+# Environment
+.env
+.env.local
+
+# Archives
+*.zip
+
+# Deployment (contains secrets)
+deploy.ps1
+aws-*.ps1
+logs.ps1
+*.pem
+
+# Build
+dist/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma
+.prisma/
