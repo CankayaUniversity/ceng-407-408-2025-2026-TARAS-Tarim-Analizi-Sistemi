@@ -1,3 +1,4 @@
+import "./global.css";
 import 'react-native-url-polyfill/auto';
 import { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
@@ -116,6 +117,7 @@ export default function App() {
             messages={messages}
             chatInput={chatInput}
             chatHeight={chatHeight}
+            keyboardHeight={keyboardHeight}
             theme={theme}
             onClose={() => setShowChat(false)}
             onSendMessage={sendMessage}

@@ -6,6 +6,7 @@ import { HEADER_TEXT } from '../constants';
 import { appStyles } from '../styles';
 import { FontAwesome6, MaterialIcons, Entypo } from '@expo/vector-icons'; 
 import { fetchWeatherInfo, WeatherInfo } from '../utils/weatherAPI';
+
 interface HomeScreenProps {
   theme: Theme;
   isDark: boolean;
@@ -20,11 +21,11 @@ interface MetricItemProps {
 }
 
 const MetricItem = ({ label, value, unit = '%', icon, theme }: MetricItemProps) => (
-  <View style={{ flex: 1, flexDirection: 'row', marginBottom: 16 }}>
-    <View style={{ marginRight: 8, justifyContent: 'center' }}>{icon}</View>
+  <View className="flex-1 flex-row mb-4">
+    <View className="mr-2 justify-center">{icon}</View>
     <View>
-      <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 2 }}>{label}</Text>
-      <Text style={{ color: theme.text, fontSize: 18, fontWeight: '700' }}>
+      <Text className="text-xs mb-0.5" style={{ color: theme.textSecondary }}>{label}</Text>
+      <Text className="text-lg font-bold" style={{ color: theme.text }}>
         {value !== null ? `${unit}${value}` : '-'}
       </Text>
     </View>
@@ -44,24 +45,24 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
   const irrigationTime = '40'; // Mock data
 
   return (
-    <View style={{ paddingHorizontal: 24, marginTop: 16 }}>
-      <View style={{ borderRadius: 16, borderWidth: 1, borderColor: theme.accent, padding: 16, backgroundColor: theme.surface }}>
+    <View className="px-6 mt-4">
+      <View className="rounded-2xl border border-taras-500 p-4" style={{ backgroundColor: theme.surface }}>
         {loading && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <View className="flex-row items-center mb-2">
             <ActivityIndicator size="small" color={theme.accent} />
-            <Text style={{ marginLeft: 8, color: theme.textSecondary, fontSize: 12 }}>Hava verisi yükleniyor...</Text>
+            <Text className="ml-2 text-xs text-taras-600">Hava verisi yükleniyor...</Text>
           </View>
         )}
 
-        <View style={{ flexDirection: 'row' }}>
+        <View className="flex-row">
           <MetricItem theme={theme} label="Hava Sıcaklığı" value={airTemp} unit="°C " icon={<FontAwesome6 name="temperature-three-quarters" size={24} color={theme.text} />} />
-          <View style={{ width: 12 }} />
+          <View className="w-3" />
           <MetricItem theme={theme} label="Hava Nemi" value={airHumidity} icon={<MaterialIcons name="water-drop" size={24} color={theme.text} />} />
         </View>
 
-        <View style={{ flexDirection: 'row', marginTop: 4 }}>
+        <View className="flex-row mt-1">
           <MetricItem theme={theme} label="Sulama Saati" value={irrigationTime} icon={<FontAwesome6 name="clock" size={24} color={theme.text} />} />
-          <View style={{ width: 12 }} />
+          <View className="w-3" />
           <MetricItem theme={theme} label="Toprak Nemi" value={soilMoisture} icon={<Entypo name="air" size={24} color={theme.text} />} />
         </View>
       </View>

@@ -5,8 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
 } from 'react-native';
@@ -18,6 +16,7 @@ interface ChatWindowProps {
   messages: ChatMessage[];
   chatInput: string;
   chatHeight: number;
+  keyboardHeight: number;
   theme: Theme;
   onClose: () => void;
   onSendMessage: () => void;
@@ -29,6 +28,7 @@ export const ChatWindow = ({
   messages,
   chatInput,
   chatHeight,
+  keyboardHeight,
   theme,
   onClose,
   onSendMessage,
@@ -48,9 +48,8 @@ export const ChatWindow = ({
   return (
     <View style={styles.chatOverlay}>
       <Pressable style={styles.chatBackdrop} onPress={onClose} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.chatContainer}
+      <View
+        style={[styles.chatContainer, { paddingBottom: keyboardHeight }]}
       >
         <View
           style={[
@@ -182,7 +181,7 @@ export const ChatWindow = ({
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 };
