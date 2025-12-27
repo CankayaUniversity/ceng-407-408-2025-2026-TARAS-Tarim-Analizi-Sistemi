@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+
+.venv/
+venv/
+ml_env/
+
+dataset/
+dataset_raw/
+
+*.h5
+*.keras
