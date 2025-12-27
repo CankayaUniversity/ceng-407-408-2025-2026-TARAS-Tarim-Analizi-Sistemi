@@ -6,6 +6,8 @@ import { HEADER_TEXT } from '../constants';
 import { appStyles } from '../styles';
 import { FontAwesome6, MaterialIcons, Entypo } from '@expo/vector-icons'; 
 import { fetchWeatherInfo, WeatherInfo } from '../utils/weatherAPI';
+import { Theme } from '../types';
+ 
 
 interface HomeScreenProps {
   theme: Theme;

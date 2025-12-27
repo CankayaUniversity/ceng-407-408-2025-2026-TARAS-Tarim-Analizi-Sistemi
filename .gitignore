@@ -1,4 +1,5 @@
 # OS and general files
+.vscode/
 .DS_Store
 Thumbs.db
 

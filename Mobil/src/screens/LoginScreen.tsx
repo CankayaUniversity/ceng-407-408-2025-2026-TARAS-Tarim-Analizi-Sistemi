@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { Text, View, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { appStyles } from '../styles';
 import { authAPI } from '../utils/api';
+
+// Added SVG logo imports (make sure these files exist in your assets)
+import LogoLight from '../../assets/Taras-logo-light.svg';
+import LogoDark from '../../assets/Taras-logo-dark.svg';
 
 interface LoginScreenProps {
   theme: any;
@@ -16,6 +19,22 @@ export const LoginScreen = ({ theme, onLoginSuccess, onSkip }: LoginScreenProps)
   const [isLoading, setIsLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [username, setUsername] = useState('');
+
+  // small helper to detect darkness from hex background if theme.isDark isn't provided
+  const isColorDark = (hex?: string) => {
+    if (!hex || typeof hex !== 'string') return false;
+    const h = hex.replace('#', '').trim();
+    if (![3, 6].includes(h.length)) return false;
+    const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+    const r = parseInt(full.substring(0, 2), 16);
+    const g = parseInt(full.substring(2, 4), 16);
+    const b = parseInt(full.substring(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance < 0.5;
+  };
+
+  const isDarkMode = (theme as any).isDark ?? isColorDark(theme.background);
+  const Logo = isDarkMode ? LogoLight : LogoDark;
 
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -66,8 +85,11 @@ export const LoginScreen = ({ theme, onLoginSuccess, onSkip }: LoginScreenProps)
 
   return (
     <View style={[appStyles.loginContainer, { backgroundColor: theme.background }]}>
-      <MaterialCommunityIcons name="hospital-box" size={64} color={theme.accent} style={{ marginBottom: 24 }} />
-      <Text style={[appStyles.loginTitle, { color: theme.text }]}>TARAS</Text>
+      {/* SVG logo - adaptive to light/dark mode */}
+      <View style={{ marginBottom: 24 }}>
+        <Logo width={80} height={80} />
+      </View>
+
       <Text style={[appStyles.loginSubtitle, { color: theme.textSecondary }]}>
         Tarım Dijital İkiz Platformu
       </Text>

@@ -5,6 +5,6 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts"],
+  "include": ["**/*.ts", "**/*.tsx", "nativewind-env.d.ts", "svg.d.ts"],
   "exclude": ["node_modules"]
 }
