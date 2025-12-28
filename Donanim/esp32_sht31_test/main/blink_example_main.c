@@ -14,6 +14,7 @@
 #include "driver/i2c.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
+#warning "SHT31_TEST_FILE_IS_COMPILING"
 
 // I2C Configuration
 // Using GPIO8 (SCL) and GPIO9 (SDA)
@@ -274,6 +275,24 @@ static void app_main_task(void *arg)
 
 void app_main(void)
 {
+    ESP_LOGI("I2C_DEBUG", "I2C pins: SDA=%d SCL=%d freq=%dHz timeout=%dms addr=0x%02X",
+         I2C_MASTER_SDA_IO, I2C_MASTER_SCL_IO, I2C_MASTER_FREQ_HZ, I2C_MASTER_TIMEOUT_MS, SHT31_ADDR);
+
+
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL<<I2C_MASTER_SDA_IO) | (1ULL<<I2C_MASTER_SCL_IO),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,   // zayıf ama test için iyi
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    gpio_config(&io_conf);
+
+    int sda_level = gpio_get_level(I2C_MASTER_SDA_IO);
+    int scl_level = gpio_get_level(I2C_MASTER_SCL_IO);
+    ESP_LOGI("I2C_DEBUG", "Before I2C init levels: SDA=%d SCL=%d (1=HIGH)", sda_level, scl_level);
+
+
     // create the main monitoring task
     xTaskCreate(app_main_task, "sht31_task", 4096, NULL, 5, NULL);
 }
