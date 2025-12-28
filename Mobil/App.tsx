@@ -53,7 +53,6 @@ export default function App() {
 
   const handleLogout = async () => {
     await authAPI.logout();
-    setThemeMode('system');
     setScreen(SCREEN_TYPE.LOGIN);
   };
 

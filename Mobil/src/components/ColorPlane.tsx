@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber/native';
 
-const LIGHT_COLORS = ['#531638', '#0891b2', '#0e7490', '#06b6d4', '#0891b2', '#0e7490'];
-const DARK_COLORS = ['#06b6d4', '#00d9ff', '#20c997', '#06b6d4', '#00d9ff', '#8c526b'];
+const LIGHT_COLORS = ['#677c98', '#536379', '#3e4b5b', '#988367', '#5b4e3e', '#ac9c86'];
+const DARK_COLORS = ['#8696ac', '#8599ad', '#667f99', '#c1b4a4', '#dbc18a', '#cfad63'];
 
 const INITIAL_ROTATION_Y = Math.PI / 4;
 const MIN_TILT = 0;

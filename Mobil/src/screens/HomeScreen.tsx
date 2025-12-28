@@ -6,8 +6,7 @@ import { HEADER_TEXT } from '../constants';
 import { appStyles } from '../styles';
 import { FontAwesome6, MaterialIcons, Entypo } from '@expo/vector-icons'; 
 import { fetchWeatherInfo, WeatherInfo } from '../utils/weatherAPI';
-import { Theme } from '../types';
- 
+import { Theme } from '../utils/theme';
 
 interface HomeScreenProps {
   theme: Theme;
@@ -22,13 +21,13 @@ interface MetricItemProps {
   theme: Theme;
 }
 
-const MetricItem = ({ label, value, unit = '%', icon, theme }: MetricItemProps) => (
+const MetricItem = ({ label, value, unit = ' %', icon, theme }: MetricItemProps) => (
   <View className="flex-1 flex-row mb-4">
     <View className="mr-2 justify-center">{icon}</View>
     <View>
       <Text className="text-xs mb-0.5" style={{ color: theme.textSecondary }}>{label}</Text>
       <Text className="text-lg font-bold" style={{ color: theme.text }}>
-        {value !== null ? `${unit}${value}` : '-'}
+        {value !== null ? `${value}${unit}` : '-'}
       </Text>
     </View>
   </View>
@@ -44,26 +43,26 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
   const airTemp = weather?.temperature.toFixed(1) ?? null;
   const airHumidity = weather?.humidity.toFixed(0) ?? null;
   const soilMoisture = '40'; // Mock data - replace with real sensor data
-  const irrigationTime = '40'; // Mock data
+  const irrigationTime = '2'; // Mock data
 
   return (
     <View className="px-6 mt-4">
-      <View className="rounded-2xl border border-taras-500 p-4" style={{ backgroundColor: theme.surface }}>
+      <View className="rounded-2xl border p-4" style={{ backgroundColor: theme.surface, borderColor: theme.accent }}>
         {loading && (
           <View className="flex-row items-center mb-2">
             <ActivityIndicator size="small" color={theme.accent} />
-            <Text className="ml-2 text-xs text-taras-600">Hava verisi yükleniyor...</Text>
+            <Text className="ml-2 text-xs" style={{ color: theme.accent }}>Hava verisi yükleniyor...</Text>
           </View>
         )}
 
         <View className="flex-row">
-          <MetricItem theme={theme} label="Hava Sıcaklığı" value={airTemp} unit="°C " icon={<FontAwesome6 name="temperature-three-quarters" size={24} color={theme.text} />} />
+          <MetricItem theme={theme} label="Hava Sıcaklığı" value={airTemp} unit=" °C " icon={<FontAwesome6 name="temperature-three-quarters" size={24} color={theme.text} />} />
           <View className="w-3" />
           <MetricItem theme={theme} label="Hava Nemi" value={airHumidity} icon={<MaterialIcons name="water-drop" size={24} color={theme.text} />} />
         </View>
 
         <View className="flex-row mt-1">
-          <MetricItem theme={theme} label="Sulama Saati" value={irrigationTime} icon={<FontAwesome6 name="clock" size={24} color={theme.text} />} />
+          <MetricItem theme={theme} label="Sulama Saati" value={irrigationTime} unit=" h" icon={<FontAwesome6 name="clock" size={24} color={theme.text} />} />
           <View className="w-3" />
           <MetricItem theme={theme} label="Toprak Nemi" value={soilMoisture} icon={<Entypo name="air" size={24} color={theme.text} />} />
         </View>
