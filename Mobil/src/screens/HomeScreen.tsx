@@ -1,34 +1,117 @@
-import { Suspense, useEffect, useState } from 'react';
-import { Canvas } from '@react-three/fiber/native';
-import { Text, View, ActivityIndicator } from 'react-native';
-import { ColorPlane } from '../components/ColorPlane';
-import { HEADER_TEXT } from '../constants';
-import { appStyles } from '../styles';
-import { FontAwesome6, MaterialIcons, Entypo } from '@expo/vector-icons'; 
-import { fetchWeatherInfo, WeatherInfo } from '../utils/weatherAPI';
-import { Theme } from '../utils/theme';
+import { Suspense, useEffect, useState } from "react";
+import { Canvas } from "@react-three/fiber/native";
+import { Text, View, ActivityIndicator } from "react-native";
+import { ColorPlane } from "../components/ColorPlane";
+import { appStyles } from "../styles";
+import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
+import LogoLight from "../assets/Taras-logo-light.svg";
+import LogoDark from "../assets/Taras-logo-dark.svg";
+import { fetchWeatherInfo, WeatherInfo } from "../utils/weatherAPI";
+import { Theme } from "../utils/theme";
 
 interface HomeScreenProps {
   theme: Theme;
   isDark: boolean;
 }
 
-interface MetricItemProps {
-  label: string;
-  value: string | null;
+interface MetricCardProps {
+  title: string;
+  value: string | null | React.ReactNode;
   unit?: string;
   icon: React.ReactNode;
   theme: Theme;
+  loading: boolean;
 }
 
-const MetricItem = ({ label, value, unit = ' %', icon, theme }: MetricItemProps) => (
-  <View className="flex-1 flex-row mb-4">
-    <View className="mr-2 justify-center">{icon}</View>
-    <View>
-      <Text className="text-xs mb-0.5" style={{ color: theme.textSecondary }}>{label}</Text>
-      <Text className="text-lg font-bold" style={{ color: theme.text }}>
-        {value !== null ? `${value}${unit}` : '-'}
-      </Text>
+const MetricCard = ({
+  title,
+  value,
+  unit = " %",
+  icon,
+  theme,
+  loading,
+}: MetricCardProps) => (
+  <View className="flex-1 mx-1">
+    <View
+      className="rounded-xl border p-3 mb-3"
+      style={{
+        backgroundColor: theme.surface,
+        borderColor: theme.accent + "20",
+        minHeight: 120,
+        justifyContent: "space-between",
+        paddingVertical: 12,
+      }}
+    >
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={{
+            color: theme.textSecondary,
+            fontSize: 14,
+            fontWeight: "600",
+          }}
+        >
+          {title}
+        </Text>
+        <View>{icon}</View>
+      </View>
+
+      {loading ? (
+        <View style={{ alignItems: "flex-start" }}>
+          <ActivityIndicator size={44} color={theme.accent} />
+        </View>
+      ) : (
+        <View style={{ alignItems: "flex-start" }}>
+          {value !== null ? (
+            typeof value === "string" ? (
+              <View style={{ flexDirection: "row", alignItems: "baseline" }}>
+                <Text
+                  style={{
+                    color: theme.text,
+                    fontSize: 64,
+                    fontWeight: "400",
+                    lineHeight: 52,
+                  }}
+                >
+                  {value}
+                </Text>
+                {unit ? (
+                  <Text
+                    style={{
+                      color: theme.textSecondary,
+                      fontSize: 16,
+                      fontWeight: "400",
+                      marginLeft: 6,
+                    }}
+                  >
+                    {unit.trim()}
+                  </Text>
+                ) : null}
+              </View>
+            ) : (
+              <View>{value}</View>
+            )
+          ) : (
+            <Text
+              style={{
+                color: theme.text,
+                fontSize: 48,
+                fontWeight: "500",
+                lineHeight: 40,
+              }}
+            >
+              -
+            </Text>
+          )}
+        </View>
+      )}
     </View>
   </View>
 );
@@ -42,35 +125,148 @@ interface StatusCardProps {
 const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
   const airTemp = weather?.temperature.toFixed(1) ?? null;
   const airHumidity = weather?.humidity.toFixed(0) ?? null;
-  const soilMoisture = '40'; // Mock data - replace with real sensor data
-  const irrigationTime = '2'; // Mock data
+  const soilMoisture = "56"; // Placeholder
+
+  const IrrigationCountdown = ({ theme }: { theme: Theme }) => {
+    const [hours, setHours] = useState<string>("00");
+    const [minutes, setMinutes] = useState<string>("00");
+    const [colonVisible, setColonVisible] = useState<boolean>(true);
+
+    const computeRemaining = () => {
+      const now = new Date();
+      let nextNoon = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        12,
+        0,
+        0,
+        0,
+      );
+      if (now >= nextNoon) {
+        nextNoon = new Date(nextNoon.getTime() + 24 * 60 * 60 * 1000);
+      }
+      const diffMs = nextNoon.getTime() - now.getTime();
+      const totalMinutes = Math.floor(diffMs / 60000);
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      setHours(String(h).padStart(2, "0"));
+      setMinutes(String(m).padStart(2, "0"));
+    };
+
+    useEffect(() => {
+      computeRemaining();
+      const colonInterval = setInterval(() => setColonVisible((c) => !c), 1000);
+      const now = new Date();
+      const msUntilNextMinute =
+        (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+      let minuteInterval: any = null;
+      const minuteTimeout: any = setTimeout(() => {
+        computeRemaining();
+        minuteInterval = setInterval(computeRemaining, 60 * 1000);
+      }, msUntilNextMinute);
+
+      return () => {
+        clearInterval(colonInterval);
+        clearTimeout(minuteTimeout);
+        if (minuteInterval) clearInterval(minuteInterval);
+      };
+    }, []);
+
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <Text
+          style={{
+            color: theme.text,
+            fontSize: 64,
+            fontWeight: "400",
+            lineHeight: 52,
+          }}
+        >
+          {hours}
+        </Text>
+        <View
+          style={{
+            width: 14,
+            alignItems: "center",
+            justifyContent: "center",
+            marginHorizontal: 4,
+          }}
+        >
+          <Text
+            style={{
+              opacity: colonVisible ? 1 : 0,
+              color: theme.text,
+              fontSize: 64,
+              fontWeight: "400",
+              lineHeight: 52,
+            }}
+          >
+            {":"}
+          </Text>
+        </View>
+        <Text
+          style={{
+            color: theme.text,
+            fontSize: 64,
+            fontWeight: "400",
+            lineHeight: 52,
+          }}
+        >
+          {minutes}
+        </Text>
+      </View>
+    );
+  };
 
   return (
-    <View className="px-6 mt-4">
-      <View className="rounded-2xl border p-4" style={{ backgroundColor: theme.surface, borderColor: theme.accent }}>
-        {loading && (
-          <View className="flex-row items-center mb-2">
-            <ActivityIndicator size="small" color={theme.accent} />
-            <Text className="ml-2 text-xs" style={{ color: theme.accent }}>Hava verisi yükleniyor...</Text>
-          </View>
-        )}
+    <View className="px-4 mt-2">
+      <View className="flex-row flex-wrap">
+        <MetricCard
+          theme={theme}
+          title="Hava Sıcaklığı"
+          value={airTemp}
+          unit=" °C"
+          icon={
+            <FontAwesome6
+              name="temperature-three-quarters"
+              size={22}
+              color={theme.accent}
+            />
+          }
+          loading={loading}
+        />
+        <MetricCard
+          theme={theme}
+          title="Hava Nemi"
+          value={airHumidity}
+          icon={
+            <MaterialIcons name="water-drop" size={22} color={theme.accent} />
+          }
+          loading={loading}
+        />
+      </View>
 
-        <View className="flex-row">
-          <MetricItem theme={theme} label="Hava Sıcaklığı" value={airTemp} unit=" °C " icon={<FontAwesome6 name="temperature-three-quarters" size={24} color={theme.text} />} />
-          <View className="w-3" />
-          <MetricItem theme={theme} label="Hava Nemi" value={airHumidity} icon={<MaterialIcons name="water-drop" size={24} color={theme.text} />} />
-        </View>
-
-        <View className="flex-row mt-1">
-          <MetricItem theme={theme} label="Sulama Saati" value={irrigationTime} unit=" h" icon={<FontAwesome6 name="clock" size={24} color={theme.text} />} />
-          <View className="w-3" />
-          <MetricItem theme={theme} label="Toprak Nemi" value={soilMoisture} icon={<Entypo name="air" size={24} color={theme.text} />} />
-        </View>
+      <View className="flex-row flex-wrap">
+        <MetricCard
+          theme={theme}
+          title="Sulamaya Kalan Süre"
+          value={<IrrigationCountdown theme={theme} />}
+          unit={""}
+          icon={<FontAwesome6 name="clock" size={22} color={theme.accent} />}
+          loading={false}
+        />
+        <MetricCard
+          theme={theme}
+          title="Toprak Nemi"
+          value={soilMoisture}
+          icon={<Entypo name="air" size={22} color={theme.accent} />}
+          loading={false}
+        />
       </View>
     </View>
   );
 };
-
 
 export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
@@ -86,15 +282,30 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
 
   return (
     <>
-      <View style={appStyles.header}>
-        <Text style={[appStyles.headerTitle, { color: theme.accent }]}>{HEADER_TEXT.home}</Text>
-        <Text style={[appStyles.headerSubtitle, { color: theme.textSecondary }]}>
-          Döndürmek için sürükleyin • Rengi değiştirmek için dokunun
-        </Text>
+      <View
+        style={[
+          appStyles.header,
+          {
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          },
+        ]}
+      >
+        <View style={{ marginLeft: 12 }}>
+          {isDark ? (
+            <LogoDark width={64} height={64} />
+          ) : (
+            <LogoLight width={64} height={64} />
+          )}
+        </View>
       </View>
       <StatusCard theme={theme} weather={weather} loading={loading} />
-      <View style={appStyles.canvasContainer}>
-        <Canvas camera={{ position: [0, 16, 22.6], fov: 35 }} style={{ flex: 1 }}>
+      <View style={[appStyles.canvasContainer, { position: "relative" }]}>
+        <Canvas
+          camera={{ position: [0, 16, 22.6], fov: 30 }}
+          style={{ flex: 1 }}
+        >
           <color attach="background" args={[theme.background]} />
           <Suspense fallback={null}>
             <ColorPlane isDark={isDark} />

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,12 @@ import {
   ScrollView,
   Pressable,
   StyleSheet,
+  Animated,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ChatMessage, Theme } from '../types';
+import { useKeyboard } from '../hooks/useKeyboard';
+import { appStyles } from '../styles';
 
 interface ChatWindowProps {
   visible: boolean;
@@ -36,6 +39,33 @@ export const ChatWindow = ({
 }: ChatWindowProps) => {
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
+  const { animatedPadding } = useKeyboard();
+  const [isInputFocused, setIsInputFocused] = useState(false);
+
+  const handleFocus = () => {
+    setIsInputFocused(true);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
+  };
+
+  const handleBlur = () => {
+    setIsInputFocused(false);
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
+  };
+
+  const handleSendPress = () => {
+    chatInputRef.current?.blur();
+    setTimeout(() => onSendMessage(), 120);
+  };
+
+  const handleClose = () => {
+    chatInputRef.current?.blur();
+    setTimeout(() => onClose(), 120);
+  };
+
+  const animatedPaddingBottom = animatedPadding.interpolate({
+    inputRange: [0, 1],
+    outputRange: [24, keyboardHeight || 24],
+  });
 
   useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -47,9 +77,9 @@ export const ChatWindow = ({
 
   return (
     <View style={styles.chatOverlay}>
-      <Pressable style={styles.chatBackdrop} onPress={onClose} />
-      <View
-        style={[styles.chatContainer, { paddingBottom: keyboardHeight }]}
+      <Pressable style={styles.chatBackdrop} onPress={handleClose} />
+      <Animated.View
+        style={[styles.chatContainer, { paddingBottom: animatedPaddingBottom }]}
       >
         <View
           style={[
@@ -140,25 +170,29 @@ export const ChatWindow = ({
               { backgroundColor: theme.surface, borderTopColor: theme.accent + '20' },
             ]}
           >
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={() => chatInputRef.current?.focus()}
-              style={[
-                styles.inputWrapper,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.accent + '30',
-                },
-              ]}
-            >
+            <View style={styles.inputRow}>
               <TextInput
                 ref={chatInputRef}
-                style={[styles.chatInput, { color: theme.text }]}
+                style={[
+                  appStyles.loginInput,
+                  {
+                    backgroundColor: theme.surface,
+                    color: theme.text,
+                    borderColor: isInputFocused
+                      ? theme.accent
+                      : theme.accentDim,
+                    flex: 1,
+                    marginBottom: 0,
+                    marginRight: 8,
+                  },
+                ]}
                 placeholder="Mesajınızı yazın..."
                 placeholderTextColor={theme.textSecondary}
                 value={chatInput}
                 onChangeText={onInputChange}
-                onSubmitEditing={onSendMessage}
+                onSubmitEditing={handleSendPress}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
                 returnKeyType="send"
                 blurOnSubmit={false}
                 multiline
@@ -170,18 +204,27 @@ export const ChatWindow = ({
                   {
                     backgroundColor: chatInput.trim()
                       ? theme.accent
-                      : theme.textSecondary + '40',
+                      : theme.surface,
+                    borderColor: chatInput.trim()
+                      ? "transparent"
+                      : theme.accent + "30",
+                    borderWidth: chatInput.trim() ? 0 : 1,
                   },
                 ]}
-                onPress={onSendMessage}
+                onPress={handleSendPress}
                 disabled={!chatInput.trim()}
+                activeOpacity={0.8}
               >
-                <MaterialCommunityIcons name="send" size={20} color="#fff" />
+                <MaterialCommunityIcons
+                  name="send"
+                  size={18}
+                  color={chatInput.trim() ? "#fff" : theme.accent}
+                />
               </TouchableOpacity>
-            </TouchableOpacity>
+            </View>
           </View>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 };
@@ -267,30 +310,19 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   chatInputArea: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderTopWidth: 1,
   },
-  inputWrapper: {
+  inputRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    borderRadius: 24,
-    borderWidth: 1,
-    paddingLeft: 16,
-    paddingRight: 6,
-    paddingVertical: 6,
-    gap: 8,
-  },
-  chatInput: {
-    flex: 1,
-    fontSize: 15,
-    maxHeight: 100,
-    paddingVertical: 6,
+    alignItems: 'center',
+    width: '100%',
   },
   sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
