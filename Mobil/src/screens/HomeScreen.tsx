@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber/native";
-import { Text, View, ActivityIndicator } from "react-native";
+import { Text, View, ActivityIndicator, ScrollView, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ColorPlane } from "../components/ColorPlane";
 import { appStyles } from "../styles";
 import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
@@ -30,91 +31,105 @@ const MetricCard = ({
   icon,
   theme,
   loading,
-}: MetricCardProps) => (
-  <View className="flex-1 mx-1">
-    <View
-      className="rounded-xl border p-3 mb-3"
-      style={{
-        backgroundColor: theme.surface,
-        borderColor: theme.accent + "20",
-        minHeight: 120,
-        justifyContent: "space-between",
-        paddingVertical: 12,
-      }}
-    >
+}: MetricCardProps) => {
+  const { width } = useWindowDimensions();
+  // Card gets ~half screen width due to flex: 1 in row layout
+  const cardWidth = (width - 48) / 2 - 8; // 48 = total padding, 8 = margin between
+  // Make font size proportional to actual card width
+  const baseFontSize = Math.min(28, cardWidth * 0.18);
+
+  return (
+    <View style={{ flex: 1, marginHorizontal: 4, marginBottom: 12 }}>
       <View
         style={{
-          flexDirection: "row",
-          alignItems: "center",
+          backgroundColor: theme.surface,
+          borderColor: theme.accent + "20",
+          borderWidth: 1,
+          borderRadius: 12,
+          padding: 10,
+          minHeight: 120,
           justifyContent: "space-between",
         }}
       >
-        <Text
-          numberOfLines={1}
-          ellipsizeMode="tail"
+        <View
           style={{
-            color: theme.textSecondary,
-            fontSize: 14,
-            fontWeight: "600",
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 8,
           }}
         >
-          {title}
-        </Text>
-        <View>{icon}</View>
-      </View>
-
-      {loading ? (
-        <View style={{ alignItems: "flex-start" }}>
-          <ActivityIndicator size={44} color={theme.accent} />
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{
+              color: theme.textSecondary,
+              fontSize: 12,
+              fontWeight: "600",
+              flex: 1,
+            }}
+          >
+            {title}
+          </Text>
+          <View style={{ marginLeft: 4 }}>{icon}</View>
         </View>
-      ) : (
-        <View style={{ alignItems: "flex-start" }}>
-          {value !== null ? (
-            typeof value === "string" ? (
-              <View style={{ flexDirection: "row", alignItems: "baseline" }}>
-                <Text
-                  style={{
-                    color: theme.text,
-                    fontSize: 64,
-                    fontWeight: "400",
-                    lineHeight: 52,
-                  }}
-                >
-                  {value}
-                </Text>
-                {unit ? (
+
+        {loading ? (
+          <View style={{ alignItems: "flex-start" }}>
+            <ActivityIndicator size={32} color={theme.accent} />
+          </View>
+        ) : (
+          <View style={{ alignItems: "flex-start", justifyContent: "flex-end", flex: 1 }}>
+            {value !== null ? (
+              typeof value === "string" ? (
+                <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
                   <Text
                     style={{
-                      color: theme.textSecondary,
-                      fontSize: 16,
+                      color: theme.text,
+                      fontSize: baseFontSize,
                       fontWeight: "400",
-                      marginLeft: 6,
+                      lineHeight: baseFontSize * 1.1,
                     }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
                   >
-                    {unit.trim()}
+                    {value}
                   </Text>
-                ) : null}
-              </View>
+                  {unit && unit.trim() ? (
+                    <Text
+                      style={{
+                        color: theme.textSecondary,
+                        fontSize: baseFontSize * 0.5,
+                        fontWeight: "400",
+                        marginLeft: 2,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {unit.trim()}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : (
+                <View>{value}</View>
+              )
             ) : (
-              <View>{value}</View>
-            )
-          ) : (
-            <Text
-              style={{
-                color: theme.text,
-                fontSize: 48,
-                fontWeight: "500",
-                lineHeight: 40,
-              }}
-            >
-              -
-            </Text>
-          )}
-        </View>
-      )}
+              <Text
+                style={{
+                  color: theme.text,
+                  fontSize: baseFontSize,
+                  fontWeight: "500",
+                  lineHeight: baseFontSize * 1.1,
+                }}
+              >
+                -
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 interface StatusCardProps {
   theme: Theme;
@@ -128,6 +143,10 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
   const soilMoisture = "56"; // Placeholder
 
   const IrrigationCountdown = ({ theme }: { theme: Theme }) => {
+    const { width } = useWindowDimensions();
+    const cardWidth = (width - 48) / 2 - 8;
+    const baseFontSize = Math.min(28, cardWidth * 0.18);
+    
     const [hours, setHours] = useState<string>("00");
     const [minutes, setMinutes] = useState<string>("00");
     const [colonVisible, setColonVisible] = useState<boolean>(true);
@@ -178,28 +197,30 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
         <Text
           style={{
             color: theme.text,
-            fontSize: 64,
+            fontSize: baseFontSize,
             fontWeight: "400",
-            lineHeight: 52,
+            lineHeight: baseFontSize * 1.1,
           }}
+          numberOfLines={1}
+          adjustsFontSizeToFit
         >
           {hours}
         </Text>
         <View
           style={{
-            width: 14,
+            width: baseFontSize * 0.5,
             alignItems: "center",
             justifyContent: "center",
-            marginHorizontal: 4,
+            marginHorizontal: 2,
           }}
         >
           <Text
             style={{
               opacity: colonVisible ? 1 : 0,
               color: theme.text,
-              fontSize: 64,
+              fontSize: baseFontSize,
               fontWeight: "400",
-              lineHeight: 52,
+              lineHeight: baseFontSize * 1.1,
             }}
           >
             {":"}
@@ -208,10 +229,12 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
         <Text
           style={{
             color: theme.text,
-            fontSize: 64,
+            fontSize: baseFontSize,
             fontWeight: "400",
-            lineHeight: 52,
+            lineHeight: baseFontSize * 1.1,
           }}
+          numberOfLines={1}
+          adjustsFontSizeToFit
         >
           {minutes}
         </Text>
@@ -220,8 +243,8 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
   };
 
   return (
-    <View className="px-4 mt-2">
-      <View className="flex-row flex-wrap">
+    <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         <MetricCard
           theme={theme}
           title="Hava Sıcaklığı"
@@ -247,7 +270,7 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
         />
       </View>
 
-      <View className="flex-row flex-wrap">
+      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         <MetricCard
           theme={theme}
           title="Sulamaya Kalan Süre"
@@ -271,6 +294,7 @@ const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
 export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
   const [weather, setWeather] = useState<WeatherInfo | null>(null);
   const [loading, setLoading] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     setLoading(true);
@@ -281,7 +305,7 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
   }, []);
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <View
         style={[
           appStyles.header,
@@ -289,6 +313,7 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
+            paddingTop: Math.max(insets.top, 16),
           },
         ]}
       >
@@ -300,7 +325,9 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
           )}
         </View>
       </View>
-      <StatusCard theme={theme} weather={weather} loading={loading} />
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <StatusCard theme={theme} weather={weather} loading={loading} />
+      </ScrollView>
       <View style={[appStyles.canvasContainer, { position: "relative" }]}>
         <Canvas
           camera={{ position: [0, 16, 22.6], fov: 30 }}
@@ -312,6 +339,6 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
           </Suspense>
         </Canvas>
       </View>
-    </>
+    </View>
   );
 };

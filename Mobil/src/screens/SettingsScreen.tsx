@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { appStyles } from '../styles';
 import { HEADER_TEXT } from '../constants';
@@ -28,36 +29,39 @@ export const SettingsScreen = ({
   onThemeModeChange,
   onLogout,
 }: SettingsScreenProps) => {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const buttonWidth = Math.max((width - 48) / 4 - 6, 50); // Responsive button width
+  
   return (
-    <ScrollView style={[appStyles.settingsContainer, { backgroundColor: theme.background }]}>
+    <ScrollView style={[appStyles.settingsContainer, { backgroundColor: theme.background, paddingTop: Math.max(insets.top, 16) }]}>
       <Text style={[appStyles.placeholderText, { color: theme.text }]}>{HEADER_TEXT.settings}</Text>
-      <View style={[appStyles.settingItem, { borderBottomColor: theme.surface, alignItems: "center" },]}>
-        <View style={[appStyles.settingLeft, { flex: 1 }]}>
+      <View style={[appStyles.settingItem, { borderBottomColor: theme.surface, flexDirection: 'column', alignItems: 'stretch' }]}>
+        <View style={[appStyles.settingLeft, { marginBottom: 12 }]}>
           <MaterialCommunityIcons
             name={isDark ? 'moon-waning-crescent' : 'white-balance-sunny'}
             size={20}
             color={theme.accent}
             style={{ marginRight: 12 }}
           />
-          <View>
-            <Text style={[appStyles.settingLabel, { color: theme.text }]}>Tema Modu</Text>
-          </View>
+          <Text style={[appStyles.settingLabel, { color: theme.text }]}>Tema Modu</Text>
         </View>
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
+            gap: 4,
           }}
         >
           {THEME_OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt.mode}
               style={{
-                marginLeft: 8,
+                flex: 1,
                 borderRadius: 8,
-                paddingHorizontal: 8,
-                paddingVertical: 6,
+                paddingHorizontal: 4,
+                paddingVertical: 8,
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor:
@@ -65,8 +69,6 @@ export const SettingsScreen = ({
                 borderWidth: themeMode === opt.mode ? 2 : 1,
                 borderColor:
                   themeMode === opt.mode ? theme.accent : theme.accentDim,
-                minWidth: 64,
-                flexShrink: 0,
               }}
               onPress={() => onThemeModeChange(opt.mode)}
             >
@@ -76,7 +78,7 @@ export const SettingsScreen = ({
                 color={themeMode === opt.mode ? '#fff' : theme.accent}
                 style={{ marginBottom: 2 }}
               />
-              <Text style={{ color: themeMode === opt.mode ? '#fff' : theme.text, fontSize: 11, fontWeight: '600' }}>
+              <Text style={{ color: themeMode === opt.mode ? '#fff' : theme.text, fontSize: 9, fontWeight: '600', textAlign: 'center' }}>
                 {opt.label}
               </Text>
             </TouchableOpacity>
