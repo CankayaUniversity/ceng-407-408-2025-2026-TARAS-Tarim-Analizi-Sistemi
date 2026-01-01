@@ -25,6 +25,7 @@ interface DiseaseScreenProps {
   permission: PermissionResponse | null;
   onRequestPermission: () => void;
   onSendForAnalysis?: (uri: string) => void;
+  isActive?: boolean;
 }
 
 export const DiseaseScreen = ({
@@ -32,6 +33,7 @@ export const DiseaseScreen = ({
   permission,
   onRequestPermission,
   onSendForAnalysis,
+  isActive = true,
 }: DiseaseScreenProps) => {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isPreview, setIsPreview] = useState(false);
@@ -195,7 +197,7 @@ export const DiseaseScreen = ({
       <View
         style={[appStyles.cameraBorderContainer, { borderColor: theme.accent }]}
       >
-        {canUseCameraComponent ? (
+        {isActive && canUseCameraComponent ? (
           <CameraComponent
             ref={(r: any) => {
               cameraRef.current = r;
@@ -212,7 +214,7 @@ export const DiseaseScreen = ({
                   : "off"
             }
           />
-        ) : (
+        ) : isActive ? (
           <View
             style={[
               appStyles.cameraView,
@@ -226,6 +228,8 @@ export const DiseaseScreen = ({
               Cihaz kameranızı kullanmak için izin verin veya albümden seçin.
             </Text>
           </View>
+        ) : (
+          <View style={[appStyles.cameraView, { backgroundColor: '#000' }]} />
         )}
 
         {!isPreview && (

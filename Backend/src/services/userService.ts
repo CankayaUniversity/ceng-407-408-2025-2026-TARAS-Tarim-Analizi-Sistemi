@@ -25,10 +25,10 @@ export async function createUser(data: {
   });
 }
 
-export async function authenticateUser(identifier: string, password: string) {
+export async function authenticateUser(username: string, password: string) {
   const user = await prisma.user.findFirst({
     where: {
-      OR: [{ username: identifier }, { email: identifier }],
+      username: username,
       is_active: true,
     },
     include: {

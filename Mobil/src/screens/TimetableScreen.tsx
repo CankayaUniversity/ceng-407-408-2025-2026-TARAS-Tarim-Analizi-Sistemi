@@ -9,6 +9,7 @@ import { Theme } from '../types';
 
 interface TimetableScreenProps {
   theme: Theme;
+  isActive?: boolean;
 }
 
 interface SensorReading {
@@ -24,7 +25,7 @@ interface ChartDataPoint {
   label?: string;
 }
 
-export const TimetableScreen = ({ theme }: TimetableScreenProps) => {
+export const TimetableScreen = ({ theme, isActive = true }: TimetableScreenProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [temperatureData, setTemperatureData] = useState<ChartDataPoint[]>([]);
@@ -83,6 +84,17 @@ export const TimetableScreen = ({ theme }: TimetableScreenProps) => {
   useEffect(() => {
     fetchSensorData();
   }, []);
+
+  // Polling when active (every 60 seconds)
+  useEffect(() => {
+    if (!isActive) return;
+
+    const pollInterval = setInterval(() => {
+      fetchSensorData();
+    }, 60000);
+
+    return () => clearInterval(pollInterval);
+  }, [isActive]);
 
   const onRefresh = () => {
     setRefreshing(true);

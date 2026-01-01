@@ -133,3 +133,51 @@ export interface AlertData {
   type: string;
   metadata?: Record<string, unknown>;
 }
+
+// Dashboard Types
+export interface PolygonData {
+  exterior: [number, number][];
+  holes: [number, number][][];
+}
+
+export interface FieldListItem {
+  id: string;
+  name: string;
+  area: number;
+}
+
+export interface DashboardWeather {
+  airTemperature: number;
+  airHumidity: number;
+}
+
+export interface DashboardIrrigation {
+  nextIrrigationTime: string | null;
+  isScheduled: boolean;
+}
+
+export interface DashboardSensors {
+  soilMoisture: number;
+  nodeCount: number;
+}
+
+export interface DashboardNode {
+  id: string;
+  x: number;
+  z: number;
+  moisture: number;
+  airTemperature: number;
+  airHumidity: number;
+}
+
+export interface DashboardFieldData {
+  polygon: PolygonData;
+  nodes: DashboardNode[];
+}
+
+export interface DashboardResponse {
+  weather: DashboardWeather;
+  irrigation: DashboardIrrigation;
+  sensors: DashboardSensors;
+  field: DashboardFieldData;
+}

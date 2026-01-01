@@ -6,13 +6,14 @@ import { Text, View, TouchableOpacity, Pressable, useWindowDimensions, useColorS
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCameraPermissions } from 'expo-camera';
-import { SCREEN_TYPE, NAV_ITEMS, ScreenType } from './src/constants';
+import { SCREEN_TYPE, NAV_ITEMS, ScreenType, SCREEN_TO_INDEX } from './src/constants';
 import { appStyles } from './src/styles';
 import { useKeyboard } from './src/hooks/useKeyboard';
 import { useChat } from './src/hooks/useChat';
 import { getTheme } from './src/utils/theme';
 import { ChatWindow } from './src/components/ChatWindow';
-import { LoginScreen, HomeScreen, DiseaseScreen, TimetableScreen, SettingsScreen, ThemeMode } from './src/screens';
+import { SlidingTabContainer } from './src/components/SlidingTabContainer';
+import { LoginScreen, HomeScreen, DiseaseScreen, TimetableScreen, SettingsScreen, CarbonFootprintScreen, ThemeMode } from './src/screens';
 import { authAPI } from './src/utils/api';
 
 interface AppContentProps {
@@ -167,28 +168,85 @@ export default function App() {
     setScreen(SCREEN_TYPE.LOGIN);
   };
 
+  const chatHeight = keyboardHeight > 0 ? windowHeight - keyboardHeight - 80 : Math.min(windowHeight * 0.6, 500);
+
+  const tabs = [
+    {
+      id: SCREEN_TYPE.CARBON,
+      content: <CarbonFootprintScreen theme={theme} />,
+    },
+    {
+      id: SCREEN_TYPE.TIMETABLE,
+      content: <TimetableScreen theme={theme} />,
+    },
+    {
+      id: SCREEN_TYPE.HOME,
+      content: <HomeScreen theme={theme} isDark={isDark} />,
+    },
+    {
+      id: SCREEN_TYPE.DISEASE,
+      content: <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} />,
+    },
+    {
+      id: SCREEN_TYPE.SETTINGS,
+      content: <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} />,
+    },
+  ];
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
-        <AppContent
-          screen={screen}
-          setScreen={setScreen}
-          showChat={showChat}
-          setShowChat={setShowChat}
-          messages={messages}
-          chatInput={chatInput}
-          setChatInput={setChatInput}
-          sendMessage={sendMessage}
-          theme={theme}
-          isDark={isDark}
-          themeMode={themeMode}
-          setThemeMode={setThemeMode}
-          permission={permission}
-          requestPermission={requestPermission}
-          keyboardHeight={keyboardHeight}
-          windowHeight={windowHeight}
-          handleLogout={handleLogout}
-        />
+        <View style={[appStyles.container, { backgroundColor: theme.background }]}>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          {screen === SCREEN_TYPE.LOGIN ? (
+            <LoginScreen theme={theme} onLoginSuccess={() => setScreen(SCREEN_TYPE.HOME)} onSkip={() => setScreen(SCREEN_TYPE.HOME)} />
+          ) : (
+            <SlidingTabContainer activeIndex={SCREEN_TO_INDEX[screen]} tabs={tabs} />
+          )}
+
+          {screen !== SCREEN_TYPE.LOGIN && (
+            <View style={[appStyles.bottomNavWrapper, { backgroundColor: theme.surface }]}>
+              <View style={appStyles.bottomNav}>
+                {NAV_ITEMS.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={[
+                      appStyles.navItem,
+                      screen === item.id && { backgroundColor: theme.accentDim + '22' },
+                    ]}
+                    onPress={() => setScreen(item.id as ScreenType)}
+                  >
+                    <MaterialCommunityIcons
+                      name={item.icon as any}
+                      size={24}
+                      color={screen === item.id ? theme.accent : theme.accentDim}
+                      style={appStyles.navIcon}
+                    />
+                    <Text style={[appStyles.navLabel, { color: theme.accentDim }]}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {screen !== SCREEN_TYPE.LOGIN && (
+            <TouchableOpacity style={[appStyles.fab, { backgroundColor: theme.accent }]} onPress={() => setShowChat(true)}>
+              <MaterialCommunityIcons name="chat" size={28} color="#fff" />
+            </TouchableOpacity>
+          )}
+
+          <ChatWindow
+            visible={showChat}
+            messages={messages}
+            chatInput={chatInput}
+            chatHeight={chatHeight}
+            keyboardHeight={keyboardHeight}
+            theme={theme}
+            onClose={() => setShowChat(false)}
+            onSendMessage={sendMessage}
+            onInputChange={setChatInput}
+          />
+        </View>
       </SafeAreaView>
     </SafeAreaProvider>
   );

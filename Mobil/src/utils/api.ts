@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
+import type { FieldData } from './fieldPlaceholder';
 
 const API_HOST = 'http://13.61.7.197:3000';
 const API_BASE_URL = `${API_HOST}/api`;
@@ -7,7 +8,6 @@ const TOKEN_KEY = 'auth_token';
 
 let socket: Socket | null = null;
 
-// Types
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -46,7 +46,6 @@ interface Zone {
   farm_name: string;
 }
 
-// Helpers
 async function getAuthHeaders() {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : null;
@@ -67,7 +66,6 @@ async function authFetch<T>(endpoint: string, options: RequestInit = {}): Promis
   }
 }
 
-// Auth API
 export const authAPI = {
   async login(identifier: string, password: string): Promise<ApiResponse<LoginData>> {
     try {
@@ -123,7 +121,6 @@ export const authAPI = {
   },
 };
 
-// Sensor API
 export const sensorAPI = {
   async getUserZones(): Promise<ApiResponse<{ zones: Zone[] }>> {
     return authFetch('/sensors/zones');
@@ -146,7 +143,6 @@ export const sensorAPI = {
   },
 };
 
-// Socket API
 export interface SensorDataEvent {
   sensor_node_id: string;
   sensor_type: string;
@@ -189,7 +185,6 @@ export const socketAPI = {
   getSocket: () => socket,
 };
 
-// Images API
 export const imagesAPI = {
   async upload(imageUri: string, fileName = 'image.jpg') {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
@@ -215,7 +210,6 @@ export const imagesAPI = {
   },
 };
 
-// Health API
 export const healthAPI = {
   async check() {
     try {
@@ -224,6 +218,79 @@ export const healthAPI = {
       return { success: true, status: data.status || 'ok' };
     } catch {
       return { success: false, error: 'Sunucuya erişilemiyor' };
+    }
+  },
+};
+
+// Dashboard types
+export interface WeatherData {
+  airTemperature: number;
+  airHumidity: number;
+}
+
+export interface IrrigationData {
+  nextIrrigationTime: string;
+  isScheduled: boolean;
+}
+
+export interface SensorSummary {
+  soilMoisture: number;
+  nodeCount: number;
+}
+
+export interface FieldSummary {
+  id: string;
+  name: string;
+  area: number;
+}
+
+export interface DashboardData {
+  weather: WeatherData;
+  irrigation: IrrigationData;
+  sensors: SensorSummary;
+  field: FieldData;
+}
+
+export const dashboardAPI = {
+  getFields: async (): Promise<FieldSummary[]> => {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      const { getDemoFields } = await import('./demoData');
+      return getDemoFields();
+    }
+
+    try {
+      const res = await authFetch<FieldSummary[]>('/dashboard/fields');
+      if (res.success && res.data) {
+        return res.data;
+      }
+      throw new Error(res.error || 'Failed to fetch fields');
+    } catch (error) {
+      console.error('dashboardAPI.getFields error:', error);
+      const { getDemoFields } = await import('./demoData');
+      return getDemoFields();
+    }
+  },
+
+  getFieldDashboard: async (fieldId: string): Promise<DashboardData> => {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+
+    if (!token) {
+      const { generateDemoDashboardData } = await import('./demoData');
+      return generateDemoDashboardData(fieldId);
+    }
+
+    try {
+      const res = await authFetch<DashboardData>(`/dashboard/fields/${fieldId}`);
+      if (res.success && res.data) {
+        return res.data;
+      }
+      throw new Error(res.error || 'Failed to fetch dashboard data');
+    } catch (error) {
+      console.error('dashboardAPI.getFieldDashboard error:', error);
+      const { generateDemoDashboardData } = await import('./demoData');
+      return generateDemoDashboardData(fieldId);
     }
   },
 };
