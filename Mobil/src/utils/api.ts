@@ -67,12 +67,12 @@ async function authFetch<T>(endpoint: string, options: RequestInit = {}): Promis
 }
 
 export const authAPI = {
-  async login(identifier: string, password: string): Promise<ApiResponse<LoginData>> {
+  async login(username: string, password: string): Promise<ApiResponse<LoginData>> {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
 
