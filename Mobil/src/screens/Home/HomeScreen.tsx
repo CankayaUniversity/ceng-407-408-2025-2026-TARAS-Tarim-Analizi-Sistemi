@@ -2,13 +2,16 @@ import { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber/native";
 import { Text, View, ActivityIndicator, ScrollView, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ColorPlane } from "../components/ColorPlane";
-import { appStyles } from "../styles";
+import { ColorPlane } from "../../components/ColorPlane";
+import { FieldData } from "../../utils/fieldPlaceholder";
+import { appStyles } from "../../styles";
 import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
-import LogoLight from "../assets/Taras-logo-light.svg";
-import LogoDark from "../assets/Taras-logo-dark.svg";
-import { fetchWeatherInfo, WeatherInfo } from "../utils/weatherAPI";
-import { Theme } from "../utils/theme";
+import LogoLight from "../../assets/Taras-logo-light.svg";
+import LogoDark from "../../assets/Taras-logo-dark.svg";
+import { fetchWeatherInfo, WeatherInfo } from "../../utils/weatherAPI";
+import { Theme } from "../../utils/theme";
+import { authAPI, dashboardAPI } from "../../utils/api";
+import { generateDemoFieldData } from "../../utils/demoData";
 
 interface HomeScreenProps {
   theme: Theme;
@@ -296,14 +299,46 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
   const [loading, setLoading] = useState(false);
   const insets = useSafeAreaInsets();
   const [scrollY, setScrollY] = useState(0);
-
+  const [fieldData, setFieldData] = useState<FieldData>({ 
+    polygon: { exterior: [] }, 
+    nodes: [] 
+  });
 
   useEffect(() => {
-    setLoading(true);
-    fetchWeatherInfo(39.92, 32.85) // Ankara coordinates
-      .then(setWeather)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const initializeData = async () => {
+      setLoading(true);
+      
+      try {
+        // Check authentication status
+        const authStatus = await authAPI.isAuthenticated();
+        
+        // Fetch weather data
+        const weatherData = await fetchWeatherInfo(39.92, 32.85); // Ankara coordinates
+        setWeather(weatherData);
+        
+        // Fetch field data based on authentication status
+        if (authStatus) {
+          // User is logged in - try to fetch real data
+          try {
+            const dashboardData = await dashboardAPI.getFieldDashboard('field-1'); // Use default field or get from context
+            setFieldData(dashboardData.field);
+          } catch {
+            // Fallback to demo data if API fails
+            setFieldData(generateDemoFieldData(42, 0));
+          }
+        } else {
+          // User skipped login - use demo data
+          setFieldData(generateDemoFieldData(42, 0));
+        }
+      } catch {
+        // Fallback for any errors
+        setFieldData(generateDemoFieldData(42, 0));
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    initializeData();
   }, []);
 
   return (
@@ -358,7 +393,7 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
         >
           <color attach="background" args={[theme.background]} />
           <Suspense fallback={null}>
-            <ColorPlane isDark={isDark} />
+            <ColorPlane fieldData={fieldData} isDark={isDark} />
           </Suspense>
         </Canvas>
       </View>
