@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
 import type { FieldData } from './fieldPlaceholder';
+import { compressImage } from './imageCompression';
 
 const API_HOST = 'http://13.61.7.197:3000';
 const API_BASE_URL = `${API_HOST}/api`;
@@ -377,24 +378,37 @@ export const diseaseAPI = {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
     if (!token) return { success: false, error: 'Oturum bulunamadı' };
 
-    const formData = new FormData();
-    formData.append('image', {
-      uri: imageUri,
-      type: 'image/jpeg',
-      name: 'leaf.jpg',
-    } as any);
-
     try {
+      // Compress the image before sending to stay within Lambda limits (~6MB)
+      // Target 200KB which is well below the limit
+      const compressedUri = await compressImage(imageUri, 200, 720, 720);
+
+      const formData = new FormData();
+      formData.append('image', {
+        uri: compressedUri,
+        type: 'image/jpeg',
+        name: 'leaf.jpg',
+      } as any);
+
       const res = await fetch(`${API_BASE_URL}/disease/submit`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
+          // Do NOT set Content-Type for FormData - let fetch handle it with boundary
         },
         body: formData,
       });
-      return res.json();
-    } catch {
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('API Error Response:', errorText);
+        return { success: false, error: `API Error: ${res.status}` };
+      }
+
+      const jsonResponse = await res.json();
+      return jsonResponse;
+    } catch (error) {
+      console.error('Submit detection error:', error);
       return { success: false, error: 'Görsel gönderilemedi' };
     }
   },

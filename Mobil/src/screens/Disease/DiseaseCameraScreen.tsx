@@ -22,7 +22,7 @@ export const DiseaseCameraScreen = ({
   const pickFromGallery = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.7,
+        quality: 0.5,
         base64: false,
       });
       if (!result.canceled) {
@@ -52,7 +52,7 @@ export const DiseaseCameraScreen = ({
           return;
         }
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.7,
+          quality: 0.5,
           skipProcessing: true,
         });
         if (photo?.uri) {
@@ -61,7 +61,7 @@ export const DiseaseCameraScreen = ({
         }
       } else {
         const result = await ImagePicker.launchCameraAsync({
-          quality: 0.7,
+          quality: 0.5,
           base64: false,
         });
         if (!result.canceled) {
