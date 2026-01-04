@@ -36,5 +36,6 @@ Thumbs.db
 # Prisma
 .prisma/
 
-# Claude Code local settings
-.claude/
+tests/
+*.tflite
+*.keras
