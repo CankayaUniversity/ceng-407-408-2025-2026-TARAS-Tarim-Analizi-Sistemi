@@ -34,11 +34,14 @@ interface ProfileData extends User {
 }
 
 interface SensorReading {
-  sensor_node_id: string;
-  sensor_type: string;
-  value: number;
-  unit: string;
-  timestamp: string;
+  id: string;
+  node_id: string;
+  created_at: string;
+  temperature: number;
+  humidity: number;
+  sm_percent: number;
+  raw_sm_value: number;
+  et0_instant: number | null;
 }
 
 interface Zone {
@@ -179,6 +182,16 @@ export const sensorAPI = {
       zone_name: string;
       readings: SensorReading[];
     }>(`/sensors/zone/${zoneId}/history?hours=${hours}`);
+  },
+
+  async getFieldHistory(fieldId: string, hours = 72) {
+    return authFetch<{
+      field_id: string;
+      field_name: string;
+      hours: number;
+      reading_count: number;
+      readings: SensorReading[];
+    }>(`/sensors/field/${fieldId}/history?hours=${hours}`);
   },
 };
 

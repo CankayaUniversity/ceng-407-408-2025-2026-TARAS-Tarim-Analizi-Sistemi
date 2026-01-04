@@ -1,5 +1,5 @@
 export interface LoginScreenProps {
   theme: any;
-  onLoginSuccess: () => void;
+  onLoginSuccess: (fullName: string) => void;
   onSkip: () => void;
 }

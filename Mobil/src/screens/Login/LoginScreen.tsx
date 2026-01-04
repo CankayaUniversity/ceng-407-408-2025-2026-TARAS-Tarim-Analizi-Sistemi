@@ -52,16 +52,23 @@ export const LoginScreen = ({
     const response = await authAPI.login(username.trim(), password);
     setIsLoading(false);
 
+    console.log("Login response:", response);
+    console.log("User data:", response.data?.user);
+
     if (response.success) {
-      Alert.alert("Basarili", `Hos geldiniz, ${response.data?.user.username}!`);
       setUsername("");
       setPassword("");
-      onLoginSuccess();
+      // Pass user's username to onLoginSuccess (no fullName field in User type)
+      const displayName = response.data?.user.username || "";
+      console.log("Calling onLoginSuccess with:", displayName);
+      onLoginSuccess(displayName);
     } else {
       Alert.alert(
         "Giris Basarisiz",
         response.error || "Kullanici adi/e-posta veya sifre hatali.",
       );
+      // Always call onLoginSuccess with empty string to avoid type error
+      // onLoginSuccess("");
     }
   };
 
@@ -90,15 +97,12 @@ export const LoginScreen = ({
     setIsLoading(false);
 
     if (response.success) {
-      Alert.alert(
-        "Basarili",
-        `Hesabiniz olusturuldu, hos geldiniz ${response.data?.user.username}!`,
-      );
       setEmail("");
       setPassword("");
       setConfirmPassword("");
       setUsername("");
-      onLoginSuccess();
+      const displayName = response.data?.user.username || "";
+      onLoginSuccess(displayName);
     } else {
       Alert.alert(
         "Kayit Basarisiz",
@@ -239,7 +243,10 @@ export const LoginScreen = ({
 
         <TouchableOpacity
           style={{ marginTop: 8 }}
-          onPress={handleSkip}
+           onPress={() => {
+             handleSkip();
+             onLoginSuccess("");
+           }}
           disabled={isLoading}
         >
           <Text style={[appStyles.skipButtonText, { color: theme.accentDim }]}>

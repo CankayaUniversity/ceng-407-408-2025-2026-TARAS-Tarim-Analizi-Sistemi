@@ -3,6 +3,7 @@ import { Theme } from "../../types";
 export interface TimetableScreenProps {
   theme: Theme;
   isActive?: boolean;
+  selectedFieldId?: string | null;
 }
 
 export interface ChartDataPoint {
@@ -16,12 +17,16 @@ export interface ChartCardProps {
   icon: string;
   color: string;
   data: ChartDataPoint[];
+  rawReadings?: SensorReading[];
 }
 
 export interface SensorReading {
-  sensor_node_id: string;
-  sensor_type: string;
-  value: number;
-  unit: string;
-  timestamp: string;
+  id: string;
+  node_id: string;
+  created_at: string;
+  temperature: number;
+  humidity: number;
+  sm_percent: number;
+  raw_sm_value: number;
+  et0_instant: number | null;
 }

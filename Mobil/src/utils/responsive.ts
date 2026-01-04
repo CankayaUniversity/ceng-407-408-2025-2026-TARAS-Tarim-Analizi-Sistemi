@@ -325,16 +325,14 @@ export const calculateMetricCardsRowWidth = (
  * Logo size is constrained between 40px (small phones) and 64px (tablets).
  *
  * @param screenWidth - Current screen width
- * @param safeAreaTop - Safe area inset from top (for notches)
  * @returns Header dimensions (logoSize, padding, gaps)
  *
  * @example
- * const headerDims = getHeaderDimensions(screenWidth, insets.top);
+ * const headerDims = getHeaderDimensions(screenWidth);
  * <LogoLight width={headerDims.logoSize} height={headerDims.logoSize} />
  */
 export const getHeaderDimensions = (
-  screenWidth: number,
-  safeAreaTop: number
+  screenWidth: number
 ): HeaderDimensions => {
   const minLogoSize = 40;
   const maxLogoSize = 64;
@@ -346,7 +344,7 @@ export const getHeaderDimensions = (
   );
 
   const headerPadding = spacing.md;
-  const headerTopPadding = Math.max(safeAreaTop, spacing.md);
+  const headerTopPadding = spacing.xs;
   const elementGap = spacing.xs;
 
   return {

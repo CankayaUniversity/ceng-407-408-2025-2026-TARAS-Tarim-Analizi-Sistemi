@@ -7,54 +7,53 @@ import { sensorAPI } from "../../utils/api";
 import { ChartCard } from "./ChartCard";
 import { TimetableScreenProps, ChartDataPoint, SensorReading } from "./types";
 
-export const TimetableScreen = ({ theme, isActive = true }: TimetableScreenProps) => {
+export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: TimetableScreenProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [temperatureData, setTemperatureData] = useState<ChartDataPoint[]>([]);
   const [humidityData, setHumidityData] = useState<ChartDataPoint[]>([]);
   const [soilMoistureData, setSoilMoistureData] = useState<ChartDataPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [zoneName, setZoneName] = useState("");
+  const [fieldName, setFieldName] = useState("");
+  const [rawReadings, setRawReadings] = useState<SensorReading[]>([]);
 
   const fetchSensorData = async () => {
     try {
       setError(null);
 
-      const zonesResponse = await sensorAPI.getUserZones();
-
-      if (!zonesResponse.success || !zonesResponse.data?.zones.length) {
-        setError(zonesResponse.error || "Erisilebilir zona bulunamadi");
+      if (!selectedFieldId) {
+        setError("Tarla secilmedi");
         return;
       }
 
-      const firstZone = zonesResponse.data.zones[0];
-      setZoneName(`${firstZone.zone_name} - ${firstZone.field_name}`);
-
-      const response = await sensorAPI.getZoneHistory(firstZone.zone_id, 24);
+      const response = await sensorAPI.getFieldHistory(selectedFieldId, 72);
 
       if (!response.success || !response.data) {
         setError(response.error || "Sensor verileri yuklenemedi");
         return;
       }
 
-      const readings = response.data.readings;
+      const { readings, field_name } = response.data;
       if (!readings?.length) {
-        setError("Bu zona icin henuz veri bulunmuyor");
+        setError("Bu tarla icin henuz veri bulunmuyor");
         return;
       }
 
-      const toChartData = (arr: SensorReading[]): ChartDataPoint[] =>
-        arr.slice(-10).map((r, i) => {
-          const date = new Date(r.timestamp);
+      setFieldName(field_name);
+
+      const toChartData = (accessor: (r: SensorReading) => number): ChartDataPoint[] =>
+        readings.slice(-10).map((r, i) => {
+          const date = new Date(r.created_at);
           return {
-            value: r.value,
+            value: accessor(r),
             label: i % 2 === 0 ? `${date.getHours()}:${date.getMinutes().toString().padStart(2, "0")}` : "",
           };
         });
 
-      setTemperatureData(toChartData(readings.filter((r: SensorReading) => r.sensor_type === "temperature")));
-      setHumidityData(toChartData(readings.filter((r: SensorReading) => r.sensor_type === "humidity")));
-      setSoilMoistureData(toChartData(readings.filter((r: SensorReading) => r.sensor_type === "soil_moisture")));
+      setRawReadings(readings.slice(-10));
+      setTemperatureData(toChartData((r) => r.temperature));
+      setHumidityData(toChartData((r) => r.humidity));
+      setSoilMoistureData(toChartData((r) => r.sm_percent));
     } catch {
       setError("Baglanti hatasi");
     } finally {
@@ -65,7 +64,7 @@ export const TimetableScreen = ({ theme, isActive = true }: TimetableScreenProps
 
   useEffect(() => {
     fetchSensorData();
-  }, []);
+  }, [selectedFieldId]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -75,7 +74,7 @@ export const TimetableScreen = ({ theme, isActive = true }: TimetableScreenProps
     }, 60000);
 
     return () => clearInterval(pollInterval);
-  }, [isActive]);
+  }, [isActive, selectedFieldId]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -120,12 +119,12 @@ export const TimetableScreen = ({ theme, isActive = true }: TimetableScreenProps
           {HEADER_TEXT.timetable}
         </Text>
         <Text style={[appStyles.placeholderSub, { color: theme.textSecondary, marginBottom: 24 }]}>
-          {zoneName || "Yukleniyor..."} - Son 24 Saat
+          {fieldName || "Yukleniyor..."} - Son 72 Saat
         </Text>
 
-        <ChartCard theme={theme} title="Sicaklik (°C)" icon="thermometer" color="#FF6B6B" data={temperatureData} />
-        <ChartCard theme={theme} title="Nem (%)" icon="water-percent" color="#4ECDC4" data={humidityData} />
-        <ChartCard theme={theme} title="Toprak Nemi (%)" icon="flower" color="#95E1D3" data={soilMoistureData} />
+        <ChartCard theme={theme} title="Sicaklik (°C)" icon="thermometer" color="#FF6B6B" data={temperatureData} rawReadings={rawReadings} />
+        <ChartCard theme={theme} title="Nem (%)" icon="water-percent" color="#4ECDC4" data={humidityData} rawReadings={rawReadings} />
+        <ChartCard theme={theme} title="Toprak Nemi (%)" icon="flower" color="#95E1D3" data={soilMoistureData} rawReadings={rawReadings} />
       </View>
     </ScrollView>
   );

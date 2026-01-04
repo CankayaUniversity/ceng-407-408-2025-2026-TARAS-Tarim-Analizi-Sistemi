@@ -27,7 +27,7 @@ export const SettingsScreen = ({
     <ScrollView
       style={[
         appStyles.settingsContainer,
-        { backgroundColor: theme.background, paddingTop: Math.max(insets.top, 16) },
+        { backgroundColor: theme.background, paddingTop: 4 },
       ]}
     >
       <Text style={[appStyles.placeholderText, { color: theme.text }]}>
