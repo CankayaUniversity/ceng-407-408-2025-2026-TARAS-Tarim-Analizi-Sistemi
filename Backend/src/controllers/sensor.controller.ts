@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import sensorNodeService from '../services/sensorNodeService';
+import dashboardService from '../services/dashboardService';
 import { PrismaClient } from '@prisma/client';
 import logger from '../utils/logger';
 
@@ -491,6 +492,43 @@ export async function getNodeReadings(req: Request, res: Response): Promise<void
   }
 }
 
+export async function getFieldSensorHistory(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    const { fieldId } = req.params;
+    const { hours } = req.query;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Authentication required' });
+      return;
+    }
+
+    if (!fieldId) {
+      res.status(400).json({ success: false, error: 'Field ID is required' });
+      return;
+    }
+
+    const hasAccess = await dashboardService.checkFieldAccess(userId, fieldId);
+    if (!hasAccess) {
+      res.status(403).json({ success: false, error: 'You do not have access to this field' });
+      return;
+    }
+
+    const hoursParam = hours ? parseInt(hours as string) : 72;
+    const result = await sensorNodeService.getFieldSensorHistory(fieldId, hoursParam);
+
+    if (!result) {
+      res.status(404).json({ success: false, error: 'Field not found' });
+      return;
+    }
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Get field sensor history error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
 export default {
   getUserZones,
   getSensorsByZone,
@@ -498,4 +536,5 @@ export default {
   getZoneHistory,
   getZoneDetails,
   getNodeReadings,
+  getFieldSensorHistory,
 };

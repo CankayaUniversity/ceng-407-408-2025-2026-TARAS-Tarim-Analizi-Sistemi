@@ -166,7 +166,7 @@ export const LoginScreen = ({
               borderColor: theme.accentDim,
             },
           ]}
-          placeholder="Kullanici Adi (testuser)"
+          placeholder="Kullanici Adi (testuser / ahmet_ciftci)"
           placeholderTextColor={theme.textSecondary}
           value={username}
           onChangeText={setUsername}
@@ -182,7 +182,7 @@ export const LoginScreen = ({
               borderColor: theme.accentDim,
             },
           ]}
-          placeholder="Sifre (test123)"
+          placeholder="Sifre (test123 / password123)"
           placeholderTextColor={theme.textSecondary}
           value={password}
           onChangeText={setPassword}

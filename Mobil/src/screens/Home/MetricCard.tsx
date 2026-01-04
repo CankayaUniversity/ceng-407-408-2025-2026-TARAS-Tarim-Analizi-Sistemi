@@ -1,5 +1,6 @@
-import { View, Text, ActivityIndicator, useWindowDimensions } from "react-native";
+import { View, Text, ActivityIndicator } from "react-native";
 import { MetricCardProps } from "./types";
+import { useResponsive, calculateCardDimensions, getResponsiveFontSize, spacing, fontSizes, getResponsiveSpacing } from "../../utils/responsive";
 
 export const MetricCard = ({
   title,
@@ -9,27 +10,42 @@ export const MetricCard = ({
   theme,
   loading,
 }: MetricCardProps) => {
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const { screenWidth, screenHeight, isTablet } = useResponsive();
 
-  const isTablet = screenWidth >= 768;
+  // Calculate card dimensions using responsive utilities
+  const cardLayout = calculateCardDimensions(screenWidth, screenHeight, {
+    horizontalPadding: spacing.md * 2, // 32px total (StatusCard padding)
+    cardsPerRow: 2,
+    cardGap: spacing.sm, // 8px
+    cardMargin: 4,
+  });
 
-  const horizontalPadding = 32;
-  const cardGap = 8;
-  const cardsPerRow = 2;
-  const cardWidth = (screenWidth - horizontalPadding - cardGap * (cardsPerRow - 1)) / cardsPerRow;
+  // Responsive sizing for card elements
+  const cardPadding = getResponsiveSpacing(10, screenWidth, 8, 16);
 
-  const cardHeight = Math.max(100, Math.min(screenHeight * 0.15, 160));
+  const titleFontSize = getResponsiveFontSize(
+    { ...fontSizes.sm, scaleFactorMultiplier: 0.09 },
+    cardLayout.scaleFactor,
+    isTablet
+  );
 
-  const scaleFactor = Math.min(cardWidth, cardHeight);
+  const valueFontSize = getResponsiveFontSize(
+    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.40 },
+    cardLayout.scaleFactor,
+    isTablet
+  );
 
-  const valueFontSize = Math.max(24, Math.min(scaleFactor * 0.28, isTablet ? 48 : 40));
-  const titleFontSize = Math.max(10, Math.min(scaleFactor * 0.09, isTablet ? 14 : 12));
-  const unitFontSize = Math.max(10, valueFontSize * 0.4);
-  const iconSize = Math.max(18, Math.min(scaleFactor * 0.15, isTablet ? 26 : 22));
-  const cardPadding = Math.max(8, Math.min(scaleFactor * 0.08, 16));
+  const unitFontSize = valueFontSize * 0.4;
+
+  // Icon size calculated but not used - icons are passed as props with their own sizes
+  // const iconSize = getResponsiveFontSize(
+  //   { ...fontSizes.lg, scaleFactorMultiplier: 0.15 },
+  //   cardLayout.scaleFactor,
+  //   isTablet
+  // );
 
   return (
-    <View style={{ flex: 1, marginHorizontal: 4, marginBottom: 8 }}>
+    <View style={{ flex: 1, marginHorizontal: 4, marginBottom: spacing.sm }}>
       <View
         style={{
           backgroundColor: theme.surface,
@@ -37,7 +53,7 @@ export const MetricCard = ({
           borderWidth: 1,
           borderRadius: 12,
           padding: cardPadding,
-          height: cardHeight,
+          height: cardLayout.cardHeight,
           justifyContent: "space-between",
         }}
       >

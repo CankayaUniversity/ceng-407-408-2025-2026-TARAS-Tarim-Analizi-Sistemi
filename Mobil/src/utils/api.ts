@@ -5,6 +5,7 @@ import type { FieldData } from './fieldPlaceholder';
 const API_HOST = 'http://13.61.7.197:3000';
 const API_BASE_URL = `${API_HOST}/api`;
 const TOKEN_KEY = 'auth_token';
+const USER_DATA_KEY = 'user_data';
 
 let socket: Socket | null = null;
 
@@ -68,16 +69,40 @@ async function authFetch<T>(endpoint: string, options: RequestInit = {}): Promis
 
 export const authAPI = {
   async login(username: string, password: string): Promise<ApiResponse<LoginData>> {
+    // Local demo user - skip API, use offline mode
+    if (username.toLowerCase() === 'testuser' && password === 'test123') {
+      const demoToken = 'DEMO_MODE_TOKEN';
+      const demoUser = {
+        user_id: 0,
+        username: 'testuser',
+        email: 'test@local.demo',
+        role: 'demo',
+      };
+      await AsyncStorage.setItem(TOKEN_KEY, demoToken);
+      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(demoUser));
+      return {
+        success: true,
+        data: {
+          token: demoToken,
+          user: demoUser,
+        },
+      };
+    }
+
+    // Real users - connect to AWS database
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ identifier: username, password }),
       });
       const data = await res.json();
 
       if (data.success && data.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+        if (data.data?.user) {
+          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(data.data.user));
+        }
       }
       return data;
     } catch {
@@ -96,6 +121,9 @@ export const authAPI = {
 
       if (data.success && data.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+        if (data.data?.user) {
+          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(data.data.user));
+        }
       }
       return data;
     } catch {
@@ -107,8 +135,18 @@ export const authAPI = {
     return authFetch('/auth/me');
   },
 
+  async getStoredUser(): Promise<User | null> {
+    try {
+      const userJson = await AsyncStorage.getItem(USER_DATA_KEY);
+      return userJson ? JSON.parse(userJson) : null;
+    } catch {
+      return null;
+    }
+  },
+
   async logout() {
     await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(USER_DATA_KEY);
   },
 
   async getToken() {
@@ -255,11 +293,13 @@ export const dashboardAPI = {
   getFields: async (): Promise<FieldSummary[]> => {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
 
-    if (!token) {
+    // Demo mode - use local data
+    if (!token || token === 'DEMO_MODE_TOKEN') {
       const { getDemoFields } = await import('./demoData');
       return getDemoFields();
     }
 
+    // Real mode - fetch from AWS database
     try {
       const res = await authFetch<FieldSummary[]>('/dashboard/fields');
       if (res.success && res.data) {
@@ -276,11 +316,13 @@ export const dashboardAPI = {
   getFieldDashboard: async (fieldId: string): Promise<DashboardData> => {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
 
-    if (!token) {
+    // Demo mode - use local data
+    if (!token || token === 'DEMO_MODE_TOKEN') {
       const { generateDemoDashboardData } = await import('./demoData');
       return generateDemoDashboardData(fieldId);
     }
 
+    // Real mode - fetch from AWS database
     try {
       const res = await authFetch<DashboardData>(`/dashboard/fields/${fieldId}`);
       if (res.success && res.data) {
@@ -292,5 +334,115 @@ export const dashboardAPI = {
       const { generateDemoDashboardData } = await import('./demoData');
       return generateDemoDashboardData(fieldId);
     }
+  },
+};
+
+// Disease Detection types
+export type DetectionStatus = 'NOT_STARTED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export interface DiseaseDetection {
+  detection_id: string;
+  user_id: string;
+  image_uuid: string;
+  image_s3_key: string;
+  status: DetectionStatus;
+  uploaded_at: string;
+  processing_started_at: string | null;
+  completed_at: string | null;
+
+  // Results (null until COMPLETED)
+  detected_disease: string | null;
+  confidence: number | null;
+  confidence_score: number | null;
+  all_predictions: Record<string, number> | null;
+  recommendations: string[] | null;
+  error_message: string | null;
+}
+
+export interface SubmitDetectionResponse {
+  detectionId: string;
+  imageUuid: string;
+  status: DetectionStatus;
+  message: string;
+}
+
+export interface ImageUrlResponse {
+  imageUrl: string;
+  expiresIn: number;
+  expiresAt: string;
+}
+
+export const diseaseAPI = {
+  async submitDetection(imageUri: string): Promise<ApiResponse<SubmitDetectionResponse>> {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) return { success: false, error: 'Oturum bulunamadı' };
+
+    const formData = new FormData();
+    formData.append('image', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'leaf.jpg',
+    } as any);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/disease/submit`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+        body: formData,
+      });
+      return res.json();
+    } catch {
+      return { success: false, error: 'Görsel gönderilemedi' };
+    }
+  },
+
+  async getDetectionStatus(detectionId: string): Promise<ApiResponse<DiseaseDetection>> {
+    return authFetch(`/disease/requests/${detectionId}`);
+  },
+
+  async getAllDetections(): Promise<ApiResponse<{ count: number; detections: DiseaseDetection[] }>> {
+    return authFetch('/disease/requests');
+  },
+
+  async getImageUrl(detectionId: string): Promise<ApiResponse<ImageUrlResponse>> {
+    return authFetch(`/disease/requests/${detectionId}/image`);
+  },
+
+  async deleteDetection(detectionId: string): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/disease/requests/${detectionId}`, { method: 'DELETE' });
+  },
+
+  async pollDetectionStatus(
+    detectionId: string,
+    onProgress?: (status: DetectionStatus) => void,
+    maxAttempts = 30,
+    intervalMs = 2000
+  ): Promise<DiseaseDetection> {
+    for (let i = 0; i < maxAttempts; i++) {
+      const response = await this.getDetectionStatus(detectionId);
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Detection failed');
+      }
+
+      const detection = response.data;
+      onProgress?.(detection.status);
+
+      if (detection.status === 'COMPLETED') {
+        return detection;
+      }
+
+      if (detection.status === 'FAILED') {
+        throw new Error(detection.error_message || 'Detection failed');
+      }
+
+      // Still processing, wait and retry
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    throw new Error('Timeout waiting for detection results');
   },
 };

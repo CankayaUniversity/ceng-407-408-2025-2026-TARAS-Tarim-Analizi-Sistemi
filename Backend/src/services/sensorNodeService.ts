@@ -288,6 +288,58 @@ export async function getFarmDashboard(farmId: string) {
   };
 }
 
+export async function getFieldSensorHistory(fieldId: string, hours: number = 72) {
+  const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const field = await prisma.field.findUnique({
+    where: { field_id: fieldId },
+    include: {
+      zones: {
+        include: {
+          sensor_nodes: {
+            include: {
+              readings: {
+                where: { created_at: { gte: startTime } },
+                orderBy: { created_at: 'asc' },
+                select: {
+                  id: true,
+                  node_id: true,
+                  created_at: true,
+                  temperature: true,
+                  humidity: true,
+                  sm_percent: true,
+                  raw_sm_value: true,
+                  et0_instant: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!field) return null;
+
+  // grab all readings and fix the BigInt issue
+  const allReadings = field.zones.flatMap((zone) =>
+    zone.sensor_nodes.flatMap((node) =>
+      node.readings.map((reading) => ({
+        ...reading,
+        id: reading.id.toString(),
+      }))
+    )
+  );
+
+  return {
+    field_id: field.field_id,
+    field_name: field.name,
+    hours,
+    reading_count: allReadings.length,
+    readings: allReadings,
+  };
+}
+
 export default {
   getSensorNodeWithHierarchy,
   getSensorNodesForZone,
@@ -302,4 +354,5 @@ export default {
   getIrrigationHistory,
   getUserFarmsWithSensors,
   getFarmDashboard,
+  getFieldSensorHistory,
 };

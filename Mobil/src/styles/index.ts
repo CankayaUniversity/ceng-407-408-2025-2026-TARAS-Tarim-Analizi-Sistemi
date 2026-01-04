@@ -9,7 +9,7 @@ export const appStyles = StyleSheet.create({
   headerSubtitle: { fontSize: 13, marginTop: 6, fontWeight: '400' },
 
   spacer: { flex: 1 },
-  canvasContainer: { flex: 1.2, overflow: 'hidden', backgroundColor: 'transparent' },
+  canvasContainer: { flex: 1.4, overflow: 'hidden', backgroundColor: 'transparent' },
 
   bottomNavWrapper: { marginHorizontal: 12, marginBottom: 16, borderRadius: 16, overflow: 'hidden', elevation: 4 },
   bottomNav: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 8 },

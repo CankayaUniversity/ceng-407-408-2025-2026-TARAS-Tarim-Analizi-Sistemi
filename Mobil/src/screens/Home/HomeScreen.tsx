@@ -1,327 +1,75 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { Canvas } from "@react-three/fiber/native";
-import { Text, View, ActivityIndicator, ScrollView, useWindowDimensions } from "react-native";
+import { View, ScrollView, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ColorPlane } from "../../components/ColorPlane";
+import { ColorPlane, NodeInfo } from "../../components/ColorPlane";
 import { FieldData } from "../../utils/fieldPlaceholder";
 import { appStyles } from "../../styles";
-import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
 import LogoLight from "../../assets/Taras-logo-light.svg";
 import LogoDark from "../../assets/Taras-logo-dark.svg";
-import { fetchWeatherInfo, WeatherInfo } from "../../utils/weatherAPI";
 import { Theme } from "../../utils/theme";
-import { authAPI, dashboardAPI } from "../../utils/api";
+import { authAPI, dashboardAPI, FieldSummary } from "../../utils/api";
 import { generateDemoFieldData } from "../../utils/demoData";
+import { FieldSelector } from "./FieldSelector";
+import { NodePopup } from "./NodePopup";
+import { ProfileButton } from "../../components/ProfileButton";
+import { useResponsive, spacing, getHeaderDimensions, getProfileButtonSize } from "../../utils/responsive";
+import { StatusCard } from "./StatusCard";
 
 interface HomeScreenProps {
   theme: Theme;
   isDark: boolean;
 }
 
-interface MetricCardProps {
-  title: string;
-  value: string | null | React.ReactNode;
-  unit?: string;
-  icon: React.ReactNode;
-  theme: Theme;
-  loading: boolean;
-}
-
-const MetricCard = ({
-  title,
-  value,
-  unit = " %",
-  icon,
-  theme,
-  loading,
-}: MetricCardProps) => {
-  const { width } = useWindowDimensions();
-  // Card gets ~half screen width due to flex: 1 in row layout
-  const cardWidth = (width - 48) / 2 - 8; // 48 = total padding, 8 = margin between
-  // Make font size proportional to actual card width
-  const baseFontSize = Math.min(28, cardWidth * 0.18);
-
-  return (
-    <View style={{ flex: 1, marginHorizontal: 4, marginBottom: 12 }}>
-      <View
-        style={{
-          backgroundColor: theme.surface,
-          borderColor: theme.accent + "20",
-          borderWidth: 1,
-          borderRadius: 12,
-          padding: 10,
-          minHeight: 120,
-          justifyContent: "space-between",
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 8,
-          }}
-        >
-          <Text
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={{
-              color: theme.textSecondary,
-              fontSize: 12,
-              fontWeight: "600",
-              flex: 1,
-            }}
-          >
-            {title}
-          </Text>
-          <View style={{ marginLeft: 4 }}>{icon}</View>
-        </View>
-
-        {loading ? (
-          <View style={{ alignItems: "flex-start" }}>
-            <ActivityIndicator size={32} color={theme.accent} />
-          </View>
-        ) : (
-          <View style={{ alignItems: "flex-start", justifyContent: "flex-end", flex: 1 }}>
-            {value !== null ? (
-              typeof value === "string" ? (
-                <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-                  <Text
-                    style={{
-                      color: theme.text,
-                      fontSize: baseFontSize,
-                      fontWeight: "400",
-                      lineHeight: baseFontSize * 1.1,
-                    }}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                  >
-                    {value}
-                  </Text>
-                  {unit && unit.trim() ? (
-                    <Text
-                      style={{
-                        color: theme.textSecondary,
-                        fontSize: baseFontSize * 0.5,
-                        fontWeight: "400",
-                        marginLeft: 2,
-                      }}
-                      numberOfLines={1}
-                    >
-                      {unit.trim()}
-                    </Text>
-                  ) : null}
-                </View>
-              ) : (
-                <View>{value}</View>
-              )
-            ) : (
-              <Text
-                style={{
-                  color: theme.text,
-                  fontSize: baseFontSize,
-                  fontWeight: "500",
-                  lineHeight: baseFontSize * 1.1,
-                }}
-              >
-                -
-              </Text>
-            )}
-          </View>
-        )}
-      </View>
-    </View>
-  );
-};
-
-interface StatusCardProps {
-  theme: Theme;
-  weather: WeatherInfo | null;
-  loading: boolean;
-}
-
-const StatusCard = ({ theme, weather, loading }: StatusCardProps) => {
-  const airTemp = weather?.temperature.toFixed(1) ?? null;
-  const airHumidity = weather?.humidity.toFixed(0) ?? null;
-  const soilMoisture = "56"; // Placeholder
-
-  const IrrigationCountdown = ({ theme }: { theme: Theme }) => {
-    const { width } = useWindowDimensions();
-    const cardWidth = (width - 48) / 2 - 8;
-    const baseFontSize = Math.min(28, cardWidth * 0.18);
-    
-    const [hours, setHours] = useState<string>("00");
-    const [minutes, setMinutes] = useState<string>("00");
-    const [colonVisible, setColonVisible] = useState<boolean>(true);
-
-    const computeRemaining = () => {
-      const now = new Date();
-      let nextNoon = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        12,
-        0,
-        0,
-        0,
-      );
-      if (now >= nextNoon) {
-        nextNoon = new Date(nextNoon.getTime() + 24 * 60 * 60 * 1000);
-      }
-      const diffMs = nextNoon.getTime() - now.getTime();
-      const totalMinutes = Math.floor(diffMs / 60000);
-      const h = Math.floor(totalMinutes / 60);
-      const m = totalMinutes % 60;
-      setHours(String(h).padStart(2, "0"));
-      setMinutes(String(m).padStart(2, "0"));
-    };
-
-    useEffect(() => {
-      computeRemaining();
-      const colonInterval = setInterval(() => setColonVisible((c) => !c), 1000);
-      const now = new Date();
-      const msUntilNextMinute =
-        (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
-      let minuteInterval: any = null;
-      const minuteTimeout: any = setTimeout(() => {
-        computeRemaining();
-        minuteInterval = setInterval(computeRemaining, 60 * 1000);
-      }, msUntilNextMinute);
-
-      return () => {
-        clearInterval(colonInterval);
-        clearTimeout(minuteTimeout);
-        if (minuteInterval) clearInterval(minuteInterval);
-      };
-    }, []);
-
-    return (
-      <View style={{ flexDirection: "row", alignItems: "center" }}>
-        <Text
-          style={{
-            color: theme.text,
-            fontSize: baseFontSize,
-            fontWeight: "400",
-            lineHeight: baseFontSize * 1.1,
-          }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {hours}
-        </Text>
-        <View
-          style={{
-            width: baseFontSize * 0.5,
-            alignItems: "center",
-            justifyContent: "center",
-            marginHorizontal: 2,
-          }}
-        >
-          <Text
-            style={{
-              opacity: colonVisible ? 1 : 0,
-              color: theme.text,
-              fontSize: baseFontSize,
-              fontWeight: "400",
-              lineHeight: baseFontSize * 1.1,
-            }}
-          >
-            {":"}
-          </Text>
-        </View>
-        <Text
-          style={{
-            color: theme.text,
-            fontSize: baseFontSize,
-            fontWeight: "400",
-            lineHeight: baseFontSize * 1.1,
-          }}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-        >
-          {minutes}
-        </Text>
-      </View>
-    );
-  };
-
-  return (
-    <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 8 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        <MetricCard
-          theme={theme}
-          title="Hava Sıcaklığı"
-          value={airTemp}
-          unit=" °C"
-          icon={
-            <FontAwesome6
-              name="temperature-three-quarters"
-              size={22}
-              color={theme.accent}
-            />
-          }
-          loading={loading}
-        />
-        <MetricCard
-          theme={theme}
-          title="Hava Nemi"
-          value={airHumidity}
-          icon={
-            <MaterialIcons name="water-drop" size={22} color={theme.accent} />
-          }
-          loading={loading}
-        />
-      </View>
-
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-        <MetricCard
-          theme={theme}
-          title="Sulamaya Kalan Süre"
-          value={<IrrigationCountdown theme={theme} />}
-          unit={""}
-          icon={<FontAwesome6 name="clock" size={22} color={theme.accent} />}
-          loading={false}
-        />
-        <MetricCard
-          theme={theme}
-          title="Toprak Nemi"
-          value={soilMoisture}
-          icon={<Entypo name="air" size={22} color={theme.accent} />}
-          loading={false}
-        />
-      </View>
-    </View>
-  );
-};
-
 export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
-  const [weather, setWeather] = useState<WeatherInfo | null>(null);
+  const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [username, setUsername] = useState<string>('');
   const insets = useSafeAreaInsets();
   const [scrollY, setScrollY] = useState(0);
-  const [fieldData, setFieldData] = useState<FieldData>({ 
-    polygon: { exterior: [] }, 
-    nodes: [] 
+  const [fieldData, setFieldData] = useState<FieldData>({
+    polygon: { exterior: [] },
+    nodes: []
   });
+  const [fields, setFields] = useState<FieldSummary[]>([]);
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [isScrollable, setIsScrollable] = useState(false);
+
+  const { screenWidth } = useResponsive();
+  const headerDims = getHeaderDimensions(screenWidth, insets.top);
+  const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
 
   useEffect(() => {
     const initializeData = async () => {
       setLoading(true);
-      
+
       try {
         // Check authentication status
         const authStatus = await authAPI.isAuthenticated();
-        
-        // Fetch weather data
-        const weatherData = await fetchWeatherInfo(39.92, 32.85); // Ankara coordinates
-        setWeather(weatherData);
-        
+
         // Fetch field data based on authentication status
         if (authStatus) {
           // User is logged in - try to fetch real data
           try {
-            const dashboardData = await dashboardAPI.getFieldDashboard('field-1'); // Use default field or get from context
-            setFieldData(dashboardData.field);
+            // First, get the list of user's fields
+            const fieldsData = await dashboardAPI.getFields();
+
+            if (fieldsData && fieldsData.length > 0) {
+              // Store fields and select the first one
+              setFields(fieldsData);
+              const firstFieldId = fieldsData[0].id;
+              setSelectedFieldId(firstFieldId);
+
+              // Fetch dashboard data for the first field
+              const dashboard = await dashboardAPI.getFieldDashboard(firstFieldId);
+              setDashboardData(dashboard);
+              setFieldData(dashboard.field);
+            } else {
+              // No fields found, use demo data
+              setFieldData(generateDemoFieldData(42, 0));
+            }
           } catch {
             // Fallback to demo data if API fails
             setFieldData(generateDemoFieldData(42, 0));
@@ -337,65 +85,160 @@ export const HomeScreen = ({ theme, isDark }: HomeScreenProps) => {
         setLoading(false);
       }
     };
-    
+
     initializeData();
   }, []);
 
+  // Load username for profile button
+  useEffect(() => {
+    const loadUser = async () => {
+      const user = await authAPI.getStoredUser();
+      setUsername(user?.username ?? 'User');
+    };
+    loadUser();
+  }, []);
+
+  // Handle field selection changes
+  const handleFieldSelect = async (fieldId: string) => {
+    setSelectedFieldId(fieldId);
+    setLoading(true);
+    try {
+      const dashboard = await dashboardAPI.getFieldDashboard(fieldId);
+      setDashboardData(dashboard);
+      setFieldData(dashboard.field);
+    } catch {
+      // Fallback to demo data if API fails
+      setFieldData(generateDemoFieldData(42, 0));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle node selection for popup
+  const handleNodeSelect = (node: NodeInfo | null) => {
+    if (node) {
+      setSelectedNode(node);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => setSelectedNode(null));
+    }
+  };
+
+  const handleClosePopup = () => {
+    handleNodeSelect(null);
+  };
+
   return (
     <View style={{ flex: 1 }}>
+      {/* Redesigned Header with Logo and Profile Button */}
       <View
-        style={[
-          appStyles.header,
-          {
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            paddingTop: Math.max(insets.top, 16),
-          },
-        ]}
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: headerDims.headerPadding,
+          paddingTop: headerDims.headerTopPadding,
+          paddingBottom: spacing.xs,
+        }}
       >
-        <View style={{ marginLeft: 12 }}>
+        <View style={{ marginLeft: headerDims.elementGap }}>
           {isDark ? (
-            <LogoDark width={64} height={64} />
+            <LogoDark width={headerDims.logoSize} height={headerDims.logoSize} />
           ) : (
-            <LogoLight width={64} height={64} />
+            <LogoLight width={headerDims.logoSize} height={headerDims.logoSize} />
           )}
         </View>
+
+        <View style={{ marginRight: headerDims.elementGap }}>
+          <ProfileButton
+            username={username}
+            theme={theme}
+            size={profileButtonSize}
+          />
+        </View>
       </View>
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
-        scrollEventThrottle={16}
-      >
-        <StatusCard theme={theme} weather={weather} loading={loading} />
-      </ScrollView>
 
+      {/* Field Data Section Container */}
       <View
-      pointerEvents="none"
-      style={{
-        position: "absolute",
-        right: 10,
-        top: Math.max(insets.top, 16) + 110 + scrollY, // ✅ scroll oldukça iner
-        width: 10,   // daha kalın
-        height: 90,  // daha büyük
-        borderRadius: 999,
-        backgroundColor: theme.textSecondary,
-        opacity: 0.35,
-      }}
-    />
+        style={{
+          flex: 1,
+          marginHorizontal: spacing.sm,
+          marginTop: 0,
+        }}
+      >
+        <FieldSelector
+          theme={theme}
+          fields={fields}
+          selectedFieldId={selectedFieldId}
+          onSelectField={handleFieldSelect}
+        />
 
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          onScroll={(e) => setScrollY(e.nativeEvent.contentOffset.y)}
+          scrollEventThrottle={16}
+          onContentSizeChange={(contentHeight) => { // contentWidth, 
+            // Check if content is scrollable
+            setIsScrollable(contentHeight > 400); // Approximate scroll view height
+          }}
+        >
+          <StatusCard theme={theme} dashboardData={dashboardData} loading={loading} />
+        </ScrollView>
 
-      <View style={[appStyles.canvasContainer, { position: "relative" }]}>
+        {/* Scrollbar indicator - only show when scrollable */}
+        {isScrollable && (
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              right: 6,
+              top: 110 + scrollY,
+              width: 8,
+              height: 80,
+              borderRadius: 999,
+              backgroundColor: theme.textSecondary,
+              opacity: 0.25,
+            }}
+          />
+        )}
+
+        <View style={[appStyles.canvasContainer, { position: "relative" }]}>
         <Canvas
-          camera={{ position: [0, 16, 22.6], fov: 30 }}
+          camera={{ position: [0, 16, 22.6], fov: 22 }}
           style={{ flex: 1 }}
         >
           <color attach="background" args={[theme.background]} />
           <Suspense fallback={null}>
-            <ColorPlane fieldData={fieldData} isDark={isDark} />
+            <ColorPlane
+              fieldData={fieldData}
+              isDark={isDark}
+              onNodeSelect={handleNodeSelect}
+              selectedNodeId={selectedNode?.id ?? null}
+            />
           </Suspense>
         </Canvas>
+
+        <NodePopup
+          theme={theme}
+          selectedNode={selectedNode ? {
+            id: selectedNode.id,
+            moisture: selectedNode.moisture,
+            airTemperature: selectedNode.airTemperature,
+            airHumidity: selectedNode.airHumidity,
+          } : null}
+          fadeAnim={fadeAnim}
+          onClose={handleClosePopup}
+        />
+        </View>
       </View>
     </View>
   );

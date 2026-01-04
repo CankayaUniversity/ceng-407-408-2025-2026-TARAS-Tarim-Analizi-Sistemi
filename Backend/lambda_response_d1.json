@@ -1,0 +1,1 @@
+{"statusCode": 400, "body": "{\"error\": \"Cannot set tensor: Dimension mismatch. Got 224 but expected 256 for dimension 1 of input 0.\"}", "headers": {"Content-Type": "application/json"}}

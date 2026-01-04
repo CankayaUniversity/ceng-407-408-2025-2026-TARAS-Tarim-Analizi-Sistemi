@@ -36,6 +36,14 @@ enum JobStatus {
   @@map("job_status")
 }
 
+enum DetectionStatus {
+  NOT_STARTED
+  PROCESSING
+  COMPLETED
+  FAILED
+  @@map("detection_status")
+}
+
 // =======================
 // USER MANAGEMENT
 // =======================
@@ -59,10 +67,11 @@ model User {
   last_login    DateTime? @db.Timestamptz
   created_at    DateTime? @default(now()) @db.Timestamptz
 
-  role          Role?          @relation(fields: [role_id], references: [role_id])
-  farms         Farm[]
-  alerts        Alert[]
-  chat_sessions ChatSession[]
+  role               Role?              @relation(fields: [role_id], references: [role_id])
+  farms              Farm[]
+  alerts             Alert[]
+  chat_sessions      ChatSession[]
+  disease_detections DiseaseDetection[]
 
   @@map("users")
 }
@@ -303,4 +312,34 @@ model ChatMessage {
   session ChatSession? @relation(fields: [session_id], references: [session_id])
 
   @@map("chat_messages")
+}
+
+// =======================
+// DISEASE DETECTION
+// =======================
+
+model DiseaseDetection {
+  detection_id      String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id           String           @db.Uuid
+  image_uuid        String           @unique @db.Uuid
+  image_s3_key      String           @db.VarChar(500)
+  status            DetectionStatus  @default(NOT_STARTED)
+  uploaded_at       DateTime         @default(now()) @db.Timestamptz
+  processing_started_at DateTime?    @db.Timestamptz
+  completed_at      DateTime?        @db.Timestamptz
+
+  // Results
+  detected_disease  String?          @db.VarChar(100)
+  confidence        Float?
+  confidence_score  Float?
+  all_predictions   Json?
+  recommendations   Json?
+  error_message     String?          @db.Text
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([user_id], name: "idx_disease_detection_user")
+  @@index([status], name: "idx_disease_detection_status")
+  @@index([uploaded_at], name: "idx_disease_detection_uploaded")
+  @@map("disease_detections")
 }

@@ -3,6 +3,7 @@ import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
 import { MetricCard } from "./MetricCard";
 import { IrrigationCountdown } from "./IrrigationCountdown";
 import { StatusCardProps } from "./types";
+import { spacing } from "../../utils/responsive";
 
 export const StatusCard = ({ theme, dashboardData, loading }: StatusCardProps) => {
   const airTemp = dashboardData?.weather.airTemperature.toFixed(1) ?? null;
@@ -10,7 +11,7 @@ export const StatusCard = ({ theme, dashboardData, loading }: StatusCardProps) =
   const soilMoisture = dashboardData?.sensors.soilMoisture.toString() ?? null;
 
   return (
-    <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 4 }}>
+    <View style={{ flex: 1, paddingHorizontal: spacing.md, paddingTop: 4 }}>
       <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
         <MetricCard
           theme={theme}

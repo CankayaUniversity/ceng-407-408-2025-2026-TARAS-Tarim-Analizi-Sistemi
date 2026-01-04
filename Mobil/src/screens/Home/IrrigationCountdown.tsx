@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { View, Text, useWindowDimensions } from "react-native";
+import { View, Text } from "react-native";
 import { Theme } from "../../utils/theme";
+import { useResponsive, calculateCardDimensions, getResponsiveFontSize, spacing } from "../../utils/responsive";
 
 interface IrrigationCountdownProps {
   theme: Theme;
@@ -8,16 +9,21 @@ interface IrrigationCountdownProps {
 }
 
 export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdownProps) => {
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const { screenWidth, screenHeight, isTablet } = useResponsive();
 
-  const isTablet = screenWidth >= 768;
-  const horizontalPadding = 32;
-  const cardGap = 8;
-  const cardsPerRow = 2;
-  const cardWidth = (screenWidth - horizontalPadding - cardGap * (cardsPerRow - 1)) / cardsPerRow;
-  const cardHeight = Math.max(100, Math.min(screenHeight * 0.15, 160));
-  const scaleFactor = Math.min(cardWidth, cardHeight);
-  const countdownFontSize = Math.max(24, Math.min(scaleFactor * 0.28, isTablet ? 48 : 40));
+  // Calculate card dimensions using responsive utilities (same as MetricCard)
+  const cardLayout = calculateCardDimensions(screenWidth, screenHeight, {
+    horizontalPadding: spacing.md * 2, // 32px total
+    cardsPerRow: 2,
+    cardGap: spacing.sm, // 8px
+    cardMargin: 4,
+  });
+
+  const countdownFontSize = getResponsiveFontSize(
+    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.40 },
+    cardLayout.scaleFactor,
+    isTablet
+  );
 
   const [hours, setHours] = useState<string>("00");
   const [minutes, setMinutes] = useState<string>("00");
