@@ -10,6 +10,7 @@ import { TimetableScreenProps, ChartDataPoint, SensorReading } from "./types";
 export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: TimetableScreenProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dataSource, setDataSource] = useState<'aws' | 'demo'>('demo');
   const [temperatureData, setTemperatureData] = useState<ChartDataPoint[]>([]);
   const [humidityData, setHumidityData] = useState<ChartDataPoint[]>([]);
   const [soilMoistureData, setSoilMoistureData] = useState<ChartDataPoint[]>([]);
@@ -26,12 +27,17 @@ export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: Tim
         return;
       }
 
+      console.log('🌐 [TIMETABLE] Fetching sensor data from AWS for field:', selectedFieldId);
       const response = await sensorAPI.getFieldHistory(selectedFieldId, 72);
 
       if (!response.success || !response.data) {
+        console.warn('⚠️ [TIMETABLE] API returned null or error:', response.error);
         setError(response.error || "Sensor verileri yuklenemedi");
         return;
       }
+
+      console.log('✅ [TIMETABLE AWS SUCCESS] Received readings for:', response.data.field_name);
+      setDataSource('aws');
 
       const { readings, field_name } = response.data;
       if (!readings?.length) {
@@ -54,8 +60,10 @@ export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: Tim
       setTemperatureData(toChartData((r) => r.temperature));
       setHumidityData(toChartData((r) => r.humidity));
       setSoilMoistureData(toChartData((r) => r.sm_percent));
-    } catch {
+    } catch (error) {
+      console.error('❌ [TIMETABLE ERROR] Fetch failed:', error);
       setError("Baglanti hatasi");
+      setDataSource('demo');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -115,9 +123,22 @@ export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: Tim
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[theme.accent]} />}
     >
       <View style={{ padding: 16 }}>
-        <Text style={[appStyles.placeholderText, { color: theme.text, marginBottom: 8 }]}>
-          {HEADER_TEXT.timetable}
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+            {HEADER_TEXT.timetable}
+          </Text>
+          {/* Data Source Badge */}
+          <View style={{
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
+            backgroundColor: dataSource === 'aws' ? '#10b981' : '#f59e0b',
+          }}>
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+              {dataSource === 'aws' ? '🔗 AWS' : '📱 DEMO'}
+            </Text>
+          </View>
+        </View>
         <Text style={[appStyles.placeholderSub, { color: theme.textSecondary, marginBottom: 24 }]}>
           {fieldName || "Yukleniyor..."} - Son 72 Saat
         </Text>

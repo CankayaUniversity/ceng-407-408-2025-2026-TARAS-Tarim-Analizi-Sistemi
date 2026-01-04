@@ -52,6 +52,7 @@ export const HomeScreen = ({ theme, isDark, userFullName, onFieldSelect }: HomeS
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [username, setUsername] = useState<string>('');
+  const [dataSource, setDataSource] = useState<'aws' | 'demo'>('demo'); // Track data source
   const [scrollY, setScrollY] = useState(0);
   const [fieldData, setFieldData] = useState<FieldData>({
     polygon: { exterior: [] },
@@ -87,6 +88,7 @@ export const HomeScreen = ({ theme, isDark, userFullName, onFieldSelect }: HomeS
               setFields(fieldsData);
               const firstFieldId = fieldsData[0].id;
               setSelectedFieldId(firstFieldId);
+              setDataSource('aws'); // Mark as AWS data
 
               // Fetch dashboard data for the first field
               const dashboard = await dashboardAPI.getFieldDashboard(firstFieldId);
@@ -94,18 +96,22 @@ export const HomeScreen = ({ theme, isDark, userFullName, onFieldSelect }: HomeS
               setFieldData(dashboard.field);
             } else {
               // No fields found, use demo data
+              setDataSource('demo'); // Mark as demo data
               setFieldData(generateDemoFieldData(42, 0));
             }
           } catch {
             // Fallback to demo data if API fails
+            setDataSource('demo'); // Mark as demo data
             setFieldData(generateDemoFieldData(42, 0));
           }
         } else {
           // User skipped login - use demo data
+          setDataSource('demo'); // Mark as demo data
           setFieldData(generateDemoFieldData(42, 0));
         }
       } catch {
         // Fallback for any errors
+        setDataSource('demo'); // Mark as demo data
         setFieldData(generateDemoFieldData(42, 0));
       } finally {
         setLoading(false);
@@ -133,8 +139,10 @@ export const HomeScreen = ({ theme, isDark, userFullName, onFieldSelect }: HomeS
       const dashboard = await dashboardAPI.getFieldDashboard(fieldId);
       setDashboardData(dashboard);
       setFieldData(dashboard.field);
+      setDataSource('aws'); // Mark as AWS data
     } catch {
       // Fallback to demo data if API fails
+      setDataSource('demo'); // Mark as demo data
       setFieldData(generateDemoFieldData(42, 0));
     } finally {
       setLoading(false);
@@ -217,6 +225,17 @@ export const HomeScreen = ({ theme, isDark, userFullName, onFieldSelect }: HomeS
               Hoşgeldiniz, {userFullName}
             </Text>
           )}
+          {/* Data Source Badge */}
+          <View style={{
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6,
+            backgroundColor: dataSource === 'aws' ? '#10b981' : '#f59e0b',
+          }}>
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600' }}>
+              {dataSource === 'aws' ? '🔗 AWS' : '📱 DEMO'}
+            </Text>
+          </View>
           <ProfileButton
             username={username}
             theme={theme}

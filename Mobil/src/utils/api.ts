@@ -309,19 +309,22 @@ export const dashboardAPI = {
 
     // Demo mode - use local data
     if (!token || token === 'DEMO_MODE_TOKEN') {
+      console.log('📋 [DEMO MODE] Fields from demo data');
       const { getDemoFields } = await import('./demoData');
       return getDemoFields();
     }
 
     // Real mode - fetch from AWS database
     try {
+      console.log('🌐 [AWS MODE] Fetching fields from AWS');
       const res = await authFetch<FieldSummary[]>('/dashboard/fields');
       if (res.success && res.data) {
+        console.log('✅ [AWS SUCCESS] Fields received:', res.data.length, 'fields');
         return res.data;
       }
       throw new Error(res.error || 'Failed to fetch fields');
     } catch (error) {
-      console.error('dashboardAPI.getFields error:', error);
+      console.error('❌ [AWS ERROR] dashboardAPI.getFields error:', error);
       const { getDemoFields } = await import('./demoData');
       return getDemoFields();
     }
@@ -332,19 +335,26 @@ export const dashboardAPI = {
 
     // Demo mode - use local data
     if (!token || token === 'DEMO_MODE_TOKEN') {
+      console.log('📋 [DEMO MODE] Dashboard from demo data for field:', fieldId);
       const { generateDemoDashboardData } = await import('./demoData');
       return generateDemoDashboardData(fieldId);
     }
 
     // Real mode - fetch from AWS database
     try {
+      console.log('🌐 [AWS MODE] Fetching dashboard from AWS for field:', fieldId);
       const res = await authFetch<DashboardData>(`/dashboard/fields/${fieldId}`);
       if (res.success && res.data) {
+        console.log('✅ [AWS SUCCESS] Dashboard received for field:', fieldId);
         return res.data;
+      }
+      // If data is null/undefined but success is true, log warning and return demo data
+      if (!res.data) {
+        console.warn('⚠️ [AWS WARNING] Dashboard API returned null payload for fieldId:', fieldId);
       }
       throw new Error(res.error || 'Failed to fetch dashboard data');
     } catch (error) {
-      console.error('dashboardAPI.getFieldDashboard error:', error);
+      console.error('❌ [AWS ERROR] dashboardAPI.getFieldDashboard error:', error);
       const { generateDemoDashboardData } = await import('./demoData');
       return generateDemoDashboardData(fieldId);
     }
