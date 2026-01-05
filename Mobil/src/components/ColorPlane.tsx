@@ -361,7 +361,8 @@ export function ColorPlane({ fieldData, isDark = false, isActive = true, onNodeS
 
   const currentColor = COLORS[colorIndex];
 
-  // Color mapping: red (dry) -> accent (optimal) -> blue (wet)
+  // Color mapping: yale-blue gradient based on soil moisture
+  // 0-20%: lightest blue (50-100), 20-80%: mid tones (200-700), 80-100%: darkest blue (800-950)
   const moistureToColor = (m: number) => {
     const clamped = Math.max(0, Math.min(100, m));
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -379,23 +380,48 @@ export function ColorPlane({ fieldData, isDark = false, isActive = true, onNodeS
         .map((v) => Math.round(v).toString(16).padStart(2, "0"))
         .join("");
 
-    const red = hexToRgb("#ef4444");
-    const accent = hexToRgb("#677c98");
-    const blue = hexToRgb("#2563eb");
-
-    if (clamped <= 30) {
-      const t = clamped / 30;
-      const r = lerp(red.r, accent.r, t);
-      const g = lerp(red.g, accent.g, t);
-      const b = lerp(red.b, accent.b, t);
+    // Yale Blue color palette
+    const blue50 = hexToRgb("#e8f6fd");   // Very dry soil (0-20%)
+    const blue200 = hexToRgb("#a1dcf7");  // Low moisture (20-40%)
+    const blue400 = hexToRgb("#43b8ef");  // Medium moisture (40-60%)
+    const blue700 = hexToRgb("#0c648d");  // Good moisture (60-80%)
+    const blue900 = hexToRgb("#04212f");  // High moisture (80-100%)
+// ilerde %10 artarak olcak
+    if (clamped <= 20) {
+      // 0-20%
+      const t = clamped / 20;
+      const r = lerp(blue50.r, blue200.r, t);
+      const g = lerp(blue50.g, blue200.g, t);
+      const b = lerp(blue50.b, blue200.b, t);
       return rgbToHex(r, g, b);
-    } else if (clamped <= 70) {
-      return "#677c98";
+    } else if (clamped <= 40) {
+      // 20-40%
+      const t = (clamped - 20) / 20;
+      const r = lerp(blue200.r, blue400.r, t);
+      const g = lerp(blue200.g, blue400.g, t);
+      const b = lerp(blue200.b, blue400.b, t);
+      return rgbToHex(r, g, b);
+    } else if (clamped <= 60) {
+      // 40-60%
+      const t = (clamped - 40) / 20;
+      const r = lerp(blue400.r, blue700.r, t);
+      const g = lerp(blue400.g, blue700.g, t);
+      const b = lerp(blue400.b, blue700.b, t);
+      return rgbToHex(r, g, b);
+    } else if (clamped <= 80) {
+      // 60-80%
+      const t = (clamped - 60) / 20;
+      const r = lerp(blue700.r, blue900.r, t);
+      const g = lerp(blue700.g, blue900.g, t);
+      const b = lerp(blue700.b, blue900.b, t);
+      return rgbToHex(r, g, b);
     } else {
-      const t = (clamped - 70) / 30;
-      const r = lerp(accent.r, blue.r, t);
-      const g = lerp(accent.g, blue.g, t);
-      const b = lerp(accent.b, blue.b, t);
+      // 80-100%
+      const t = (clamped - 80) / 20;
+      const blue950 = hexToRgb("#031721");
+      const r = lerp(blue900.r, blue950.r, t);
+      const g = lerp(blue900.g, blue950.g, t);
+      const b = lerp(blue900.b, blue950.b, t);
       return rgbToHex(r, g, b);
     }
   };
