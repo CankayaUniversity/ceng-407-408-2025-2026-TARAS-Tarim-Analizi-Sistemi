@@ -9,6 +9,7 @@ export interface TimetableScreenProps {
 export interface ChartDataPoint {
   value: number;
   label?: string;
+  ts?: string; // ISO timestamp for the aggregated point
 }
 
 export interface ChartCardProps {

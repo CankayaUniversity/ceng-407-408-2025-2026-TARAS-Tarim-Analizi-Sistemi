@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { View, Text, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Modal } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { appStyles } from "../../styles";
 import { HEADER_TEXT } from "../../constants";
 import { sensorAPI } from "../../utils/api";
 import { ChartCard } from "./ChartCard";
+import { SensorDataTable } from "./SensorDataTable";
 import { TimetableScreenProps, ChartDataPoint, SensorReading } from "./types";
 
 export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: TimetableScreenProps) => {
@@ -17,6 +18,7 @@ export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: Tim
   const [error, setError] = useState<string | null>(null);
   const [fieldName, setFieldName] = useState("");
   const [rawReadings, setRawReadings] = useState<SensorReading[]>([]);
+  const [showTable, setShowTable] = useState(false);
 
   const fetchSensorData = async () => {
     try {
@@ -47,19 +49,44 @@ export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: Tim
 
       setFieldName(field_name);
 
-      const toChartData = (accessor: (r: SensorReading) => number): ChartDataPoint[] =>
-        readings.slice(-10).map((r, i) => {
-          const date = new Date(r.created_at);
-          return {
-            value: accessor(r),
-            label: i % 2 === 0 ? `${date.getHours()}:${date.getMinutes().toString().padStart(2, "0")}` : "",
-          };
-        });
+      // Ensure readings are time-ordered so slices behave predictably
+      const sortedReadings = [...readings].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+      // Group readings by minute and average values per timestamp
+      const groups = new Map<number, SensorReading[]>();
+      for (const r of sortedReadings) {
+        const d = new Date(r.created_at);
+        const keyDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes());
+        const key = keyDate.getTime();
+        const bucket = groups.get(key);
+        if (bucket) bucket.push(r); else groups.set(key, [r]);
+      }
 
-      setRawReadings(readings.slice(-10));
-      setTemperatureData(toChartData((r) => r.temperature));
-      setHumidityData(toChartData((r) => r.humidity));
-      setSoilMoistureData(toChartData((r) => r.sm_percent));
+      const keys = Array.from(groups.keys()).sort((a, b) => a - b);
+
+      const tempPoints: ChartDataPoint[] = [];
+      const humPoints: ChartDataPoint[] = [];
+      const soilPoints: ChartDataPoint[] = [];
+
+      keys.forEach((k) => {
+        const bucket = groups.get(k)!;
+        const avg = (arr: number[]) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0;
+        const date = new Date(k);
+        const hh = date.getHours().toString().padStart(2, "0");
+        const mm = date.getMinutes().toString().padStart(2, "0");
+        const label = `${hh}:${mm}`;
+        const ts = date.toISOString();
+
+        tempPoints.push({ value: avg(bucket.map(b => b.temperature)), label, ts });
+        humPoints.push({ value: avg(bucket.map(b => b.humidity)), label, ts });
+        soilPoints.push({ value: avg(bucket.map(b => b.sm_percent)), label, ts });
+      });
+
+      setRawReadings(sortedReadings); // table shows all raw rows
+      setTemperatureData(tempPoints);
+      setHumidityData(humPoints);
+      setSoilMoistureData(soilPoints);
     } catch (error) {
       console.error('❌ [TIMETABLE ERROR] Fetch failed:', error);
       setError("Baglanti hatasi");
@@ -143,10 +170,77 @@ export const TimetableScreen = ({ theme, isActive = true, selectedFieldId }: Tim
           {fieldName || "Yukleniyor..."} - Son 72 Saat
         </Text>
 
+        {/* Table Button only */}
+        <View style={{ flexDirection: 'row', marginBottom: 16 }}>
+          <TouchableOpacity
+            onPress={() => setShowTable(true)}
+            style={{
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 8,
+              backgroundColor: theme.surface,
+              borderWidth: 1,
+              borderColor: theme.textSecondary + '30',
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+          >
+            <MaterialCommunityIcons name="table" size={16} color={theme.textSecondary} />
+            <Text style={{ marginLeft: 6, color: theme.textSecondary, fontSize: 12, fontWeight: '600' }}>Tablo</Text>
+          </TouchableOpacity>
+        </View>
+
         <ChartCard theme={theme} title="Sicaklik (°C)" icon="thermometer" color="#FF6B6B" data={temperatureData} rawReadings={rawReadings} />
         <ChartCard theme={theme} title="Nem (%)" icon="water-percent" color="#4ECDC4" data={humidityData} rawReadings={rawReadings} />
         <ChartCard theme={theme} title="Toprak Nemi (%)" icon="flower" color="#95E1D3" data={soilMoistureData} rawReadings={rawReadings} />
       </View>
+
+      {/* Table Modal */}
+      <Modal visible={showTable} animationType="slide" onRequestClose={() => setShowTable(false)}>
+        <View style={{ flex: 1, backgroundColor: theme.background, padding: 16 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 12 }}>
+            <Text style={{ color: theme.text, fontSize: 16, fontWeight: '700' }}>{fieldName} - Son 72 Saat</Text>
+            <TouchableOpacity onPress={() => setShowTable(false)} style={{ padding: 8 }}>
+              <MaterialCommunityIcons name="close" size={22} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+
+          <SensorDataTable theme={theme} data={rawReadings} />
+
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 }}>
+            <TouchableOpacity
+              onPress={async () => {
+                // Create simple CSV string for sharing
+                const header = 'timestamp,temperature,humidity,soilMoisture';
+                const rows = rawReadings.map(r => {
+                  const d = new Date(r.created_at);
+                  const iso = d.toISOString();
+                  return [iso, r.temperature, r.humidity, r.sm_percent].join(',');
+                }).join('\n');
+                const csv = `${header}\n${rows}`;
+                // Share via RN Share API to keep it in-app (no file required)
+                const { Share } = await import('react-native');
+                try {
+                  await Share.share({ message: csv });
+                } catch (e) {
+                  console.warn('Share failed', e);
+                }
+              }}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderRadius: 8,
+                backgroundColor: theme.accent,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}
+            >
+              <MaterialCommunityIcons name="share-variant" size={18} color={theme.background} />
+              <Text style={{ marginLeft: 8, color: theme.background, fontSize: 12, fontWeight: '700' }}>CSV Paylaş</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };

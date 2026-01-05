@@ -10,15 +10,15 @@ export const ChartCard = ({ theme, title, icon, color, data, rawReadings = [] }:
   if (data.length === 0) return null;
 
   const getSelectedPointInfo = () => {
-    if (selectedIndex === null || !rawReadings[selectedIndex]) return null;
-    const reading = rawReadings[selectedIndex];
-    const date = new Date(reading.created_at);
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    const value = data[selectedIndex]?.value ?? 0;
+    if (selectedIndex === null || !data[selectedIndex]) return null;
+    const point = data[selectedIndex];
+    const date = point.ts ? new Date(point.ts) : undefined;
+    const hours = date ? date.getHours().toString().padStart(2, "0") : "";
+    const minutes = date ? date.getMinutes().toString().padStart(2, "0") : "";
+    const value = point?.value ?? 0;
 
     return {
-      time: `${hours}:${minutes}`,
+      time: date ? `${hours}:${minutes}` : "",
       value: value.toFixed(2),
     };
   };
@@ -107,10 +107,10 @@ export const ChartCard = ({ theme, title, icon, color, data, rawReadings = [] }:
         />
       </View>
 
-      {selectedIndex !== null && (
+      {selectedIndex !== null && data[selectedIndex]?.ts && (
         <View style={{ marginTop: 12, alignItems: "center" }}>
           <Text style={{ fontSize: 12, color: theme.textSecondary }}>
-            {rawReadings[selectedIndex]?.created_at ? new Date(rawReadings[selectedIndex].created_at).toLocaleDateString("tr-TR") : ""}
+            {new Date(data[selectedIndex].ts as string).toLocaleDateString("tr-TR")}
           </Text>
         </View>
       )}
