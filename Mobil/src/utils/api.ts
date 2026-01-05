@@ -1,13 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io, Socket } from 'socket.io-client';
+import type { FieldData } from './fieldPlaceholder';
+import { compressImage } from './imageCompression';
 
 const API_HOST = 'http://13.61.7.197:3000';
 const API_BASE_URL = `${API_HOST}/api`;
 const TOKEN_KEY = 'auth_token';
+const USER_DATA_KEY = 'user_data';
 
 let socket: Socket | null = null;
 
-// Types
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -32,11 +34,14 @@ interface ProfileData extends User {
 }
 
 interface SensorReading {
-  sensor_node_id: string;
-  sensor_type: string;
-  value: number;
-  unit: string;
-  timestamp: string;
+  id: string;
+  node_id: string;
+  created_at: string;
+  temperature: number;
+  humidity: number;
+  sm_percent: number;
+  raw_sm_value: number;
+  et0_instant: number | null;
 }
 
 interface Zone {
@@ -46,7 +51,6 @@ interface Zone {
   farm_name: string;
 }
 
-// Helpers
 async function getAuthHeaders() {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : null;
@@ -67,19 +71,42 @@ async function authFetch<T>(endpoint: string, options: RequestInit = {}): Promis
   }
 }
 
-// Auth API
 export const authAPI = {
-  async login(identifier: string, password: string): Promise<ApiResponse<LoginData>> {
+  async login(username: string, password: string): Promise<ApiResponse<LoginData>> {
+    // Local demo user - skip API, use offline mode
+    if (username.toLowerCase() === 'testuser' && password === 'test123') {
+      const demoToken = 'DEMO_MODE_TOKEN';
+      const demoUser = {
+        user_id: 0,
+        username: 'testuser',
+        email: 'test@local.demo',
+        role: 'demo',
+      };
+      await AsyncStorage.setItem(TOKEN_KEY, demoToken);
+      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(demoUser));
+      return {
+        success: true,
+        data: {
+          token: demoToken,
+          user: demoUser,
+        },
+      };
+    }
+
+    // Real users - connect to AWS database
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ identifier: username, password }),
       });
       const data = await res.json();
 
       if (data.success && data.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+        if (data.data?.user) {
+          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(data.data.user));
+        }
       }
       return data;
     } catch {
@@ -98,6 +125,9 @@ export const authAPI = {
 
       if (data.success && data.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+        if (data.data?.user) {
+          await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(data.data.user));
+        }
       }
       return data;
     } catch {
@@ -109,8 +139,18 @@ export const authAPI = {
     return authFetch('/auth/me');
   },
 
+  async getStoredUser(): Promise<User | null> {
+    try {
+      const userJson = await AsyncStorage.getItem(USER_DATA_KEY);
+      return userJson ? JSON.parse(userJson) : null;
+    } catch {
+      return null;
+    }
+  },
+
   async logout() {
     await AsyncStorage.removeItem(TOKEN_KEY);
+    await AsyncStorage.removeItem(USER_DATA_KEY);
   },
 
   async getToken() {
@@ -123,7 +163,6 @@ export const authAPI = {
   },
 };
 
-// Sensor API
 export const sensorAPI = {
   async getUserZones(): Promise<ApiResponse<{ zones: Zone[] }>> {
     return authFetch('/sensors/zones');
@@ -144,9 +183,18 @@ export const sensorAPI = {
       readings: SensorReading[];
     }>(`/sensors/zone/${zoneId}/history?hours=${hours}`);
   },
+
+  async getFieldHistory(fieldId: string, hours = 72) {
+    return authFetch<{
+      field_id: string;
+      field_name: string;
+      hours: number;
+      reading_count: number;
+      readings: SensorReading[];
+    }>(`/sensors/field/${fieldId}/history?hours=${hours}`);
+  },
 };
 
-// Socket API
 export interface SensorDataEvent {
   sensor_node_id: string;
   sensor_type: string;
@@ -189,7 +237,6 @@ export const socketAPI = {
   getSocket: () => socket,
 };
 
-// Images API
 export const imagesAPI = {
   async upload(imageUri: string, fileName = 'image.jpg') {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
@@ -215,7 +262,6 @@ export const imagesAPI = {
   },
 };
 
-// Health API
 export const healthAPI = {
   async check() {
     try {
@@ -225,5 +271,215 @@ export const healthAPI = {
     } catch {
       return { success: false, error: 'Sunucuya erişilemiyor' };
     }
+  },
+};
+
+// Dashboard types
+export interface WeatherData {
+  airTemperature: number;
+  airHumidity: number;
+}
+
+export interface IrrigationData {
+  nextIrrigationTime: string;
+  isScheduled: boolean;
+}
+
+export interface SensorSummary {
+  soilMoisture: number;
+  nodeCount: number;
+}
+
+export interface FieldSummary {
+  id: string;
+  name: string;
+  area: number;
+}
+
+export interface DashboardData {
+  weather: WeatherData;
+  irrigation: IrrigationData;
+  sensors: SensorSummary;
+  field: FieldData;
+}
+
+export const dashboardAPI = {
+  getFields: async (): Promise<FieldSummary[]> => {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+
+    // Demo mode - use local data
+    if (!token || token === 'DEMO_MODE_TOKEN') {
+      console.log('📋 [DEMO MODE] Fields from demo data');
+      const { getDemoFields } = await import('./demoData');
+      return getDemoFields();
+    }
+
+    // Real mode - fetch from AWS database
+    try {
+      console.log('🌐 [AWS MODE] Fetching fields from AWS');
+      const res = await authFetch<FieldSummary[]>('/dashboard/fields');
+      if (res.success && res.data) {
+        console.log('✅ [AWS SUCCESS] Fields received:', res.data.length, 'fields');
+        return res.data;
+      }
+      throw new Error(res.error || 'Failed to fetch fields');
+    } catch (error) {
+      console.error('❌ [AWS ERROR] dashboardAPI.getFields error:', error);
+      const { getDemoFields } = await import('./demoData');
+      return getDemoFields();
+    }
+  },
+
+  getFieldDashboard: async (fieldId: string): Promise<DashboardData> => {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+
+    // Demo mode - use local data
+    if (!token || token === 'DEMO_MODE_TOKEN') {
+      console.log('📋 [DEMO MODE] Dashboard from demo data for field:', fieldId);
+      const { generateDemoDashboardData } = await import('./demoData');
+      return generateDemoDashboardData(fieldId);
+    }
+
+    // Real mode - fetch from AWS database
+    try {
+      console.log('🌐 [AWS MODE] Fetching dashboard from AWS for field:', fieldId);
+      const res = await authFetch<DashboardData>(`/dashboard/fields/${fieldId}`);
+      if (res.success && res.data) {
+        console.log('✅ [AWS SUCCESS] Dashboard received for field:', fieldId);
+        return res.data;
+      }
+      // If data is null/undefined but success is true, log warning and return demo data
+      if (!res.data) {
+        console.warn('⚠️ [AWS WARNING] Dashboard API returned null payload for fieldId:', fieldId);
+      }
+      throw new Error(res.error || 'Failed to fetch dashboard data');
+    } catch (error) {
+      console.error('❌ [AWS ERROR] dashboardAPI.getFieldDashboard error:', error);
+      const { generateDemoDashboardData } = await import('./demoData');
+      return generateDemoDashboardData(fieldId);
+    }
+  },
+};
+
+// Disease Detection types
+export type DetectionStatus = 'NOT_STARTED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export interface DiseaseDetection {
+  detection_id: string;
+  user_id: string;
+  image_uuid: string;
+  image_s3_key: string;
+  status: DetectionStatus;
+  uploaded_at: string;
+  processing_started_at: string | null;
+  completed_at: string | null;
+
+  // Results (null until COMPLETED)
+  detected_disease: string | null;
+  confidence: number | null;
+  confidence_score: number | null;
+  all_predictions: Record<string, number> | null;
+  recommendations: string[] | null;
+  error_message: string | null;
+}
+
+export interface SubmitDetectionResponse {
+  detectionId: string;
+  imageUuid: string;
+  status: DetectionStatus;
+  message: string;
+}
+
+export interface ImageUrlResponse {
+  imageUrl: string;
+  expiresIn: number;
+  expiresAt: string;
+}
+
+export const diseaseAPI = {
+  async submitDetection(imageUri: string): Promise<ApiResponse<SubmitDetectionResponse>> {
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) return { success: false, error: 'Oturum bulunamadı' };
+
+    try {
+      // Compress the image before sending to stay within Lambda limits (~6MB)
+      // Target 200KB which is well below the limit
+      const compressedUri = await compressImage(imageUri, 200, 720, 720);
+
+      const formData = new FormData();
+      formData.append('image', {
+        uri: compressedUri,
+        type: 'image/jpeg',
+        name: 'leaf.jpg',
+      } as any);
+
+      const res = await fetch(`${API_BASE_URL}/disease/submit`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Do NOT set Content-Type for FormData - let fetch handle it with boundary
+        },
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('API Error Response:', errorText);
+        return { success: false, error: `API Error: ${res.status}` };
+      }
+
+      const jsonResponse = await res.json();
+      return jsonResponse;
+    } catch (error) {
+      console.error('Submit detection error:', error);
+      return { success: false, error: 'Görsel gönderilemedi' };
+    }
+  },
+
+  async getDetectionStatus(detectionId: string): Promise<ApiResponse<DiseaseDetection>> {
+    return authFetch(`/disease/requests/${detectionId}`);
+  },
+
+  async getAllDetections(): Promise<ApiResponse<{ count: number; detections: DiseaseDetection[] }>> {
+    return authFetch('/disease/requests');
+  },
+
+  async getImageUrl(detectionId: string): Promise<ApiResponse<ImageUrlResponse>> {
+    return authFetch(`/disease/requests/${detectionId}/image`);
+  },
+
+  async deleteDetection(detectionId: string): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/disease/requests/${detectionId}`, { method: 'DELETE' });
+  },
+
+  async pollDetectionStatus(
+    detectionId: string,
+    onProgress?: (status: DetectionStatus) => void,
+    maxAttempts = 30,
+    intervalMs = 2000
+  ): Promise<DiseaseDetection> {
+    for (let i = 0; i < maxAttempts; i++) {
+      const response = await this.getDetectionStatus(detectionId);
+
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Detection failed');
+      }
+
+      const detection = response.data;
+      onProgress?.(detection.status);
+
+      if (detection.status === 'COMPLETED') {
+        return detection;
+      }
+
+      if (detection.status === 'FAILED') {
+        throw new Error(detection.error_message || 'Detection failed');
+      }
+
+      // Still processing, wait and retry
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+
+    throw new Error('Timeout waiting for detection results');
   },
 };

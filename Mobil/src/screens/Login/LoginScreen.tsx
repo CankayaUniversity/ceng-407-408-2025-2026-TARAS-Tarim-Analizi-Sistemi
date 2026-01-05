@@ -10,18 +10,13 @@ import {
   KeyboardAvoidingView,
   Animated,
 } from "react-native";
-import { appStyles } from "../styles";
-import { authAPI } from "../utils/api";
-import { useKeyboard } from "../hooks/useKeyboard";
+import { appStyles } from "../../styles";
+import { authAPI } from "../../utils/api";
+import { useKeyboard } from "../../hooks/useKeyboard";
+import { LoginScreenProps } from "./types";
 
-import LogoLight from "../assets/Taras-logo-light.svg";
-import LogoDark from "../assets/Taras-logo-dark.svg";
-
-interface LoginScreenProps {
-  theme: any;
-  onLoginSuccess: () => void;
-  onSkip: () => void;
-}
+import LogoLight from "../../assets/Taras-logo-light.svg";
+import LogoDark from "../../assets/Taras-logo-dark.svg";
 
 export const LoginScreen = ({
   theme,
@@ -49,7 +44,7 @@ export const LoginScreen = ({
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Hata", "Lütfen kullanıcı adı ve şifre giriniz.");
+      Alert.alert("Hata", "Lutfen kullanici adi ve sifre giriniz.");
       return;
     }
 
@@ -57,16 +52,23 @@ export const LoginScreen = ({
     const response = await authAPI.login(username.trim(), password);
     setIsLoading(false);
 
+    console.log("Login response:", response);
+    console.log("User data:", response.data?.user);
+
     if (response.success) {
-      Alert.alert("Başarılı", `Hoş geldiniz, ${response.data?.user.username}!`);
       setUsername("");
       setPassword("");
-      onLoginSuccess();
+      // Pass user's username to onLoginSuccess (no fullName field in User type)
+      const displayName = response.data?.user.username || "";
+      console.log("Calling onLoginSuccess with:", displayName);
+      onLoginSuccess(displayName);
     } else {
       Alert.alert(
-        "Giriş Başarısız",
-        response.error || "Kullanıcı adı/e-posta veya şifre hatalı.",
+        "Giris Basarisiz",
+        response.error || "Kullanici adi/e-posta veya sifre hatali.",
       );
+      // Always call onLoginSuccess with empty string to avoid type error
+      // onLoginSuccess("");
     }
   };
 
@@ -77,12 +79,12 @@ export const LoginScreen = ({
       !password.trim() ||
       !confirmPassword.trim()
     ) {
-      Alert.alert("Hata", "Lütfen tüm alanları doldurunuz.");
+      Alert.alert("Hata", "Lutfen tum alanlari doldurunuz.");
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Hata", "Şifreler eşleşmiyor. Lütfen kontrol ediniz.");
+      Alert.alert("Hata", "Sifreler eslesmilor. Lutfen kontrol ediniz.");
       return;
     }
 
@@ -95,19 +97,16 @@ export const LoginScreen = ({
     setIsLoading(false);
 
     if (response.success) {
-      Alert.alert(
-        "Başarılı",
-        `Hesabınız oluşturuldu, hoş geldiniz ${response.data?.user.username}!`,
-      );
       setEmail("");
       setPassword("");
       setConfirmPassword("");
       setUsername("");
-      onLoginSuccess();
+      const displayName = response.data?.user.username || "";
+      onLoginSuccess(displayName);
     } else {
       Alert.alert(
-        "Kayıt Başarısız",
-        response.error || "Kayıt işlemi başarısız oldu.",
+        "Kayit Basarisiz",
+        response.error || "Kayit islemi basarisiz oldu.",
       );
     }
   };
@@ -171,7 +170,7 @@ export const LoginScreen = ({
               borderColor: theme.accentDim,
             },
           ]}
-          placeholder="Kullanıcı Adı (testuser)"
+          placeholder="Kullanici Adi (testuser / ahmet_ciftci)"
           placeholderTextColor={theme.textSecondary}
           value={username}
           onChangeText={setUsername}
@@ -187,7 +186,7 @@ export const LoginScreen = ({
               borderColor: theme.accentDim,
             },
           ]}
-          placeholder="Şifre (test123)"
+          placeholder="Sifre (test123 / password123)"
           placeholderTextColor={theme.textSecondary}
           value={password}
           onChangeText={setPassword}
@@ -204,7 +203,7 @@ export const LoginScreen = ({
                 borderColor: theme.accentDim,
               },
             ]}
-            placeholder="Şifre Tekrar"
+            placeholder="Sifre Tekrar"
             placeholderTextColor={theme.textSecondary}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -225,7 +224,7 @@ export const LoginScreen = ({
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={[appStyles.loginButtonText, { color: "#fff" }]}>
-              {isRegisterMode ? "Kayıt Ol" : "Giriş Yap"}
+              {isRegisterMode ? "Kayit Ol" : "Giris Yap"}
             </Text>
           )}
         </TouchableOpacity>
@@ -237,18 +236,21 @@ export const LoginScreen = ({
         >
           <Text style={[appStyles.skipButtonText, { color: theme.accent }]}>
             {isRegisterMode
-              ? "Zaten hesabınız var mı? Giriş Yap"
-              : "Hesabınız yok mu? Kayıt Ol"}
+              ? "Zaten hesabiniz var mi? Giris Yap"
+              : "Hesabiniz yok mu? Kayit Ol"}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={{ marginTop: 8 }}
-          onPress={handleSkip}
+           onPress={() => {
+             handleSkip();
+             onLoginSuccess("");
+           }}
           disabled={isLoading}
         >
           <Text style={[appStyles.skipButtonText, { color: theme.accentDim }]}>
-            Şimdilik Atla
+            Simdilik Atla
           </Text>
         </TouchableOpacity>
       </Animated.ScrollView>

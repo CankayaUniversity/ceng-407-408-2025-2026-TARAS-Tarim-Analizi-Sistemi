@@ -1,20 +1,24 @@
 # Dependencies
 node_modules/
-package-lock.json
-# Environment
+
+# Environment (contains secrets)
 .env
 .env.local
+.env.production
+.env.*
+!.env.example
 
-# Archives
-*.zip
-
-# Deployment (contains secrets)
+# Deployment scripts with credentials
 deploy.ps1
 aws-*.ps1
 logs.ps1
 *.pem
+*.zip
 
-# Build
+# Archives
+*.zip
+
+# Build output
 dist/
 
 # Logs
@@ -31,3 +35,7 @@ Thumbs.db
 
 # Prisma
 .prisma/
+
+tests/
+*.tflite
+*.keras

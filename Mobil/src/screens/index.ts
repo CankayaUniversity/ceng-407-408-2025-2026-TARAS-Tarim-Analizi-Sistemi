@@ -1,5 +1,6 @@
-export { LoginScreen } from './LoginScreen';
-export { HomeScreen } from './HomeScreen';
-export { DiseaseScreen } from './DiseaseScreen';
-export { TimetableScreen } from './TimetableScreen';
-export { SettingsScreen, type ThemeMode } from './SettingsScreen';
+export { LoginScreen } from './Login';
+export { HomeScreen } from './Home';
+export { DiseaseScreen } from './Disease';
+export { TimetableScreen } from './Timetable';
+export { SettingsScreen, type ThemeMode } from './Settings';
+export { CarbonFootprintScreen } from './CarbonFootprint';

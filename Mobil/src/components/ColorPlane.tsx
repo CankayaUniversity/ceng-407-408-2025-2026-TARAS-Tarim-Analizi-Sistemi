@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber/native';
+import { FieldData, FieldPolygon, SensorNode, calculatePolygonCentroid } from '../utils/fieldPlaceholder';
 const THREE: any = require('three');
-import { Text as TroikaText } from 'troika-three-text';
 
 const LIGHT_COLORS = ['#677c98', '#536379', '#3e4b5b', '#988367', '#5b4e3e', '#ac9c86'];
 const DARK_COLORS = ['#8696ac', '#8599ad', '#667f99', '#c1b4a4', '#dbc18a', '#cfad63'];
@@ -15,18 +15,45 @@ const X_VELOCITY_DAMPING = 0.85;
 const Y_VELOCITY_DAMPING = 0.8;
 const X_VELOCITY_MULTIPLIER = 1.2;
 const Y_VELOCITY_MULTIPLIER = 1.4;
-const LABEL_DISPLAY_MS = 4000;
 const MAX_NODES = 5;
+const TARGET_SIZE = 8;
 
-interface NodeInfo {
-  id: string;
-  x: number;
-  z: number;
-  moisture: number;
+const TAP_DISTANCE_THRESHOLD = 10;
+const TAP_TIME_THRESHOLD = 300;
+const PIN_WORLD_SIZE = 0.5;
+
+export type NodeInfo = SensorNode;
+
+export interface CameraConfig {
+  position: [number, number, number];
+  fov: number;
+}
+
+function calculateCameraConfig(scale: number): CameraConfig {
+  const baseFov = 30;
+  const baseDistance = 22.6;
+  const cameraY = 16;
+
+  let fov = baseFov;
+  if (scale < 0.05) {
+    fov = Math.min(45, baseFov + 10);
+  } else if (scale > 5) {
+    fov = Math.max(20, baseFov - 5);
+  }
+
+  return {
+    position: [0, cameraY, baseDistance],
+    fov,
+  };
 }
 
 interface ColorPlaneProps {
+  fieldData: FieldData;
   isDark?: boolean;
+  isActive?: boolean;
+  onNodeSelect?: (node: NodeInfo | null) => void;
+  selectedNodeId?: string | null;
+  onCameraConfigChange?: (config: CameraConfig) => void;
 }
 
 interface Position {
@@ -34,8 +61,61 @@ interface Position {
   y: number;
 }
 
-export function ColorPlane({ isDark = false }: ColorPlaneProps) {
+interface Bounds {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+function getPolygonBounds(exterior: [number, number][]): Bounds {
+  const xs = exterior.map(p => p[0]);
+  const zs = exterior.map(p => p[1]);
+  return {
+    minX: Math.min(...xs),
+    maxX: Math.max(...xs),
+    minZ: Math.min(...zs),
+    maxZ: Math.max(...zs),
+  };
+}
+
+function createFieldShape(polygon: FieldPolygon): any {
+  const shape = new THREE.Shape();
+  const ext = polygon.exterior;
+  if (ext.length < 3) return shape;
+
+  shape.moveTo(ext[0][0], ext[0][1]);
+  for (let i = 1; i < ext.length; i++) {
+    shape.lineTo(ext[i][0], ext[i][1]);
+  }
+  shape.closePath();
+
+  if (polygon.holes && polygon.holes.length > 0) {
+    polygon.holes.forEach(hole => {
+      if (hole.length < 3) return;
+      const holePath = new THREE.Path();
+      holePath.moveTo(hole[0][0], hole[0][1]);
+      for (let i = 1; i < hole.length; i++) {
+        holePath.lineTo(hole[i][0], hole[i][1]);
+      }
+      holePath.closePath();
+      shape.holes.push(holePath);
+    });
+  }
+
+  return shape;
+}
+
+export function ColorPlane({ fieldData, isDark = false, isActive = true, onNodeSelect, selectedNodeId: externalSelectedNodeId, onCameraConfigChange }: ColorPlaneProps) {
   const COLORS = isDark ? DARK_COLORS : LIGHT_COLORS;
+  const nodes = fieldData.nodes;
+
+  // Create a unique key for this field to force remount when field changes
+  const fieldKey = useMemo(() => {
+    const nodeIds = nodes.map(n => n.id).join(',');
+    const polygonHash = fieldData.polygon.exterior.slice(0, 3).flat().join(',');
+    return `${polygonHash}-${nodeIds}`;
+  }, [fieldData.polygon.exterior, nodes]);
 
   const meshRef = useRef<any>(null);
   const groupRef = useRef<any>(null);
@@ -47,65 +127,103 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
   const initializedRef = useRef(false);
   const targetRotationRef = useRef({ x: 0, y: INITIAL_ROTATION_Y });
 
+  const pendingNodeRef = useRef<NodeInfo | null>(null);
+  const nodePointerStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
   const [colorIndex] = useState(0);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  // Placeholder node generation
-  const [nodes] = useState<NodeInfo[]>(() => {
-    const rng = () => Math.random();
-    const count = 3 + Math.floor(rng() * 3); // 3-5
-    const positions: NodeInfo[] = [];
+  const { bounds, centeredBounds, scale, centerX, centerZ } = useMemo(() => {
+    const bounds = getPolygonBounds(fieldData.polygon.exterior);
+    const width = bounds.maxX - bounds.minX;
+    const depth = bounds.maxZ - bounds.minZ;
+    const maxDim = Math.max(width, depth);
 
-    const tryPlace = (moistureMin: number, moistureMax: number) => {
-      for (let attempts = 0; attempts < 50; attempts++) {
-        const x = rng() * 6 - 3;
-        const z = rng() * 6 - 3;
-        const distanceOk = positions.every(
-          (p) => Math.hypot(p.x - x, p.z - z) > 1.0,
-        );
-        if (!distanceOk) continue;
-        const moisture = Math.floor(
-          moistureMin + rng() * (moistureMax - moistureMin + 1),
-        );
-        positions.push({ id: `node-${positions.length + 1}`, x, z, moisture });
-        return true;
-      }
-      return false;
+    const rawScale = TARGET_SIZE / maxDim;
+    const scale = Math.max(0.01, Math.min(10, rawScale));
+
+    const centroid = calculatePolygonCentroid(fieldData.polygon.exterior);
+    const centerX = centroid.x;
+    const centerZ = centroid.z;
+
+    const centeredBounds = {
+      minX: bounds.minX - centerX,
+      maxX: bounds.maxX - centerX,
+      minZ: centerZ - bounds.maxZ,
+      maxZ: centerZ - bounds.minZ,
     };
 
-    tryPlace(90, 99);
-    tryPlace(50, 59);
-    tryPlace(0, 9);
+    return { bounds, centeredBounds, scale, centerX, centerZ };
+  }, [fieldData.polygon]);
 
-    while (positions.length < count) {
-      const x = rng() * 6 - 3;
-      const z = rng() * 6 - 3;
-      const distanceOk = positions.every(
-        (p) => Math.hypot(p.x - x, p.z - z) > 1.0,
-      );
-      if (!distanceOk) continue;
-      const moisture = Math.floor(rng() * 100);
-      positions.push({ id: `node-${positions.length + 1}`, x, z, moisture });
-    }
+  const geometry = useMemo(() => {
+    const shape = createFieldShape(fieldData.polygon);
+    const extrudeSettings = {
+      depth: 1.5 / scale,
+      bevelEnabled: false,
+    };
+    const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
 
-    return positions;
-  });
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(-centerX, 0, centerZ);
 
-  useFrame(({ gl }) => {
+    return geo;
+  }, [fieldData.polygon, scale, centerX, centerZ]);
+
+  useEffect(() => {
+    const config = calculateCameraConfig(scale);
+    onCameraConfigChange?.(config);
+
+    console.group('[Field3D] Configuration');
+    console.log('Polygon:', {
+      vertices: fieldData.polygon.exterior.length,
+      bounds: {
+        minX: bounds.minX.toFixed(2),
+        maxX: bounds.maxX.toFixed(2),
+        minZ: bounds.minZ.toFixed(2),
+        maxZ: bounds.maxZ.toFixed(2),
+      },
+      dimensions: {
+        width: (bounds.maxX - bounds.minX).toFixed(2),
+        depth: (bounds.maxZ - bounds.minZ).toFixed(2),
+      },
+      centroid: {
+        x: centerX.toFixed(2),
+        z: centerZ.toFixed(2),
+      },
+    });
+    console.log('Scaling:', {
+      rawScale: (TARGET_SIZE / Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ)).toFixed(4),
+      clampedScale: scale.toFixed(4),
+      targetSize: TARGET_SIZE,
+      pinLocalSize: (PIN_WORLD_SIZE / scale).toFixed(4),
+    });
+    console.log('Camera:', config);
+    console.log('Nodes:', nodes.map(n => ({
+      id: n.id,
+      position: { x: n.x.toFixed(2), z: n.z.toFixed(2) },
+      moisture: n.moisture,
+    })));
+    console.groupEnd();
+  }, [fieldData, bounds, scale, centerX, centerZ, nodes, onCameraConfigChange]);
+
+  const { invalidate, gl } = useThree();
+
+  useEffect(() => {
+    attachPointerListeners(gl);
+  }, [gl]);
+
+  useFrame(() => {
+    if (!isActive) return;
     if (!groupRef.current) return;
     initializeRotation();
-    updateRotation();
-    applyMomentum();
-    attachPointerListeners(gl);
 
-    Object.keys(labelRefs.current).forEach((k) => {
-      const ref = labelRefs.current[k];
-      if (ref && camera) {
-        ref.lookAt(camera.position);
-        const dist = ref.position.distanceTo(camera.position);
-        const scale = Math.max(0.6, Math.min(1.6, 0.12 * dist));
-        ref.scale.setScalar(scale);
-      }
-    });
+    const needsUpdate = updateRotation();
+    const hasMomentum = applyMomentum();
+
+    if (needsUpdate || hasMomentum) {
+      invalidate();
+    }
   });
 
   const initializeRotation = () => {
@@ -118,13 +236,18 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
     }
   };
 
-  const updateRotation = () => {
-    groupRef.current.rotation.x += (targetRotationRef.current.x - groupRef.current.rotation.x) * ROTATION_INTERPOLATION;
-    groupRef.current.rotation.y += (targetRotationRef.current.y - groupRef.current.rotation.y) * ROTATION_INTERPOLATION;
+  const updateRotation = (): boolean => {
+    const diffX = targetRotationRef.current.x - groupRef.current.rotation.x;
+    const diffY = targetRotationRef.current.y - groupRef.current.rotation.y;
+
+    groupRef.current.rotation.x += diffX * ROTATION_INTERPOLATION;
+    groupRef.current.rotation.y += diffY * ROTATION_INTERPOLATION;
+
+    return Math.abs(diffX) > 0.0001 || Math.abs(diffY) > 0.0001;
   };
 
-  const applyMomentum = () => {
-    if (isDraggingRef.current) return;
+  const applyMomentum = (): boolean => {
+    if (isDraggingRef.current) return false;
 
     targetRotationRef.current.x += rotationVelocityRef.current.x;
     targetRotationRef.current.y += rotationVelocityRef.current.y;
@@ -133,7 +256,12 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
     rotationVelocityRef.current.y *= Y_VELOCITY_DAMPING;
 
     targetRotationRef.current.x = Math.max(MIN_TILT, Math.min(MAX_TILT, targetRotationRef.current.x));
+
+    return Math.abs(rotationVelocityRef.current.x) > 0.0001 || Math.abs(rotationVelocityRef.current.y) > 0.0001;
   };
+
+  const invalidateRef = useRef(invalidate);
+  invalidateRef.current = invalidate;
 
   const handlePointerDown = (e: any) => {
     isDraggingRef.current = true;
@@ -144,6 +272,7 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
     const y = e.clientY ?? e.pageY ?? e.screenY ?? e.nativeEvent?.locationY ?? 0;
 
     lastPositionRef.current = { x, y };
+    invalidateRef.current();
   };
 
   const handlePointerMove = (e: any) => {
@@ -168,32 +297,72 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
     dragDistanceRef.current.x += Math.abs(deltaX);
     dragDistanceRef.current.y += Math.abs(deltaY);
 
+    if (pendingNodeRef.current && nodePointerStartRef.current) {
+      const totalDist = Math.hypot(
+        currentX - nodePointerStartRef.current.x,
+        currentY - nodePointerStartRef.current.y
+      );
+      if (totalDist > TAP_DISTANCE_THRESHOLD) {
+        pendingNodeRef.current = null;
+        nodePointerStartRef.current = null;
+      }
+    }
+
     lastPositionRef.current = { x: currentX, y: currentY };
+    invalidateRef.current();
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: any) => {
     isDraggingRef.current = false;
+
+    if (pendingNodeRef.current && nodePointerStartRef.current) {
+      const currentX = e.clientX ?? e.pageX ?? e.screenX ?? e.nativeEvent?.locationX ?? 0;
+      const currentY = e.clientY ?? e.pageY ?? e.screenY ?? e.nativeEvent?.locationY ?? 0;
+      const elapsed = Date.now() - nodePointerStartRef.current.time;
+      const distance = Math.hypot(
+        currentX - nodePointerStartRef.current.x,
+        currentY - nodePointerStartRef.current.y
+      );
+
+      if (distance <= TAP_DISTANCE_THRESHOLD && elapsed <= TAP_TIME_THRESHOLD) {
+        const node = pendingNodeRef.current;
+        if (selectedNodeId === node.id) {
+          setSelectedNodeId(null);
+          onNodeSelect?.(null);
+        } else {
+          setSelectedNodeId(node.id);
+          onNodeSelect?.(node);
+        }
+      }
+    }
+
+    pendingNodeRef.current = null;
+    nodePointerStartRef.current = null;
+    invalidateRef.current();
   };
 
   const handlePointerLeave = () => {
     isDraggingRef.current = false;
+    pendingNodeRef.current = null;
+    nodePointerStartRef.current = null;
   };
 
-  const attachPointerListeners = (gl: any) => {
-    if (gl.domElement._hasGlobalPointerListeners) return;
+  const attachPointerListeners = (glRenderer: any) => {
+    if (!glRenderer?.domElement) return;
+    if (glRenderer.domElement._hasGlobalPointerListeners) return;
 
-    const canvas = gl.domElement;
+    const canvas = glRenderer.domElement;
     canvas.addEventListener('pointerdown', handlePointerDown);
     canvas.addEventListener('pointermove', handlePointerMove);
     canvas.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('pointerleave', handlePointerLeave);
-    gl.domElement._hasGlobalPointerListeners = true;
+    glRenderer.domElement._hasGlobalPointerListeners = true;
   };
 
   const currentColor = COLORS[colorIndex];
 
+  // Color mapping: red (dry) -> accent (optimal) -> blue (wet)
   const moistureToColor = (m: number) => {
-    //todo improve color mapping
     const clamped = Math.max(0, Math.min(100, m));
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
     const hexToRgb = (hex: string) => {
@@ -210,34 +379,43 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
         .map((v) => Math.round(v).toString(16).padStart(2, "0"))
         .join("");
 
-    const blue = hexToRgb("#2563eb");
-    const green = hexToRgb("#10b981");
     const red = hexToRgb("#ef4444");
+    const accent = hexToRgb("#677c98");
+    const blue = hexToRgb("#2563eb");
 
-    if (clamped <= 50) {
-      const t = clamped / 50;
-      const r = lerp(blue.r, green.r, t);
-      const g = lerp(blue.g, green.g, t);
-      const b = lerp(blue.b, green.b, t);
+    if (clamped <= 30) {
+      const t = clamped / 30;
+      const r = lerp(red.r, accent.r, t);
+      const g = lerp(red.g, accent.g, t);
+      const b = lerp(red.b, accent.b, t);
       return rgbToHex(r, g, b);
+    } else if (clamped <= 70) {
+      return "#677c98";
     } else {
-      const t = (clamped - 50) / 50;
-      const r = lerp(green.r, red.r, t);
-      const g = lerp(green.g, red.g, t);
-      const b = lerp(green.b, red.b, t);
+      const t = (clamped - 70) / 30;
+      const r = lerp(accent.r, blue.r, t);
+      const g = lerp(accent.g, blue.g, t);
+      const b = lerp(accent.b, blue.b, t);
       return rgbToHex(r, g, b);
     }
   };
 
   const shaderRef = useRef<any>(null);
 
+  const normalizeToUV = (x: number, z: number) => ({
+    u: (x - bounds.minX) / (bounds.maxX - bounds.minX),
+    v: 1 - (z - bounds.minZ) / (bounds.maxZ - bounds.minZ),
+  });
+
   const uniforms = useMemo(() => {
     const uPos: any[] = [];
     const uCol: any[] = [];
+
     for (let i = 0; i < MAX_NODES; i++) {
       if (i < nodes.length) {
         const n = nodes[i];
-        uPos.push(new THREE.Vector2((n.x + 4) / 8, 1 - (n.z + 4) / 8));
+        const { u, v } = normalizeToUV(n.x, n.z);
+        uPos.push(new THREE.Vector2(u, v));
         uCol.push(new THREE.Color(moistureToColor(n.moisture)));
       } else {
         uPos.push(new THREE.Vector2(-10, -10));
@@ -267,25 +445,24 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
       uNodePos: { value: uPos },
       uNodeColor: { value: uCol },
       uRadius: { value: radii },
-      uTime: { value: 0.0 },
-      uPulseAmp: { value: 0.08 },
-      uSaturationBoost: { value: 1.25 },
-      uMaxValue: { value: 0.82 },
       uBase: { value: new THREE.Color("#0b1620") },
       uCount: { value: nodes.length },
+      uBounds: { value: new THREE.Vector4(centeredBounds.minX, centeredBounds.maxX, centeredBounds.minZ, centeredBounds.maxZ) },
     };
-  }, [nodes]);
+  }, [nodes, bounds, centeredBounds]);
 
   const vertexShader = `
     varying vec2 vUv;
     varying vec2 vTopUv;
     varying vec3 vNormal;
     varying vec3 vViewDir;
+    uniform vec4 uBounds;
 
     void main(){
       vUv = uv;
-      // compute top-projection UV in local model space so it rotates with the mesh
-      vTopUv = vec2((position.x + 4.0) / 8.0, 1.0 - (position.z + 4.0) / 8.0);
+      float u = (position.x - uBounds.x) / (uBounds.y - uBounds.x);
+      float v = (position.z - uBounds.z) / (uBounds.w - uBounds.z);
+      vTopUv = vec2(u, v);
       vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
       vNormal = normalize(normalMatrix * normal);
       vViewDir = normalize(cameraPosition - worldPos);
@@ -304,172 +481,52 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
     uniform vec3 uNodeColor[MAX_NODES];
     uniform float uRadius[MAX_NODES];
     uniform int uCount;
-    uniform float uTime;
-    uniform float uPulseAmp;
-    uniform float uSaturationBoost;
-    uniform float uMaxValue;
     uniform vec3 uBase;
 
-    const float PI = 3.141592653589793;
-
-    // gaussian-like falloff that never becomes exactly zero
-    float falloff(float d, float r) {
-      float x = d / max(0.0001, r);
-      return 1.0 / (1.0 + 2.0 * x * x);
-    }
-
-    // RGB <-> HSV (simple) ------------------------------------
-    vec3 rgb2hsv(vec3 c){
-      float cmax = max(c.r, max(c.g, c.b));
-      float cmin = min(c.r, min(c.g, c.b));
-      float d = cmax - cmin;
-      float h = 0.0;
-      if (d > 0.00001) {
-        if (cmax == c.r) {
-          h = mod((c.g - c.b) / d, 6.0);
-        } else if (cmax == c.g) {
-          h = (c.b - c.r) / d + 2.0;
-        } else {
-          h = (c.r - c.g) / d + 4.0;
-        }
-        h = h / 6.0;
-        if (h < 0.0) h += 1.0;
-      }
-      float s = (cmax <= 0.00001) ? 0.0 : d / cmax;
-      return vec3(h, s, cmax);
-    }
-
-    vec3 hsv2rgb(vec3 c){
-      float h = c.x * 6.0;
-      float s = c.y;
-      float v = c.z;
-      int i = int(floor(h));
-      float f = h - float(i);
-      float p = v * (1.0 - s);
-      float q = v * (1.0 - s * f);
-      float t = v * (1.0 - s * (1.0 - f));
-      vec3 outCol;
-      if (i == 0) outCol = vec3(v, t, p);
-      else if (i == 1) outCol = vec3(q, v, p);
-      else if (i == 2) outCol = vec3(p, v, t);
-      else if (i == 3) outCol = vec3(p, q, v);
-      else if (i == 4) outCol = vec3(t, p, v);
-      else outCol = vec3(v, p, q);
-      return outCol;
-    }
-
     void main(){
-      float pulse = max(0.03, uPulseAmp) * (0.8 + 0.6 * sin(uTime * 1.6));
       vec2 topUv = vTopUv;
 
-      float s = 0.0;
-      vec2 hueAcc = vec2(0.0);
-      float satAcc = 0.0;
-      float valAcc = 0.0;
-      vec3 glowSatAcc = vec3(0.0);
-      float nearestD = 1e9;
-      float nearestR = 1.0;
+      float distances[MAX_NODES];
+      float minDist = 1e9;
+      float secondMinDist = 1e9;
       int nearestIdx = 0;
+      int secondNearestIdx = 0;
 
       for (int i = 0; i < MAX_NODES; i++) {
-        if (i >= uCount) break;
-        float d = distance(topUv, uNodePos[i]);
-        float r = uRadius[i] + pulse * 0.09;
-        float dn = d / max(0.0001, r);
-
-        float wCore = exp(- (dn * dn) * 6.0); // tight Gaussian core
-        float wSoft = falloff(d, r);
-        float blend = smoothstep(0.0, 1.4, dn);
-        float w = mix(wCore * 1.8, wSoft, blend);
-        float weight = pow(max(w, 0.0), 1.05);
-
-        vec3 hsv = rgb2hsv(uNodeColor[i]);
-        float hue = hsv.x; // 0..1
-        float sat = hsv.y;
-        float val = hsv.z;
-
-        float coreBoost = clamp(wCore * 2.0, 0.0, 1.4);
-        float satBoost = sat * (1.0 + coreBoost * 0.85);
-
-        // add to accumulators using stronger weight
-        s += weight;
-        hueAcc += vec2(cos(hue * 2.0 * PI), sin(hue * 2.0 * PI)) * (weight * satBoost);
-        satAcc += weight * satBoost;
-        valAcc += weight * val;
-
-        // halo uses a wider Gaussian for a circular halo
-        float gw = exp(- (dn * dn) * 2.2) * 0.95;
-        glowSatAcc += gw * vec3(sat);
-
-        if (d < nearestD) { nearestD = d; nearestIdx = i; nearestR = r; }
+        if (i >= uCount) {
+          distances[i] = 1e9;
+        } else {
+          float d = distance(topUv, uNodePos[i]);
+          distances[i] = d;
+          if (d < minDist) {
+            secondMinDist = minDist;
+            secondNearestIdx = nearestIdx;
+            minDist = d;
+            nearestIdx = i;
+          } else if (d < secondMinDist) {
+            secondMinDist = d;
+            secondNearestIdx = i;
+          }
+        }
       }
 
-      vec3 col;
-      if (s > 1e-5) {
-        // reconstruct HSV from accumulated components
-        float hueAngle = atan(hueAcc.y, hueAcc.x);
-        float hue = hueAngle / (2.0 * PI);
-        if (hue < 0.0) hue += 1.0;
-        float sat = satAcc / s;
-        float val = valAcc / s;
+      vec3 col = uNodeColor[nearestIdx];
 
-        // boost saturation but cap value to avoid brightness
-        sat = clamp(sat * uSaturationBoost + 0.05, 0.0, 1.6);
-        val = clamp(val * 0.95, 0.0, uMaxValue);
+      if (uCount > 1 && secondMinDist < 1e8) {
+        float edgeDist = secondMinDist - minDist;
+        float blurWidth = 0.08;
+        float blendFactor = 1.0 - smoothstep(0.0, blurWidth, edgeDist);
 
-        col = hsv2rgb(vec3(hue, sat, val));
-
-        // add a subtle desaturated glow by increasing saturation slightly in midrange
-        float glowFactor = clamp(length(glowSatAcc) * 0.14, 0.0, 0.28);
-        vec3 hsvOut = rgb2hsv(col);
-        hsvOut.y = clamp(hsvOut.y + glowFactor, 0.0, 1.6);
-        col = hsv2rgb(hsvOut);
-      } else {
-        // fallback nearest node
-        col = uNodeColor[nearestIdx];
+        if (blendFactor > 0.0) {
+          vec3 secondColor = uNodeColor[secondNearestIdx];
+          float ratio = minDist / (minDist + secondMinDist);
+          col = mix(col, secondColor, blendFactor * ratio);
+        }
       }
 
-      // compute smooth, per-node dominance so equal-distance points blend hues smoothly
-      float domSum = 0.0;
-      vec3 domColorSum = vec3(0.0);
-      for (int i = 0; i < MAX_NODES; i++) {
-        if (i >= uCount) break;
-        float d = distance(topUv, uNodePos[i]);
-        float r = uRadius[i] + pulse * 0.09;
-        float dn = d / max(0.0001, r);
-        // Gaussian dominance: strong near center, decays smoothly
-        float dom = exp(- (dn * dn) * 3.0);
-        dom = clamp(dom, 0.0, 1.0);
-        // apply slight non-linear emphasis to sharpen the center without hard cuts
-        dom = pow(dom, 1.05);
-
-        // compute per-node boosted color in HSV (more saturated, slightly dimmer)
-        vec3 nodeHsv = rgb2hsv(uNodeColor[i]);
-        nodeHsv.y = clamp(nodeHsv.y * (1.0 + dom * 0.95), 0.0, 1.8);
-        nodeHsv.z = clamp(nodeHsv.z * (1.0 - dom * 0.12), 0.0, uMaxValue);
-        vec3 nodeBoostCol = hsv2rgb(nodeHsv);
-
-        domSum += dom;
-        domColorSum += dom * nodeBoostCol;
-      }
-
-      if (domSum > 1e-5) {
-        vec3 domCombined = domColorSum / domSum;
-        // blend amount depends on total dominance sum (clamped to [0,1]) so multiple nearby cores mix naturally
-        float domBlend = clamp(domSum * 0.75, 0.0, 1.0);
-        col = mix(col, domCombined, domBlend * 0.92);
-      }
-
-      // rim lighting to keep depth but low brightness impact
-      float rim = pow(1.0 - max(0.0, dot(normalize(vNormal), normalize(vViewDir))), 1.9) * 0.12;
-      col += vec3(rim) * 0.45;
-
-      // gentle tone mapping and clamp
-      col = pow(col, vec3(0.96));
+      float rim = pow(1.0 - max(0.0, dot(normalize(vNormal), normalize(vViewDir))), 2.0) * 0.1;
+      col += vec3(rim) * 0.4;
       col = clamp(col, 0.0, 1.0);
-
-      // subtle lift in darker areas slightly
-      col = mix(col, col + vec3(0.03), 0.28);
 
       gl_FragColor = vec4(col, 1.0);
     }
@@ -479,10 +536,12 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
     if (!shaderRef.current) return;
     const uPos = shaderRef.current.uniforms.uNodePos.value;
     const uCol = shaderRef.current.uniforms.uNodeColor.value;
+
     for (let i = 0; i < MAX_NODES; i++) {
       if (i < nodes.length) {
         const n = nodes[i];
-        uPos[i].set((n.x + 4) / 8, 1 - (n.z + 4) / 8);
+        const { u, v } = normalizeToUV(n.x, n.z);
+        uPos[i].set(u, v);
         uCol[i].set(new THREE.Color(moistureToColor(n.moisture)));
       } else {
         uPos[i].set(-10, -10);
@@ -510,195 +569,41 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
     }
 
     shaderRef.current.uniforms.uCount.value = nodes.length;
-  }, [nodes]);
+    shaderRef.current.uniforms.uBounds.value.set(centeredBounds.minX, centeredBounds.maxX, centeredBounds.minZ, centeredBounds.maxZ);
 
-  useFrame((_, delta) => {
-    if (shaderRef.current) shaderRef.current.uniforms.uTime.value += delta;
-  });
+    // Force re-render after updating uniforms
+    invalidate();
+  }, [nodes, bounds, centeredBounds, invalidate]);
 
-  const { camera } = useThree();
-
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const labelRefs = useRef<Record<string, any>>({});
-  const hideTimeoutRef = useRef<any>(null);
-  const lastShowTimeRef = useRef(0);
-
-  const TextGeoMesh = ({
-    text,
-    color = "#fff",
-    size = 0.08,
-  }: {
-    text: string;
-    color?: string;
-    size?: number;
-  }) => {
-    const font: any = useMemo(() => {
-      try {
-        return require("../assets/fonts/helvetiker_regular.typeface.json");
-      } catch (e) {
-        try {
-          return require("three/examples/fonts/helvetiker_regular.typeface.json");
-        } catch (err) {
-          if (typeof __DEV__ !== "undefined" && __DEV__)
-            console.debug("ColorPlane: Font JSON not found for TextGeometry.", err);
-          return null;
-        }
-      }
-    }, []);
-
-    const geoms = useMemo(() => {
-      if (!font) return null;
-      try {
-        const { FontLoader } = require("three/examples/jsm/loaders/FontLoader.js");
-        const { TextGeometry } = require("three/examples/jsm/geometries/TextGeometry.js");
-        const loader = new FontLoader();
-        const f = loader.parse(font);
-
-        const lines = (text || "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
-        const out: any[] = [];
-        for (let i = 0; i < lines.length; i++) {
-          try {
-            const g = new TextGeometry(lines[i], {
-              font: f,
-              size,
-              height: 0.01,
-              curveSegments: 6,
-            });
-            g.computeBoundingBox();
-            if (g.boundingBox) {
-              const bx = (g.boundingBox.max.x + g.boundingBox.min.x) / 2;
-              const by = (g.boundingBox.max.y + g.boundingBox.min.y) / 2;
-              g.translate(-bx, -by, 0);
-            }
-            out.push(g);
-          } catch (e) {
-            if (typeof __DEV__ !== "undefined" && __DEV__)
-              console.debug("ColorPlane: TextGeometry line creation failed.", e);
-          }
-        }
-        return out.length > 0 ? out : null;
-      } catch (e) {
-        if (typeof __DEV__ !== "undefined" && __DEV__)
-          console.debug("ColorPlane: TextGeometry creation failed.", e);
-        return null;
-      }
-    }, [text, font, size]);
-
-    if (!geoms) return null;
-
-    return (
-      <group position={[0, 0.06, 0.03]} renderOrder={9999}>
-        {geoms.map((g, idx) => (
-          <mesh
-            key={idx}
-            geometry={g}
-            position={[0, -idx * (size + 0.02), 0]}
-            renderOrder={9999}
-          >
-            <meshBasicMaterial color={color} depthTest={false} depthWrite={false} />
-          </mesh>
-        ))}
-      </group>
-    );
-  };
-
-  const TroikaTextMesh = ({
-    text,
-    color = "#fff",
-    fontSize = 0.08,
-    maxWidth = 1.3,
-  }: {
-    text: string;
-    color?: string;
-    fontSize?: number;
-    maxWidth?: number;
-  }) => {
-    const TextClass: any = useMemo(() => {
-      const candidate = (TroikaText as any) || null;
-      // troika-three-text relies on DOM APIs (like document) which are not
-      // available in React Native. Avoid using Troika when `document` is
-      // undefined to prevent runtime ReferenceError crashes on mobile.
-      if (typeof document === 'undefined') {
-        if (typeof __DEV__ !== 'undefined' && __DEV__)
-          console.debug('ColorPlane: troika-three-text disabled (no document present).');
-        return null;
-      }
-      if (typeof candidate !== 'function') {
-        if (typeof __DEV__ !== 'undefined' && __DEV__)
-          console.debug(
-            'ColorPlane: troika-three-text.Text export not available or invalid, falling back.',
-          );
-        return null;
-      }
-      return candidate;
-    }, []);
-
-    const textObj: any = useMemo(() => {
-      if (!TextClass) return null;
-      try {
-        return new TextClass();
-      } catch (e) {
-        if (typeof __DEV__ !== "undefined" && __DEV__)
-          console.debug("ColorPlane: troika Text instantiation failed.", e);
-        return null;
-      }
-    }, [TextClass]);
-
-    useEffect(() => {
-      if (!textObj) return;
-      textObj.text = text;
-      textObj.fontSize = fontSize;
-      textObj.maxWidth = maxWidth;
-      textObj.anchorX = "center";
-      textObj.anchorY = "middle";
-      textObj.color = color;
-      (textObj as any).sync && (textObj as any).sync();
-      textObj.renderOrder = 9999;
-      if ((textObj as any).material) {
-        (textObj as any).material.depthTest = false;
-        (textObj as any).material.depthWrite = false;
-        (textObj as any).material.transparent = true;
-      }
-      return () => {
-        textObj.dispose && (textObj as any).dispose();
-      };
-    }, [text, color, fontSize, maxWidth, textObj]);
-
-    if (textObj) return <primitive object={textObj} />;
-
-    return <TextGeoMesh text={text} color={color} size={fontSize} />;
-  };
-
-  const showLabelForNode = (node: NodeInfo) => {
-    const now = Date.now();
-    if (selectedNodeId === node.id && now - lastShowTimeRef.current < 1200) {
-      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = setTimeout(() => {
-        setSelectedNodeId((cur) => (cur === node.id ? null : cur));
-      }, LABEL_DISPLAY_MS);
-      lastShowTimeRef.current = now;
-      return;
+  useEffect(() => {
+    if (externalSelectedNodeId !== undefined) {
+      setSelectedNodeId(externalSelectedNodeId);
     }
-
-    lastShowTimeRef.current = now;
-
-    setSelectedNodeId(node.id);
-
-    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-    hideTimeoutRef.current = setTimeout(() => {
-      setSelectedNodeId((cur) => (cur === node.id ? null : cur));
-    }, LABEL_DISPLAY_MS);
-  };
+  }, [externalSelectedNodeId]);
 
   const handleNodePointerDown = (node: NodeInfo) => (e: any) => {
-    e && e.stopPropagation && e.stopPropagation();
-    showLabelForNode(node);
+    pendingNodeRef.current = node;
+
+    const x = e.clientX ?? e.pageX ?? e.screenX ?? e.nativeEvent?.locationX ?? 0;
+    const y = e.clientY ?? e.pageY ?? e.screenY ?? e.nativeEvent?.locationY ?? 0;
+    nodePointerStartRef.current = { x, y, time: Date.now() };
   };
 
+  const GEOMETRY_DEPTH = 1.5;
+  const geometrySurfaceY = GEOMETRY_DEPTH / scale;
+  const NODE_HEIGHT = geometrySurfaceY + 0.05;
+
+  const getNodeLocalPosition = (node: NodeInfo) => ({
+    x: node.x - centerX,
+    y: NODE_HEIGHT,
+    z: centerZ - node.z,
+  });
+
+  const pinLocalSize = PIN_WORLD_SIZE / scale;
+
   return (
-    <group ref={groupRef} position={[0, 0, 0]}>
-      <mesh ref={meshRef} position={[0, 0, 0]} castShadow receiveShadow>
-        <boxGeometry args={[8, 1.5, 8]} />
+    <group ref={groupRef} position={[0, 0, 0]} scale={[scale, scale, scale]}>
+      <mesh key={fieldKey} ref={meshRef} position={[0, 0, 0]} castShadow receiveShadow geometry={geometry}>
         <shaderMaterial
           ref={shaderRef}
           uniforms={uniforms}
@@ -709,82 +614,82 @@ export function ColorPlane({ isDark = false }: ColorPlaneProps) {
 
       <ambientLight intensity={0.8} />
       <directionalLight
-        position={[6, 8, 6]}
+        position={[6 / scale, 8 / scale, 6 / scale]}
         intensity={1.4}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
-        shadow-camera-far={20}
-        shadow-camera-left={-8}
-        shadow-camera-right={8}
-        shadow-camera-top={8}
-        shadow-camera-bottom={-8}
+        shadow-camera-far={20 / scale}
+        shadow-camera-left={-8 / scale}
+        shadow-camera-right={8 / scale}
+        shadow-camera-top={8 / scale}
+        shadow-camera-bottom={-8 / scale}
       />
-      <pointLight position={[-4, 4, 4]} intensity={0.5} color={currentColor} />
+      <pointLight position={[-4 / scale, 4 / scale, 4 / scale]} intensity={0.5} color={currentColor} />
 
-      {nodes.map((node) => (
-        <group key={node.id} position={[node.x, 0, node.z]}>
-          <mesh position={[0, 0.9, 0]}>
-            <sphereGeometry args={[0.14, 16, 8]} />
-            <meshStandardMaterial
-              color={moistureToColor(node.moisture)}
-              metalness={0.2}
-              roughness={0.6}
-            />
-          </mesh>
+      {nodes.map((node) => {
+        const pos = getNodeLocalPosition(node);
+        const nodeColor = moistureToColor(node.moisture);
+        // Include moisture in key to force re-render when values change
+        const nodeKey = `${node.id}-${node.moisture}`;
+        return (
+          <group key={nodeKey} position={[pos.x, pos.y, pos.z]}>
+            {/* Pin head */}
+            <mesh position={[0, pinLocalSize * 1.1, 0]}>
+              <sphereGeometry args={[pinLocalSize * 0.36, 16, 12]} />
+              <meshStandardMaterial
+                color={nodeColor}
+                metalness={0.4}
+                roughness={0.3}
+                emissive={nodeColor}
+                emissiveIntensity={selectedNodeId === node.id ? 0.3 : 0.1}
+              />
+            </mesh>
 
-          <mesh
-            position={[0, 0.9, 0]}
-            onPointerDown={handleNodePointerDown(node)}
-          >
-            <sphereGeometry args={[0.7, 16, 12]} />
-            <meshBasicMaterial transparent opacity={0.001} depthTest={false} />
-          </mesh>
+            {/* Pin body */}
+            <mesh position={[0, pinLocalSize * 0.2, 0]} rotation={[Math.PI, 0, 0]}>
+              <coneGeometry args={[pinLocalSize * 0.24, pinLocalSize * 1.4, 12]} />
+              <meshStandardMaterial
+                color={nodeColor}
+                metalness={0.3}
+                roughness={0.4}
+              />
+            </mesh>
 
-          {selectedNodeId === node.id && (
-            <group
-              position={[0, 1.5, 0]}
-              ref={(el: any) => (labelRefs.current[node.id] = el)}
+            {/* Pin tip */}
+            <mesh position={[0, pinLocalSize * -0.7, 0]} rotation={[Math.PI, 0, 0]}>
+              <coneGeometry args={[pinLocalSize * 0.08, pinLocalSize * 0.8, 8]} />
+              <meshStandardMaterial
+                color={nodeColor}
+                metalness={0.5}
+                roughness={0.3}
+              />
+            </mesh>
+
+            {/* Hitbox */}
+            <mesh
+              position={[0, pinLocalSize * 0.4, 0]}
+              onPointerDown={handleNodePointerDown(node)}
             >
-              <mesh position={[0, 0.061, 0]} renderOrder={9998}>
-                <planeGeometry args={[1.68, 0.76]} />
+              <sphereGeometry args={[pinLocalSize * 1.2, 12, 8]} />
+              <meshBasicMaterial transparent opacity={0.001} depthTest={false} />
+            </mesh>
+
+            {/* Selection ring */}
+            {selectedNodeId === node.id && (
+              <mesh position={[0, pinLocalSize * 1.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <ringGeometry args={[pinLocalSize * 0.56, pinLocalSize * 0.72, 32]} />
                 <meshBasicMaterial
-                  color={moistureToColor(node.moisture)}
+                  color={nodeColor}
                   transparent
-                  opacity={0.14}
+                  opacity={0.9}
                   depthTest={false}
-                  depthWrite={false}
                 />
               </mesh>
-
-              <mesh position={[0, 0.06, 0]} renderOrder={9998}>
-                <planeGeometry args={[1.6, 0.7]} />
-                <meshBasicMaterial
-                  color={"#132028"}
-                  transparent
-                  opacity={0.96}
-                  depthTest={false}
-                  depthWrite={false}
-                />
-              </mesh>
-
-              <group position={[0, 0.06, 0.03]} renderOrder={9999}>
-                <TroikaTextMesh
-                  text={`${node.id}\nNem: ${node.moisture}%`}
-                  color={"#ffffff"}
-                  fontSize={0.095}
-                  maxWidth={1.4}
-                />
-              </group>
-
-              <mesh position={[0, -0.38, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <coneGeometry args={[0.07, 0.12, 4]} />
-                <meshBasicMaterial color={"#0b1620"} />
-              </mesh>
-            </group>
-          )}
-        </group>
-      ))}
+            )}
+          </group>
+        );
+      })}
     </group>
   );
 }

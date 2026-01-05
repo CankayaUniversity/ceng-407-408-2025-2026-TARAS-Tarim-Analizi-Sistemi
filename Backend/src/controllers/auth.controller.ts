@@ -19,14 +19,14 @@ function generateToken(payload: JwtPayload): string {
 
 export async function login(req: Request, res: Response): Promise<void> {
   try {
-    const { identifier, password } = req.body;
+    const { username, password } = req.body;
 
-    if (!identifier || !password) {
-      res.status(400).json({ success: false, error: 'Username/email and password required' });
+    if (!username || !password) {
+      res.status(400).json({ success: false, error: 'Username and password required' });
       return;
     }
 
-    const authResult = await userService.authenticateUser(identifier, password);
+    const authResult = await userService.authenticateUser(username, password);
 
     if (!authResult.authenticated || !authResult.user) {
       res.status(401).json({ success: false, error: authResult.error || 'Authentication failed' });

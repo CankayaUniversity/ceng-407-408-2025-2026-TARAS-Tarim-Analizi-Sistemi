@@ -1,7 +1,15 @@
 # OS and general files
-.vscode/
 .DS_Store
 Thumbs.db
+
+# Hidden files (except important ones)
+.*
+*/.*
+!.gitignore
+!*/.gitignore
+!.env.example
+!.eslintrc.json
+*/*.md
 
 # Donanim specific ignores
 # Build directories
@@ -77,8 +85,6 @@ Donanim/*/*.log
 Donanim/*/debug_output.txt
 Donanim/*/test_results.txt
 
-# Misc
-Donanim/*/.gitkeep
 
 
 # Mobil specific ignores
@@ -151,19 +157,4 @@ Mobil/*.bak
 # TypeScript - Mobil
 Mobil/*.tsbuildinfo
 
-# Testing - Mobil
-Mobil/coverage/
-
-# Fastlane - Mobil
-Mobil/**/fastlane/report.xml
-Mobil/**/fastlane/Preview.html
-Mobil/**/fastlane/screenshots
-Mobil/**/fastlane/test_output
-
-# Yarn - Mobil
-Mobil/.yarn/*
-!Mobil/.yarn/patches
-!Mobil/.yarn/plugins
-!Mobil/.yarn/releases
-!Mobil/.yarn/sdks
-!Mobil/.yarn/versions
+*/package-lock.json
