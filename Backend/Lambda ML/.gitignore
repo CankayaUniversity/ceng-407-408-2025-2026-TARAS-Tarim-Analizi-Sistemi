@@ -38,3 +38,4 @@ docker-compose.override.yml
 
 Disease Detection/
 random_leaves/
+*.md

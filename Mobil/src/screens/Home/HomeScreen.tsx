@@ -2,7 +2,6 @@ import { Suspense, useEffect, useState, useRef } from "react";
 import { Animated, Text, StyleSheet } from "react-native";
 import { Canvas } from "@react-three/fiber/native";
 import { View, ScrollView } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ColorPlane, NodeInfo } from "../../components/ColorPlane";
 import { FieldData } from "../../utils/fieldPlaceholder";
 import { appStyles } from "../../styles";
