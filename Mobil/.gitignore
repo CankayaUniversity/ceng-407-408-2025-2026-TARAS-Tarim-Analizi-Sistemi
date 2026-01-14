@@ -12,6 +12,7 @@ android/app/build/
 **/intermediates/
 **/merged_res/
 *.apk
+*.zip
 
 # iOS build artifacts
 ios/build/
