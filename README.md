@@ -1,2 +1,2 @@
-# ceng-407-408-2025-2026-TARAS---Tarım-Analiz-ve-Simülasyon
-TARAS - Tarım Analiz ve Simülasyon
+# ceng-407-408-2025-2026-TARAS-Tarım-Analizi-Sistemi
+TARAS - Tarım Analizi Sistemi
