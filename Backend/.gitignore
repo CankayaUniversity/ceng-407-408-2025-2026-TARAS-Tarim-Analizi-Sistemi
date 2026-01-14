@@ -14,6 +14,7 @@ aws-*.ps1
 logs.ps1
 *.pem
 *.zip
+*.bat
 
 # Archives
 *.zip

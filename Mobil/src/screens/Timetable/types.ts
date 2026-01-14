@@ -18,16 +18,17 @@ export interface ChartCardProps {
   icon: string;
   color: string;
   data: ChartDataPoint[];
-  rawReadings?: SensorReading[];
+  onTouchStart?: () => void;
+  onTouchEnd?: () => void;
 }
 
 export interface SensorReading {
   id: string;
   node_id: string;
   created_at: string;
-  temperature: number;
-  humidity: number;
-  sm_percent: number;
-  raw_sm_value: number;
+  temperature: number | null;
+  humidity: number | null;
+  sm_percent: number | null;
+  raw_sm_value: number | null;
   et0_instant: number | null;
 }

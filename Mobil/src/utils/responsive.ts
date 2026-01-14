@@ -1,21 +1,7 @@
-import { useWindowDimensions, Dimensions } from 'react-native';
+// Responsive tasarim sistemi - ekran boyutuna gore olcekleme
+// spacing, useResponsive, calculateCardDimensions, getResponsiveFontSize
 
-/**
- * Responsive Design System for TARAS Mobile
- *
- * This module provides a comprehensive set of utilities for creating responsive layouts
- * that adapt to different screen sizes using percentage-based calculations and a grid system.
- *
- * Key principles:
- * - 8px base unit grid system (spacing multiples of 8: 4, 8, 16, 24, 32, 48)
- * - Breakpoints: phone (<768px), tablet (768-1024px), large (>1024px)
- * - Min/max constraints to prevent extreme sizes on very small/large screens
- * - Scale factor approach for proportional sizing
- */
-
-// ============================================================================
-// TYPES AND CONSTANTS
-// ============================================================================
+import { useWindowDimensions, Dimensions } from "react-native";
 
 export interface DeviceType {
   isPhone: boolean;
@@ -77,12 +63,12 @@ export const BASE_UNIT = 8;
  * Use these instead of hardcoded pixel values
  */
 export const spacing = {
-  xs: BASE_UNIT * 0.5,    // 4px
-  sm: BASE_UNIT,          // 8px
-  md: BASE_UNIT * 2,      // 16px
-  lg: BASE_UNIT * 3,      // 24px
-  xl: BASE_UNIT * 4,      // 32px
-  xxl: BASE_UNIT * 6,     // 48px
+  xs: BASE_UNIT * 0.5, // 4px
+  sm: BASE_UNIT, // 8px
+  md: BASE_UNIT * 2, // 16px
+  lg: BASE_UNIT * 3, // 24px
+  xl: BASE_UNIT * 4, // 32px
+  xxl: BASE_UNIT * 6, // 48px
 } as const;
 
 /**
@@ -145,7 +131,7 @@ export const useResponsive = () => {
  * const halfScreenWidth = wp(50); // 50% of screen width
  */
 export const wp = (percentage: number): number => {
-  const { width } = Dimensions.get('window');
+  const { width } = Dimensions.get("window");
   return (percentage / 100) * width;
 };
 
@@ -158,7 +144,7 @@ export const wp = (percentage: number): number => {
  * const quarterScreenHeight = hp(25); // 25% of screen height
  */
 export const hp = (percentage: number): number => {
-  const { height } = Dimensions.get('window');
+  const { height } = Dimensions.get("window");
   return (percentage / 100) * height;
 };
 
@@ -181,7 +167,7 @@ export const getResponsiveSpacing = (
   base: number,
   screenWidth: number,
   minValue?: number,
-  maxValue?: number
+  maxValue?: number,
 ): number => {
   const REFERENCE_WIDTH = 375; // iPhone 11 as base
   const scaleFactor = screenWidth / REFERENCE_WIDTH;
@@ -218,16 +204,13 @@ export const getResponsiveSpacing = (
 export const getResponsiveFontSize = (
   config: FontSizeConfig,
   scaleFactor: number,
-  isTablet: boolean
+  isTablet: boolean,
 ): number => {
   const multiplier = config.scaleFactorMultiplier ?? 1;
   const calculated = scaleFactor * multiplier;
   const tabletBoost = isTablet ? 1.2 : 1;
 
-  return Math.max(
-    config.min,
-    Math.min(calculated * tabletBoost, config.max)
-  );
+  return Math.max(config.min, Math.min(calculated * tabletBoost, config.max));
 };
 
 // ============================================================================
@@ -260,7 +243,7 @@ export const getResponsiveFontSize = (
 export const calculateCardDimensions = (
   screenWidth: number,
   screenHeight: number,
-  config: CardLayoutConfig
+  config: CardLayoutConfig,
 ): CardDimensions => {
   const { horizontalPadding, cardsPerRow, cardGap, cardMargin = 0 } = config;
 
@@ -269,13 +252,14 @@ export const calculateCardDimensions = (
   const totalMargins = cardsPerRow * cardMargin * 2; // margin on both sides
 
   // Calculate available width for cards
-  const availableWidth = screenWidth - horizontalPadding - totalGaps - totalMargins;
+  const availableWidth =
+    screenWidth - horizontalPadding - totalGaps - totalMargins;
 
   // Calculate individual card width
   const cardWidth = availableWidth / cardsPerRow;
 
   // Calculate card height (10% of screen height, clamped between 90-130px for more compact cards)
-  const cardHeight = Math.max(90, Math.min(screenHeight * 0.10, 130));
+  const cardHeight = Math.max(90, Math.min(screenHeight * 0.1, 130));
 
   // Scale factor: use smaller dimension to ensure everything fits
   const scaleFactor = Math.min(cardWidth, cardHeight);
@@ -307,11 +291,11 @@ export const calculateCardDimensions = (
 export const calculateMetricCardsRowWidth = (
   screenWidth: number,
   statusCardPadding: number = spacing.md,
-  _cardMargin: number = 4  // Prefixed with _ to indicate intentionally unused
+  _cardMargin: number = 4, // Prefixed with _ to indicate intentionally unused
 ): number => {
   // StatusCard has paddingHorizontal which creates the outer boundary
   // MetricCards have marginHorizontal but the visual width extends to StatusCard edges
-  return screenWidth - (statusCardPadding * 2);
+  return screenWidth - statusCardPadding * 2;
 };
 
 // ============================================================================
@@ -331,16 +315,14 @@ export const calculateMetricCardsRowWidth = (
  * const headerDims = getHeaderDimensions(screenWidth);
  * <LogoLight width={headerDims.logoSize} height={headerDims.logoSize} />
  */
-export const getHeaderDimensions = (
-  screenWidth: number
-): HeaderDimensions => {
+export const getHeaderDimensions = (screenWidth: number): HeaderDimensions => {
   const minLogoSize = 40;
   const maxLogoSize = 64;
 
   // Logo scales with screen width (11% of width, clamped to min/max)
   const logoSize = Math.max(
     minLogoSize,
-    Math.min(screenWidth * 0.11, maxLogoSize)
+    Math.min(screenWidth * 0.11, maxLogoSize),
   );
 
   const headerPadding = spacing.md;

@@ -524,7 +524,7 @@ export async function getFieldSensorHistory(req: Request, res: Response): Promis
 
     res.status(200).json({ success: true, data: result });
   } catch (error) {
-    logger.error('Get field sensor history error:', error);
+    logger.error('Get field sensor history error:', error instanceof Error ? { message: error.message, stack: error.stack } : error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }

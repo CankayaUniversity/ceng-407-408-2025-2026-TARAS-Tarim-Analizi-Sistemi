@@ -8,6 +8,8 @@ import { Server as SocketIOServer } from 'socket.io';
 
 dotenv.config();
 
+// BigInt JSON serialization fix
+(BigInt.prototype as any).toJSON = function () { return this.toString(); };
 import { initializeDatabase } from './config/database';
 import { initializeSocketIO } from './config/socket';
 import { initializeMQTT } from './config/mqtt';

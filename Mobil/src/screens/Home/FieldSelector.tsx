@@ -1,8 +1,12 @@
+// Tarla secici dropdown - mevcut tarlalar arasinda secim yapar
+// Props: theme, fields (tarla listesi), selectedFieldId, onSelectField
+
 import { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { FieldSelectorProps } from "./types";
 import { spacing } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
 export const FieldSelector = ({
   theme,
@@ -10,38 +14,51 @@ export const FieldSelector = ({
   selectedFieldId,
   onSelectField,
 }: FieldSelectorProps) => {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
-  const selectedField = fields.find(f => f.id === selectedFieldId);
+  const selectedField = fields.find((f) => f.id === selectedFieldId);
 
   if (fields.length === 0) return null;
 
   return (
-    <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.xs, position: 'relative' }}>
+    <View
+      style={{
+        paddingHorizontal: spacing.md,
+        paddingTop: spacing.xs,
+        paddingBottom: spacing.xs,
+        position: "relative",
+      }}
+    >
       <TouchableOpacity
         onPress={() => setIsOpen(!isOpen)}
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
           backgroundColor: theme.surface,
           borderRadius: spacing.sm + 2,
           borderWidth: 1,
-          borderColor: theme.accent + '30',
+          borderColor: theme.accent + "30",
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-          <Ionicons name="leaf" size={18} color={theme.accent} style={{ marginRight: spacing.sm }} />
+        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+          <Ionicons
+            name="leaf"
+            size={18}
+            color={theme.accent}
+            style={{ marginRight: spacing.sm }}
+          />
           <Text
             style={{
               color: theme.text,
               fontSize: 15,
-              fontWeight: '600',
+              fontWeight: "600",
             }}
             numberOfLines={1}
           >
-            {selectedField?.name ?? 'Tarla Seçin'}
+            {selectedField?.name ?? t.home.selectField}
           </Text>
         </View>
         <Ionicons
@@ -54,19 +71,25 @@ export const FieldSelector = ({
       {isOpen && (
         <View
           style={{
-            position: 'absolute',
-            top: spacing.xs + spacing.sm + spacing.md + spacing.sm + spacing.xs + 2,
+            position: "absolute",
+            top:
+              spacing.xs +
+              spacing.sm +
+              spacing.md +
+              spacing.sm +
+              spacing.xs +
+              2,
             left: spacing.md,
             right: spacing.md,
             backgroundColor: theme.surface,
             borderRadius: spacing.sm + 2,
             borderWidth: 1,
-            borderColor: theme.accent + '30',
+            borderColor: theme.accent + "30",
             maxHeight: 200,
-            overflow: 'hidden',
+            overflow: "hidden",
             zIndex: 1000,
             elevation: 10,
-            shadowColor: '#000',
+            shadowColor: "#000",
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
             shadowRadius: 8,
@@ -74,7 +97,7 @@ export const FieldSelector = ({
         >
           <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
             {fields
-              .filter(field => field.id !== selectedFieldId)
+              .filter((field) => field.id !== selectedFieldId)
               .map((field, index, arr) => (
                 <TouchableOpacity
                   key={field.id}
@@ -83,18 +106,29 @@ export const FieldSelector = ({
                     setIsOpen(false);
                   }}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flexDirection: "row",
+                    alignItems: "center",
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm + 2,
                     borderBottomWidth: index < arr.length - 1 ? 1 : 0,
-                    borderBottomColor: theme.accent + '15',
+                    borderBottomColor: theme.accent + "15",
                     backgroundColor: theme.surface,
                   }}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="leaf-outline" size={16} color={theme.textSecondary} style={{ marginRight: spacing.sm }} />
-                  <Text style={{ color: theme.text, fontSize: 14, fontWeight: '500' }}>
+                  <Ionicons
+                    name="leaf-outline"
+                    size={16}
+                    color={theme.textSecondary}
+                    style={{ marginRight: spacing.sm }}
+                  />
+                  <Text
+                    style={{
+                      color: theme.text,
+                      fontSize: 14,
+                      fontWeight: "500",
+                    }}
+                  >
                     {field.name}
                   </Text>
                 </TouchableOpacity>

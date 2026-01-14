@@ -1,15 +1,31 @@
+// Sensor node popup - secilen noktanin nem, sicaklik, nem verilerini gosterir
+// Props: theme, selectedNode, fadeAnim, onClose
+
 import { View, Text, TouchableOpacity, Animated } from "react-native";
-import { Ionicons, FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
+import {
+  Ionicons,
+  FontAwesome6,
+  MaterialIcons,
+  Entypo,
+} from "@expo/vector-icons";
 import { NodePopupProps } from "./types";
 import { spacing } from "../../utils/responsive";
+import { useLanguage } from "../../context/LanguageContext";
 
-export const NodePopup = ({ theme, selectedNode, fadeAnim, onClose }: NodePopupProps) => {
+export const NodePopup = ({
+  theme,
+  selectedNode,
+  fadeAnim,
+  onClose,
+}: NodePopupProps) => {
+  const { t } = useLanguage();
+
   if (!selectedNode) return null;
 
   // figure out what color to use based on sensor value
   const getStatusInfo = (
     value: number,
-    type: "moisture" | "temperature" | "humidity"
+    type: "moisture" | "temperature" | "humidity",
   ): { color: string; status: "ideal" | "high" | "low" } => {
     const accent = theme.accent;
     const red = "#ef4444";
@@ -36,7 +52,7 @@ export const NodePopup = ({ theme, selectedNode, fadeAnim, onClose }: NodePopupP
     type: "moisture" | "temperature" | "humidity",
     label: string,
     icon: React.ReactNode,
-    unit: string
+    unit: string,
   ) => {
     const status = getStatusInfo(value, type);
     return (
@@ -50,7 +66,14 @@ export const NodePopup = ({ theme, selectedNode, fadeAnim, onClose }: NodePopupP
           borderLeftColor: status.color,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", marginBottom: spacing.xs }}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            marginBottom: spacing.xs,
+          }}
+        >
           <Text style={{ color: theme.textSecondary, fontSize: 10 }}>
             {label}
           </Text>
@@ -60,7 +83,9 @@ export const NodePopup = ({ theme, selectedNode, fadeAnim, onClose }: NodePopupP
           <Text style={{ color: theme.text, fontSize: 22, fontWeight: "600" }}>
             {value.toFixed(1)}
           </Text>
-          <Text style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 2 }}>
+          <Text
+            style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 2 }}
+          >
             {unit}
           </Text>
         </View>
@@ -118,7 +143,14 @@ export const NodePopup = ({ theme, selectedNode, fadeAnim, onClose }: NodePopupP
             elevation: 8,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: spacing.sm,
+            }}
+          >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <View
                 style={{
@@ -129,8 +161,10 @@ export const NodePopup = ({ theme, selectedNode, fadeAnim, onClose }: NodePopupP
                   marginRight: spacing.xs + 2,
                 }}
               />
-              <Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>
-                {selectedNode.id.replace("node-", "Sensor ")}
+              <Text
+                style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}
+              >
+                {selectedNode.id.replace("node-", `${t.nodePopup.sensor} `)}
               </Text>
             </View>
             <TouchableOpacity
@@ -149,23 +183,40 @@ export const NodePopup = ({ theme, selectedNode, fadeAnim, onClose }: NodePopupP
             {renderMetric(
               selectedNode.moisture,
               "moisture",
-              "Toprak Nemi",
-              <Entypo name="air" size={18} color={getStatusInfo(selectedNode.moisture, "moisture").color} />,
-              "%"
+              t.nodePopup.soilMoisture,
+              <Entypo
+                name="air"
+                size={18}
+                color={getStatusInfo(selectedNode.moisture, "moisture").color}
+              />,
+              "%",
             )}
             {renderMetric(
               selectedNode.airTemperature,
               "temperature",
-              "Hava Sicakligi",
-              <FontAwesome6 name="temperature-three-quarters" size={18} color={getStatusInfo(selectedNode.airTemperature, "temperature").color} />,
-              "°C"
+              t.nodePopup.airTemperature,
+              <FontAwesome6
+                name="temperature-three-quarters"
+                size={18}
+                color={
+                  getStatusInfo(selectedNode.airTemperature, "temperature")
+                    .color
+                }
+              />,
+              "°C",
             )}
             {renderMetric(
               selectedNode.airHumidity,
               "humidity",
-              "Hava Nemi",
-              <MaterialIcons name="water-drop" size={18} color={getStatusInfo(selectedNode.airHumidity, "humidity").color} />,
-              "%"
+              t.nodePopup.airHumidity,
+              <MaterialIcons
+                name="water-drop"
+                size={18}
+                color={
+                  getStatusInfo(selectedNode.airHumidity, "humidity").color
+                }
+              />,
+              "%",
             )}
           </View>
         </TouchableOpacity>

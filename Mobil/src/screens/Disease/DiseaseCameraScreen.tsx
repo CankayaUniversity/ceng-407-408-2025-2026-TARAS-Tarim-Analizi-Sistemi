@@ -1,3 +1,6 @@
+// Hastalik kamera ekrani - fotograf cekme ve galeri secimi
+// Props: theme, permission, onRequestPermission, onSendForAnalysis, isActive
+
 import React, { useState, useRef } from "react";
 import { View, Text, TouchableOpacity, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
@@ -5,6 +8,8 @@ import { appStyles } from "../../styles";
 import { CameraView, canUseCameraComponent } from "./CameraView";
 import { PhotoPreview } from "./PhotoPreview";
 import { DiseaseScreenProps } from "./types";
+import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 export const DiseaseCameraScreen = ({
   theme,
@@ -13,6 +18,8 @@ export const DiseaseCameraScreen = ({
   onSendForAnalysis,
   isActive = true,
 }: DiseaseScreenProps) => {
+  const { showPopup } = usePopupMessage();
+  const { t } = useLanguage();
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isPreview, setIsPreview] = useState(false);
   const cameraRef = useRef<any>(null);
@@ -33,7 +40,7 @@ export const DiseaseCameraScreen = ({
         }
       }
     } catch (err) {
-      Alert.alert("Hata", "Galeri resmi secilemedi. Lutfen tekrar deneyin.");
+      showPopup(t.camera.galleryError);
     }
   };
 
@@ -48,7 +55,7 @@ export const DiseaseCameraScreen = ({
 
       if (canUseCameraComponent) {
         if (!cameraRef.current) {
-          Alert.alert("Hata", "Kamera hazir degil.");
+          showPopup(t.camera.cameraNotReady);
           return;
         }
         const photo = await cameraRef.current.takePictureAsync({
@@ -73,7 +80,7 @@ export const DiseaseCameraScreen = ({
         }
       }
     } catch (err) {
-      Alert.alert("Hata", "Fotograf cekilemedi. Lutfen tekrar deneyin.");
+      showPopup(t.camera.photoError);
     } finally {
       setFlashOn(false);
     }
@@ -81,13 +88,13 @@ export const DiseaseCameraScreen = ({
 
   const handleSend = () => {
     if (!photoUri) return;
-    Alert.alert("Gonder", "Resmi analiz icin gondermek istiyor musunuz?", [
-      { text: "Iptal", style: "cancel" },
+    Alert.alert(t.camera.sendTitle, t.camera.sendConfirmation, [
+      { text: t.common.cancel, style: "cancel" },
       {
-        text: "Evet",
+        text: t.common.yes,
         onPress: () => {
           if (onSendForAnalysis) onSendForAnalysis(photoUri);
-          else Alert.alert("Gonderildi", "Resim analiz icin gonderildi.");
+          else showPopup(t.camera.sentSuccess);
           setPhotoUri(null);
           setIsPreview(false);
         },
@@ -106,7 +113,7 @@ export const DiseaseCameraScreen = ({
         style={[appStyles.placeholder, { backgroundColor: theme.background }]}
       >
         <Text style={[appStyles.placeholderText, { color: theme.text }]}>
-          Kamera Izni
+          {t.camera.permissionTitle}
         </Text>
         <TouchableOpacity
           style={[
@@ -118,7 +125,7 @@ export const DiseaseCameraScreen = ({
           <Text
             style={[appStyles.primaryButtonText, { color: theme.background }]}
           >
-            Izin Ver
+            {t.camera.permissionButton}
           </Text>
         </TouchableOpacity>
       </View>
@@ -131,7 +138,7 @@ export const DiseaseCameraScreen = ({
         style={[appStyles.placeholder, { backgroundColor: theme.background }]}
       >
         <Text style={[appStyles.placeholderText, { color: theme.text }]}>
-          Kamera Erisimi Reddedildi
+          {t.camera.permissionDeniedTitle}
         </Text>
         <Text
           style={[
@@ -139,8 +146,7 @@ export const DiseaseCameraScreen = ({
             { color: theme.textSecondary, marginBottom: 24 },
           ]}
         >
-          Bu ozelligi kullanmak icin cihaz ayarlarinda kamera izinlerini
-          etkinlestirin.
+          {t.camera.permissionDeniedMessage}
         </Text>
         <TouchableOpacity
           style={[appStyles.primaryButton, { backgroundColor: theme.accent }]}
@@ -149,7 +155,7 @@ export const DiseaseCameraScreen = ({
           <Text
             style={[appStyles.primaryButtonText, { color: theme.background }]}
           >
-            Yeniden Dene
+            {t.camera.retryButton}
           </Text>
         </TouchableOpacity>
       </View>

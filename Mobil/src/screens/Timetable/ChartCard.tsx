@@ -1,119 +1,411 @@
-import { View, Text, Dimensions, TouchableOpacity } from "react-native";
+// Grafik karti - sensor verilerini cizgi grafik olarak gosterir
+// Props: theme, title, icon, color, data, onTouchStart, onTouchEnd
+
+import { View, Text, Dimensions, StyleSheet } from "react-native";
 import { LineChart } from "react-native-gifted-charts";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { ChartCardProps } from "./types";
+import { useLanguage } from "../../context/LanguageContext";
 
-export const ChartCard = ({ theme, title, icon, color, data, rawReadings = [] }: ChartCardProps) => {
+// Sabitler
+const MAX_DISPLAY_POINTS = 50;
+const CHART_HEIGHT = 160;
+const Y_AXIS_WIDTH = 40;
+const X_AXIS_LABEL_HEIGHT = 25;
+const POPUP_HIDE_DELAY = 2000;
+
+// Tarih formatla: GG/AA
+const formatDay = (date: Date): string => {
+  const day = date.getDate().toString().padStart(2, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  return `${day}/${month}`;
+};
+
+// Saat formatla: SS:dd
+const formatTime = (date: Date): string => {
+  const hour = date.getHours().toString().padStart(2, "0");
+  const min = date.getMinutes().toString().padStart(2, "0");
+  return `${hour}:${min}`;
+};
+
+// Basliktan birim cikar (°C veya %)
+const extractUnit = (title: string): string => title.match(/°C|%/)?.[0] || "";
+
+export const ChartCard = ({
+  theme,
+  title,
+  icon,
+  color,
+  data,
+  onTouchStart,
+  onTouchEnd,
+}: ChartCardProps) => {
+  const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (data.length === 0) return null;
+  // Delayed render to prevent UI freeze
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const getSelectedPointInfo = () => {
-    if (selectedIndex === null || !data[selectedIndex]) return null;
-    const point = data[selectedIndex];
-    const date = point.ts ? new Date(point.ts) : undefined;
-    const hours = date ? date.getHours().toString().padStart(2, "0") : "";
-    const minutes = date ? date.getMinutes().toString().padStart(2, "0") : "";
-    const value = point?.value ?? 0;
-
-    return {
-      time: date ? `${hours}:${minutes}` : "",
-      value: value.toFixed(2),
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     };
+  }, []);
+
+  // Layout calculations
+  const screenWidth = Dimensions.get("window").width;
+  const chartContainerWidth = screenWidth - 64;
+  const chartDrawableWidth = chartContainerWidth - Y_AXIS_WIDTH;
+
+  // Sanitize and prepare data (moved before early return)
+  const safeData =
+    data?.map((point) => ({
+      ...point,
+      value:
+        typeof point.value === "number" && !isNaN(point.value)
+          ? point.value
+          : 0,
+    })) || [];
+
+  const isInterpolated = safeData.length > MAX_DISPLAY_POINTS;
+
+  // Downsample if needed
+  const displayData = isInterpolated
+    ? safeData.filter(
+        (_, i) => i % Math.ceil(safeData.length / MAX_DISPLAY_POINTS) === 0,
+      )
+    : safeData;
+
+  const numPoints = displayData.length;
+  const spacing =
+    numPoints > 1 ? chartDrawableWidth / (numPoints - 1) : chartDrawableWidth;
+
+  // Generate labels and track label positions for grid lines
+  const labelIndices: number[] = [];
+  const chartData = displayData.map((point, index) => {
+    let label = "";
+
+    if (point.ts) {
+      const date = new Date(point.ts);
+      const prevTs = index > 0 ? displayData[index - 1]?.ts : null;
+      const prevDate = prevTs ? new Date(prevTs) : null;
+
+      if (isInterpolated) {
+        // Show DD/MM when day changes
+        const dayKey = formatDay(date);
+        const prevDayKey = prevDate ? formatDay(prevDate) : null;
+        if (index === 0 || dayKey !== prevDayKey) {
+          label = dayKey;
+          labelIndices.push(index);
+        }
+      } else {
+        // Show hour when it changes
+        const hour = date.getHours();
+        const prevHour = prevDate?.getHours();
+        if (index === 0 || hour !== prevHour) {
+          label = hour.toString().padStart(2, "0");
+          labelIndices.push(index);
+        }
+      }
+    }
+
+    return { value: point.value, label, ts: point.ts };
+  });
+
+  const unit = extractUnit(title);
+
+  // Touch position to data index
+  const getIndexFromX = useCallback(
+    (touchX: number): number => {
+      const adjustedX = Math.max(0, touchX - Y_AXIS_WIDTH);
+      const index = Math.round(adjustedX / spacing);
+      return Math.max(0, Math.min(chartData.length - 1, index));
+    },
+    [spacing, chartData.length],
+  );
+
+  // Touch handlers
+  const handleTouchStart = useCallback(
+    (e: { nativeEvent: { locationX: number } }) => {
+      if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+      onTouchStart?.();
+      setSelectedIndex(getIndexFromX(e.nativeEvent.locationX));
+    },
+    [getIndexFromX, onTouchStart],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: { nativeEvent: { locationX: number } }) => {
+      setSelectedIndex(getIndexFromX(e.nativeEvent.locationX));
+    },
+    [getIndexFromX],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    onTouchEnd?.();
+    hideTimeoutRef.current = setTimeout(
+      () => setSelectedIndex(null),
+      POPUP_HIDE_DELAY,
+    );
+  }, [onTouchEnd]);
+
+  const selectedPoint =
+    selectedIndex !== null ? chartData[selectedIndex] : null;
+
+  // Early return for empty data (moved after all hooks)
+  if (!data || data.length === 0) return null;
+
+  // Format selected point time label
+  const getTimeLabel = (): string => {
+    if (!selectedPoint?.ts) return "";
+    const date = new Date(selectedPoint.ts);
+    return isInterpolated
+      ? `${formatDay(date)} ${formatTime(date)}`
+      : formatTime(date);
   };
 
-  const selectedInfo = getSelectedPointInfo();
-  const screenWidth = Dimensions.get("window").width;
-  const chartWidth = Math.min(screenWidth - 32, 320); // Responsive width
+  // Calculate X position for overlay elements
+  const getXPosition = (index: number): number =>
+    Y_AXIS_WIDTH + index * spacing;
 
-  const enhancedData = data.map((point, index) => ({
-    ...point,
-    dataPointLabelComponent: selectedIndex === index ? () => (
+  // Loading state
+  if (!isReady) {
+    return (
       <View
-        style={{
-          backgroundColor: color,
-          paddingHorizontal: 8,
-          paddingVertical: 4,
-          borderRadius: 4,
-          marginTop: -20,
-        }}
+        style={[
+          styles.card,
+          { backgroundColor: theme.surface, height: CHART_HEIGHT + 100 },
+        ]}
       >
-        <Text style={{ color: theme.background, fontSize: 10, fontWeight: "bold" }}>
-          {data[index].value.toFixed(1)}
-        </Text>
+        <View style={styles.loadingContainer}>
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+            {t.common.loading}
+          </Text>
+        </View>
       </View>
-    ) : undefined,
-  }));
+    );
+  }
 
   return (
-    <View style={{ marginBottom: 24, backgroundColor: theme.surface, borderRadius: 12, padding: 16 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-        <MaterialCommunityIcons name={icon as any} size={20} color={color} />
-        <Text style={{ marginLeft: 8, fontSize: 13, fontWeight: "600", color: theme.text }}>
-          {title}
-        </Text>
+    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <MaterialCommunityIcons name={icon as any} size={20} color={color} />
+          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+        </View>
+        {isInterpolated && (
+          <View
+            style={[
+              styles.badge,
+              { backgroundColor: theme.textSecondary + "20" },
+            ]}
+          >
+            <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
+              {t.timetable.interpolated}
+            </Text>
+          </View>
+        )}
       </View>
 
-      {selectedInfo && (
-        <TouchableOpacity
-          onPress={() => setSelectedIndex(null)}
-          style={{
-            backgroundColor: color + "20",
-            borderLeftWidth: 4,
-            borderLeftColor: color,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            marginBottom: 12,
-            borderRadius: 8,
-          }}
-        >
-          <Text style={{ fontSize: 12, fontWeight: "600", color: color, marginBottom: 2 }}>
-            {selectedInfo.time}
-          </Text>
-          <Text style={{ fontSize: 16, fontWeight: "bold", color: theme.text }}>
-            {selectedInfo.value} {title.match(/°C|%/)?.[0] || ""}
-          </Text>
-        </TouchableOpacity>
-      )}
+      {/* Value popup */}
+      <View style={styles.popupContainer}>
+        {selectedPoint && (
+          <View style={styles.valuePopup}>
+            <Text style={styles.valueText}>
+              {selectedPoint.value.toFixed(1)} {unit}
+            </Text>
+          </View>
+        )}
+      </View>
 
-      <View style={{ alignItems: "center" }}>
+      {/* Chart container */}
+      <View
+        style={[
+          styles.chartContainer,
+          {
+            width: chartContainerWidth,
+            height: CHART_HEIGHT + X_AXIS_LABEL_HEIGHT,
+          },
+        ]}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderGrant={handleTouchStart}
+        onResponderMove={handleTouchMove}
+        onResponderRelease={handleTouchEnd}
+        onResponderTerminate={handleTouchEnd}
+      >
+        {/* Grid lines at label positions */}
+        {labelIndices.map((idx) => (
+          <View
+            key={`grid-${idx}`}
+            style={[
+              styles.gridLine,
+              {
+                left: getXPosition(idx),
+                height: CHART_HEIGHT,
+                backgroundColor: theme.textSecondary + "25",
+              },
+            ]}
+          />
+        ))}
+
+        {/* Selection line */}
+        {selectedIndex !== null && (
+          <View
+            style={[
+              styles.selectionLine,
+              {
+                left: getXPosition(selectedIndex),
+                height: CHART_HEIGHT,
+                backgroundColor: color,
+              },
+            ]}
+          />
+        )}
+
+        {/* Chart */}
         <LineChart
-          data={enhancedData}
-          width={chartWidth}
-          height={180}
+          data={chartData}
+          width={chartDrawableWidth}
+          height={CHART_HEIGHT}
           color={color}
-          thickness={3}
-          hideDataPoints={false}
+          thickness={2}
+          hideDataPoints={isInterpolated}
           dataPointsColor={color}
-          dataPointsRadius={selectedIndex !== null ? 6 : 4}
-          xAxisColor={theme.textSecondary}
-          yAxisColor={theme.textSecondary}
-          xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
-          yAxisTextStyle={{ color: theme.textSecondary, fontSize: 10 }}
+          dataPointsRadius={3}
+          xAxisColor={theme.textSecondary + "40"}
+          yAxisColor={theme.textSecondary + "40"}
+          xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
+          yAxisTextStyle={{ color: theme.textSecondary, fontSize: 9 }}
+          yAxisLabelWidth={Y_AXIS_WIDTH - 5}
           curved
           areaChart
           startFillColor={color}
           endFillColor={theme.background}
           startOpacity={0.3}
           endOpacity={0}
-          isAnimated
-          animationDuration={500}
-          showVerticalLines
-          verticalLinesColor={theme.textSecondary + "20"}
-          onPress={(_: any, index: number) => {
-            setSelectedIndex(index);
-          }}
+          isAnimated={false}
+          showVerticalLines={false}
+          noOfSections={4}
+          spacing={spacing}
+          initialSpacing={0}
+          endSpacing={0}
+          rulesType="solid"
+          rulesColor={theme.textSecondary + "15"}
+          yAxisThickness={1}
+          xAxisThickness={1}
+          disableScroll
+          xAxisLabelsHeight={X_AXIS_LABEL_HEIGHT}
         />
       </View>
 
-      {selectedIndex !== null && data[selectedIndex]?.ts && (
-        <View style={{ marginTop: 12, alignItems: "center" }}>
-          <Text style={{ fontSize: 12, color: theme.textSecondary }}>
-            {new Date(data[selectedIndex].ts as string).toLocaleDateString("tr-TR")}
-          </Text>
-        </View>
-      )}
+      {/* Time label */}
+      <View style={styles.timeLabelContainer}>
+        {selectedPoint && (
+          <View style={styles.timePopup}>
+            <Text style={styles.timeText}>{getTimeLabel()}</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  card: {
+    marginBottom: 24,
+    borderRadius: 12,
+    padding: 16,
+    paddingBottom: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 11,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  title: {
+    marginLeft: 8,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  popupContainer: {
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  valuePopup: {
+    backgroundColor: "#1a1a1a",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  valueText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  chartContainer: {
+    position: "relative",
+  },
+  gridLine: {
+    position: "absolute",
+    top: 0,
+    width: 1,
+    zIndex: 1,
+  },
+  selectionLine: {
+    position: "absolute",
+    top: 0,
+    width: 2,
+    zIndex: 10,
+  },
+  timeLabelContainer: {
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  timePopup: {
+    backgroundColor: "#1a1a1a",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  timeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+});
+
+export default ChartCard;

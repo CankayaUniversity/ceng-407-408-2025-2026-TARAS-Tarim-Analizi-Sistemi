@@ -1,6 +1,10 @@
+// Fotograf onizleme - cekilen fotoyu gosterir, iptal/gonder butonlari
+// Props: theme, photoUri, onCancel, onSend
+
 import { View, Image, Text, TouchableOpacity } from "react-native";
 import { appStyles } from "../../styles";
 import { PhotoPreviewProps } from "./types";
+import { useLanguage } from "../../context/LanguageContext";
 
 export const PhotoPreview = ({
   theme,
@@ -8,6 +12,8 @@ export const PhotoPreview = ({
   onCancel,
   onSend,
 }: PhotoPreviewProps) => {
+  const { t } = useLanguage();
+
   return (
     <View
       style={{
@@ -39,22 +45,16 @@ export const PhotoPreview = ({
             marginRight: 8,
           }}
         >
-          <Text style={{ color: theme.text }}>Iptal</Text>
+          <Text style={{ color: theme.text }}>{t.camera.cancelButton}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onSend}
-          style={[
-            appStyles.primaryButton,
-            { backgroundColor: theme.accent },
-          ]}
+          style={[appStyles.primaryButton, { backgroundColor: theme.accent }]}
         >
           <Text
-            style={[
-              appStyles.primaryButtonText,
-              { color: theme.background },
-            ]}
+            style={[appStyles.primaryButtonText, { color: theme.background }]}
           >
-            Gonder
+            {t.camera.sendButton}
           </Text>
         </TouchableOpacity>
       </View>

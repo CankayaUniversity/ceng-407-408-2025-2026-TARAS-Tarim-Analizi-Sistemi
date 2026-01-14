@@ -1,5 +1,7 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Animated, Easing, useWindowDimensions } from 'react-native';
+// Kayan tab container - ekranlar arasi gecis animasyonu
+// Props: activeIndex (aktif tab), tabs (tab listesi)
+import React, { useRef, useEffect } from "react";
+import { View, Animated, Easing, useWindowDimensions } from "react-native";
 
 interface Tab {
   id: string;
@@ -11,48 +13,61 @@ interface SlidingTabContainerProps {
   tabs: Tab[];
 }
 
-export const SlidingTabContainer = ({ activeIndex, tabs }: SlidingTabContainerProps) => {
+export const SlidingTabContainer = ({
+  activeIndex,
+  tabs,
+}: SlidingTabContainerProps) => {
   const { width: screenWidth } = useWindowDimensions();
-  const slideAnim = useRef(new Animated.Value(-activeIndex * screenWidth)).current;
 
-  // Animate on tab change (button tap)
+  const fadeAnims = useRef(tabs.map(() => new Animated.Value(0))).current;
+  const translateAnims = useRef(tabs.map(() => new Animated.Value(0))).current;
+
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: -activeIndex * screenWidth,
-      duration: 200,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
+    tabs.forEach((_, index) => {
+      const isActive = index === activeIndex;
+      const direction = index < activeIndex ? -1 : index > activeIndex ? 1 : 0;
+
+      Animated.parallel([
+        Animated.timing(fadeAnims[index], {
+          toValue: isActive ? 1 : 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(translateAnims[index], {
+          toValue: direction * screenWidth * 0.3,
+          duration: 200,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
   }, [activeIndex]);
 
-  // Instantly adjust on screen width change (no animation)
-  useEffect(() => {
-    slideAnim.setValue(-activeIndex * screenWidth);
-  }, [screenWidth]);
-
   return (
-    <View style={{ flex: 1, overflow: 'hidden' }}>
-      <Animated.View
-        style={{
-          flex: 1,
-          flexDirection: 'row',
-          width: screenWidth * tabs.length,
-          transform: [{ translateX: slideAnim }],
-        }}
-      >
-        {tabs.map((tab, index) => (
-          <View
+    <View style={{ flex: 1 }}>
+      {tabs.map((tab, index) => {
+        const isActive = index === activeIndex;
+        return (
+          <Animated.View
             key={tab.id}
             style={{
-              width: screenWidth,
-              flex: 1,
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              opacity: fadeAnims[index],
+              transform: [{ translateX: translateAnims[index] }],
             }}
-            pointerEvents={index === activeIndex ? 'auto' : 'none'}
+            pointerEvents={isActive ? "auto" : "none"}
           >
-            {React.cloneElement(tab.content as React.ReactElement<{ isActive?: boolean }>, { isActive: index === activeIndex })}
-          </View>
-        ))}
-      </Animated.View>
+            {React.cloneElement(
+              tab.content as React.ReactElement<{ isActive?: boolean }>,
+              { isActive },
+            )}
+          </Animated.View>
+        );
+      })}
     </View>
   );
 };

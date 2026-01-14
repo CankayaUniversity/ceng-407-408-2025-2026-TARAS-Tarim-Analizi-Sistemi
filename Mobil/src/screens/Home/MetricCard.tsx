@@ -1,6 +1,15 @@
+// Metrik karti - tek bir olcum degerini gosterir
+// Props: title (baslik), value (deger), unit (birim), icon, theme, loading
 import { View, Text, ActivityIndicator } from "react-native";
 import { MetricCardProps } from "./types";
-import { useResponsive, calculateCardDimensions, getResponsiveFontSize, spacing, fontSizes, getResponsiveSpacing } from "../../utils/responsive";
+import {
+  useResponsive,
+  calculateCardDimensions,
+  getResponsiveFontSize,
+  spacing,
+  fontSizes,
+  getResponsiveSpacing,
+} from "../../utils/responsive";
 
 export const MetricCard = ({
   title,
@@ -12,37 +21,28 @@ export const MetricCard = ({
 }: MetricCardProps) => {
   const { screenWidth, screenHeight, isTablet } = useResponsive();
 
-  // Calculate card dimensions using responsive utilities
   const cardLayout = calculateCardDimensions(screenWidth, screenHeight, {
-    horizontalPadding: spacing.md * 2, // 32px total (StatusCard padding)
+    horizontalPadding: spacing.md * 2,
     cardsPerRow: 2,
-    cardGap: spacing.sm, // 8px
+    cardGap: spacing.sm,
     cardMargin: 4,
   });
 
-  // Responsive sizing for card elements
   const cardPadding = getResponsiveSpacing(10, screenWidth, 8, 16);
 
   const titleFontSize = getResponsiveFontSize(
     { ...fontSizes.sm, scaleFactorMultiplier: 0.09 },
     cardLayout.scaleFactor,
-    isTablet
+    isTablet,
   );
 
   const valueFontSize = getResponsiveFontSize(
-    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.40 },
+    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.4 },
     cardLayout.scaleFactor,
-    isTablet
+    isTablet,
   );
 
   const unitFontSize = valueFontSize * 0.4;
-
-  // Icon size calculated but not used - icons are passed as props with their own sizes
-  // const iconSize = getResponsiveFontSize(
-  //   { ...fontSizes.lg, scaleFactorMultiplier: 0.15 },
-  //   cardLayout.scaleFactor,
-  //   isTablet
-  // );
 
   return (
     <View style={{ flex: 1, marginHorizontal: 4, marginBottom: spacing.sm }}>
@@ -79,9 +79,18 @@ export const MetricCard = ({
           <View style={{ marginLeft: 4 }}>{icon}</View>
         </View>
 
-        <View style={{ alignItems: "flex-start", justifyContent: loading ? "center" : "flex-end", flex: 1 }}>
+        <View
+          style={{
+            alignItems: "flex-start",
+            justifyContent: loading ? "center" : "flex-end",
+            flex: 1,
+          }}
+        >
           {loading ? (
-            <ActivityIndicator size={valueFontSize * 0.7} color={theme.accent} />
+            <ActivityIndicator
+              size={valueFontSize * 0.7}
+              color={theme.accent}
+            />
           ) : value !== null ? (
             typeof value === "string" ? (
               <View style={{ flexDirection: "row", alignItems: "baseline" }}>

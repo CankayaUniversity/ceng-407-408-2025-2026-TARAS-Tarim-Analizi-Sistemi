@@ -4,7 +4,7 @@ import { DashboardData, FieldSummary } from "../../utils/api";
 export interface HomeScreenProps {
   theme: Theme;
   isDark: boolean;
-  windowHeight?: number;
+  dashboardData: DashboardData | null;
   isActive?: boolean;
 }
 
