@@ -1,10 +1,9 @@
-import { Request, Response } from 'express';
-import sensorNodeService from '../services/sensorNodeService';
-import dashboardService from '../services/dashboardService';
-import { PrismaClient } from '@prisma/client';
-import logger from '../utils/logger';
-
-const prisma = new PrismaClient();
+import { Request, Response } from "express";
+import sensorNodeService from "../services/sensorNodeService";
+import dashboardService from "../services/dashboardService";
+import { prisma } from "../config/database";
+import logger from "../utils/logger";
+import { getStringParam, getNumberParam } from "../utils/requestHelpers";
 
 export async function getUserZones(req: Request, res: Response): Promise<void> {
   try {
@@ -13,7 +12,7 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -63,8 +62,8 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
                 target_sm_percent: zone.details.target_sm_percent,
               }
             : null,
-        }))
-      )
+        })),
+      ),
     );
 
     res.status(200).json({
@@ -76,15 +75,18 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
       },
     });
   } catch (error) {
-    logger.error('Get user zones error:', error);
+    logger.error("Get user zones error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }
 
-async function checkZoneAccess(userId: string, zoneId: string): Promise<boolean> {
+async function checkZoneAccess(
+  userId: string,
+  zoneId: string,
+): Promise<boolean> {
   const zone = await prisma.zone.findUnique({
     where: { zone_id: zoneId },
     include: {
@@ -103,16 +105,19 @@ async function checkZoneAccess(userId: string, zoneId: string): Promise<boolean>
   return zone.field.farm.user_id === userId;
 }
 
-export async function getSensorsByZone(req: Request, res: Response): Promise<void> {
+export async function getSensorsByZone(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
-    const { zoneId } = req.params;
-    const { limit } = req.query;
+    const zoneId = getStringParam(req.params.zoneId);
+    const limit = req.query.limit;
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -120,7 +125,7 @@ export async function getSensorsByZone(req: Request, res: Response): Promise<voi
     if (!zoneId) {
       res.status(400).json({
         success: false,
-        error: 'Zone ID is required',
+        error: "Zone ID is required",
       });
       return;
     }
@@ -129,12 +134,12 @@ export async function getSensorsByZone(req: Request, res: Response): Promise<voi
     if (!hasAccess) {
       res.status(403).json({
         success: false,
-        error: 'You do not have access to this zone',
+        error: "You do not have access to this zone",
       });
       return;
     }
 
-    const readingLimit = limit ? parseInt(limit as string) : 10;
+    const readingLimit = getNumberParam(limit, 10);
     const sensors = await sensorNodeService.getSensorNodesForZone(zoneId, readingLimit);
 
     res.status(200).json({
@@ -155,10 +160,10 @@ export async function getSensorsByZone(req: Request, res: Response): Promise<voi
       },
     });
   } catch (error) {
-    logger.error('Get sensors by zone error:', error);
+    logger.error("Get sensors by zone error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }
@@ -166,12 +171,12 @@ export async function getSensorsByZone(req: Request, res: Response): Promise<voi
 export async function getLatestReadings(req: Request, res: Response): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
-    const { zoneId } = req.params;
+    const zoneId = getStringParam(req.params.zoneId);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -179,7 +184,7 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
     if (!zoneId) {
       res.status(400).json({
         success: false,
-        error: 'Zone ID is required',
+        error: "Zone ID is required",
       });
       return;
     }
@@ -188,7 +193,7 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
     if (!hasAccess) {
       res.status(403).json({
         success: false,
-        error: 'You do not have access to this zone',
+        error: "You do not have access to this zone",
       });
       return;
     }
@@ -225,10 +230,10 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
       },
     });
   } catch (error) {
-    logger.error('Get latest readings error:', error);
+    logger.error("Get latest readings error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }
@@ -236,13 +241,15 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
 export async function getZoneHistory(req: Request, res: Response): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
-    const { zoneId } = req.params;
-    const { startTime, endTime, nodeId } = req.query;
+    const zoneId = getStringParam(req.params.zoneId);
+    const startTime = getStringParam(req.query.startTime);
+    const endTime = getStringParam(req.query.endTime);
+    const nodeId = getStringParam(req.query.nodeId);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -250,7 +257,7 @@ export async function getZoneHistory(req: Request, res: Response): Promise<void>
     if (!zoneId) {
       res.status(400).json({
         success: false,
-        error: 'Zone ID is required',
+        error: "Zone ID is required",
       });
       return;
     }
@@ -259,22 +266,22 @@ export async function getZoneHistory(req: Request, res: Response): Promise<void>
     if (!hasAccess) {
       res.status(403).json({
         success: false,
-        error: 'You do not have access to this zone',
+        error: "You do not have access to this zone",
       });
       return;
     }
 
-    const end = endTime ? new Date(endTime as string) : new Date();
+    const end = endTime ? new Date(endTime) : new Date();
     const start = startTime
-      ? new Date(startTime as string)
+      ? new Date(startTime)
       : new Date(end.getTime() - 24 * 60 * 60 * 1000);
 
     let readings;
     if (nodeId) {
       readings = await sensorNodeService.getReadingsInTimeRange(
-        nodeId as string,
+        nodeId,
         start,
-        end
+        end,
       );
     } else {
       const sensors = await prisma.sensorNode.findMany({
@@ -283,8 +290,8 @@ export async function getZoneHistory(req: Request, res: Response): Promise<void>
 
       const allReadings = await Promise.all(
         sensors.map((sensor) =>
-          sensorNodeService.getReadingsInTimeRange(sensor.node_id, start, end)
-        )
+          sensorNodeService.getReadingsInTimeRange(sensor.node_id, start, end),
+        ),
       );
 
       readings = allReadings.flat();
@@ -311,23 +318,26 @@ export async function getZoneHistory(req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    logger.error('Get zone history error:', error);
+    logger.error("Get zone history error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }
 
-export async function getZoneDetails(req: Request, res: Response): Promise<void> {
+export async function getZoneDetails(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
-    const { zoneId } = req.params;
+    const zoneId = getStringParam(req.params.zoneId);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -335,7 +345,7 @@ export async function getZoneDetails(req: Request, res: Response): Promise<void>
     if (!zoneId) {
       res.status(400).json({
         success: false,
-        error: 'Zone ID is required',
+        error: "Zone ID is required",
       });
       return;
     }
@@ -344,7 +354,7 @@ export async function getZoneDetails(req: Request, res: Response): Promise<void>
     if (!hasAccess) {
       res.status(403).json({
         success: false,
-        error: 'You do not have access to this zone',
+        error: "You do not have access to this zone",
       });
       return;
     }
@@ -354,7 +364,7 @@ export async function getZoneDetails(req: Request, res: Response): Promise<void>
     if (!zone) {
       res.status(404).json({
         success: false,
-        error: 'Zone not found',
+        error: "Zone not found",
       });
       return;
     }
@@ -376,7 +386,8 @@ export async function getZoneDetails(req: Request, res: Response): Promise<void>
             }
           : null,
         sensor_count: zone.sensor_nodes.length,
-        active_sensors: zone.sensor_nodes.filter((s) => s.status === 'ACTIVE').length,
+        active_sensors: zone.sensor_nodes.filter((s) => s.status === "ACTIVE")
+          .length,
         latest_readings: zone.sensor_nodes.map((sensor) => ({
           node_id: sensor.node_id,
           hardware_mac: sensor.hardware_mac,
@@ -394,24 +405,29 @@ export async function getZoneDetails(req: Request, res: Response): Promise<void>
       },
     });
   } catch (error) {
-    logger.error('Get zone details error:', error);
+    logger.error("Get zone details error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }
 
-export async function getNodeReadings(req: Request, res: Response): Promise<void> {
+export async function getNodeReadings(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
-    const { nodeId } = req.params;
-    const { limit, startTime, endTime } = req.query;
+    const nodeId = getStringParam(req.params.nodeId);
+    const limit = getStringParam(req.query.limit);
+    const startTime = getStringParam(req.query.startTime);
+    const endTime = getStringParam(req.query.endTime);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -419,7 +435,7 @@ export async function getNodeReadings(req: Request, res: Response): Promise<void
     if (!nodeId) {
       res.status(400).json({
         success: false,
-        error: 'Node ID is required',
+        error: "Node ID is required",
       });
       return;
     }
@@ -442,7 +458,7 @@ export async function getNodeReadings(req: Request, res: Response): Promise<void
     if (!node) {
       res.status(404).json({
         success: false,
-        error: 'Sensor node not found',
+        error: "Sensor node not found",
       });
       return;
     }
@@ -450,21 +466,25 @@ export async function getNodeReadings(req: Request, res: Response): Promise<void
     if (node.zone?.field?.farm?.user_id !== userId) {
       res.status(403).json({
         success: false,
-        error: 'You do not have access to this sensor',
+        error: "You do not have access to this sensor",
       });
       return;
     }
 
     let readings;
     if (startTime && endTime) {
-      const start = new Date(startTime as string);
-      const end = new Date(endTime as string);
-      readings = await sensorNodeService.getReadingsInTimeRange(nodeId, start, end);
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      readings = await sensorNodeService.getReadingsInTimeRange(
+        nodeId,
+        start,
+        end,
+      );
     } else {
-      const readingLimit = limit ? parseInt(limit as string) : 50;
+      const readingLimit = limit ? parseInt(limit, 10) : 50;
       readings = await prisma.sensorReading.findMany({
         where: { node_id: nodeId },
-        orderBy: { created_at: 'desc' },
+        orderBy: { created_at: "desc" },
         take: readingLimit,
       });
     }
@@ -484,48 +504,64 @@ export async function getNodeReadings(req: Request, res: Response): Promise<void
       },
     });
   } catch (error) {
-    logger.error('Get node readings error:', error);
+    logger.error("Get node readings error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }
 
-export async function getFieldSensorHistory(req: Request, res: Response): Promise<void> {
+export async function getFieldSensorHistory(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
-    const { fieldId } = req.params;
-    const { hours } = req.query;
+    const fieldId = getStringParam(req.params.fieldId);
+    const hours = req.query.hours;
 
     if (!userId) {
-      res.status(401).json({ success: false, error: 'Authentication required' });
+      res
+        .status(401)
+        .json({ success: false, error: "Authentication required" });
       return;
     }
 
     if (!fieldId) {
-      res.status(400).json({ success: false, error: 'Field ID is required' });
+      res.status(400).json({ success: false, error: "Field ID is required" });
       return;
     }
 
     const hasAccess = await dashboardService.checkFieldAccess(userId, fieldId);
     if (!hasAccess) {
-      res.status(403).json({ success: false, error: 'You do not have access to this field' });
+      res.status(403).json({
+        success: false,
+        error: "You do not have access to this field",
+      });
       return;
     }
 
-    const hoursParam = hours ? parseInt(hours as string) : 72;
-    const result = await sensorNodeService.getFieldSensorHistory(fieldId, hoursParam);
+    const hoursParam = getNumberParam(hours, 72);
+    const result = await sensorNodeService.getFieldSensorHistory(
+      fieldId,
+      hoursParam,
+    );
 
     if (!result) {
-      res.status(404).json({ success: false, error: 'Field not found' });
+      res.status(404).json({ success: false, error: "Field not found" });
       return;
     }
 
     res.status(200).json({ success: true, data: result });
   } catch (error) {
-    logger.error('Get field sensor history error:', error instanceof Error ? { message: error.message, stack: error.stack } : error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    logger.error(
+      "Get field sensor history error:",
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : error,
+    );
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 }
 

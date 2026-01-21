@@ -1,8 +1,9 @@
-import { Request, Response } from 'express';
-import dashboardService from '../services/dashboardService';
-import logger from '../utils/logger';
+import { Request, Response } from "express";
+import dashboardService from "../services/dashboardService";
+import logger from "../utils/logger";
+import { getStringParam } from "../utils/requestHelpers";
 
-// get user's fields
+// get user"s fields
 export async function getFields(req: Request, res: Response): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
@@ -10,7 +11,7 @@ export async function getFields(req: Request, res: Response): Promise<void> {
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -22,10 +23,10 @@ export async function getFields(req: Request, res: Response): Promise<void> {
       data: fields,
     });
   } catch (error) {
-    logger.error('Get dashboard fields error:', error);
+    logger.error("Get dashboard fields error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }
@@ -33,16 +34,16 @@ export async function getFields(req: Request, res: Response): Promise<void> {
 // get field dashboard data
 export async function getFieldDashboard(
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
-    const { fieldId } = req.params;
+    const fieldId = getStringParam(req.params.fieldId);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'Authentication required',
+        error: "Authentication required",
       });
       return;
     }
@@ -50,7 +51,7 @@ export async function getFieldDashboard(
     if (!fieldId) {
       res.status(400).json({
         success: false,
-        error: 'Field ID is required',
+        error: "Field ID is required",
       });
       return;
     }
@@ -60,7 +61,7 @@ export async function getFieldDashboard(
     if (!hasAccess) {
       res.status(403).json({
         success: false,
-        error: 'You do not have access to this field',
+        error: "You do not have access to this field",
       });
       return;
     }
@@ -70,7 +71,7 @@ export async function getFieldDashboard(
     if (!dashboard) {
       res.status(404).json({
         success: false,
-        error: 'Field not found',
+        error: "Field not found",
       });
       return;
     }
@@ -80,10 +81,10 @@ export async function getFieldDashboard(
       data: dashboard,
     });
   } catch (error) {
-    logger.error('Get field dashboard error:', error);
+    logger.error("Get field dashboard error:", error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error',
+      error: "Internal server error",
     });
   }
 }

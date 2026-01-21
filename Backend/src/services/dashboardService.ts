@@ -1,12 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "../config/database";
 import {
   FieldListItem,
   DashboardResponse,
   DashboardNode,
   PolygonData,
 } from "../types";
-
-const prisma = new PrismaClient();
 
 // get all fields for a user
 export async function getUserFields(userId: string): Promise<FieldListItem[]> {

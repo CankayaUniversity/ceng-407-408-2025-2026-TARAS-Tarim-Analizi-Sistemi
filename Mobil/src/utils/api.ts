@@ -138,7 +138,7 @@ export const authAPI = {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ identifier: username, password }),
+          body: JSON.stringify({ username, password }),
         },
         15000,
       );
