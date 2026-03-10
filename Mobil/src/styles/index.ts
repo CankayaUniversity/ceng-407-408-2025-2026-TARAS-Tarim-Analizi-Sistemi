@@ -2,6 +2,7 @@
 // appStyles ile erisim
 
 import { StyleSheet } from "react-native";
+import { colors, semanticColors } from "./colors";
 
 export const appStyles = StyleSheet.create({
   safeArea: { flex: 1 },
@@ -88,7 +89,7 @@ export const appStyles = StyleSheet.create({
     borderWidth: 3,
     overflow: "hidden",
     elevation: 8,
-    shadowColor: "#000",
+    shadowColor: semanticColors.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -113,7 +114,7 @@ export const appStyles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: semanticColors.border,
   },
   themeButtonText: { fontSize: 12, fontWeight: "600" },
   logoutButton: {
@@ -125,7 +126,7 @@ export const appStyles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 24,
   },
-  logoutButtonText: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  logoutButtonText: { fontSize: 16, fontWeight: "700", color: semanticColors.white },
 
   placeholder: {
     flex: 1,
