@@ -7,10 +7,12 @@ export default defineConfig({
 
   migrate: {
     adapter: async () => {
-      const { Pool } = await import('pg');
+      const { Pool: PgPool } = await import('pg');
       const { PrismaPg } = await import('@prisma/adapter-pg');
+      // use adapter's pg types for compatibility
+      const { Pool: AdapterPool } = await import('@prisma/adapter-pg/node_modules/pg');
 
-      const pool = new Pool({
+      const pool: AdapterPool = new PgPool({
         connectionString: process.env.DATABASE_URL,
         ssl: process.env.NODE_ENV === 'production'
           ? { rejectUnauthorized: false }

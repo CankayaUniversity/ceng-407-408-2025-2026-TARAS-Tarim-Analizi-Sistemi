@@ -1,4 +1,5 @@
-import { Pool } from "pg";
+import { Pool as PgPool } from "pg";
+import type { Pool as AdapterPool } from "@prisma/adapter-pg/node_modules/pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma";
 import logger from "../utils/logger";
@@ -9,7 +10,7 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
-  const pool = new Pool({
+  const pool: AdapterPool = new PgPool({
     connectionString: process.env.DATABASE_URL,
     ssl:
       process.env.NODE_ENV === "production"
@@ -17,7 +18,7 @@ function createPrismaClient(): PrismaClient {
         : undefined,
   });
 
-  const adapter = new PrismaPg(pool);
+  const adapter = new PrismaPg(pool as any);
 
   return new PrismaClient({
     adapter,
@@ -64,4 +65,4 @@ export async function disconnectDatabase(): Promise<void> {
   await prisma.$disconnect();
 }
 
-export default prisma;
+export default prisma
