@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger';
+import { DEBUG_MODE } from '../config/debug';
 
 export class AppError extends Error {
   statusCode: number;
@@ -16,7 +17,7 @@ export class AppError extends Error {
 
 export function errorHandler(
   err: Error | AppError,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
@@ -25,12 +26,19 @@ export function errorHandler(
 
   logger.error(`Error ${statusCode}: ${message}`, {
     stack: err.stack,
+    ...(DEBUG_MODE && { url: req.originalUrl, method: req.method }),
   });
+
+  const showDetails = DEBUG_MODE || process.env.NODE_ENV === 'development';
 
   res.status(statusCode).json({
     error: {
       message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
+      ...(showDetails && {
+        stack: err.stack,
+        url: req.originalUrl,
+        method: req.method,
+      }),
     },
   });
 }

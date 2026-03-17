@@ -305,11 +305,12 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: "75%",
+    flexShrink: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 16,
   },
-  messageText: { fontSize: 15, lineHeight: 20 },
+  messageText: { fontSize: 15, lineHeight: 20, flexWrap: "wrap" },
   chatInputArea: {
     paddingHorizontal: 16,
     paddingVertical: 12,

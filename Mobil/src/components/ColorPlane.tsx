@@ -254,11 +254,6 @@ export function ColorPlane({
   useEffect(() => {
     const config = calculateCameraConfig(scale);
     onCameraConfigChange?.(config);
-    console.log("[3D] field:", {
-      vertices: fieldData.polygon.exterior.length,
-      scale: scale.toFixed(3),
-      nodes: nodes.length,
-    });
   }, [fieldData, bounds, scale, centerX, centerZ, nodes, onCameraConfigChange]);
 
   const { invalidate, gl } = useThree();

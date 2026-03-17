@@ -263,8 +263,10 @@ export const TimetableScreen = ({
   });
 
   useEffect(() => {
-    fetchSensorData();
-  }, [selectedFieldId, timeRange]);
+    if (isActive) {
+      fetchSensorData();
+    }
+  }, [isActive, selectedFieldId, timeRange]);
 
   const handleTimeRangeChange = (hours: number) => {
     if (hours !== timeRange) {

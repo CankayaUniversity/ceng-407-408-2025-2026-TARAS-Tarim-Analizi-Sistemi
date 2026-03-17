@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ChatMessage } from "../types";
 import { ScreenType } from "../constants";
+import { API_HOST } from "../utils/api";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
-// Kendi bilgisayarının yerel IP adresini yaz (Örn: 192.168.1.50)
-// localhost veya 127.0.0.1 fiziksel cihazlarda/emülatörlerde çalışmaz.
-const API_URL = "http://192.168.1.xx:3000/api/advisory";
+const ADVISORY_URL = `${API_HOST}/api/advisory`;
 
 const WELCOME: ChatMessage = {
   id: "1",
@@ -13,49 +13,65 @@ const WELCOME: ChatMessage = {
   timestamp: new Date(),
 };
 
-export const useChat = (setScreen: (screen: ScreenType) => void) => {
+export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string | null) => {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [chatInput, setChatInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
+  // Ref ile her zaman guncel zoneId'ye eris
+  const zoneIdRef = useRef(zoneId);
+  useEffect(() => {
+    zoneIdRef.current = zoneId;
+  }, [zoneId]);
+
   const sendMessage = async () => {
     const text = chatInput.trim();
     if (!text || isLoading) return;
 
-    // 1. Kullanıcı mesajını ekrana ekle
+    const currentZoneId = zoneIdRef.current;
+    if (!currentZoneId) {
+      const noZoneMsg: ChatMessage = {
+        id: "error-" + Date.now(),
+        text: "Henüz tarla verisi yüklenmedi. Lütfen bir tarla seçin ve tekrar deneyin.",
+        sender: "assistant",
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, noZoneMsg]);
+      return;
+    }
+
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       text,
       sender: "user",
       timestamp: new Date(),
     };
-    
+
     setMessages((prev) => [...prev, userMsg]);
     setChatInput("");
     setIsLoading(true);
 
     try {
-      // 2. Backend'e (TARAS-Backend) istek at
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetchWithTimeout(
+        ADVISORY_URL,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: text,
+            zone_id: currentZoneId,
+            session_id: sessionId,
+          }),
         },
-        body: JSON.stringify({
-          message: text,
-          zone_id: "zone-1", // Şimdilik test için sabit, gerekirse dinamik yapılabilir
-          session_id: sessionId // Varsa önceki oturum ID'sini gönder
-        }),
-      });
+        15000,
+      );
 
       const data = await response.json();
 
       if (data.success) {
-        // Session ID'yi güncelle (Hafıza için)
         if (data.session_id) setSessionId(data.session_id);
 
-        // 3. Backend'den gelen LLM cevabını ekrana ekle
         const reply: ChatMessage = {
           id: (Date.now() + 1).toString(),
           text: data.reply,
@@ -67,10 +83,10 @@ export const useChat = (setScreen: (screen: ScreenType) => void) => {
         throw new Error(data.error || "Sunucu hatası");
       }
     } catch (error) {
-      console.error("Chat Hatası:", error);
+      console.log("[ERR] chat fetch failed:", error);
       const errorMsg: ChatMessage = {
         id: "error-" + Date.now(),
-        text: "Üzgünüm, şu an asistan sunucusuna bağlanamıyorum. Lütfen internetini veya server'ı kontrol et.",
+        text: "Üzgünüm, şu an asistan sunucusuna bağlanamıyorum. Lütfen internet bağlantınızı kontrol edin.",
         sender: "assistant",
         timestamp: new Date(),
       };

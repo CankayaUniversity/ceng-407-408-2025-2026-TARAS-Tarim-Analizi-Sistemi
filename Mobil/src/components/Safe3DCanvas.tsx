@@ -71,9 +71,11 @@ export function Safe3DCanvas({
       stage: "unknown",
       ...info,
     };
-    console.log(
-      `[3D] ${newInfo.stage}${newInfo.error ? ": " + newInfo.error : ""}`,
-    );
+    if (__DEV__ && newInfo.error) {
+      console.log(
+        `[3D] ${newInfo.stage}: ${newInfo.error}`,
+      );
+    }
     setDebugInfo((prev) => [...prev, newInfo]);
   };
 

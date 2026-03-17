@@ -1,5 +1,10 @@
 import "dotenv/config";
 
+const useLocal = process.env.USE_LOCAL_API === "true";
+const apiHost = useLocal
+  ? process.env.API_HOST_LOCAL
+  : process.env.API_HOST_AWS;
+
 export default {
   expo: {
     name: "TarasMobil",
@@ -33,7 +38,8 @@ export default {
       permissions: ["INTERNET", "ACCESS_NETWORK_STATE"],
     },
     extra: {
-      apiHost: process.env.API_HOST,
+      apiHost,
+      useLocalApi: useLocal,
       demoUsername: process.env.DEMO_USERNAME,
       demoPassword: process.env.DEMO_PASSWORD,
       awsDemoUsername: process.env.AWS_DEMO_USERNAME,

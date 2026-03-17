@@ -2,7 +2,8 @@ import winston from 'winston';
 import path from 'path';
 
 const logDir = process.env.LOG_FILE_PATH || './logs';
-const logLevel = process.env.LOG_LEVEL || 'info';
+const isDebug = process.env.DEBUG_MODE === 'true';
+const logLevel = isDebug ? 'debug' : (process.env.LOG_LEVEL || 'info');
 
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),

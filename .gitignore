@@ -161,3 +161,4 @@ Mobil/*.tsbuildinfo
 
 */package-lock.json
 *.backup
+*.md

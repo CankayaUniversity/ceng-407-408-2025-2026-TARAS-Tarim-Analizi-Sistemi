@@ -8,6 +8,12 @@ import "react-native-url-polyfill/auto";
 import { useState, useEffect, useRef } from "react";
 
 // React Native
+import { LogBox } from "react-native";
+LogBox.ignoreLogs([
+  "EXGL",
+  "Cannot read property 'name' of undefined",
+  "SafeAreaView has been deprecated",
+]);
 import {
   Text,
   View,
@@ -58,6 +64,7 @@ import { getTheme } from "./src/utils/theme";
 import {
   authAPI,
   dashboardAPI,
+  sensorAPI,
   FieldSummary,
   DashboardData,
 } from "./src/utils/api";
@@ -88,6 +95,7 @@ function AppContent() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>("");
   const [dataSource, setDataSource] = useState<"aws" | "demo">("demo");
   const [fields, setFields] = useState<FieldSummary[]>([]);
@@ -98,7 +106,7 @@ function AppContent() {
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
   const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
-  const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen);
+  const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen, selectedZoneId);
 
   // ── Animated values ────────────────────────────────────────────────────
   const screenOpacities = useRef({
@@ -146,6 +154,15 @@ function AppContent() {
             setFields(fieldsData);
             setSelectedFieldId(fieldsData[0].id);
             await loadDashboardData(fieldsData[0].id, false);
+          }
+          // Chat icin ilk zone_id'yi al
+          try {
+            const zonesRes = await sensorAPI.getUserZones();
+            if (zonesRes.success && zonesRes.data?.zones?.[0]) {
+              setSelectedZoneId(zonesRes.data.zones[0].zone_id);
+            }
+          } catch {
+            // Zone alinamadi, chat demo modunda calisir
           }
         } catch {
           // AWS baglantisi basarisiz, demo moduna gec

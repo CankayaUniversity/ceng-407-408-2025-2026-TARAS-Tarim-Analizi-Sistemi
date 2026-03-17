@@ -15,6 +15,8 @@ import { initializeSocketIO } from './config/socket';
 import { initializeMQTT } from './config/mqtt';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
+import { debugLogger } from './middleware/debug.middleware';
+import { logDebugStatus, DEBUG_MODE } from './config/debug';
 import routes from './routes';
 import logger from './utils/logger';
 
@@ -32,6 +34,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
+app.use(debugLogger);
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
@@ -51,15 +54,20 @@ app.use(errorHandler);
 
 async function startServer(): Promise<void> {
   try {
+    logDebugStatus();
     await initializeDatabase();
     const io: SocketIOServer = initializeSocketIO(httpServer);
     logger.info('Socket.io initialized');
 
-    try {
-      await initializeMQTT(io);
-      logger.info('MQTT connected');
-    } catch {
-      logger.warn('MQTT connection skipped');
+    if (DEBUG_MODE) {
+      logger.info('MQTT skipped (debug mode)');
+    } else {
+      try {
+        await initializeMQTT(io);
+        logger.info('MQTT connected');
+      } catch {
+        logger.warn('MQTT connection skipped');
+      }
     }
 
     httpServer.listen(PORT, () => {
