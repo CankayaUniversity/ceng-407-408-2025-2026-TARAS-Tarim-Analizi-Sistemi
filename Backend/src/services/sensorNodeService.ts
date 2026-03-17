@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/database";
 
 export async function getSensorNodeWithHierarchy(nodeId: string) {
   return prisma.sensorNode.findUnique({
@@ -20,13 +18,18 @@ export async function getSensorNodeWithHierarchy(nodeId: string) {
   });
 }
 
-export async function getSensorNodesForZone(zoneId: string, readingLimit: number = 10) {
+export async function getSensorNodesForZone(
+  zoneId: string,
+  readingLimit: number = 10,
+) {
+  const now = new Date();
   return prisma.sensorNode.findMany({
     where: { zone_id: zoneId },
     include: {
       gateway: true,
       readings: {
-        orderBy: { created_at: 'desc' },
+        where: { created_at: { lte: now } },
+        orderBy: { created_at: "desc" },
         take: readingLimit,
       },
     },
@@ -34,9 +37,10 @@ export async function getSensorNodesForZone(zoneId: string, readingLimit: number
 }
 
 export async function getLatestReading(nodeId: string) {
+  const now = new Date();
   return prisma.sensorReading.findFirst({
-    where: { node_id: nodeId },
-    orderBy: { created_at: 'desc' },
+    where: { node_id: nodeId, created_at: { lte: now } },
+    orderBy: { created_at: "desc" },
     include: {
       node: {
         include: {
@@ -57,7 +61,7 @@ export async function getLatestReading(nodeId: string) {
 export async function getReadingsInTimeRange(
   nodeId: string,
   startTime: Date,
-  endTime: Date
+  endTime: Date,
 ) {
   return prisma.sensorReading.findMany({
     where: {
@@ -67,11 +71,12 @@ export async function getReadingsInTimeRange(
         lte: endTime,
       },
     },
-    orderBy: { created_at: 'asc' },
+    orderBy: { created_at: "asc" },
   });
 }
 
 export async function getZoneWithAdaptiveControl(zoneId: string) {
+  const now = new Date();
   return prisma.zone.findUnique({
     where: { zone_id: zoneId },
     include: {
@@ -79,13 +84,14 @@ export async function getZoneWithAdaptiveControl(zoneId: string) {
       sensor_nodes: {
         include: {
           readings: {
-            orderBy: { created_at: 'desc' },
+            where: { created_at: { lte: now } },
+            orderBy: { created_at: "desc" },
             take: 1,
           },
         },
       },
       kc_history: {
-        orderBy: { created_at: 'desc' },
+        orderBy: { created_at: "desc" },
         take: 10,
       },
       plantings: {
@@ -103,7 +109,7 @@ export async function updateZoneAdaptiveParams(
     current_irrigation_gain?: number;
     target_sm_percent?: number;
     critical_sm_percent?: number;
-  }
+  },
 ) {
   return prisma.zoneDetail.upsert({
     where: { zone_id: zoneId },
@@ -144,7 +150,7 @@ export async function createIrrigationJob(data: {
   return prisma.irrigationJob.create({
     data: {
       ...data,
-      status: 'PENDING',
+      status: "PENDING",
     },
     include: {
       zone: {
@@ -162,9 +168,9 @@ export async function getPendingJobsForZone(zoneId: string) {
   return prisma.irrigationJob.findMany({
     where: {
       zone_id: zoneId,
-      status: 'PENDING',
+      status: "PENDING",
     },
-    orderBy: { created_at: 'asc' },
+    orderBy: { created_at: "asc" },
     include: {
       trigger_reading: true,
       zone: {
@@ -177,12 +183,12 @@ export async function getPendingJobsForZone(zoneId: string) {
 export async function updateJobExecution(
   jobId: string,
   data: {
-    status: 'EXECUTED' | 'SKIPPED' | 'ANALYZED';
+    status: "EXECUTED" | "SKIPPED" | "ANALYZED";
     actual_start_time?: Date;
     actual_duration_min?: number;
     result_reading_id?: bigint;
     calculated_gain_outcome?: number;
-  }
+  },
 ) {
   return prisma.irrigationJob.update({
     where: { job_id: jobId },
@@ -193,7 +199,7 @@ export async function updateJobExecution(
 export async function getIrrigationHistory(zoneId: string, limit: number = 20) {
   return prisma.irrigationJob.findMany({
     where: { zone_id: zoneId },
-    orderBy: { created_at: 'desc' },
+    orderBy: { created_at: "desc" },
     take: limit,
     include: {
       trigger_reading: true,
@@ -203,6 +209,7 @@ export async function getIrrigationHistory(zoneId: string, limit: number = 20) {
 }
 
 export async function getUserFarmsWithSensors(userId: string) {
+  const now = new Date();
   return prisma.farm.findMany({
     where: { user_id: userId },
     include: {
@@ -214,7 +221,8 @@ export async function getUserFarmsWithSensors(userId: string) {
               sensor_nodes: {
                 include: {
                   readings: {
-                    orderBy: { created_at: 'desc' },
+                    where: { created_at: { lte: now } },
+                    orderBy: { created_at: "desc" },
                     take: 1,
                   },
                 },
@@ -237,6 +245,7 @@ export async function getUserFarmsWithSensors(userId: string) {
 }
 
 export async function getFarmDashboard(farmId: string) {
+  const now = new Date();
   const farm = await prisma.farm.findUnique({
     where: { farm_id: farmId },
     include: {
@@ -248,13 +257,14 @@ export async function getFarmDashboard(farmId: string) {
               sensor_nodes: {
                 include: {
                   readings: {
-                    orderBy: { created_at: 'desc' },
+                    where: { created_at: { lte: now } },
+                    orderBy: { created_at: "desc" },
                     take: 1,
                   },
                 },
               },
               jobs: {
-                where: { status: 'PENDING' },
+                where: { status: "PENDING" },
               },
             },
           },
@@ -263,20 +273,24 @@ export async function getFarmDashboard(farmId: string) {
     },
   });
 
-  const totalZones = farm?.fields.reduce((acc, f) => acc + f.zones.length, 0) || 0;
+  const totalZones =
+    farm?.fields.reduce((acc, f) => acc + f.zones.length, 0) || 0;
   const activeSensors =
     farm?.fields.reduce(
       (acc, f) =>
         acc +
         f.zones.reduce(
-          (zAcc, z) => zAcc + z.sensor_nodes.filter((n) => n.status === 'ACTIVE').length,
-          0
+          (zAcc, z) =>
+            zAcc + z.sensor_nodes.filter((n) => n.status === "ACTIVE").length,
+          0,
         ),
-      0
+      0,
     ) || 0;
   const pendingJobs =
-    farm?.fields.reduce((acc, f) => acc + f.zones.reduce((zAcc, z) => zAcc + z.jobs.length, 0), 0) ||
-    0;
+    farm?.fields.reduce(
+      (acc, f) => acc + f.zones.reduce((zAcc, z) => zAcc + z.jobs.length, 0),
+      0,
+    ) || 0;
 
   return {
     farm,
@@ -288,8 +302,12 @@ export async function getFarmDashboard(farmId: string) {
   };
 }
 
-export async function getFieldSensorHistory(fieldId: string, hours: number = 72) {
-  const startTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+export async function getFieldSensorHistory(
+  fieldId: string,
+  hours: number = 72,
+) {
+  const now = new Date();
+  const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
   const field = await prisma.field.findUnique({
     where: { field_id: fieldId },
@@ -299,8 +317,13 @@ export async function getFieldSensorHistory(fieldId: string, hours: number = 72)
           sensor_nodes: {
             include: {
               readings: {
-                where: { created_at: { gte: startTime } },
-                orderBy: { created_at: 'asc' },
+                where: {
+                  created_at: {
+                    gte: startTime,
+                    lte: now,
+                  },
+                },
+                orderBy: { created_at: "asc" },
                 select: {
                   id: true,
                   node_id: true,
@@ -327,8 +350,8 @@ export async function getFieldSensorHistory(fieldId: string, hours: number = 72)
       node.readings.map((reading) => ({
         ...reading,
         id: reading.id.toString(),
-      }))
-    )
+      })),
+    ),
   );
 
   return {

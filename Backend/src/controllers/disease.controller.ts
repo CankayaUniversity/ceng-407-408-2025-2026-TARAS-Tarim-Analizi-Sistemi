@@ -1,13 +1,14 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from "express";
 import {
   submitDetectionRequest,
   getUserDetections,
   getDetectionById,
   getDetectionImageUrl,
   deleteDetection,
-} from '../services/diseaseDetection.service';
-import { asyncHandler } from '../middleware/error.middleware';
-import logger from '../utils/logger';
+} from "../services/diseaseDetection.service";
+import { asyncHandler } from "../middleware/error.middleware";
+import logger from "../utils/logger";
+import { getStringParam } from "../utils/requestHelpers";
 
 /**
  * Submit a new disease detection request
@@ -22,7 +23,7 @@ export const submitDetection = asyncHandler(
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'User not authenticated',
+        error: "User not authenticated",
       });
       return;
     }
@@ -30,7 +31,7 @@ export const submitDetection = asyncHandler(
     if (!file) {
       res.status(400).json({
         success: false,
-        error: 'No image file provided',
+        error: "No image file provided",
       });
       return;
     }
@@ -51,21 +52,21 @@ export const submitDetection = asyncHandler(
 
       res.status(202).json({
         success: true,
-        message: 'Disease detection request submitted successfully',
+        message: "Disease detection request submitted successfully",
         data: {
           detectionId: result.detectionId,
           imageUuid: result.imageUuid,
           status: result.status,
           message:
-            'Your request is being processed. Check status using the detectionId.',
+            "Your request is being processed. Check status using the detectionId.",
         },
       });
     } catch (error) {
-      logger.error('Failed to submit disease detection request:', error);
+      logger.error("Failed to submit disease detection request:", error);
       res.status(500).json({
         success: false,
-        error: 'Failed to submit disease detection request',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to submit disease detection request",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -82,7 +83,7 @@ export const getUserDetectionRequests = asyncHandler(
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'User not authenticated',
+        error: "User not authenticated",
       });
       return;
     }
@@ -105,8 +106,8 @@ export const getUserDetectionRequests = asyncHandler(
       logger.error(`Failed to get detection requests for user ${userId}:`, error);
       res.status(500).json({
         success: false,
-        error: 'Failed to retrieve detection requests',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to retrieve detection requests",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
@@ -119,12 +120,12 @@ export const getUserDetectionRequests = asyncHandler(
 export const getDetectionRequest = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.user_id;
-    const { detectionId } = req.params;
+    const detectionId = getStringParam(req.params.detectionId);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'User not authenticated',
+        error: "User not authenticated",
       });
       return;
     }
@@ -132,7 +133,7 @@ export const getDetectionRequest = asyncHandler(
     if (!detectionId) {
       res.status(400).json({
         success: false,
-        error: 'Detection ID is required',
+        error: "Detection ID is required",
       });
       return;
     }
@@ -151,16 +152,16 @@ export const getDetectionRequest = asyncHandler(
     } catch (error) {
       logger.error(`Failed to get detection ${detectionId}:`, error);
 
-      if (error instanceof Error && error.message.includes('not found')) {
+      if (error instanceof Error && error.message.includes("not found")) {
         res.status(404).json({
           success: false,
-          error: 'Detection request not found or access denied',
+          error: "Detection request not found or access denied",
         });
       } else {
         res.status(500).json({
           success: false,
-          error: 'Failed to retrieve detection request',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          error: "Failed to retrieve detection request",
+          message: error instanceof Error ? error.message : "Unknown error",
         });
       }
     }
@@ -174,12 +175,12 @@ export const getDetectionRequest = asyncHandler(
 export const getDetectionImage = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.user_id;
-    const { detectionId } = req.params;
+    const detectionId = getStringParam(req.params.detectionId);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'User not authenticated',
+        error: "User not authenticated",
       });
       return;
     }
@@ -187,7 +188,7 @@ export const getDetectionImage = asyncHandler(
     if (!detectionId) {
       res.status(400).json({
         success: false,
-        error: 'Detection ID is required',
+        error: "Detection ID is required",
       });
       return;
     }
@@ -210,16 +211,16 @@ export const getDetectionImage = asyncHandler(
     } catch (error) {
       logger.error(`Failed to get image URL for detection ${detectionId}:`, error);
 
-      if (error instanceof Error && error.message.includes('not found')) {
+      if (error instanceof Error && error.message.includes("not found")) {
         res.status(404).json({
           success: false,
-          error: 'Detection request not found or access denied',
+          error: "Detection request not found or access denied",
         });
       } else {
         res.status(500).json({
           success: false,
-          error: 'Failed to retrieve image URL',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          error: "Failed to retrieve image URL",
+          message: error instanceof Error ? error.message : "Unknown error",
         });
       }
     }
@@ -233,12 +234,12 @@ export const getDetectionImage = asyncHandler(
 export const deleteDetectionRequest = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.user_id;
-    const { detectionId } = req.params;
+    const detectionId = getStringParam(req.params.detectionId);
 
     if (!userId) {
       res.status(401).json({
         success: false,
-        error: 'User not authenticated',
+        error: "User not authenticated",
       });
       return;
     }
@@ -246,7 +247,7 @@ export const deleteDetectionRequest = asyncHandler(
     if (!detectionId) {
       res.status(400).json({
         success: false,
-        error: 'Detection ID is required',
+        error: "Detection ID is required",
       });
       return;
     }
@@ -260,21 +261,21 @@ export const deleteDetectionRequest = asyncHandler(
 
       res.status(200).json({
         success: true,
-        message: 'Detection request deleted successfully',
+        message: "Detection request deleted successfully",
       });
     } catch (error) {
       logger.error(`Failed to delete detection ${detectionId}:`, error);
 
-      if (error instanceof Error && error.message.includes('not found')) {
+      if (error instanceof Error && error.message.includes("not found")) {
         res.status(404).json({
           success: false,
-          error: 'Detection request not found or access denied',
+          error: "Detection request not found or access denied",
         });
       } else {
         res.status(500).json({
           success: false,
-          error: 'Failed to delete detection request',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          error: "Failed to delete detection request",
+          message: error instanceof Error ? error.message : "Unknown error",
         });
       }
     }
@@ -290,10 +291,10 @@ export const healthCheck = asyncHandler(
     res.status(200).json({
       success: true,
       data: {
-        service: 'disease-detection',
-        status: 'healthy',
+        service: "disease-detection",
+        status: "healthy",
         timestamp: new Date().toISOString(),
-        lambdaFunction: process.env.LAMBDA_DISEASE_DETECTION_FUNCTION || 'taras-disease-detection',
+        lambdaFunction: process.env.LAMBDA_DISEASE_DETECTION_FUNCTION || "taras-disease-detection",
       },
     });
   }

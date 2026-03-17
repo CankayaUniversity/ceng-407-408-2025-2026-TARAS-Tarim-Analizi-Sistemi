@@ -4,6 +4,8 @@ import authRoutes from './auth.routes';
 import sensorRoutes from './sensor.routes';
 import dashboardRoutes from './dashboard.routes';
 import diseaseRoutes from './disease.routes';
+import advisoryRoutes from './advisory.routes';
+import { DEBUG_MODE } from '../config/debug';
 
 const router = Router();
 
@@ -12,6 +14,7 @@ router.get('/health', (_req, res) => {
     status: 'ok',
     message: 'TARAS API is running',
     timestamp: new Date().toISOString(),
+    debug_mode: DEBUG_MODE,
   });
 });
 
@@ -20,5 +23,13 @@ router.use('/images', imageRoutes);
 router.use('/sensors', sensorRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/disease', diseaseRoutes);
+router.use('/advisory', advisoryRoutes);
+
+if (DEBUG_MODE) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const debugRoutes = require('./debug.routes').default;
+  router.use('/debug', debugRoutes);
+}
 
 export default router;
+

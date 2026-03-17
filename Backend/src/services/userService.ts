@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/database";
+import bcrypt from "bcryptjs";
 
 export async function createUser(data: {
   username: string;
@@ -37,13 +35,13 @@ export async function authenticateUser(username: string, password: string) {
   });
 
   if (!user) {
-    return { authenticated: false, error: 'User not found or inactive' };
+    return { authenticated: false, error: "User not found or inactive" };
   }
 
   const passwordValid = await bcrypt.compare(password, user.password_hash);
 
   if (!passwordValid) {
-    return { authenticated: false, error: 'Invalid password' };
+    return { authenticated: false, error: "Invalid password" };
   }
 
   await prisma.user.update({
@@ -83,7 +81,7 @@ export async function getUserProfile(userId: string) {
       },
       alerts: {
         where: { is_read: false },
-        orderBy: { created_at: 'desc' },
+        orderBy: { created_at: "desc" },
         take: 10,
       },
     },
@@ -101,29 +99,29 @@ export async function updateUserPassword(userId: string, newPassword: string) {
 
 export async function ensureAdminRole() {
   return prisma.role.upsert({
-    where: { role_name: 'admin' },
+    where: { role_name: "admin" },
     update: {},
     create: {
-      role_name: 'admin',
-      description: 'System administrator with full access',
+      role_name: "admin",
+      description: "System administrator with full access",
     },
   });
 }
 
 export async function ensureFarmerRole() {
   return prisma.role.upsert({
-    where: { role_name: 'farmer' },
+    where: { role_name: "farmer" },
     update: {},
     create: {
-      role_name: 'farmer',
-      description: 'Farm owner with access to their own farms',
+      role_name: "farmer",
+      description: "Farm owner with access to their own farms",
     },
   });
 }
 
 export async function getAllRoles() {
   return prisma.role.findMany({
-    orderBy: { role_name: 'asc' },
+    orderBy: { role_name: "asc" },
   });
 }
 
@@ -131,14 +129,14 @@ export async function createAlert(data: {
   user_id: string;
   title: string;
   message: string;
-  severity?: 'INFO' | 'WARNING' | 'CRITICAL';
+  severity?: "INFO" | "WARNING" | "CRITICAL";
 }) {
   return prisma.alert.create({
     data: {
       user_id: data.user_id,
       title: data.title,
       message: data.message,
-      severity: data.severity || 'INFO',
+      severity: data.severity || "INFO",
       is_read: false,
     },
   });
@@ -157,7 +155,7 @@ export async function getUserUnreadAlerts(userId: string) {
       user_id: userId,
       is_read: false,
     },
-    orderBy: { created_at: 'desc' },
+    orderBy: { created_at: "desc" },
   });
 }
 
@@ -165,13 +163,13 @@ export async function createCriticalMoistureAlert(
   userId: string,
   zoneName: string,
   smPercent: number,
-  criticalThreshold: number
+  criticalThreshold: number,
 ) {
   return createAlert({
     user_id: userId,
     title: `Critical Soil Moisture Alert - ${zoneName}`,
     message: `Soil moisture (${smPercent.toFixed(1)}%) has fallen below critical threshold (${criticalThreshold}%). Immediate irrigation recommended.`,
-    severity: 'CRITICAL',
+    severity: "CRITICAL",
   });
 }
 
@@ -185,8 +183,8 @@ export async function createChatSession(userId: string) {
 
 export async function addChatMessage(
   sessionId: string,
-  sender: 'user' | 'ai',
-  content: string
+  sender: "user" | "ai",
+  content: string,
 ) {
   return prisma.chatMessage.create({
     data: {
@@ -200,18 +198,18 @@ export async function addChatMessage(
 export async function getChatHistory(sessionId: string) {
   return prisma.chatMessage.findMany({
     where: { session_id: sessionId },
-    orderBy: { created_at: 'asc' },
+    orderBy: { created_at: "asc" },
   });
 }
 
 export async function getUserChatSessions(userId: string, limit: number = 10) {
   return prisma.chatSession.findMany({
     where: { user_id: userId },
-    orderBy: { started_at: 'desc' },
+    orderBy: { started_at: "desc" },
     take: limit,
     include: {
       messages: {
-        orderBy: { created_at: 'asc' },
+        orderBy: { created_at: "asc" },
       },
     },
   });

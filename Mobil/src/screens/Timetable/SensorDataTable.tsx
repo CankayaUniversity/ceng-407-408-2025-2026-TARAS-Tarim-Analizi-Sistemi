@@ -1,7 +1,11 @@
+// Sensor veri tablosu - filtrelenebilir tablo gorunumu
+// Props: theme, data (sensor okumalari)
+
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SensorReading, TimetableScreenProps } from "./types";
 import { useState } from "react";
+import { useLanguage } from "../../context/LanguageContext";
 
 interface SensorDataTableProps {
   theme: TimetableScreenProps["theme"];
@@ -9,11 +13,14 @@ interface SensorDataTableProps {
 }
 
 export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
-  const uniqueNodes = Array.from(new Set(data.map(r => r.node_id))).sort();
-  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set(uniqueNodes));
+  const { language, t } = useLanguage();
+  const uniqueNodes = Array.from(new Set(data.map((r) => r.node_id))).sort();
+  const [selectedNodes, setSelectedNodes] = useState<Set<string>>(
+    new Set(uniqueNodes),
+  );
 
   const toggleNode = (nodeId: string) => {
-    setSelectedNodes(prev => {
+    setSelectedNodes((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(nodeId)) {
         newSet.delete(nodeId);
@@ -24,7 +31,7 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
     });
   };
 
-  const filteredData = data.filter(r => selectedNodes.has(r.node_id));
+  const filteredData = data.filter((r) => selectedNodes.has(r.node_id));
 
   const headerStyle = {
     paddingVertical: 8,
@@ -41,16 +48,30 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+      <View
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}
+      >
         <MaterialCommunityIcons name="table" size={20} color={theme.accent} />
-        <Text style={{ marginLeft: 8, fontSize: 13, fontWeight: "600", color: theme.text }}>
-          Sensor Verileri — Toplam: {data.length} | Gösterilen: {filteredData.length}
+        <Text
+          style={{
+            marginLeft: 8,
+            fontSize: 13,
+            fontWeight: "600",
+            color: theme.text,
+          }}
+        >
+          {t.timetable.sensorData} — {t.timetable.total}: {data.length} |{" "}
+          {t.timetable.showing}: {filteredData.length}
         </Text>
       </View>
 
       {/* Node Filter Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8, maxHeight: 28 }}>
-        {uniqueNodes.map(nodeId => (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 8, maxHeight: 28 }}
+      >
+        {uniqueNodes.map((nodeId) => (
           <TouchableOpacity
             key={nodeId}
             onPress={() => toggleNode(nodeId)}
@@ -59,34 +80,57 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
               paddingVertical: 3,
               borderRadius: 12,
               marginRight: 6,
-              backgroundColor: selectedNodes.has(nodeId) ? theme.accent : theme.surface,
+              backgroundColor: selectedNodes.has(nodeId)
+                ? theme.accent
+                : theme.surface,
               borderWidth: 1,
-              borderColor: selectedNodes.has(nodeId) ? theme.accent : theme.textSecondary + '40',
+              borderColor: selectedNodes.has(nodeId)
+                ? theme.accent
+                : theme.textSecondary + "40",
             }}
           >
-            <Text style={{ color: selectedNodes.has(nodeId) ? '#fff' : theme.text, fontSize: 10, fontWeight: '600' }}>
-              Node {nodeId}
+            <Text
+              style={{
+                color: selectedNodes.has(nodeId) ? "#fff" : theme.text,
+                fontSize: 10,
+                fontWeight: "600",
+              }}
+            >
+              {t.timetable.node} {nodeId}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
       <ScrollView style={{ flex: 1 }} nestedScrollEnabled>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled directionalLockEnabled>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          directionalLockEnabled
+        >
           <View style={{ minWidth: 640 }}>
             {/* Header */}
             <View style={{ flexDirection: "row" }}>
-              <View style={[headerStyle, { flex: 2 }]}> 
-                <Text style={{ color: theme.text, fontWeight: "700" }}>Zaman</Text>
+              <View style={[headerStyle, { flex: 2 }]}>
+                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  {t.timetable.time}
+                </Text>
               </View>
-              <View style={[headerStyle, { flex: 1 }]}> 
-                <Text style={{ color: theme.text, fontWeight: "700" }}>Sıcaklık (°C)</Text>
+              <View style={[headerStyle, { flex: 1 }]}>
+                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  {t.timetable.temperature}
+                </Text>
               </View>
-              <View style={[headerStyle, { flex: 1 }]}> 
-                <Text style={{ color: theme.text, fontWeight: "700" }}>Nem (%)</Text>
+              <View style={[headerStyle, { flex: 1 }]}>
+                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  {t.timetable.humidity}
+                </Text>
               </View>
-              <View style={[headerStyle, { flex: 1 }]}> 
-                <Text style={{ color: theme.text, fontWeight: "700" }}>Toprak Nemi (%)</Text>
+              <View style={[headerStyle, { flex: 1 }]}>
+                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  {t.timetable.soilMoisture}
+                </Text>
               </View>
             </View>
 
@@ -95,24 +139,36 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
               const d = new Date(r.created_at);
               const hh = d.getHours().toString().padStart(2, "0");
               const mm = d.getMinutes().toString().padStart(2, "0");
-              const time = `${d.toLocaleDateString("tr-TR")} ${hh}:${mm}`;
+              const locale = language === "tr" ? "tr-TR" : "en-US";
+              const time = `${d.toLocaleDateString(locale)} ${hh}:${mm}`;
               const isEven = index % 2 === 0;
               return (
-                <View key={`${r.id}-${r.created_at}`} style={{ 
-                  flexDirection: "row",
-                  backgroundColor: isEven ? theme.background : theme.surface + '40'
-                }}>
-                  <View style={[cellStyle, { flex: 2 }]}> 
+                <View
+                  key={`${r.id}-${r.created_at}`}
+                  style={{
+                    flexDirection: "row",
+                    backgroundColor: isEven
+                      ? theme.background
+                      : theme.surface + "40",
+                  }}
+                >
+                  <View style={[cellStyle, { flex: 2 }]}>
                     <Text style={{ color: theme.text }}>{time}</Text>
                   </View>
-                  <View style={[cellStyle, { flex: 1 }]}> 
-                    <Text style={{ color: theme.text }}>{r.temperature?.toFixed(2)}</Text>
+                  <View style={[cellStyle, { flex: 1 }]}>
+                    <Text style={{ color: theme.text }}>
+                      {r.temperature?.toFixed(2)}
+                    </Text>
                   </View>
-                  <View style={[cellStyle, { flex: 1 }]}> 
-                    <Text style={{ color: theme.text }}>{r.humidity?.toFixed(2)}</Text>
+                  <View style={[cellStyle, { flex: 1 }]}>
+                    <Text style={{ color: theme.text }}>
+                      {r.humidity?.toFixed(2)}
+                    </Text>
                   </View>
-                  <View style={[cellStyle, { flex: 1 }]}> 
-                    <Text style={{ color: theme.text }}>{r.sm_percent?.toFixed(2)}</Text>
+                  <View style={[cellStyle, { flex: 1 }]}>
+                    <Text style={{ color: theme.text }}>
+                      {r.sm_percent?.toFixed(2)}
+                    </Text>
                   </View>
                 </View>
               );

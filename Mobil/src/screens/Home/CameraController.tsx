@@ -1,3 +1,6 @@
+// 3D kamera kontrolu - pozisyon ve FOV ayarlar
+// Props: config (kamera ayarlari)
+
 import { useEffect } from "react";
 import { useThree } from "@react-three/fiber/native";
 import { CameraConfig } from "./types";

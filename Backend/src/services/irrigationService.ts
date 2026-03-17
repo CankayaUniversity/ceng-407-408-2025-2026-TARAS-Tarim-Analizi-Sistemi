@@ -1,11 +1,9 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from "../config/database";
 
 export async function calculateIrrigationRecommendation(
   zoneId: string,
   currentSmPercent: number,
-  readingId: bigint
+  readingId: bigint,
 ) {
   const zone = await prisma.zone.findUnique({
     where: { zone_id: zoneId },
@@ -16,7 +14,7 @@ export async function calculateIrrigationRecommendation(
   });
 
   if (!zone?.details) {
-    throw new Error('Zone details not configured');
+    throw new Error("Zone details not configured");
   }
 
   const {
@@ -66,13 +64,13 @@ export async function autoScheduleIrrigation(zoneId: string, readingId: bigint) 
   });
 
   if (!reading?.sm_percent) {
-    throw new Error('Reading does not contain soil moisture data');
+    throw new Error("Reading does not contain soil moisture data");
   }
 
   const recommendation = await calculateIrrigationRecommendation(
     zoneId,
     reading.sm_percent,
-    readingId
+    readingId,
   );
 
   if (!recommendation.shouldIrrigate) {
@@ -82,14 +80,14 @@ export async function autoScheduleIrrigation(zoneId: string, readingId: bigint) 
   const pendingJob = await prisma.irrigationJob.findFirst({
     where: {
       zone_id: zoneId,
-      status: 'PENDING',
+      status: "PENDING",
     },
   });
 
   if (pendingJob) {
     return {
       created: false,
-      reason: 'A pending irrigation job already exists for this zone',
+      reason: "A pending irrigation job already exists for this zone",
       existingJob: pendingJob,
     };
   }
@@ -101,7 +99,7 @@ export async function autoScheduleIrrigation(zoneId: string, readingId: bigint) 
       reasoning: recommendation.reasoning,
       recommended_duration_min: recommendation.recommendedDurationMin,
       recommended_volume_liters: recommendation.recommendedVolumeLiters,
-      status: 'PENDING',
+      status: "PENDING",
     },
   });
 
@@ -112,14 +110,14 @@ export async function calibrateKc(
   zoneId: string,
   windowStart: Date,
   windowEnd: Date,
-  et0Sum12h: number
+  et0Sum12h: number,
 ) {
   const zoneDetails = await prisma.zoneDetail.findUnique({
     where: { zone_id: zoneId },
   });
 
   if (!zoneDetails) {
-    throw new Error('Zone details not found');
+    throw new Error("Zone details not found");
   }
 
   const oldKc = zoneDetails.current_kc || 1.0;
@@ -129,7 +127,7 @@ export async function calibrateKc(
       node: { zone_id: zoneId },
       created_at: { lte: windowStart },
     },
-    orderBy: { created_at: 'desc' },
+    orderBy: { created_at: "desc" },
   });
 
   const endReading = await prisma.sensorReading.findFirst({
@@ -137,17 +135,17 @@ export async function calibrateKc(
       node: { zone_id: zoneId },
       created_at: { gte: windowEnd },
     },
-    orderBy: { created_at: 'asc' },
+    orderBy: { created_at: "asc" },
   });
 
   if (!startReading?.sm_percent || !endReading?.sm_percent) {
-    throw new Error('Insufficient soil moisture data for calibration');
+    throw new Error("Insufficient soil moisture data for calibration");
   }
 
   const smLoss12h = startReading.sm_percent - endReading.sm_percent;
 
   if (smLoss12h <= 0 || et0Sum12h <= 0) {
-    throw new Error('Invalid data: moisture loss and ET0 must be positive');
+    throw new Error("Invalid data: moisture loss and ET0 must be positive");
   }
 
   const calculatedRatio = smLoss12h / et0Sum12h;
@@ -184,11 +182,11 @@ export async function applyKcCalibration(logId: bigint) {
   });
 
   if (!log) {
-    throw new Error('Calibration log not found');
+    throw new Error("Calibration log not found");
   }
 
   if (log.applied_to_config) {
-    throw new Error('Calibration already applied');
+    throw new Error("Calibration already applied");
   }
 
   await prisma.zoneDetail.update({
@@ -221,7 +219,7 @@ export async function calibrateIrrigationGain(jobId: string) {
   }
 
   if (!job.actual_duration_min) {
-    throw new Error('Job does not have actual duration recorded');
+    throw new Error("Job does not have actual duration recorded");
   }
 
   const moistureIncrease = job.result_reading.sm_percent - job.trigger_reading.sm_percent;
@@ -231,7 +229,7 @@ export async function calibrateIrrigationGain(jobId: string) {
     where: { job_id: jobId },
     data: {
       calculated_gain_outcome: actualGain,
-      status: 'ANALYZED',
+      status: "ANALYZED",
     },
   });
 
@@ -273,7 +271,7 @@ export async function getZoneEfficiencyMetrics(zoneId: string, days: number = 30
     where: {
       zone_id: zoneId,
       created_at: { gte: since },
-      status: { in: ['EXECUTED', 'ANALYZED'] },
+      status: { in: ["EXECUTED", "ANALYZED"] },
     },
     include: {
       trigger_reading: true,

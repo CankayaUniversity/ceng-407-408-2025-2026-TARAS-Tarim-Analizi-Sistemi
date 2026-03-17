@@ -1,4 +1,7 @@
-import { useState, useEffect } from "react";
+// Hastalik tespit ekrani - analiz listesi ve kamera erisimi
+// Props: theme, permission, onRequestPermission, isActive
+
+import { useState } from "react";
 import {
   View,
   Text,
@@ -16,17 +19,23 @@ import { DiseaseResultCard } from "./DiseaseResultCard";
 import { DiseaseCameraScreen } from "./DiseaseCameraScreen";
 import { DiseaseScreenProps } from "./types";
 import { spacing } from "../../utils/responsive";
+import { useScreenReset } from "../../hooks/useScreenReset";
+import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 interface ParentDiseaseScreenProps extends DiseaseScreenProps {
   theme: Theme;
+  isActive?: boolean;
 }
 
 export const DiseaseScreen = ({
   theme,
   permission,
   onRequestPermission,
-  isActive,
+  isActive = true,
 }: ParentDiseaseScreenProps) => {
+  const { showPopup } = usePopupMessage();
+  const { t } = useLanguage();
   const [showCamera, setShowCamera] = useState(false);
   const [detections, setDetections] = useState<DiseaseDetection[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,7 +58,9 @@ export const DiseaseScreen = ({
         const urls: Record<string, string> = {};
         for (const detection of response.data.detections) {
           try {
-            const imgResponse = await diseaseAPI.getImageUrl(detection.detection_id);
+            const imgResponse = await diseaseAPI.getImageUrl(
+              detection.detection_id,
+            );
             if (imgResponse.success && imgResponse.data) {
               urls[detection.detection_id] = imgResponse.data.imageUrl;
             }
@@ -60,41 +71,46 @@ export const DiseaseScreen = ({
         setImageUrls(urls);
       }
     } catch (error) {
-      Alert.alert('Hata', 'Sonuçlar yüklenemedi');
+      showPopup(t.disease.errorLoadingResults);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    if (isActive && !showCamera) {
-      fetchDetections();
-    }
-  }, [isActive, showCamera]);
+  useScreenReset(isActive, {
+    onActivate: () => {
+      // Sadece veri yoksa fetch yap - mevcut veri korunur
+      if (!showCamera && detections.length === 0) {
+        fetchDetections();
+      }
+    },
+    onDeactivate: () => {
+      // Kamera state sifirla, veri korunur
+      setShowCamera(false);
+      setLoading(false);
+    },
+  });
 
   const handleSendForAnalysis = async (imageUri: string) => {
     try {
       // Submit the image
       const response = await diseaseAPI.submitDetection(imageUri);
       if (!response.success || !response.data) {
-        Alert.alert('Hata', response.error || 'Görsel gönderilemedi');
+        showPopup(response.error || t.disease.errorSendingImage);
         return;
       }
 
       const { detectionId } = response.data;
 
-      // Show success message
-      Alert.alert(
-        'Gönderildi',
-        'Yaprak analiz için gönderildi. Sonuçlar yaklaşık 20-30 saniye içinde hazır olacak.',
-        [{ text: 'Tamam', onPress: () => setShowCamera(false) }]
-      );
+      // Show success message and close camera
+      showPopup(t.disease.sentForAnalysis);
+      setShowCamera(false);
 
       // Start polling for results in the background
       pollForResults(detectionId);
     } catch (error) {
-      Alert.alert('Hata', 'Bir şeyler ters gitti');
+      showPopup(t.disease.errorGeneric);
     }
   };
 
@@ -103,45 +119,44 @@ export const DiseaseScreen = ({
       await diseaseAPI.pollDetectionStatus(
         detectionId,
         (status) => {
-          console.log('Detection status:', status);
+          console.log("Detection status:", status);
         },
         30,
-        2000
+        2000,
       );
 
       // Refresh the list when complete
       fetchDetections();
     } catch (error) {
-      console.error('Polling error:', error);
+      console.error("Polling error:", error);
       // Still refresh to show the failed status
       fetchDetections();
     }
   };
 
   const handleDeleteDetection = async (detectionId: string) => {
-    Alert.alert(
-      'Sil',
-      'Bu analiz sonucunu silmek istediğinizden emin misiniz?',
-      [
-        { text: 'İptal', style: 'cancel' },
-        {
-          text: 'Sil',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await diseaseAPI.deleteDetection(detectionId);
-              if (response.success) {
-                setDetections((prev) => prev.filter((d) => d.detection_id !== detectionId));
-              } else {
-                Alert.alert('Hata', response.error || 'Silinirken bir hata oluştu');
-              }
-            } catch {
-              Alert.alert('Hata', 'Silinirken bir hata oluştu');
+    Alert.alert(t.disease.deleteTitle, t.disease.deleteConfirmation, [
+      { text: t.common.cancel, style: "cancel" },
+      {
+        text: t.common.delete,
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const response = await diseaseAPI.deleteDetection(detectionId);
+            if (response.success) {
+              setDetections((prev) =>
+                prev.filter((d) => d.detection_id !== detectionId),
+              );
+              showPopup(t.disease.deletedSuccessfully);
+            } else {
+              showPopup(response.error || t.disease.errorDeleting);
             }
-          },
+          } catch {
+            showPopup(t.disease.errorDeleting);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   if (showCamera) {
@@ -158,24 +173,35 @@ export const DiseaseScreen = ({
 
   return (
     <View style={[appStyles.container, { backgroundColor: theme.background }]}>
-      <View style={{
-        paddingHorizontal: spacing.md,
-        paddingTop: spacing.md,
-        paddingBottom: spacing.sm,
-      }}>
-        <Text style={{ fontSize: 24, fontWeight: '700', color: theme.text, marginBottom: spacing.xs }}>
-          Hastalık Tespit
+      <View
+        style={{
+          paddingHorizontal: spacing.md,
+          paddingTop: spacing.md,
+          paddingBottom: spacing.sm,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 24,
+            fontWeight: "700",
+            color: theme.text,
+            marginBottom: spacing.xs,
+          }}
+        >
+          {t.disease.title}
         </Text>
         <Text style={{ fontSize: 13, color: theme.textSecondary }}>
-          Yaprak fotoğrafları ile hastalık tespit sonuçları
+          {t.disease.subtitle}
         </Text>
       </View>
 
       {loading && !refreshing ? (
-        <View style={[appStyles.placeholder, { backgroundColor: theme.background }]}>
+        <View
+          style={[appStyles.placeholder, { backgroundColor: theme.background }]}
+        >
           <ActivityIndicator size="large" color={theme.accent} />
           <Text style={{ color: theme.textSecondary, marginTop: spacing.md }}>
-            Yükleniyor...
+            {t.disease.loadingResults}
           </Text>
         </View>
       ) : (
@@ -196,13 +222,33 @@ export const DiseaseScreen = ({
             }
           >
             {detections.length === 0 ? (
-              <View style={{ paddingVertical: spacing.xxl, alignItems: 'center' }}>
-                <Ionicons name="leaf-outline" size={64} color={theme.textSecondary} />
-                <Text style={{ color: theme.text, fontSize: 16, fontWeight: '600', marginTop: spacing.md }}>
-                  Henüz analiz yok
+              <View
+                style={{ paddingVertical: spacing.xxl, alignItems: "center" }}
+              >
+                <Ionicons
+                  name="leaf-outline"
+                  size={64}
+                  color={theme.textSecondary}
+                />
+                <Text
+                  style={{
+                    color: theme.text,
+                    fontSize: 16,
+                    fontWeight: "600",
+                    marginTop: spacing.md,
+                  }}
+                >
+                  {t.disease.noAnalysisYet}
                 </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 13, marginTop: spacing.xs, textAlign: 'center' }}>
-                  Yaprak fotoğrafı çekerek hastalık tespiti başlatın
+                <Text
+                  style={{
+                    color: theme.textSecondary,
+                    fontSize: 13,
+                    marginTop: spacing.xs,
+                    textAlign: "center",
+                  }}
+                >
+                  {t.disease.noAnalysisSubtitle}
                 </Text>
               </View>
             ) : (

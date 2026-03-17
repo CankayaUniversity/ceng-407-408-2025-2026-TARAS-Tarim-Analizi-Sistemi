@@ -1,14 +1,25 @@
+// Sulama geri sayimi - bir sonraki sulamaya kalan sureyi gosterir
+// Props: theme, isoTimestamp (hedef zaman)
+
 import { useState, useEffect } from "react";
 import { View, Text } from "react-native";
 import { Theme } from "../../utils/theme";
-import { useResponsive, calculateCardDimensions, getResponsiveFontSize, spacing } from "../../utils/responsive";
+import {
+  useResponsive,
+  calculateCardDimensions,
+  getResponsiveFontSize,
+  spacing,
+} from "../../utils/responsive";
 
 interface IrrigationCountdownProps {
   theme: Theme;
   isoTimestamp?: string;
 }
 
-export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdownProps) => {
+export const IrrigationCountdown = ({
+  theme,
+  isoTimestamp,
+}: IrrigationCountdownProps) => {
   const { screenWidth, screenHeight, isTablet } = useResponsive();
 
   // Calculate card dimensions using responsive utilities (same as MetricCard)
@@ -20,9 +31,9 @@ export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdown
   });
 
   const countdownFontSize = getResponsiveFontSize(
-    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.40 },
+    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.4 },
     cardLayout.scaleFactor,
-    isTablet
+    isTablet,
   );
 
   const [hours, setHours] = useState<string>("00");
@@ -83,7 +94,13 @@ export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdown
   }, [isoTimestamp]);
 
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-start" }}>
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-start",
+      }}
+    >
       <Text
         style={{
           color: theme.text,

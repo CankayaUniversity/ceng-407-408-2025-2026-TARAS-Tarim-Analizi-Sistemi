@@ -159,7 +159,9 @@ export interface DashboardIrrigation {
 export interface DashboardSensors {
   soilMoisture: number;
   nodeCount: number;
+  lastReadingTime: string | null;
 }
+
 
 export interface DashboardNode {
   id: string;

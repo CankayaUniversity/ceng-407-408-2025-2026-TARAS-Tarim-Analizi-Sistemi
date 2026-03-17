@@ -1,11 +1,30 @@
 # Dependencies
 node_modules/
 
+# Android build artifacts
+android/build/
+android/.gradle/
+android/app/build/
+**/android/build/
+**/android/.gradle/
+**/android/**/build/
+**/android/app/build/
+**/intermediates/
+**/merged_res/
+*.apk
+*.zip
+
+# iOS build artifacts
+ios/build/
+ios/Pods/
+**/ios/build/
+**/ios/Pods/
+
 # Expo
 .expo/
 dist/
 web-build/
-
+*.bat
 # Native builds
 *.orig.*
 *.jks
@@ -46,4 +65,3 @@ yarn-error.*
 
 # Testing
 coverage/
-

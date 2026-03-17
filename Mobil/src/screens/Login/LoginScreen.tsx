@@ -1,19 +1,25 @@
+// Giris ekrani - kullanici girisi ve kayit islemi
+// Props: theme, onLoginSuccess, onSkip
+
 import { useState } from "react";
+import Constants from "expo-constants";
 import {
   Text,
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   LayoutAnimation,
-  Platform,
+  View,
   KeyboardAvoidingView,
-  Animated,
+  ScrollView,
+  Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { appStyles } from "../../styles";
-import { authAPI } from "../../utils/api";
-import { useKeyboard } from "../../hooks/useKeyboard";
+import { authAPI, healthAPI } from "../../utils/api";
 import { LoginScreenProps } from "./types";
+import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 import LogoLight from "../../assets/Taras-logo-light.svg";
 import LogoDark from "../../assets/Taras-logo-dark.svg";
@@ -23,18 +29,19 @@ export const LoginScreen = ({
   onLoginSuccess,
   onSkip,
 }: LoginScreenProps) => {
-  const { animatedPadding } = useKeyboard();
+  const { showPopup } = usePopupMessage();
+  const { t, language, setLanguage } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [username, setUsername] = useState("");
+  const [serverStatus, setServerStatus] = useState<string | null>(null);
 
-  const animatedPaddingTop = animatedPadding.interpolate({
-    inputRange: [0, 1],
-    outputRange: [160, 8],
-  });
+  // AWS demo credentials from env
+  const awsDemoUsername = Constants.expoConfig?.extra?.awsDemoUsername || "";
+  const awsDemoPassword = Constants.expoConfig?.extra?.awsDemoPassword || "";
 
   const toggleRegisterMode = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -44,13 +51,26 @@ export const LoginScreen = ({
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert("Hata", "Lutfen kullanici adi ve sifre giriniz.");
+      showPopup(t.login.errorEmptyCredentials);
       return;
     }
 
     setIsLoading(true);
+    setServerStatus(t.login.connectingToServer);
+
+    // Check server health first
+    const healthCheck = await healthAPI.check();
+    if (!healthCheck.success) {
+      setIsLoading(false);
+      setServerStatus(t.login.serverOffline);
+      showPopup(t.login.errorConnectionFailed);
+      return;
+    }
+
+    setServerStatus(t.login.loggingIn);
     const response = await authAPI.login(username.trim(), password);
     setIsLoading(false);
+    setServerStatus(null);
 
     console.log("Login response:", response);
     console.log("User data:", response.data?.user);
@@ -63,12 +83,7 @@ export const LoginScreen = ({
       console.log("Calling onLoginSuccess with:", displayName);
       onLoginSuccess(displayName);
     } else {
-      Alert.alert(
-        "Giris Basarisiz",
-        response.error || "Kullanici adi/e-posta veya sifre hatali.",
-      );
-      // Always call onLoginSuccess with empty string to avoid type error
-      // onLoginSuccess("");
+      showPopup(response.error || t.login.errorLoginFailed);
     }
   };
 
@@ -79,12 +94,12 @@ export const LoginScreen = ({
       !password.trim() ||
       !confirmPassword.trim()
     ) {
-      Alert.alert("Hata", "Lutfen tum alanlari doldurunuz.");
+      showPopup(t.login.errorEmptyFields);
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Hata", "Sifreler eslesmilor. Lutfen kontrol ediniz.");
+      showPopup(t.login.errorPasswordMismatch);
       return;
     }
 
@@ -104,10 +119,7 @@ export const LoginScreen = ({
       const displayName = response.data?.user.username || "";
       onLoginSuccess(displayName);
     } else {
-      Alert.alert(
-        "Kayit Basarisiz",
-        response.error || "Kayit islemi basarisiz oldu.",
-      );
+      showPopup(response.error || t.login.errorRegistrationFailed);
     }
   };
 
@@ -117,28 +129,66 @@ export const LoginScreen = ({
     onSkip();
   };
 
+  // AWS demo login - sunucuya baglanir
+  const handleAwsDemo = async () => {
+    if (!awsDemoUsername || !awsDemoPassword) {
+      showPopup("AWS demo credentials not configured");
+      return;
+    }
+
+    setIsLoading(true);
+    setServerStatus(t.login.connectingToServer);
+
+    await authAPI.logout();
+
+    const response = await authAPI.login(awsDemoUsername, awsDemoPassword);
+    setIsLoading(false);
+    setServerStatus(null);
+
+    console.log("[LOGIN] AWS response:", response.success, response.error);
+
+    if (response.success) {
+      const displayName = response.data?.user.username || "";
+      onLoginSuccess(displayName);
+    } else {
+      showPopup(response.error || t.login.errorLoginFailed);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={[appStyles.loginContainer, { backgroundColor: theme.background }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
-      <Animated.ScrollView
+      <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: "flex-start",
+          justifyContent: "center",
           alignItems: "center",
-          paddingBottom: 80,
           width: "100%",
+          paddingVertical: 20,
         }}
-        style={{ width: "100%", paddingTop: animatedPaddingTop }}
+        style={{ width: "100%" }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        bounces={false}
       >
         {theme.isDark ? (
-          <LogoDark width={220} height={220} style={{ marginBottom: 8 }} />
+          <LogoDark width={220} height={220} />
         ) : (
-          <LogoLight width={220} height={220} style={{ marginBottom: 8 }} />
+          <LogoLight width={220} height={220} />
+        )}
+
+        {serverStatus && (
+          <Text
+            style={{
+              color: theme.textSecondary,
+              marginBottom: 12,
+              fontSize: 14,
+            }}
+          >
+            {serverStatus}
+          </Text>
         )}
 
         {isRegisterMode && (
@@ -151,7 +201,7 @@ export const LoginScreen = ({
                 borderColor: theme.accentDim,
               },
             ]}
-            placeholder="E-posta"
+            placeholder={t.login.emailPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={email}
             onChangeText={setEmail}
@@ -170,7 +220,7 @@ export const LoginScreen = ({
               borderColor: theme.accentDim,
             },
           ]}
-          placeholder="Kullanici Adi (testuser / ahmet_ciftci)"
+          placeholder={t.login.usernamePlaceholder}
           placeholderTextColor={theme.textSecondary}
           value={username}
           onChangeText={setUsername}
@@ -186,7 +236,7 @@ export const LoginScreen = ({
               borderColor: theme.accentDim,
             },
           ]}
-          placeholder="Sifre (test123 / password123)"
+          placeholder={t.login.passwordPlaceholder}
           placeholderTextColor={theme.textSecondary}
           value={password}
           onChangeText={setPassword}
@@ -203,7 +253,7 @@ export const LoginScreen = ({
                 borderColor: theme.accentDim,
               },
             ]}
-            placeholder="Sifre Tekrar"
+            placeholder={t.login.confirmPasswordPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -224,7 +274,7 @@ export const LoginScreen = ({
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={[appStyles.loginButtonText, { color: "#fff" }]}>
-              {isRegisterMode ? "Kayit Ol" : "Giris Yap"}
+              {isRegisterMode ? t.login.registerButton : t.login.loginButton}
             </Text>
           )}
         </TouchableOpacity>
@@ -235,25 +285,82 @@ export const LoginScreen = ({
           disabled={isLoading}
         >
           <Text style={[appStyles.skipButtonText, { color: theme.accent }]}>
-            {isRegisterMode
-              ? "Zaten hesabiniz var mi? Giris Yap"
-              : "Hesabiniz yok mu? Kayit Ol"}
+            {isRegisterMode ? t.login.switchToLogin : t.login.switchToRegister}
           </Text>
         </TouchableOpacity>
 
+        <View
+          style={{
+            flexDirection: "row",
+            marginTop: 16,
+            gap: 12,
+          }}
+        >
+          <TouchableOpacity
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 16,
+              borderWidth: 1,
+              borderColor: theme.accentDim,
+              borderRadius: 8,
+            }}
+            onPress={() => {
+              handleSkip();
+              onLoginSuccess("");
+            }}
+            disabled={isLoading}
+          >
+            <Text
+              style={[appStyles.skipButtonText, { color: theme.accentDim }]}
+            >
+              {t.login.localDemoButton}
+            </Text>
+          </TouchableOpacity>
+
+          {awsDemoUsername && awsDemoPassword && (
+            <TouchableOpacity
+              style={{
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderWidth: 1,
+                borderColor: theme.accentDim,
+                borderRadius: 8,
+              }}
+              onPress={handleAwsDemo}
+              disabled={isLoading}
+            >
+              <Text
+                style={[appStyles.skipButtonText, { color: theme.accentDim }]}
+              >
+                {t.login.awsDemoButton}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <TouchableOpacity
-          style={{ marginTop: 8 }}
-           onPress={() => {
-             handleSkip();
-             onLoginSuccess("");
-           }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginTop: 16,
+            marginBottom: 20,
+            gap: 6,
+          }}
+          onPress={() => setLanguage(language === "tr" ? "en" : "tr")}
           disabled={isLoading}
         >
-          <Text style={[appStyles.skipButtonText, { color: theme.accentDim }]}>
-            Simdilik Atla
+          <Ionicons
+            name="globe-outline"
+            size={18}
+            color={theme.textSecondary}
+          />
+          <Text
+            style={[appStyles.skipButtonText, { color: theme.textSecondary }]}
+          >
+            {language === "tr" ? "English" : "Türkçe"}
           </Text>
         </TouchableOpacity>
-      </Animated.ScrollView>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 };

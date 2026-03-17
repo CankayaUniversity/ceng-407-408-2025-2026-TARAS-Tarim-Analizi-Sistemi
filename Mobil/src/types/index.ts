@@ -5,6 +5,17 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+export interface ThemeClasses {
+  background: string;
+  surface: string;
+  text: string;
+  textSecondary: string;
+  accent: string;
+  accentBg: string;
+  accentDim: string;
+  accentDimBg: string;
+}
+
 export interface Theme {
   isDark: boolean;
   background: string;
@@ -13,4 +24,5 @@ export interface Theme {
   textSecondary: string;
   accent: string;
   accentDim: string;
+  tw: ThemeClasses;
 }

@@ -1,7 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
-import { uploadToS3, generatePresignedUploadUrl, generatePresignedDownloadUrl } from '../services/s3.service';
-import { asyncHandler } from '../middleware/error.middleware';
-import logger from '../utils/logger';
+import { Request, Response, NextFunction } from "express";
+import {
+  uploadToS3,
+  generatePresignedUploadUrl,
+  generatePresignedDownloadUrl,
+} from "../services/s3.service";
+import { asyncHandler } from "../middleware/error.middleware";
+import logger from "../utils/logger";
 
 export const uploadCropImage = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
@@ -9,19 +13,19 @@ export const uploadCropImage = asyncHandler(
     const file = (req as any).file;
 
     if (!fieldId) {
-      res.status(400).json({ error: 'fieldId is required' });
+      res.status(400).json({ error: "fieldId is required" });
       return;
     }
 
     if (!file) {
-      res.status(400).json({ error: 'No file provided' });
+      res.status(400).json({ error: "No file provided" });
       return;
     }
 
     try {
       const bucket = process.env.AWS_S3_BUCKET;
       if (!bucket) {
-        throw new Error('AWS_S3_BUCKET not configured');
+        throw new Error("AWS_S3_BUCKET not configured");
       }
 
       const timestamp = Date.now();
@@ -51,13 +55,13 @@ export const uploadCropImage = asyncHandler(
         },
       });
     } catch (error) {
-      logger.error('Image upload failed:', error);
+      logger.error("Image upload failed:", error);
       res.status(500).json({
-        error: 'Failed to upload image',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to upload image",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
-  }
+  },
 );
 
 export const getPresignedUploadUrl = asyncHandler(
@@ -65,14 +69,14 @@ export const getPresignedUploadUrl = asyncHandler(
     const { fieldId, filename } = req.body;
 
     if (!fieldId || !filename) {
-      res.status(400).json({ error: 'fieldId and filename are required' });
+      res.status(400).json({ error: "fieldId and filename are required" });
       return;
     }
 
     try {
       const bucket = process.env.AWS_S3_BUCKET;
       if (!bucket) {
-        throw new Error('AWS_S3_BUCKET not configured');
+        throw new Error("AWS_S3_BUCKET not configured");
       }
 
       const timestamp = Date.now();
@@ -92,48 +96,53 @@ export const getPresignedUploadUrl = asyncHandler(
         },
       });
     } catch (error) {
-      logger.error('Failed to generate presigned URL:', error);
+      logger.error("Failed to generate presigned URL:", error);
       res.status(500).json({
-        error: 'Failed to generate presigned URL',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to generate presigned URL",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
-  }
+  },
 );
 
 export const getPresignedDownloadUrl = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
-    const { bucket, key, expiresIn = '3600' } = req.query;
+    const bucketParam = req.query.bucket;
+    const keyParam = req.query.key;
+    const expiresInParam = req.query.expiresIn;
 
-    if (!bucket || !key) {
-      res.status(400).json({ error: 'bucket and key are required' });
+    if (typeof bucketParam !== "string" || typeof keyParam !== "string") {
+      res.status(400).json({ error: "bucket and key are required" });
       return;
     }
 
+    const expiresIn =
+      typeof expiresInParam === "string" ? parseInt(expiresInParam, 10) : 3600;
+
     try {
       const downloadUrl = await generatePresignedDownloadUrl(
-        bucket as string,
-        key as string,
-        parseInt(expiresIn as string)
+        bucketParam,
+        keyParam,
+        expiresIn,
       );
 
-      logger.info(`Presigned download URL generated for: ${key}`);
+      logger.info(`Presigned download URL generated for: ${keyParam}`);
 
       res.status(200).json({
         success: true,
         data: {
           downloadUrl,
-          expiresIn: parseInt(expiresIn as string),
+          expiresIn,
         },
       });
     } catch (error) {
-      logger.error('Failed to generate download URL:', error);
+      logger.error("Failed to generate download URL:", error);
       res.status(500).json({
-        error: 'Failed to generate download URL',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to generate download URL",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
-  }
+  },
 );
 
 export const listFieldImages = asyncHandler(
@@ -141,7 +150,7 @@ export const listFieldImages = asyncHandler(
     const { fieldId } = req.params;
 
     if (!fieldId) {
-      res.status(400).json({ error: 'fieldId is required' });
+      res.status(400).json({ error: "fieldId is required" });
       return;
     }
 
@@ -154,13 +163,13 @@ export const listFieldImages = asyncHandler(
         },
       });
     } catch (error) {
-      logger.error('Failed to list field images:', error);
+      logger.error("Failed to list field images:", error);
       res.status(500).json({
-        error: 'Failed to list images',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Failed to list images",
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
-  }
+  },
 );
 
 export default {

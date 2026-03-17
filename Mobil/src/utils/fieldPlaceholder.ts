@@ -1,4 +1,5 @@
-// Field data types for 3D visualization
+// Tarla veri tipleri - 3D gorsellestirme icin polygon ve sensor node
+// calculatePolygonCentroid ile merkezini hesaplar
 
 export interface FieldPolygon {
   exterior: [number, number][];
@@ -20,8 +21,8 @@ export interface FieldData {
 }
 
 function getPolygonBounds(polygon: [number, number][]) {
-  const xs = polygon.map(p => p[0]);
-  const zs = polygon.map(p => p[1]);
+  const xs = polygon.map((p) => p[0]);
+  const zs = polygon.map((p) => p[1]);
   return {
     minX: Math.min(...xs),
     maxX: Math.max(...xs),
@@ -31,7 +32,10 @@ function getPolygonBounds(polygon: [number, number][]) {
 }
 
 // Calculate center of polygon using shoelace formula
-export function calculatePolygonCentroid(exterior: [number, number][]): { x: number; z: number } {
+export function calculatePolygonCentroid(exterior: [number, number][]): {
+  x: number;
+  z: number;
+} {
   const n = exterior.length;
 
   if (n < 3) {
@@ -45,8 +49,10 @@ export function calculatePolygonCentroid(exterior: [number, number][]): { x: num
   let signedArea = 0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const xi = exterior[i][0], zi = exterior[i][1];
-    const xj = exterior[j][0], zj = exterior[j][1];
+    const xi = exterior[i][0],
+      zi = exterior[i][1];
+    const xj = exterior[j][0],
+      zj = exterior[j][1];
     signedArea += xi * zj - xj * zi;
   }
   signedArea /= 2;
@@ -63,8 +69,10 @@ export function calculatePolygonCentroid(exterior: [number, number][]): { x: num
   let cz = 0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const xi = exterior[i][0], zi = exterior[i][1];
-    const xj = exterior[j][0], zj = exterior[j][1];
+    const xi = exterior[i][0],
+      zi = exterior[i][1];
+    const xj = exterior[j][0],
+      zj = exterior[j][1];
     const cross = xi * zj - xj * zi;
     cx += (xi + xj) * cross;
     cz += (zi + zj) * cross;

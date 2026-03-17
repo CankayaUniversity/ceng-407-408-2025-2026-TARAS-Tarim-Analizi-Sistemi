@@ -1,12 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from "../config/database";
 import {
   FieldListItem,
   DashboardResponse,
   DashboardNode,
   PolygonData,
-} from '../types';
-
-const prisma = new PrismaClient();
+} from "../types";
 
 // get all fields for a user
 export async function getUserFields(userId: string): Promise<FieldListItem[]> {
@@ -28,14 +26,14 @@ export async function getUserFields(userId: string): Promise<FieldListItem[]> {
       id: field.field_id,
       name: field.name,
       area: field.area ?? 0,
-    }))
+    })),
   );
 }
 
 // check if user owns this field
 export async function checkFieldAccess(
   userId: string,
-  fieldId: string
+  fieldId: string,
 ): Promise<boolean> {
   const field = await prisma.field.findUnique({
     where: { field_id: fieldId },
@@ -53,8 +51,10 @@ export async function checkFieldAccess(
 
 // get dashboard data for a field
 export async function getFieldDashboard(
-  fieldId: string
+  fieldId: string,
 ): Promise<DashboardResponse | null> {
+  const now = new Date();
+
   const field = await prisma.field.findUnique({
     where: { field_id: fieldId },
     include: {
@@ -63,14 +63,17 @@ export async function getFieldDashboard(
           sensor_nodes: {
             include: {
               readings: {
-                orderBy: { created_at: 'desc' },
+                where: {
+                  created_at: { lte: now },
+                },
+                orderBy: { created_at: "desc" },
                 take: 1,
               },
             },
           },
           jobs: {
-            where: { status: 'PENDING' },
-            orderBy: { created_at: 'asc' },
+            where: { status: "PENDING" },
+            orderBy: { created_at: "asc" },
             take: 1,
           },
         },
@@ -88,6 +91,7 @@ export async function getFieldDashboard(
   let totalTemperature = 0;
   let totalHumidity = 0;
   let readingCount = 0;
+  let latestReadingTime: Date | null = null;
 
   for (const zone of field.zones) {
     for (const node of zone.sensor_nodes) {
@@ -102,6 +106,14 @@ export async function getFieldDashboard(
         totalTemperature += temperature;
         totalHumidity += humidity;
         readingCount++;
+
+        // track most recent reading time
+        if (
+          latestReading.created_at &&
+          (!latestReadingTime || latestReading.created_at > latestReadingTime)
+        ) {
+          latestReadingTime = latestReading.created_at;
+        }
 
         allNodes.push({
           id: node.node_id,
@@ -167,6 +179,9 @@ export async function getFieldDashboard(
     sensors: {
       soilMoisture: Number(avgMoisture.toFixed(0)),
       nodeCount: allNodes.length,
+      lastReadingTime: latestReadingTime
+        ? latestReadingTime.toISOString()
+        : null,
     },
     field: {
       polygon,

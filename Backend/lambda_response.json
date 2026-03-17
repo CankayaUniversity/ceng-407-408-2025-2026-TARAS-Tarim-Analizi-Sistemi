@@ -1,1 +1,0 @@
-{"statusCode": 400, "body": "{\"error\": \"Didn't find op for builtin opcode 'FULLY_CONNECTED' version '12'. An older version of this builtin might be supported. Are you using an old TFLite binary with a newer model?\\nRegistration failed.\\n\"}", "headers": {"Content-Type": "application/json"}}

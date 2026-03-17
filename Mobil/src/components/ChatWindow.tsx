@@ -1,4 +1,6 @@
-import { useRef, useEffect, useState } from 'react';
+// Sohbet penceresi - AI asistan ile mesajlasma
+// Props: visible, messages, chatInput, chatHeight, keyboardHeight, theme, onClose, onSendMessage, onInputChange
+import { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,11 +10,12 @@ import {
   Pressable,
   StyleSheet,
   Animated,
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ChatMessage, Theme } from '../types';
-import { useKeyboard } from '../hooks/useKeyboard';
-import { appStyles } from '../styles';
+} from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { ChatMessage, Theme } from "../types";
+import { useKeyboard } from "../hooks/useKeyboard";
+import { appStyles } from "../styles";
+import { useLanguage } from "../context/LanguageContext";
 
 interface ChatWindowProps {
   visible: boolean;
@@ -37,6 +40,7 @@ export const ChatWindow = ({
   onSendMessage,
   onInputChange,
 }: ChatWindowProps) => {
+  const { t } = useLanguage();
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
   const { animatedPadding } = useKeyboard();
@@ -44,12 +48,18 @@ export const ChatWindow = ({
 
   const handleFocus = () => {
     setIsInputFocused(true);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
+    setTimeout(
+      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+      80,
+    );
   };
 
   const handleBlur = () => {
     setIsInputFocused(false);
-    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 80);
+    setTimeout(
+      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
+      80,
+    );
   };
 
   const handleSendPress = () => {
@@ -73,7 +83,7 @@ export const ChatWindow = ({
 
   if (!visible) return null;
 
-  const isUserMessage = (sender: string) => sender === 'user';
+  const isUserMessage = (sender: string) => sender === "user";
 
   return (
     <View style={styles.chatOverlay}>
@@ -87,10 +97,11 @@ export const ChatWindow = ({
             { backgroundColor: theme.surface, height: chatHeight },
           ]}
         >
+          {/* Header */}
           <View style={[styles.chatHeader, { backgroundColor: theme.accent }]}>
             <View style={styles.chatHeaderLeft}>
               <MaterialCommunityIcons name="robot" size={24} color="#fff" />
-              <Text style={styles.chatHeaderTitle}>TarasMobil Asistanı</Text>
+              <Text style={styles.chatHeaderTitle}>{t.chat.title}</Text>
             </View>
             <TouchableOpacity
               onPress={onClose}
@@ -100,9 +111,13 @@ export const ChatWindow = ({
             </TouchableOpacity>
           </View>
 
+          {/* Mesajlar */}
           <ScrollView
             ref={scrollViewRef}
-            style={[styles.messagesScroll, { backgroundColor: theme.background }]}
+            style={[
+              styles.messagesScroll,
+              { backgroundColor: theme.background },
+            ]}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
@@ -119,7 +134,7 @@ export const ChatWindow = ({
                   <View
                     style={[
                       styles.avatarContainer,
-                      { backgroundColor: theme.accent + '20' },
+                      { backgroundColor: theme.accent + "20" },
                     ]}
                   >
                     <MaterialCommunityIcons
@@ -137,14 +152,18 @@ export const ChatWindow = ({
                       : {
                           backgroundColor: theme.surface,
                           borderWidth: 1,
-                          borderColor: theme.accent + '40',
+                          borderColor: theme.accent + "40",
                         },
                   ]}
                 >
                   <Text
                     style={[
                       styles.messageText,
-                      { color: isUserMessage(message.sender) ? '#fff' : theme.text },
+                      {
+                        color: isUserMessage(message.sender)
+                          ? "#fff"
+                          : theme.text,
+                      },
                     ]}
                   >
                     {message.text}
@@ -157,17 +176,25 @@ export const ChatWindow = ({
                       { backgroundColor: theme.accent },
                     ]}
                   >
-                    <MaterialCommunityIcons name="account" size={16} color="#fff" />
+                    <MaterialCommunityIcons
+                      name="account"
+                      size={16}
+                      color="#fff"
+                    />
                   </View>
                 )}
               </View>
             ))}
           </ScrollView>
 
+          {/* Input alani */}
           <View
             style={[
               styles.chatInputArea,
-              { backgroundColor: theme.surface, borderTopColor: theme.accent + '20' },
+              {
+                backgroundColor: theme.surface,
+                borderTopColor: theme.accent + "20",
+              },
             ]}
           >
             <View style={styles.inputRow}>
@@ -186,7 +213,7 @@ export const ChatWindow = ({
                     marginRight: 8,
                   },
                 ]}
-                placeholder="Mesajınızı yazın..."
+                placeholder={t.chat.placeholder}
                 placeholderTextColor={theme.textSecondary}
                 value={chatInput}
                 onChangeText={onInputChange}
@@ -231,7 +258,7 @@ export const ChatWindow = ({
 
 const styles = StyleSheet.create({
   chatOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -239,91 +266,62 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   chatBackdrop: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
-  chatContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    padding: 12,
-  },
+  chatContainer: { flex: 1, justifyContent: "flex-end", padding: 12 },
   chatWindow: {
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: "hidden",
     elevation: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
   },
   chatHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  chatHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  chatHeaderTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  messagesScroll: {
-    flex: 1,
-  },
-  messagesContent: {
-    padding: 16,
-    gap: 12,
-  },
-  messageRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  messageRowUser: {
-    flexDirection: 'row-reverse',
-  },
+  chatHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  chatHeaderTitle: { fontSize: 17, fontWeight: "700", color: "#fff" },
+  messagesScroll: { flex: 1 },
+  messagesContent: { padding: 16, gap: 12 },
+  messageRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
+  messageRowUser: { flexDirection: "row-reverse" },
   avatarContainer: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   messageBubble: {
-    maxWidth: '75%',
+    maxWidth: "75%",
+    flexShrink: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 16,
   },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
+  messageText: { fontSize: 15, lineHeight: 20, flexWrap: "wrap" },
   chatInputArea: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
   },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-  },
+  inputRow: { flexDirection: "row", alignItems: "center", width: "100%" },
   sendButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
