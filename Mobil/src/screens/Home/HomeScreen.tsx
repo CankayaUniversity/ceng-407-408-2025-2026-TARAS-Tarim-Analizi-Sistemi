@@ -1,6 +1,6 @@
 // Ana ekran - 3D tarla gorunumu ve sensor verileri
 // Props: theme, isDark, dashboardData, isActive
-import { Suspense, useRef } from "react";
+import { Suspense, useRef, useEffect } from "react";
 import {
   Animated,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
+import { useThree } from "@react-three/fiber/native";
 import { ColorPlane, NodeInfo } from "../../components/ColorPlane";
 import { appStyles } from "../../styles";
 
@@ -21,6 +22,15 @@ import { Safe3DCanvas } from "../../components/Safe3DCanvas";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { useLanguage } from "../../context/LanguageContext";
 import { useState } from "react";
+const THREE: any = require("three");
+
+function SceneBackground({ color }: { color: string }) {
+  const { scene } = useThree();
+  useEffect(() => {
+    scene.background = new THREE.Color(color);
+  }, [scene, color]);
+  return null;
+}
 
 interface HomeScreenProps {
   theme: Theme;
@@ -112,7 +122,7 @@ export const HomeScreen = ({
               </View>
             }
           >
-            <color attach="background" args={[theme.background]} />
+            <SceneBackground color={theme.background} />
             <Suspense
               fallback={
                 <View

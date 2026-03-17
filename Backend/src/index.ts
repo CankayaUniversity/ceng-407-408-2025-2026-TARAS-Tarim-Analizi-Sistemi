@@ -26,7 +26,13 @@ const HOST = process.env.HOST || 'localhost';
 const httpServer = createServer(app);
 
 app.use(helmet());
-app.use(compression());
+app.use(compression({
+  filter: (req, res) => {
+    // SSE bağlantılarında sıkıştırma yapma (streaming'i bozar)
+    if (req.path.endsWith("/stream")) return false;
+    return compression.filter(req, res);
+  },
+}));
 app.use(cors({
   origin: process.env.CORS_ORIGINS?.split(',') || '*',
   credentials: true,

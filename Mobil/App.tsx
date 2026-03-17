@@ -9,11 +9,22 @@ import { useState, useEffect, useRef } from "react";
 
 // React Native
 import { LogBox } from "react-native";
-LogBox.ignoreLogs([
+
+// Bilinen kütüphane uyarıları - uygulama işlevselliğini etkilemez
+const SUPPRESSED_LOGS = [
   "EXGL",
-  "Cannot read property 'name' of undefined",
   "SafeAreaView has been deprecated",
-]);
+];
+LogBox.ignoreLogs(SUPPRESSED_LOGS);
+
+if (__DEV__) {
+  const _warn = console.warn.bind(console);
+  console.warn = (...args: unknown[]) => {
+    const msg = String(args[0] ?? "");
+    if (SUPPRESSED_LOGS.some((s) => msg.includes(s))) return;
+    _warn(...args);
+  };
+}
 import {
   Text,
   View,

@@ -2,9 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { ChatMessage } from "../types";
 import { ScreenType } from "../constants";
 import { API_HOST } from "../utils/api";
-import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
-const ADVISORY_URL = `${API_HOST}/api/advisory`;
+const ADVISORY_STREAM_URL = `${API_HOST}/api/advisory/stream`;
 
 const WELCOME: ChatMessage = {
   id: "1",
@@ -25,7 +24,7 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
     zoneIdRef.current = zoneId;
   }, [zoneId]);
 
-  const sendMessage = async () => {
+  const sendMessage = () => {
     const text = chatInput.trim();
     if (!text || isLoading) return;
 
@@ -48,52 +47,119 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    // Boş asistan mesajı ekle — stream geldikçe doldurulacak
+    const streamingId = "streaming-" + (Date.now() + 1);
+    const streamingMsg: ChatMessage = {
+      id: streamingId,
+      text: "",
+      sender: "assistant",
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMsg, streamingMsg]);
     setChatInput("");
     setIsLoading(true);
 
-    try {
-      const response = await fetchWithTimeout(
-        ADVISORY_URL,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: text,
-            zone_id: currentZoneId,
-            session_id: sessionId,
-          }),
-        },
-        15000,
-      );
+    const sessionIdSnapshot = sessionId;
 
-      const data = await response.json();
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", ADVISORY_STREAM_URL);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.timeout = 60000;
 
-      if (data.success) {
-        if (data.session_id) setSessionId(data.session_id);
+    let byteOffset = 0;
+    let accumulated = "";
 
-        const reply: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          text: data.reply,
-          sender: "assistant",
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, reply]);
-      } else {
-        throw new Error(data.error || "Sunucu hatası");
+    const parseNewChunks = (responseText: string) => {
+      const newData = responseText.slice(byteOffset);
+      byteOffset = responseText.length;
+
+      // SSE satırlarını işle
+      const lines = newData.split("\n");
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const parsed = JSON.parse(line.slice(6)) as {
+            chunk?: string;
+            done?: boolean;
+            session_id?: string;
+            error?: string;
+          };
+
+          if (parsed.chunk) {
+            accumulated += parsed.chunk;
+            const snapshot = accumulated;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamingId ? { ...m, text: snapshot } : m)),
+            );
+          }
+
+          if (parsed.done && parsed.session_id) {
+            setSessionId(parsed.session_id);
+          }
+
+          if (parsed.error) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === streamingId
+                  ? { ...m, text: "Üzgünüm, şu an asistan sunucusuna bağlanamıyorum." }
+                  : m,
+              ),
+            );
+          }
+        } catch {
+          // Eksik JSON — sonraki onprogress'te tekrar denenecek
+        }
       }
-    } catch (error) {
-      console.log("[ERR] chat fetch failed:", error);
-      const errorMsg: ChatMessage = {
-        id: "error-" + Date.now(),
-        text: "Üzgünüm, şu an asistan sunucusuna bağlanamıyorum. Lütfen internet bağlantınızı kontrol edin.",
-        sender: "assistant",
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
+    };
+
+    xhr.onprogress = () => {
+      parseNewChunks(xhr.responseText);
+    };
+
+    xhr.onload = () => {
+      // Son kalan veriyi işle
+      parseNewChunks(xhr.responseText);
+
+      if (!accumulated) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamingId ? { ...m, text: "Yanıt alınamadı." } : m,
+          ),
+        );
+      }
       setIsLoading(false);
-    }
+    };
+
+    xhr.onerror = () => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamingId
+            ? { ...m, text: "Üzgünüm, şu an asistan sunucusuna bağlanamıyorum. Lütfen internet bağlantınızı kontrol edin." }
+            : m,
+        ),
+      );
+      setIsLoading(false);
+    };
+
+    xhr.ontimeout = () => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamingId
+            ? { ...m, text: "Üzgünüm, bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin." }
+            : m,
+        ),
+      );
+      setIsLoading(false);
+    };
+
+    xhr.send(
+      JSON.stringify({
+        message: text,
+        zone_id: currentZoneId,
+        session_id: sessionIdSnapshot,
+      }),
+    );
   };
 
   return { messages, chatInput, setChatInput, sendMessage, isLoading };
