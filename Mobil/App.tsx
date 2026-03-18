@@ -8,29 +8,6 @@ import "react-native-url-polyfill/auto";
 import { useState, useEffect, useRef } from "react";
 
 // React Native
-import { LogBox } from "react-native";
-
-// Bilinen kütüphane uyarıları - uygulama işlevselliğini etkilemez
-const SUPPRESSED_LOGS = [
-  "EXGL",
-  "SafeAreaView has been deprecated",
-];
-LogBox.ignoreLogs(SUPPRESSED_LOGS);
-
-if (__DEV__) {
-  const _warn = console.warn.bind(console);
-  console.warn = (...args: unknown[]) => {
-    const msg = String(args[0] ?? "");
-    if (SUPPRESSED_LOGS.some((s) => msg.includes(s))) return;
-    _warn(...args);
-  };
-  const _log = console.log.bind(console);
-  console.log = (...args: unknown[]) => {
-    const msg = String(args[0] ?? "");
-    if (SUPPRESSED_LOGS.some((s) => msg.includes(s))) return;
-    _log(...args);
-  };
-}
 import {
   Text,
   View,
@@ -81,7 +58,6 @@ import { getTheme } from "./src/utils/theme";
 import {
   authAPI,
   dashboardAPI,
-  sensorAPI,
   FieldSummary,
   DashboardData,
 } from "./src/utils/api";
@@ -112,7 +88,6 @@ function AppContent() {
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [username, setUsername] = useState<string>("");
   const [dataSource, setDataSource] = useState<"aws" | "demo">("demo");
   const [fields, setFields] = useState<FieldSummary[]>([]);
@@ -123,7 +98,7 @@ function AppContent() {
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
   const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
-  const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen, selectedZoneId);
+  const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen, selectedFieldId);
 
   // ── Animated values ────────────────────────────────────────────────────
   const screenOpacities = useRef({
@@ -171,15 +146,6 @@ function AppContent() {
             setFields(fieldsData);
             setSelectedFieldId(fieldsData[0].id);
             await loadDashboardData(fieldsData[0].id, false);
-          }
-          // Chat icin ilk zone_id'yi al
-          try {
-            const zonesRes = await sensorAPI.getUserZones();
-            if (zonesRes.success && zonesRes.data?.zones?.[0]) {
-              setSelectedZoneId(zonesRes.data.zones[0].zone_id);
-            }
-          } catch {
-            // Zone alinamadi, chat demo modunda calisir
           }
         } catch {
           // AWS baglantisi basarisiz, demo moduna gec
@@ -282,7 +248,7 @@ function AppContent() {
     screenType,
     children,
   }: {
-    screenType: ScreenType;
+    screenType: Exclude<ScreenType, "login">;
     children: React.ReactNode;
   }) => (
     <Animated.View

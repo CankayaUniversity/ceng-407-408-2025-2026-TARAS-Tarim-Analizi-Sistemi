@@ -38,6 +38,7 @@
     "@expo/cli": "^0.22.3",
     "babel-preset-expo": "~54.0.10",
     "dotenv": "^17.2.3",
+    "expo-module-scripts": "^55.0.2",
     "metro": "^0.83.3",
     "metro-config": "^0.83.3",
     "react-native-svg-transformer": "^1.5.2",

@@ -88,6 +88,14 @@ export interface StringDictionary {
     confidence: string;
     analysisFailed: string;
     waitingInQueue: string;
+    allPredictions: string;
+    detailTitle: string;
+    detailNoData: string;
+    detailConfidenceRaw: string;
+    detailConfidenceScore: string;
+    detailRecommendations: string;
+    detailTimestamps: string;
+    detailDetectionId: string;
   };
 
   // Camera Screen
@@ -304,6 +312,14 @@ const tr: StringDictionary = {
     confidence: "güven",
     analysisFailed: "Analiz başarısız oldu",
     waitingInQueue: "Analiz için sırada bekliyor",
+    allPredictions: "Tüm Tahminler",
+    detailTitle: "Analiz Detayı",
+    detailNoData: "Veri yok",
+    detailConfidenceRaw: "confidence (ham)",
+    detailConfidenceScore: "confidence_score (ham)",
+    detailRecommendations: "Öneriler",
+    detailTimestamps: "Zamanlar",
+    detailDetectionId: "Tespit ID",
   },
 
   camera: {
@@ -516,6 +532,14 @@ const en: StringDictionary = {
     confidence: "confidence",
     analysisFailed: "Analysis failed",
     waitingInQueue: "Waiting in queue for analysis",
+    allPredictions: "All Predictions",
+    detailTitle: "Analysis Detail",
+    detailNoData: "No data",
+    detailConfidenceRaw: "confidence (raw)",
+    detailConfidenceScore: "confidence_score (raw)",
+    detailRecommendations: "Recommendations",
+    detailTimestamps: "Timestamps",
+    detailDetectionId: "Detection ID",
   },
 
   camera: {

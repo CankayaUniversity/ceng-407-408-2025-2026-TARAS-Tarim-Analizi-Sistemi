@@ -2,7 +2,7 @@
 // appStyles ile erisim
 
 import { StyleSheet } from "react-native";
-import { colors, semanticColors } from "./colors";
+import { semanticColors } from "./colors";
 
 export const appStyles = StyleSheet.create({
   safeArea: { flex: 1 },

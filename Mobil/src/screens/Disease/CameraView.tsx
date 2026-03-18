@@ -1,6 +1,7 @@
 // Kamera gorunumu - canli kamera, galeri ve flas kontrolleri
 // Props: theme, cameraRef, flashOn, isActive, onPickFromGallery, onTakePicture, onToggleFlash
-import { View, Text, TouchableOpacity } from "react-native";
+import { useState } from "react";
+import { View, Text, TouchableOpacity, LayoutChangeEvent } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { appStyles } from "../../styles";
 import { CameraViewProps } from "./types";
@@ -39,11 +40,19 @@ export const CameraView = ({
   onTakePicture,
   onToggleFlash,
 }: CameraViewProps) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const [frameSize, setFrameSize] = useState(0);
+
+  const onLayoutContainer = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    const side = Math.max(0, Math.min(width, height) - 28);
+    setFrameSize(side);
+  };
 
   return (
     <View
       style={[appStyles.cameraBorderContainer, { borderColor: theme.accent }]}
+      onLayout={onLayoutContainer}
     >
       {isActive && canUseCameraComponent ? (
         <CameraComponent
@@ -78,6 +87,48 @@ export const CameraView = ({
         </View>
       ) : (
         <View style={[appStyles.cameraView, { backgroundColor: "#000" }]} />
+      )}
+
+      {frameSize > 0 && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <View
+            style={{
+              width: frameSize,
+              height: frameSize,
+              borderWidth: 2,
+              borderColor: theme.accent,
+              borderRadius: 12,
+              backgroundColor: "transparent",
+            }}
+          />
+          <Text
+            style={{
+              marginTop: 10,
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 8,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              color: "#fff",
+              fontSize: 12,
+              fontWeight: "600",
+            }}
+          >
+            {language === "tr"
+              ? "Yaprağı kare çerçeveye ortalayın"
+              : "Center the leaf inside the square"}
+          </Text>
+        </View>
       )}
 
       {/* Galeri butonu */}

@@ -14,6 +14,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { appStyles } from "../../styles";
 import { sensorAPI } from "../../utils/api";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
 import { ChartCard } from "./ChartCard";
 import { SensorDataTable } from "./SensorDataTable";
 import { TimetableScreenProps, ChartDataPoint, SensorReading } from "./types";
@@ -280,6 +281,43 @@ export const TimetableScreen = ({
     fetchSensorData();
   };
 
+  const renderChartFallback = (title: string) => (
+    <View
+      style={{
+        marginBottom: 24,
+        borderRadius: 12,
+        padding: 16,
+        backgroundColor: theme.surface,
+        borderWidth: 1,
+        borderColor: theme.textSecondary + "20",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 16,
+          fontWeight: "600",
+          color: theme.text,
+          marginBottom: 8,
+        }}
+      >
+        {title}
+      </Text>
+      <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 20 }}>
+        {t.timetable.loadFailed}
+      </Text>
+      <Text
+        style={{
+          color: theme.textSecondary,
+          fontSize: 12,
+          lineHeight: 18,
+          marginTop: 6,
+        }}
+      >
+        {t.timetable.table}
+      </Text>
+    </View>
+  );
+
   if (isLoading) {
     return (
       <View
@@ -472,33 +510,39 @@ export const TimetableScreen = ({
           </TouchableOpacity>
         </View>
 
-        <ChartCard
-          theme={theme}
-          title={t.timetable.temperature}
-          icon="thermometer"
-          color="#FF6B6B"
-          data={temperatureData}
-          onTouchStart={() => setScrollEnabled(false)}
-          onTouchEnd={() => setScrollEnabled(true)}
-        />
-        <ChartCard
-          theme={theme}
-          title={t.timetable.humidity}
-          icon="water-percent"
-          color="#4ECDC4"
-          data={humidityData}
-          onTouchStart={() => setScrollEnabled(false)}
-          onTouchEnd={() => setScrollEnabled(true)}
-        />
-        <ChartCard
-          theme={theme}
-          title={t.timetable.soilMoisture}
-          icon="flower"
-          color="#95E1D3"
-          data={soilMoistureData}
-          onTouchStart={() => setScrollEnabled(false)}
-          onTouchEnd={() => setScrollEnabled(true)}
-        />
+        <ErrorBoundary fallback={renderChartFallback(t.timetable.temperature)}>
+          <ChartCard
+            theme={theme}
+            title={t.timetable.temperature}
+            icon="thermometer"
+            color="#FF6B6B"
+            data={temperatureData}
+            onTouchStart={() => setScrollEnabled(false)}
+            onTouchEnd={() => setScrollEnabled(true)}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary fallback={renderChartFallback(t.timetable.humidity)}>
+          <ChartCard
+            theme={theme}
+            title={t.timetable.humidity}
+            icon="water-percent"
+            color="#4ECDC4"
+            data={humidityData}
+            onTouchStart={() => setScrollEnabled(false)}
+            onTouchEnd={() => setScrollEnabled(true)}
+          />
+        </ErrorBoundary>
+        <ErrorBoundary fallback={renderChartFallback(t.timetable.soilMoisture)}>
+          <ChartCard
+            theme={theme}
+            title={t.timetable.soilMoisture}
+            icon="flower"
+            color="#95E1D3"
+            data={soilMoistureData}
+            onTouchStart={() => setScrollEnabled(false)}
+            onTouchEnd={() => setScrollEnabled(true)}
+          />
+        </ErrorBoundary>
       </View>
 
       {/* Tablo modal */}

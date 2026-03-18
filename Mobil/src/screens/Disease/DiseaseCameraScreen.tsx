@@ -10,6 +10,7 @@ import { PhotoPreview } from "./PhotoPreview";
 import { DiseaseScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
 
 export const DiseaseCameraScreen = ({
   theme,
@@ -25,22 +26,50 @@ export const DiseaseCameraScreen = ({
   const cameraRef = useRef<any>(null);
   const [flashOn, setFlashOn] = useState(false);
   const [flashOverlayVisible, setFlashOverlayVisible] = useState(false);
+  const [isPreparingImage, setIsPreparingImage] = useState(false);
+
+  const prepareImage = async (
+    uri: string,
+    width?: number,
+    height?: number,
+  ): Promise<string> => {
+    const imageWidth = width ?? 0;
+    const imageHeight = height ?? 0;
+
+    if (imageWidth <= 0 || imageHeight <= 0) {
+      return uri;
+    }
+
+    return prepareDiseaseImageForUpload(uri, {
+      width: imageWidth,
+      height: imageHeight,
+      exportSize: 256,
+      quality: 0.82,
+    });
+  };
 
   const pickFromGallery = async () => {
     try {
+      setIsPreparingImage(true);
       const result = await ImagePicker.launchImageLibraryAsync({
-        quality: 0.5,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
         base64: false,
       });
       if (!result.canceled) {
-        const uri = result.assets && result.assets[0] && result.assets[0].uri;
+        const asset = result.assets && result.assets[0];
+        const uri = asset && asset.uri;
         if (uri) {
-          setPhotoUri(uri);
+          const preparedUri = await prepareImage(uri, asset?.width, asset?.height);
+          setPhotoUri(preparedUri);
           setIsPreview(true);
         }
       }
     } catch (err) {
       showPopup(t.camera.galleryError);
+    } finally {
+      setIsPreparingImage(false);
     }
   };
 
@@ -51,6 +80,7 @@ export const DiseaseCameraScreen = ({
 
   const takePicture = async () => {
     try {
+      setIsPreparingImage(true);
       triggerFlashOverlay();
 
       if (canUseCameraComponent) {
@@ -59,22 +89,27 @@ export const DiseaseCameraScreen = ({
           return;
         }
         const photo = await cameraRef.current.takePictureAsync({
-          quality: 0.5,
-          skipProcessing: true,
+          quality: 1,
+          skipProcessing: false,
         });
         if (photo?.uri) {
-          setPhotoUri(photo.uri);
+          const preparedUri = await prepareImage(photo.uri, photo.width, photo.height);
+          setPhotoUri(preparedUri);
           setIsPreview(true);
         }
       } else {
         const result = await ImagePicker.launchCameraAsync({
-          quality: 0.5,
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 1,
           base64: false,
         });
         if (!result.canceled) {
-          const uri = result.assets && result.assets[0] && result.assets[0].uri;
+          const asset = result.assets && result.assets[0];
+          const uri = asset && asset.uri;
           if (uri) {
-            setPhotoUri(uri);
+            const preparedUri = await prepareImage(uri, asset?.width, asset?.height);
+            setPhotoUri(preparedUri);
             setIsPreview(true);
           }
         }
@@ -83,6 +118,7 @@ export const DiseaseCameraScreen = ({
       showPopup(t.camera.photoError);
     } finally {
       setFlashOn(false);
+      setIsPreparingImage(false);
     }
   };
 
@@ -198,6 +234,25 @@ export const DiseaseCameraScreen = ({
           onCancel={handleCancel}
           onSend={handleSend}
         />
+      )}
+
+      {isPreparingImage && (
+        <View
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+            backgroundColor: theme.background + "AA",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ color: theme.text, fontWeight: "600" }}>
+            {t.common.loading}
+          </Text>
+        </View>
       )}
     </View>
   );

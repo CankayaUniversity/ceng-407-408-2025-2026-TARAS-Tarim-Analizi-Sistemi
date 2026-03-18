@@ -29,7 +29,7 @@ export const PhotoPreview = ({
     >
       <Image
         source={{ uri: photoUri }}
-        style={{ width: "86%", height: "60%", borderRadius: 12 }}
+        style={{ width: "86%", aspectRatio: 1, borderRadius: 12 }}
         resizeMode="cover"
       />
       <View style={{ flexDirection: "row", marginTop: 16 }}>

@@ -86,6 +86,16 @@ export const DiseaseResultCard = ({
   const { t, language } = useLanguage();
   const statusInfo = getStatusInfo(detection.status, t);
 
+  // Normalize confidence: backend may return 0-1 float or 0-100, and may use
+  // either the "confidence" field or the "confidence_score" field.
+  const rawConfidence = detection.confidence ?? detection.confidence_score;
+  const confidencePct =
+    rawConfidence != null
+      ? rawConfidence <= 1
+        ? rawConfidence * 100
+        : rawConfidence
+      : null;
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -218,10 +228,44 @@ export const DiseaseResultCard = ({
                       fontWeight: "600",
                     }}
                   >
-                    {detection.confidence?.toFixed(1)}% {t.disease.confidence}
+                    {confidencePct != null ? confidencePct.toFixed(1) : "--"}%{" "}
+                    {t.disease.confidence}
                   </Text>
                 </View>
               </View>
+
+              {detection.all_predictions &&
+                Object.keys(detection.all_predictions).length > 1 && (
+                  <View style={{ marginTop: spacing.xs }}>
+                    <Text
+                      style={{
+                        color: theme.textSecondary,
+                        fontSize: 11,
+                        fontWeight: "600",
+                        marginBottom: 2,
+                      }}
+                    >
+                      {t.disease.allPredictions}
+                    </Text>
+                    {Object.entries(detection.all_predictions)
+                      .sort(([, a], [, b]) => b - a)
+                      .slice(0, 4)
+                      .map(([label, score]) => {
+                        const scorePct = score <= 1 ? score * 100 : score;
+                        return (
+                          <Text
+                            key={label}
+                            style={{
+                              color: theme.textSecondary,
+                              fontSize: 11,
+                            }}
+                          >
+                            {label}: {scorePct.toFixed(1)}%
+                          </Text>
+                        );
+                      })}
+                  </View>
+                )}
             </View>
           )}
 

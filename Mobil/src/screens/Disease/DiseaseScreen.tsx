@@ -10,6 +10,8 @@ import {
   RefreshControl,
   Alert,
   ActivityIndicator,
+  Modal,
+  SafeAreaView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { appStyles } from "../../styles";
@@ -38,6 +40,8 @@ export const DiseaseScreen = ({
   const { t } = useLanguage();
   const [showCamera, setShowCamera] = useState(false);
   const [detections, setDetections] = useState<DiseaseDetection[]>([]);
+  const [selectedDetection, setSelectedDetection] =
+    useState<DiseaseDetection | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
@@ -258,6 +262,7 @@ export const DiseaseScreen = ({
                   detection={detection}
                   theme={theme}
                   imageUrl={imageUrls[detection.detection_id]}
+                  onPress={() => setSelectedDetection(detection)}
                   onDelete={() => handleDeleteDetection(detection.detection_id)}
                 />
               ))
@@ -277,6 +282,253 @@ export const DiseaseScreen = ({
           </TouchableOpacity>
         </>
       )}
+
+      {/* Detail modal - tap any card to inspect all returned fields */}
+      <Modal
+        visible={selectedDetection !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedDetection(null)}
+      >
+        <SafeAreaView
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <View
+            style={{
+              flex: 1,
+              marginTop: 60,
+              backgroundColor: theme.background,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+            }}
+          >
+            {/* Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: spacing.md,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.accent + "20",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 17,
+                  fontWeight: "700",
+                  color: theme.text,
+                }}
+              >
+                {t.disease.detailTitle}
+              </Text>
+              <TouchableOpacity onPress={() => setSelectedDetection(null)}>
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedDetection && (
+              <ScrollView
+                contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}
+                showsVerticalScrollIndicator={false}
+              >
+                <DetailRow label="status" value={selectedDetection.status} theme={theme} />
+                <DetailRow
+                  label="detected_disease"
+                  value={selectedDetection.detected_disease ?? t.disease.detailNoData}
+                  theme={theme}
+                  bold
+                />
+                <DetailRow
+                  label={t.disease.detailConfidenceRaw}
+                  value={
+                    selectedDetection.confidence != null
+                      ? String(selectedDetection.confidence)
+                      : t.disease.detailNoData
+                  }
+                  theme={theme}
+                />
+                <DetailRow
+                  label={t.disease.detailConfidenceScore}
+                  value={
+                    selectedDetection.confidence_score != null
+                      ? String(selectedDetection.confidence_score)
+                      : t.disease.detailNoData
+                  }
+                  theme={theme}
+                />
+
+                {/* All predictions */}
+                <View
+                  style={{
+                    backgroundColor: theme.surface,
+                    borderRadius: spacing.sm,
+                    padding: spacing.sm,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.textSecondary,
+                      fontSize: 11,
+                      fontWeight: "600",
+                      marginBottom: spacing.xs,
+                    }}
+                  >
+                    all_predictions
+                  </Text>
+                  {selectedDetection.all_predictions &&
+                  Object.keys(selectedDetection.all_predictions).length > 0 ? (
+                    Object.entries(selectedDetection.all_predictions)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([label, score]) => {
+                        const pct = score <= 1 ? score * 100 : score;
+                        return (
+                          <View
+                            key={label}
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              paddingVertical: 2,
+                              borderBottomWidth: 1,
+                              borderBottomColor: theme.accent + "10",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color: theme.text,
+                                fontSize: 12,
+                                flex: 1,
+                              }}
+                              numberOfLines={2}
+                            >
+                              {label}
+                            </Text>
+                            <Text
+                              style={{
+                                color: theme.accent,
+                                fontSize: 12,
+                                fontWeight: "600",
+                                marginLeft: spacing.sm,
+                              }}
+                            >
+                              {pct.toFixed(2)}%
+                            </Text>
+                          </View>
+                        );
+                      })
+                  ) : (
+                    <Text
+                      style={{ color: theme.textSecondary, fontSize: 12 }}
+                    >
+                      {t.disease.detailNoData}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Recommendations */}
+                {selectedDetection.recommendations &&
+                  selectedDetection.recommendations.length > 0 && (
+                    <View
+                      style={{
+                        backgroundColor: theme.surface,
+                        borderRadius: spacing.sm,
+                        padding: spacing.sm,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: theme.textSecondary,
+                          fontSize: 11,
+                          fontWeight: "600",
+                          marginBottom: spacing.xs,
+                        }}
+                      >
+                        {t.disease.detailRecommendations}
+                      </Text>
+                      {selectedDetection.recommendations.map((rec, i) => (
+                        <Text
+                          key={i}
+                          style={{ color: theme.text, fontSize: 12, marginBottom: 2 }}
+                        >
+                          • {rec}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+
+                <DetailRow
+                  label={t.disease.detailDetectionId}
+                  value={selectedDetection.detection_id}
+                  theme={theme}
+                  mono
+                />
+                <DetailRow
+                  label="uploaded_at"
+                  value={selectedDetection.uploaded_at}
+                  theme={theme}
+                />
+                <DetailRow
+                  label="processing_started_at"
+                  value={selectedDetection.processing_started_at ?? t.disease.detailNoData}
+                  theme={theme}
+                />
+                <DetailRow
+                  label="completed_at"
+                  value={selectedDetection.completed_at ?? t.disease.detailNoData}
+                  theme={theme}
+                />
+                {selectedDetection.error_message && (
+                  <DetailRow
+                    label="error_message"
+                    value={selectedDetection.error_message}
+                    theme={theme}
+                  />
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 };
+
+interface DetailRowProps {
+  label: string;
+  value: string;
+  theme: Theme;
+  bold?: boolean;
+  mono?: boolean;
+}
+
+const DetailRow = ({ label, value, theme, bold, mono }: DetailRowProps) => (
+  <View
+    style={{
+      backgroundColor: theme.surface,
+      borderRadius: spacing.sm,
+      padding: spacing.sm,
+    }}
+  >
+    <Text
+      style={{
+        color: theme.textSecondary,
+        fontSize: 11,
+        fontWeight: "600",
+        marginBottom: 2,
+      }}
+    >
+      {label}
+    </Text>
+    <Text
+      style={{
+        color: theme.text,
+        fontSize: bold ? 15 : 13,
+        fontWeight: bold ? "700" : "400",
+        fontFamily: mono ? "monospace" : undefined,
+      }}
+      selectable
+    >
+      {value}
+    </Text>
+  </View>
+);

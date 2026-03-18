@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import { io, Socket } from "socket.io-client";
 import type { FieldData } from "./fieldPlaceholder";
-import { compressImage } from "./imageCompression";
+
 import { fetchWithTimeout } from "./fetchWithTimeout";
 
 // Environment variables from app.config.js
@@ -503,11 +503,9 @@ export const diseaseAPI = {
     if (!token) return { success: false, error: "Oturum bulunamadı" };
 
     try {
-      const compressedUri = await compressImage(imageUri, 200, 720, 720);
-
       const formData = new FormData();
       formData.append("image", {
-        uri: compressedUri,
+        uri: imageUri,
         type: "image/jpeg",
         name: "leaf.jpg",
       } as any);
@@ -528,7 +526,9 @@ export const diseaseAPI = {
         return { success: false, error: `API Error: ${res.status}` };
       }
 
-      return await res.json();
+      const json = await res.json();
+      console.log("[DISEASE] submit response:", JSON.stringify(json));
+      return json;
     } catch (error) {
       console.log("[DISEASE] submit err:", error);
       return { success: false, error: "Görsel gönderilemedi" };
@@ -576,10 +576,15 @@ export const diseaseAPI = {
       onProgress?.(detection.status);
 
       if (detection.status === "COMPLETED") {
+        console.log(
+          "[DISEASE] poll COMPLETED:",
+          JSON.stringify(detection, null, 2),
+        );
         return detection;
       }
 
       if (detection.status === "FAILED") {
+        console.log("[DISEASE] poll FAILED:", detection.error_message);
         throw new Error(detection.error_message || "Detection failed");
       }
 
