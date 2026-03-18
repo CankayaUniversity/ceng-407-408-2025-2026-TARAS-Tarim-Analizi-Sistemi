@@ -10,8 +10,10 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
+  const dbUrl = process.env.DATABASE_URL || "";
+
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
     ssl: process.env.DATABASE_SSL === "false"
       ? undefined
       : { rejectUnauthorized: false },

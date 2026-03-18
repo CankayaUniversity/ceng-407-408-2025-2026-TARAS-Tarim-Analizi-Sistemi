@@ -83,10 +83,20 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
   }
 }
 
-async function checkZoneAccess(
-  userId: string,
-  zoneId: string,
-): Promise<boolean> {
+// Erisim kontrolu — zone verisini dondurur, basarisizsa response gonderir
+async function requireZoneAccess(req: Request, res: Response, zoneId: string | undefined) {
+  const userId = (req as any).user?.user_id;
+
+  if (!userId) {
+    res.status(401).json({ success: false, error: "Authentication required" });
+    return null;
+  }
+
+  if (!zoneId) {
+    res.status(400).json({ success: false, error: "Zone ID is required" });
+    return null;
+  }
+
   const zone = await prisma.zone.findUnique({
     where: { zone_id: zoneId },
     include: {
@@ -98,11 +108,12 @@ async function checkZoneAccess(
     },
   });
 
-  if (!zone?.field?.farm) {
-    return false;
+  if (!zone?.field?.farm || zone.field.farm.user_id !== userId) {
+    res.status(403).json({ success: false, error: "You do not have access to this zone" });
+    return null;
   }
 
-  return zone.field.farm.user_id === userId;
+  return zone;
 }
 
 export async function getSensorsByZone(
@@ -110,42 +121,18 @@ export async function getSensorsByZone(
   res: Response,
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const zone = await requireZoneAccess(req, res, zoneId);
+    if (!zone) return;
+
     const limit = req.query.limit;
-
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
-
     const readingLimit = getNumberParam(limit, 10);
-    const sensors = await sensorNodeService.getSensorNodesForZone(zoneId, readingLimit);
+    const sensors = await sensorNodeService.getSensorNodesForZone(zone.zone_id, readingLimit);
 
     res.status(200).json({
       success: true,
       data: {
-        zone_id: zoneId,
+        zone_id: zone.zone_id,
         sensor_count: sensors.length,
         sensors: sensors.map((sensor) => ({
           node_id: sensor.node_id,
@@ -170,35 +157,11 @@ export async function getSensorsByZone(
 
 export async function getLatestReadings(req: Request, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const zone = await requireZoneAccess(req, res, zoneId);
+    if (!zone) return;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
-
-    const sensors = await sensorNodeService.getSensorNodesForZone(zoneId, 1);
+    const sensors = await sensorNodeService.getSensorNodesForZone(zone.zone_id, 1);
 
     const latestData = sensors.map((sensor) => {
       const reading = sensor.readings[0];
@@ -224,7 +187,7 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
     res.status(200).json({
       success: true,
       data: {
-        zone_id: zoneId,
+        zone_id: zone.zone_id,
         timestamp: new Date(),
         sensors: latestData,
       },
@@ -240,36 +203,13 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
 
 export async function getZoneHistory(req: Request, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const zone = await requireZoneAccess(req, res, zoneId);
+    if (!zone) return;
+
     const startTime = getStringParam(req.query.startTime);
     const endTime = getStringParam(req.query.endTime);
     const nodeId = getStringParam(req.query.nodeId);
-
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
 
     const end = endTime ? new Date(endTime) : new Date();
     const start = startTime
@@ -284,23 +224,20 @@ export async function getZoneHistory(req: Request, res: Response): Promise<void>
         end,
       );
     } else {
-      const sensors = await prisma.sensorNode.findMany({
-        where: { zone_id: zoneId },
+      // Tek sorgu ile tum zone sensorlerinin okumalarini cek
+      readings = await prisma.sensorReading.findMany({
+        where: {
+          node: { zone_id: zone.zone_id },
+          created_at: { gte: start, lte: end },
+        },
+        orderBy: { created_at: "asc" },
       });
-
-      const allReadings = await Promise.all(
-        sensors.map((sensor) =>
-          sensorNodeService.getReadingsInTimeRange(sensor.node_id, start, end),
-        ),
-      );
-
-      readings = allReadings.flat();
     }
 
     res.status(200).json({
       success: true,
       data: {
-        zone_id: zoneId,
+        zone_id: zone.zone_id,
         time_range: {
           start,
           end,
@@ -331,35 +268,11 @@ export async function getZoneDetails(
   res: Response,
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const accessZone = await requireZoneAccess(req, res, zoneId);
+    if (!accessZone) return;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
-
-    const zone = await sensorNodeService.getZoneWithAdaptiveControl(zoneId);
+    const zone = await sensorNodeService.getZoneWithAdaptiveControl(accessZone.zone_id);
 
     if (!zone) {
       res.status(404).json({

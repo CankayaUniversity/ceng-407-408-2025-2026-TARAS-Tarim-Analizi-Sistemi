@@ -13,6 +13,7 @@
     "prisma:studio": "prisma studio",
     "prisma:push": "prisma db push",
     "prisma:seed": "prisma db seed",
+    "generate:tarik": "ts-node --require tsconfig-paths/register prisma/generate-tarik-data.ts",
     "lint": "eslint src/**/*.ts",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",

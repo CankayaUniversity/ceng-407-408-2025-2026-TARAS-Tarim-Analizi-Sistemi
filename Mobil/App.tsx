@@ -24,6 +24,12 @@ if (__DEV__) {
     if (SUPPRESSED_LOGS.some((s) => msg.includes(s))) return;
     _warn(...args);
   };
+  const _log = console.log.bind(console);
+  console.log = (...args: unknown[]) => {
+    const msg = String(args[0] ?? "");
+    if (SUPPRESSED_LOGS.some((s) => msg.includes(s))) return;
+    _log(...args);
+  };
 }
 import {
   Text,

@@ -1,11 +1,11 @@
 import json
-import base64
 import logging
 import io
 from typing import Dict, Any
 import numpy as np
 from PIL import Image
 import tensorflow as tf
+import boto3
 
 # Configure logging
 logger = logging.getLogger()
@@ -261,14 +261,21 @@ def get_disease_recommendations(disease: str) -> list:
     return recommendations_map.get(disease, ["Consult agricultural extension for unknown disease"])
 
 
+def fetch_image_from_s3(bucket: str, key: str) -> bytes:
+    """S3'ten goruntu indir"""
+    s3 = boto3.client("s3")
+    response = s3.get_object(Bucket=bucket, Key=key)
+    return response["Body"].read()
+
+
 def handler(event, context) -> Dict[str, Any]:
     """
     AWS Lambda handler for disease detection
 
     Expected event format:
     {
-        "image": "base64_encoded_image_data"  // or
-        "imageUrl": "s3://bucket/path/to/image.jpg"
+        "s3_bucket": "taras-images",
+        "s3_key": "disease-detection/uuid.jpg"
     }
     """
     try:
@@ -277,21 +284,12 @@ def handler(event, context) -> Dict[str, Any]:
         if isinstance(event.get('body'), str):
             body = json.loads(event['body'])
 
-        # Get image data
-        image_data = None
+        if 's3_bucket' not in body or 's3_key' not in body:
+            raise ValueError("Missing 's3_bucket' or 's3_key' in request")
 
-        if 'image' in body:
-            # Base64 encoded image
-            image_b64 = body['image']
-            image_data = base64.b64decode(image_b64)
-
-        elif 'imageUrl' in body:
-            # URL-based image (requires additional setup)
-            # For now, not implemented - use base64 instead
-            raise ValueError("imageUrl not yet supported. Please use base64 encoded image data.")
-
-        else:
-            raise ValueError("Missing 'image' or 'imageUrl' in request")
+        # S3'ten goruntu indir
+        logger.info(f"Fetching image from S3: s3://{body['s3_bucket']}/{body['s3_key']}")
+        image_data = fetch_image_from_s3(body['s3_bucket'], body['s3_key'])
 
         # Run detection
         result = detect_disease(image_data)

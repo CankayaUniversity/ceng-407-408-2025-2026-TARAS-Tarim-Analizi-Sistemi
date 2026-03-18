@@ -218,6 +218,7 @@ model SensorReading {
 
   @@index([created_at], name: "idx_readings_time")
   @@index([node_id], name: "idx_readings_node")
+  @@index([node_id, created_at(sort: Desc)], name: "idx_readings_node_latest")
   @@map("sensor_readings")
 }
 
@@ -243,6 +244,7 @@ model IrrigationJob {
   trigger_reading SensorReading? @relation("TriggerReading", fields: [trigger_reading_id], references: [id])
   result_reading  SensorReading? @relation("ResultReading", fields: [result_reading_id], references: [id])
 
+  @@index([zone_id, status])
   @@map("irrigation_jobs")
 }
 
@@ -287,6 +289,7 @@ model Alert {
 
   user User? @relation(fields: [user_id], references: [user_id])
 
+  @@index([user_id, is_read])
   @@map("alerts")
 }
 
@@ -310,6 +313,7 @@ model ChatMessage {
 
   session ChatSession? @relation(fields: [session_id], references: [session_id])
 
+  @@index([session_id])
   @@map("chat_messages")
 }
 

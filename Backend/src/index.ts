@@ -10,9 +10,9 @@ dotenv.config();
 
 // BigInt JSON serialization fix
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
-import { initializeDatabase } from './config/database';
+import { initializeDatabase, disconnectDatabase } from './config/database';
 import { initializeSocketIO } from './config/socket';
-import { initializeMQTT } from './config/mqtt';
+import { initializeMQTT, disconnectMQTT } from './config/mqtt';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { debugLogger } from './middleware/debug.middleware';
@@ -85,8 +85,10 @@ async function startServer(): Promise<void> {
   }
 }
 
-const shutdown = () => {
+const shutdown = async () => {
   logger.info('Shutting down...');
+  disconnectMQTT();
+  await disconnectDatabase();
   httpServer.close(() => process.exit(0));
 };
 

@@ -19,6 +19,7 @@ export async function processSensorData(
   try {
     const sensorNode = await prisma.sensorNode.findUnique({
       where: { hardware_mac: macAddress },
+      include: { zone: true },
     });
 
     if (!sensorNode) {
@@ -26,10 +27,17 @@ export async function processSensorData(
       return;
     }
 
-    await prisma.sensorNode.update({
-      where: { node_id: sensorNode.node_id },
-      data: { battery_level: 0 },
-    });
+    // Pil verisi geldiyse battery_level guncelle
+    const payloadType = payload.type.toLowerCase();
+    if (payloadType === "battery" || payload.metadata?.battery != null) {
+      const batteryValue = payloadType === "battery"
+        ? payload.value
+        : Number(payload.metadata!.battery);
+      await prisma.sensorNode.update({
+        where: { node_id: sensorNode.node_id },
+        data: { battery_level: batteryValue },
+      });
+    }
 
     const typeMapping: Record<string, string> = {
       moisture: 'MOISTURE',
@@ -66,7 +74,13 @@ export async function processSensorData(
       timestamp: reading.created_at,
     };
 
-    emitSensorUpdate('sensor-update', updateData);
+    // Socket.io ile ilgili field odasina gonder
+    const fieldId = sensorNode.zone?.field_id;
+    if (fieldId) {
+      emitSensorUpdate(fieldId, updateData);
+    } else {
+      logger.warn(`[SOCKET] field_id bulunamadi, sensor: ${macAddress}`);
+    }
 
     await checkAlerts(reading, sensorNode);
 

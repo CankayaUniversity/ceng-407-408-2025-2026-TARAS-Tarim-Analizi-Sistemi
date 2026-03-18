@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { ChatMessage } from "../types";
 import { ScreenType } from "../constants";
-import { API_HOST } from "../utils/api";
+import { API_HOST, authAPI } from "../utils/api";
 
 const ADVISORY_STREAM_URL = `${API_HOST}/api/advisory/stream`;
 
@@ -24,7 +24,7 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
     zoneIdRef.current = zoneId;
   }, [zoneId]);
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     const text = chatInput.trim();
     if (!text || isLoading) return;
 
@@ -62,9 +62,12 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
 
     const sessionIdSnapshot = sessionId;
 
+    const token = await authAPI.getToken();
+
     const xhr = new XMLHttpRequest();
     xhr.open("POST", ADVISORY_STREAM_URL);
     xhr.setRequestHeader("Content-Type", "application/json");
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.timeout = 60000;
 
     let byteOffset = 0;

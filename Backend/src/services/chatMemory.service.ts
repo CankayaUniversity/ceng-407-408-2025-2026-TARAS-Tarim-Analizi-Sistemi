@@ -12,13 +12,14 @@ interface ChatHistoryMessage {
  */
 export const getSessionHistory = async (sessionId: string): Promise<ChatHistoryMessage[]> => {
   try {
+    // Son 10 mesaji cek (desc) ve kronolojik siraya cevir
     const history = await prisma.chatMessage.findMany({
       where: { session_id: sessionId },
-      orderBy: { created_at: "asc" },
+      orderBy: { created_at: "desc" },
       take: 10,
     });
 
-    return history.map((msg) => ({
+    return history.reverse().map((msg) => ({
       role: (msg.sender === "user" ? "user" : "model") as "user" | "model",
       content: msg.content || "",
     }));

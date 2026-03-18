@@ -219,11 +219,23 @@ export async function getUserFarmsWithSensors(userId: string) {
             include: {
               details: true,
               sensor_nodes: {
-                include: {
+                select: {
+                  node_id: true,
+                  status: true,
+                  battery_level: true,
+                  x: true,
+                  z: true,
                   readings: {
                     where: { created_at: { lte: now } },
                     orderBy: { created_at: "desc" },
                     take: 1,
+                    select: {
+                      id: true,
+                      sm_percent: true,
+                      temperature: true,
+                      humidity: true,
+                      created_at: true,
+                    },
                   },
                 },
               },
@@ -324,6 +336,7 @@ export async function getFieldSensorHistory(
                   },
                 },
                 orderBy: { created_at: "asc" },
+                take: 5000,
                 select: {
                   id: true,
                   node_id: true,

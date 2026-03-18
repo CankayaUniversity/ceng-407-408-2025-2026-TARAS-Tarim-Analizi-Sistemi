@@ -18,14 +18,17 @@ export const getTarasAdvice = asyncHandler(
       return;
     }
 
-    // Session yönetimi
+    // Session yonetimi
+    const userId = (req as any).user?.user_id;
     let currentSessionId = session_id as string | undefined;
     if (!currentSessionId) {
-      const newSession = await prisma.chatSession.create({ data: {} });
+      const newSession = await prisma.chatSession.create({
+        data: { user_id: userId },
+      });
       currentSessionId = newSession.session_id;
     }
 
-    // Kullanıcı mesajını kaydet + tarla verilerini çek (paralel)
+    // Kullanici mesajini kaydet + tarla verilerini cek (paralel)
     const [, zoneContext] = await Promise.all([
       saveMessage(currentSessionId, "user", message),
       getZoneContextForLLM(zone_id),
@@ -36,7 +39,7 @@ export const getTarasAdvice = asyncHandler(
       return;
     }
 
-    // LLM yanıtı üret
+    // LLM yaniti uret
     const llmResponse = await generateAdvisory(zoneContext, message, currentSessionId);
 
     // Asistan yanıtını kaydet
@@ -62,14 +65,17 @@ export const getTarasAdviceStream = asyncHandler(
       return;
     }
 
-    // Session yönetimi
+    // Session yonetimi
+    const userId = (req as any).user?.user_id;
     let currentSessionId = session_id as string | undefined;
     if (!currentSessionId) {
-      const newSession = await prisma.chatSession.create({ data: {} });
+      const newSession = await prisma.chatSession.create({
+        data: { user_id: userId },
+      });
       currentSessionId = newSession.session_id;
     }
 
-    // Kullanıcı mesajını kaydet + tarla verilerini çek (paralel)
+    // Kullanici mesajini kaydet + tarla verilerini cek (paralel)
     const [, zoneContext] = await Promise.all([
       saveMessage(currentSessionId, "user", message),
       getZoneContextForLLM(zone_id),
@@ -80,7 +86,7 @@ export const getTarasAdviceStream = asyncHandler(
       return;
     }
 
-    // SSE başlıkları
+    // SSE basliklari
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");

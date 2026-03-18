@@ -2,7 +2,7 @@ import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { randomUUID } from "crypto";
 import { DetectionStatus } from "../generated/prisma";
 import { prisma } from "../config/database";
-import { uploadToS3, generatePresignedDownloadUrl } from "./s3.service";
+import { uploadToS3, generatePresignedDownloadUrl, deleteFromS3 } from "./s3.service";
 import logger from "../utils/logger";
 
 const lambdaClient = new LambdaClient({
@@ -67,7 +67,7 @@ export async function submitDetectionRequest(
       imageUuid,
     });
 
-    invokeLambdaAsync(detection.detection_id, imageUuid, imageBuffer).catch((error) => {
+    invokeLambdaAsync(detection.detection_id, imageUuid, s3Key).catch((error) => {
       logger.error(`Async Lambda invocation failed for detection ${detection.detection_id}:`, error);
       // Update status to FAILED
       prisma.diseaseDetection
@@ -96,7 +96,7 @@ export async function submitDetectionRequest(
   }
 }
 
-async function invokeLambdaAsync(detectionId: string, imageUuid: string, imageBuffer: Buffer): Promise<void> {
+async function invokeLambdaAsync(detectionId: string, imageUuid: string, s3Key: string): Promise<void> {
   try {
     await prisma.diseaseDetection.update({
       where: { detection_id: detectionId },
@@ -105,7 +105,8 @@ async function invokeLambdaAsync(detectionId: string, imageUuid: string, imageBu
 
     logger.info(`Starting Lambda invocation for detection ${detectionId}`, { imageUuid });
 
-    const payload = { image: imageBuffer.toString("base64") };
+    // S3 key gonder — Lambda goruntuyu S3'ten okur (6MB payload limitini onler)
+    const payload = { s3_bucket: DISEASE_DETECTION_BUCKET, s3_key: s3Key };
     const command = new InvokeCommand({
       FunctionName: LAMBDA_FUNCTION_NAME,
       InvocationType: "RequestResponse",
@@ -205,6 +206,7 @@ export async function deleteDetection(detectionId: string, userId: string): Prom
       where: { detection_id: detectionId, user_id: userId },
     });
     if (!detection) throw new Error("Detection not found or access denied");
+    await deleteFromS3(DISEASE_DETECTION_BUCKET, detection.image_s3_key);
     await prisma.diseaseDetection.delete({ where: { detection_id: detectionId } });
     logger.info(`Detection ${detectionId} deleted successfully`);
   } catch (error) {
