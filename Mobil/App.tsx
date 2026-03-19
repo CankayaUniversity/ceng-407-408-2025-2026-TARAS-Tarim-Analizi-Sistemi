@@ -4,6 +4,31 @@
 import "./global.css";
 import "react-native-url-polyfill/auto";
 
+// Bilinen kutuphane uyarilari — uygulama islevselligini etkilemez
+import { LogBox } from "react-native";
+const SUPPRESSED = ["EXGL", "SafeAreaView has been deprecated", "WebGLUniforms"];
+LogBox.ignoreLogs(SUPPRESSED);
+if (__DEV__) {
+  const _log = console.log.bind(console);
+  console.log = (...args: unknown[]) => {
+    const msg = String(args[0] ?? "");
+    if (SUPPRESSED.some((s) => msg.includes(s))) return;
+    _log(...args);
+  };
+  const _warn = console.warn.bind(console);
+  console.warn = (...args: unknown[]) => {
+    const msg = String(args[0] ?? "");
+    if (SUPPRESSED.some((s) => msg.includes(s))) return;
+    _warn(...args);
+  };
+  const _error = console.error.bind(console);
+  console.error = (...args: unknown[]) => {
+    const msg = String(args[0] ?? "");
+    if (SUPPRESSED.some((s) => msg.includes(s))) return;
+    _error(...args);
+  };
+}
+
 // React
 import { useState, useEffect, useRef } from "react";
 

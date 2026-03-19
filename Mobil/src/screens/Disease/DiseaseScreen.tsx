@@ -11,8 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { appStyles } from "../../styles";
 import { Theme } from "../../utils/theme";
@@ -58,19 +58,10 @@ export const DiseaseScreen = ({
       if (response.success && response.data) {
         setDetections(response.data.detections);
 
-        // Fetch image URLs for all detections
+        // URL'ler artik response icinde geliyor (backend paralel olusturuyor)
         const urls: Record<string, string> = {};
-        for (const detection of response.data.detections) {
-          try {
-            const imgResponse = await diseaseAPI.getImageUrl(
-              detection.detection_id,
-            );
-            if (imgResponse.success && imgResponse.data) {
-              urls[detection.detection_id] = imgResponse.data.imageUrl;
-            }
-          } catch {
-            // Ignore errors for individual images
-          }
+        for (const d of response.data.detections) {
+          if (d.imageUrl) urls[d.detection_id] = d.imageUrl;
         }
         setImageUrls(urls);
       }

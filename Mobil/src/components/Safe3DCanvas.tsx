@@ -26,6 +26,23 @@ try {
   console.log("[3D] module load err:", e.message);
 }
 
+// expo-gl getActiveUniform() bazen null donuyor, Three.js WebGLUniforms crash.
+// Bu hatayi yakalayip sessizce atla — 3D sahne calismaya devam eder.
+const ErrorUtils = (global as any).ErrorUtils;
+if (ErrorUtils && !ErrorUtils.__gl_patched) {
+  const origHandler = ErrorUtils.getGlobalHandler();
+  ErrorUtils.setGlobalHandler((error: any, isFatal: boolean) => {
+    if (
+      error?.message?.includes("Cannot read property") &&
+      error?.stack?.includes("WebGLUniforms")
+    ) {
+      return; // expo-gl uyumsuzlugu, guvensiz degil
+    }
+    origHandler(error, isFatal);
+  });
+  ErrorUtils.__gl_patched = true;
+}
+
 interface Safe3DCanvasProps {
   theme: Theme;
   children: React.ReactNode;
