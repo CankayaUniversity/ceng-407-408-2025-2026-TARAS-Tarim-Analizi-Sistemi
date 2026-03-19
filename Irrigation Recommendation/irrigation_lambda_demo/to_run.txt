@@ -1,0 +1,9 @@
+in terminal, in the same folder as the container, to build:
+docker build -t irrigation-lambda-demo .
+
+in the same terminal as the previous:
+docker run -p 9000:8080 -e GEMINI_API_KEY="KEY" -e MODEL_NAME="gemini-3-flash-preview" irrigation-lambda-demo
+
+in another terminal, doesnt't matter in which folder it is:
+$response = Invoke-RestMethod -Method Post -Uri "http://localhost:9000/2015-03-31/functions/function/invocations" -Body "{}"
+$response.body
