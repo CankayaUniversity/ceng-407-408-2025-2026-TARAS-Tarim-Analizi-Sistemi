@@ -179,6 +179,7 @@ export interface StringDictionary {
   chat: {
     title: string;
     placeholder: string;
+    newChat: string;
   };
 
   // Network Diagnostics
@@ -402,6 +403,7 @@ const tr: StringDictionary = {
   chat: {
     title: "TarasMobil Asistanı",
     placeholder: "Mesajınızı yazın...",
+    newChat: "Yeni Sohbet",
   },
 
   networkDiag: {
@@ -622,6 +624,7 @@ const en: StringDictionary = {
   chat: {
     title: "TarasMobil Assistant",
     placeholder: "Type your message...",
+    newChat: "New Chat",
   },
 
   networkDiag: {

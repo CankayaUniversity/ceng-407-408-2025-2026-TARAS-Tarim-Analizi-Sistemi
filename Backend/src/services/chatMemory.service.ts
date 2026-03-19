@@ -49,3 +49,27 @@ export const saveMessage = async (
     logger.error("Mesaj kaydetme hatası:", error);
   }
 };
+
+/**
+ * Kullanicinin belirli tarla icin en son chat session'ini bul
+ */
+export const getFieldSession = async (
+  userId: string,
+  fieldId: string,
+) => {
+  return prisma.chatSession.findFirst({
+    where: { user_id: userId, field_id: fieldId },
+    orderBy: { started_at: "desc" },
+  });
+};
+
+/**
+ * Session'a ait tum mesajlari getir (son 50)
+ */
+export const getSessionMessages = async (sessionId: string) => {
+  return prisma.chatMessage.findMany({
+    where: { session_id: sessionId },
+    orderBy: { created_at: "asc" },
+    take: 50,
+  });
+};

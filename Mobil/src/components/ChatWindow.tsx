@@ -24,9 +24,11 @@ interface ChatWindowProps {
   chatHeight: number;
   keyboardHeight: number;
   theme: Theme;
+  isLoading?: boolean;
   onClose: () => void;
   onSendMessage: () => void;
   onInputChange: (text: string) => void;
+  onNewChat?: () => void;
 }
 
 export const ChatWindow = ({
@@ -36,9 +38,11 @@ export const ChatWindow = ({
   chatHeight,
   keyboardHeight,
   theme,
+  isLoading,
   onClose,
   onSendMessage,
   onInputChange,
+  onNewChat,
 }: ChatWindowProps) => {
   const { t } = useLanguage();
   const scrollViewRef = useRef<ScrollView>(null);
@@ -103,12 +107,24 @@ export const ChatWindow = ({
               <MaterialCommunityIcons name="robot" size={24} color="#fff" />
               <Text style={styles.chatHeaderTitle}>{t.chat.title}</Text>
             </View>
-            <TouchableOpacity
-              onPress={onClose}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialCommunityIcons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.chatHeaderRight}>
+              {onNewChat && (
+                <TouchableOpacity
+                  onPress={onNewChat}
+                  disabled={isLoading}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  style={{ marginRight: 12, opacity: isLoading ? 0.4 : 1 }}
+                >
+                  <MaterialCommunityIcons name="chat-plus-outline" size={22} color="#fff" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={onClose}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialCommunityIcons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Mesajlar */}
@@ -291,6 +307,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   chatHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  chatHeaderRight: { flexDirection: "row", alignItems: "center" },
   chatHeaderTitle: { fontSize: 17, fontWeight: "700", color: "#fff" },
   messagesScroll: { flex: 1 },
   messagesContent: { padding: 16, gap: 12 },

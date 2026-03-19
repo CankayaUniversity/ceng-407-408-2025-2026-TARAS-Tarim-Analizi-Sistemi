@@ -67,7 +67,7 @@ export async function submitDetectionRequest(
       imageUuid,
     });
 
-    invokeLambdaAsync(detection.detection_id, imageUuid, s3Key).catch((error) => {
+    invokeLambdaAsync(detection.detection_id, s3Key).catch((error) => {
       logger.error(`Async Lambda invocation failed for detection ${detection.detection_id}:`, error);
       // Update status to FAILED
       prisma.diseaseDetection
@@ -96,7 +96,7 @@ export async function submitDetectionRequest(
   }
 }
 
-async function invokeLambdaAsync(detectionId: string, imageUuid: string, s3Key: string): Promise<void> {
+async function invokeLambdaAsync(detectionId: string, s3Key: string): Promise<void> {
   try {
     await prisma.diseaseDetection.update({
       where: { detection_id: detectionId },

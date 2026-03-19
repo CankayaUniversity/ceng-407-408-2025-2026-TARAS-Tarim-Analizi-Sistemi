@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "../types";
 import { ScreenType } from "../constants";
 import { API_HOST, authAPI } from "../utils/api";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
 const ADVISORY_STREAM_URL = `${API_HOST}/api/advisory/stream`;
+const SESSION_URL = `${API_HOST}/api/advisory/session`;
 
 const WELCOME: ChatMessage = {
   id: "1",
@@ -12,31 +14,92 @@ const WELCOME: ChatMessage = {
   timestamp: new Date(),
 };
 
-export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string | null) => {
+export const useChat = (_setScreen: (screen: ScreenType) => void, fieldId: string | null) => {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [chatInput, setChatInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Ref ile her zaman guncel zoneId'ye eris
-  const zoneIdRef = useRef(zoneId);
+  const fieldIdRef = useRef(fieldId);
   useEffect(() => {
-    zoneIdRef.current = zoneId;
-  }, [zoneId]);
+    fieldIdRef.current = fieldId;
+  }, [fieldId]);
+
+  // Tarla degisince mevcut session'i yukle
+  const loadFieldSession = useCallback(async (fId: string) => {
+    try {
+      const token = await authAPI.getToken();
+      if (!token) return;
+
+      const res = await fetchWithTimeout(
+        `${SESSION_URL}?field_id=${fId}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        },
+        10000,
+      );
+
+      const data = await res.json();
+      if (data.success && data.data) {
+        if (data.data.session_id && data.data.messages.length > 0) {
+          console.log("[CHAT] session yuklendi:", data.data.messages.length, "mesaj");
+          setSessionId(data.data.session_id);
+          setMessages([
+            WELCOME,
+            ...data.data.messages.map((m: any) => ({
+              id: m.id,
+              text: m.text,
+              sender: m.sender as "user" | "assistant",
+              timestamp: new Date(m.timestamp),
+            })),
+          ]);
+        } else {
+          console.log("[CHAT] yeni tarla, session yok");
+          setSessionId(null);
+          setMessages([WELCOME]);
+        }
+      }
+    } catch {
+      console.log("[CHAT] session yuklenemedi");
+      setSessionId(null);
+      setMessages([WELCOME]);
+    }
+  }, []);
+
+  // fieldId degisince session degistir
+  useEffect(() => {
+    if (fieldId) {
+      loadFieldSession(fieldId);
+    } else {
+      setSessionId(null);
+      setMessages([WELCOME]);
+    }
+  }, [fieldId, loadFieldSession]);
+
+  // Yeni sohbet baslat
+  const startNewChat = useCallback(() => {
+    console.log("[CHAT] yeni sohbet");
+    setSessionId(null);
+    setMessages([WELCOME]);
+    setChatInput("");
+  }, []);
 
   const sendMessage = async () => {
     const text = chatInput.trim();
     if (!text || isLoading) return;
 
-    const currentZoneId = zoneIdRef.current;
-    if (!currentZoneId) {
-      const noZoneMsg: ChatMessage = {
+    const currentFieldId = fieldIdRef.current;
+    if (!currentFieldId) {
+      const noFieldMsg: ChatMessage = {
         id: "error-" + Date.now(),
         text: "Henüz tarla verisi yüklenmedi. Lütfen bir tarla seçin ve tekrar deneyin.",
         sender: "assistant",
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, noZoneMsg]);
+      setMessages((prev) => [...prev, noFieldMsg]);
       return;
     }
 
@@ -47,7 +110,7 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
       timestamp: new Date(),
     };
 
-    // Boş asistan mesajı ekle — stream geldikçe doldurulacak
+    // Bos asistan mesaji ekle — stream geldikce doldurulacak
     const streamingId = "streaming-" + (Date.now() + 1);
     const streamingMsg: ChatMessage = {
       id: streamingId,
@@ -61,7 +124,6 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
     setIsLoading(true);
 
     const sessionIdSnapshot = sessionId;
-
     const token = await authAPI.getToken();
 
     const xhr = new XMLHttpRequest();
@@ -77,7 +139,7 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
       const newData = responseText.slice(byteOffset);
       byteOffset = responseText.length;
 
-      // SSE satırlarını işle
+      // SSE satirlarini isle
       const lines = newData.split("\n");
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
@@ -121,7 +183,6 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
     };
 
     xhr.onload = () => {
-      // Son kalan veriyi işle
       parseNewChunks(xhr.responseText);
 
       if (!accumulated) {
@@ -159,11 +220,11 @@ export const useChat = (_setScreen: (screen: ScreenType) => void, zoneId: string
     xhr.send(
       JSON.stringify({
         message: text,
-        zone_id: currentZoneId,
+        field_id: currentFieldId,
         session_id: sessionIdSnapshot,
       }),
     );
   };
 
-  return { messages, chatInput, setChatInput, sendMessage, isLoading };
+  return { messages, chatInput, setChatInput, sendMessage, isLoading, startNewChat };
 };

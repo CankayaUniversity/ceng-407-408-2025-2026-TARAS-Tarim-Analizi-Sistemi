@@ -1,6 +1,6 @@
 // 3D tarla gorsellestirme - nem bazli renk haritalama ve sensor nodelari
 // Props: fieldData, isDark, isActive, onNodeSelect, selectedNodeId, onCameraConfigChange
-import { useRef, useState, useMemo, useEffect, useCallback } from "react";
+import { useRef, useState, useMemo, useEffect, useCallback, memo } from "react";
 import { useFrame, useThree } from "@react-three/fiber/native";
 import {
   FieldData,
@@ -187,7 +187,7 @@ function createFieldShape(polygon: FieldPolygon): any {
   return shape;
 }
 
-export function ColorPlane({
+export const ColorPlane = memo(function ColorPlane({
   fieldData,
   isDark = false,
   isActive = true,
@@ -793,4 +793,4 @@ export function ColorPlane({
       })}
     </group>
   );
-}
+});

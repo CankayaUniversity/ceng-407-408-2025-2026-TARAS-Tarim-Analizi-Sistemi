@@ -1,9 +1,8 @@
 // Ana ekran - 3D tarla gorunumu ve sensor verileri
 // Props: theme, isDark, dashboardData, isActive
-import { Suspense, useRef, useEffect } from "react";
+import { Suspense, useRef, useEffect, useMemo, useCallback, memo } from "react";
 import {
   Animated,
-  Text,
   View,
   ScrollView,
   ActivityIndicator,
@@ -20,7 +19,6 @@ import { spacing } from "../../utils/responsive";
 import { StatusCard } from "./StatusCard";
 import { Safe3DCanvas } from "../../components/Safe3DCanvas";
 import { useScreenReset } from "../../hooks/useScreenReset";
-import { useLanguage } from "../../context/LanguageContext";
 import { useState } from "react";
 const THREE: any = require("three");
 
@@ -39,15 +37,18 @@ interface HomeScreenProps {
   isActive?: boolean;
 }
 
-export const HomeScreen = ({
+export const HomeScreen = memo(({
   theme,
   isDark,
   dashboardData,
   isActive = true,
 }: HomeScreenProps) => {
-  const { t } = useLanguage();
   const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // 3D Canvas proplari — referans degismemeli
+  const cameraConfig = useMemo(() => ({ position: [0, 16, 22.6], fov: 22 }), []);
+  const canvasStyle = useMemo(() => ({ flex: 1 }), []);
 
   useScreenReset(isActive, {
     onDeactivate: () => setSelectedNode(null),
@@ -60,7 +61,7 @@ export const HomeScreen = ({
   const loading = !dashboardData;
 
   // Node sec/kaldir
-  const handleNodeSelect = (node: NodeInfo | null) => {
+  const handleNodeSelect = useCallback((node: NodeInfo | null) => {
     if (node) {
       setSelectedNode(node);
       Animated.timing(fadeAnim, {
@@ -75,9 +76,9 @@ export const HomeScreen = ({
         useNativeDriver: true,
       }).start(() => setSelectedNode(null));
     }
-  };
+  }, [fadeAnim]);
 
-  const handleClosePopup = () => handleNodeSelect(null);
+  const handleClosePopup = useCallback(() => handleNodeSelect(null), [handleNodeSelect]);
 
   return (
     <View style={{ flex: 1, position: "relative" }}>
@@ -98,8 +99,8 @@ export const HomeScreen = ({
         >
           <Safe3DCanvas
             theme={theme}
-            camera={{ position: [0, 16, 22.6], fov: 22 }}
-            style={{ flex: 1 }}
+            camera={cameraConfig}
+            style={canvasStyle}
             fallback={
               <View
                 style={{
@@ -110,15 +111,6 @@ export const HomeScreen = ({
                 }}
               >
                 <ActivityIndicator size="large" color={theme.accent} />
-                <Text
-                  style={{
-                    color: theme.textSecondary,
-                    marginTop: 12,
-                    fontSize: 14,
-                  }}
-                >
-                  {t.home.loading3DModel}
-                </Text>
               </View>
             }
           >
@@ -165,4 +157,4 @@ export const HomeScreen = ({
       </View>
     </View>
   );
-};
+});

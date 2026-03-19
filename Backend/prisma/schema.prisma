@@ -101,8 +101,9 @@ model Field {
   polygon    Json?
   created_at DateTime? @default(now()) @db.Timestamptz
 
-  farm  Farm?  @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
-  zones Zone[]
+  farm          Farm?          @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
+  zones         Zone[]
+  chat_sessions ChatSession[]
 
   @@map("fields")
 }
@@ -296,11 +297,14 @@ model Alert {
 model ChatSession {
   session_id String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id    String?   @db.Uuid
+  field_id   String?   @db.Uuid
   started_at DateTime? @default(now()) @db.Timestamptz
 
   user     User?         @relation(fields: [user_id], references: [user_id])
+  field    Field?        @relation(fields: [field_id], references: [field_id])
   messages ChatMessage[]
 
+  @@index([user_id, field_id])
   @@map("chat_sessions")
 }
 

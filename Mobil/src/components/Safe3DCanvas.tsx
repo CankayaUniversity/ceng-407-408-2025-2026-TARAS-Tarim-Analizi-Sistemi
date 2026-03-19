@@ -1,6 +1,6 @@
 // Guvenli 3D Canvas - WebGL hatalarini yakalar ve fallback gosterir
 // Props: theme, children, fallback, onCreated, camera, style
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, memo } from "react";
 import {
   View,
   Text,
@@ -61,7 +61,7 @@ interface DebugInfo {
   glInfo?: string;
 }
 
-export function Safe3DCanvas({
+export const Safe3DCanvas = memo(function Safe3DCanvas({
   theme,
   children,
   fallback,
@@ -333,11 +333,12 @@ export function Safe3DCanvas({
       return (
         <View style={{ flex: 1 }}>
           <Canvas
+            frameloop="demand"
             camera={camera}
             style={style}
             onCreated={handleCanvasCreated}
             gl={{
-              powerPreference: "high-performance",
+              powerPreference: "low-power",
               antialias: true,
               alpha: false,
             }}
@@ -388,7 +389,7 @@ export function Safe3DCanvas({
     console.log("[3D] render err:", renderError);
     return <View style={{ flex: 1 }}>{fallback}</View>;
   }
-}
+});
 
 const styles = StyleSheet.create({
   errorOverlay: {

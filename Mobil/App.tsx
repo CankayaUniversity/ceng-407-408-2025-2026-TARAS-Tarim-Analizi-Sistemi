@@ -30,7 +30,7 @@ if (__DEV__) {
 }
 
 // React
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 
 // React Native
 import {
@@ -123,7 +123,7 @@ function AppContent() {
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
   const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
-  const { messages, chatInput, setChatInput, sendMessage } = useChat(setScreen, selectedFieldId);
+  const { messages, chatInput, setChatInput, sendMessage, isLoading: chatLoading, startNewChat } = useChat(setScreen, selectedFieldId);
 
   // ── Animated values ────────────────────────────────────────────────────
   const screenOpacities = useRef({
@@ -218,7 +218,7 @@ function AppContent() {
   const isDark =
     themeMode === "dark" ||
     (themeMode !== "light" && systemColorScheme === "dark");
-  const theme = getTheme(isDark);
+  const theme = useMemo(() => getTheme(isDark), [isDark]);
 
   const chatHeight =
     keyboardHeight > 0
@@ -269,14 +269,13 @@ function AppContent() {
   };
 
   // ── Local components ───────────────────────────────────────────────────
-  const AnimatedScreen = ({
-    screenType,
-    children,
-  }: {
-    screenType: Exclude<ScreenType, "login">;
-    children: React.ReactNode;
-  }) => (
+  // AnimatedScreen JSX helper — inline component OLMAMALI, remount yapar
+  const animatedScreen = (
+    screenType: Exclude<ScreenType, "login">,
+    children: React.ReactNode,
+  ) => (
     <Animated.View
+      key={screenType}
       style={[styles.screenLayer, { opacity: screenOpacities[screenType] }]}
       pointerEvents={screen === screenType ? "auto" : "none"}
     >
@@ -284,55 +283,54 @@ function AppContent() {
     </Animated.View>
   );
 
-  const FieldSelector = () => {
-    if (fields.length === 0) return null;
-    return (
-      <View style={styles.fieldSelectorContainer}>
-        <TouchableOpacity
-          onPress={() => setFieldSelectorOpen(!fieldSelectorOpen)}
-          style={[styles.fieldSelectorButton, { backgroundColor: theme.surface, borderColor: theme.accent + "30" }]}
-        >
-          <View style={styles.fieldSelectorButtonContent}>
-            <Ionicons name="leaf" size={14} color={theme.accent} />
-            <Text style={[styles.fieldSelectorLabel, { color: theme.text }]} numberOfLines={1}>
-              {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
-            </Text>
-          </View>
-          <Ionicons
-            name={fieldSelectorOpen ? "chevron-up" : "chevron-down"}
-            size={14}
-            color={theme.textSecondary}
-            style={styles.fieldSelectorChevron}
-          />
-        </TouchableOpacity>
+  // Header ve FieldSelector JSX olarak inline — fonksiyon component olarak
+  // tanimlanirsa React her renderda unmount/remount yapar ve 3D flicker olur
+  const fieldSelectorJSX = fields.length > 0 ? (
+    <View style={styles.fieldSelectorContainer}>
+      <TouchableOpacity
+        onPress={() => setFieldSelectorOpen(!fieldSelectorOpen)}
+        style={[styles.fieldSelectorButton, { backgroundColor: theme.surface, borderColor: theme.accent + "30" }]}
+      >
+        <View style={styles.fieldSelectorButtonContent}>
+          <Ionicons name="leaf" size={14} color={theme.accent} />
+          <Text style={[styles.fieldSelectorLabel, { color: theme.text }]} numberOfLines={1}>
+            {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
+          </Text>
+        </View>
+        <Ionicons
+          name={fieldSelectorOpen ? "chevron-up" : "chevron-down"}
+          size={14}
+          color={theme.textSecondary}
+          style={styles.fieldSelectorChevron}
+        />
+      </TouchableOpacity>
 
-        {fieldSelectorOpen && (
-          <View style={[styles.fieldSelectorDropdown, { backgroundColor: theme.surface, borderColor: theme.accent + "30" }]}>
-            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-              {fields
-                .filter((f) => f.id !== selectedFieldId)
-                .map((field, index, arr) => (
-                  <TouchableOpacity
-                    key={field.id}
-                    onPress={() => handleFieldSelect(field.id)}
-                    style={[
-                      styles.fieldSelectorItem,
-                      index < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.accent + "15" },
-                    ]}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="leaf-outline" size={14} color={theme.textSecondary} style={styles.fieldSelectorItemIcon} />
-                    <Text style={[styles.fieldSelectorItemLabel, { color: theme.text }]}>{field.name}</Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-    );
-  };
+      {fieldSelectorOpen && (
+        <View style={[styles.fieldSelectorDropdown, { backgroundColor: theme.surface, borderColor: theme.accent + "30" }]}>
+          <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+            {fields
+              .filter((f) => f.id !== selectedFieldId)
+              .map((field, index, arr) => (
+                <TouchableOpacity
+                  key={field.id}
+                  onPress={() => handleFieldSelect(field.id)}
+                  style={[
+                    styles.fieldSelectorItem,
+                    index < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.accent + "15" },
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="leaf-outline" size={14} color={theme.textSecondary} style={styles.fieldSelectorItemIcon} />
+                  <Text style={[styles.fieldSelectorItemLabel, { color: theme.text }]}>{field.name}</Text>
+                </TouchableOpacity>
+              ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  ) : null;
 
-  const AppHeader = () => (
+  const appHeaderJSX = (
     <View
       style={[
         styles.headerRow,
@@ -351,7 +349,7 @@ function AppContent() {
       </View>
 
       <View style={[styles.fieldSelectorWrapper, { marginHorizontal: spacing.sm }]}>
-        <FieldSelector />
+        {fieldSelectorJSX}
       </View>
 
       <View style={[styles.headerRight, { marginRight: headerDims.elementGap }]}>
@@ -365,7 +363,7 @@ function AppContent() {
     </View>
   );
 
-  const BottomNav = () => (
+  const bottomNavJSX = (
     <View style={[appStyles.bottomNavWrapper, { backgroundColor: theme.surface }]}>
       <View style={appStyles.bottomNav}>
         {NAV_ITEMS.map((item) => (
@@ -401,28 +399,28 @@ function AppContent() {
             <LoginScreen theme={theme} onLoginSuccess={handleLoginSuccess} onSkip={handleSkip} />
           ) : (
             <>
-              <AppHeader />
+              {appHeaderJSX}
               <View style={styles.screensContainer}>
-                <AnimatedScreen screenType={SCREEN_TYPE.CARBON}>
-                  <CarbonFootprintScreen theme={theme} />
-                </AnimatedScreen>
-                <AnimatedScreen screenType={SCREEN_TYPE.TIMETABLE}>
-                  <TimetableScreen theme={theme} isActive={screen === SCREEN_TYPE.TIMETABLE} selectedFieldId={selectedFieldId} />
-                </AnimatedScreen>
-                <AnimatedScreen screenType={SCREEN_TYPE.HOME}>
-                  <HomeScreen theme={theme} isDark={isDark} dashboardData={dashboardData} isActive={screen === SCREEN_TYPE.HOME} />
-                </AnimatedScreen>
-                <AnimatedScreen screenType={SCREEN_TYPE.DISEASE}>
-                  <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} isActive={screen === SCREEN_TYPE.DISEASE} />
-                </AnimatedScreen>
-                <AnimatedScreen screenType={SCREEN_TYPE.SETTINGS}>
-                  <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} />
-                </AnimatedScreen>
+                {animatedScreen(SCREEN_TYPE.CARBON,
+                  <CarbonFootprintScreen theme={theme} />,
+                )}
+                {animatedScreen(SCREEN_TYPE.TIMETABLE,
+                  <TimetableScreen theme={theme} isActive={screen === SCREEN_TYPE.TIMETABLE} selectedFieldId={selectedFieldId} />,
+                )}
+                {animatedScreen(SCREEN_TYPE.HOME,
+                  <HomeScreen theme={theme} isDark={isDark} dashboardData={dashboardData} isActive={screen === SCREEN_TYPE.HOME} />,
+                )}
+                {animatedScreen(SCREEN_TYPE.DISEASE,
+                  <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} isActive={screen === SCREEN_TYPE.DISEASE} />,
+                )}
+                {animatedScreen(SCREEN_TYPE.SETTINGS,
+                  <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} />,
+                )}
               </View>
             </>
           )}
 
-          {isLoggedIn && <BottomNav />}
+          {isLoggedIn && bottomNavJSX}
 
           {isLoggedIn && (
             <TouchableOpacity
@@ -440,9 +438,11 @@ function AppContent() {
             chatHeight={chatHeight}
             keyboardHeight={keyboardHeight}
             theme={theme}
+            isLoading={chatLoading}
             onClose={() => setShowChat(false)}
             onSendMessage={sendMessage}
             onInputChange={setChatInput}
+            onNewChat={startNewChat}
           />
         </View>
       </SafeAreaView>
