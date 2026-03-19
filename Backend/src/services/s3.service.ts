@@ -97,7 +97,7 @@ export async function generatePresignedDownloadUrl(
 
     const url = await getSignedUrl(s3Client, command, { expiresIn });
 
-    logger.info(`Presigned download URL generated for: ${key}`, { expiresIn });
+    logger.debug(`[S3] presign: ${key.split("/").pop()}`);
     return url;
   } catch (error) {
     logger.error('Failed to generate presigned download URL:', error);

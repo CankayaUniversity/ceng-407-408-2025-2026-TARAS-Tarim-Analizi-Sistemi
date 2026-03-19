@@ -52,7 +52,10 @@ export const generateAdvisory = async (
   sessionId: string,
 ): Promise<string> => {
   try {
+    const start = Date.now();
     const history = await getSessionHistory(sessionId);
+    logger.debug(`[LLM] gecmis: ${history.length} mesaj, sorgu: ${userMessage.slice(0, 60)}...`);
+
     const chat = ai.chats.create({
       ...CHAT_CONFIG,
       history: buildGeminiHistory(history),
@@ -60,9 +63,13 @@ export const generateAdvisory = async (
     const response = await chat.sendMessage({
       message: buildPrompt(tarasContext, userMessage),
     });
-    return response.text ?? "Yanıt alınamadı.";
+
+    const duration = Date.now() - start;
+    const text = response.text ?? "Yanıt alınamadı.";
+    logger.debug(`[LLM] yanit: ${duration}ms, ${text.length} karakter`);
+    return text;
   } catch (error) {
-    logger.error("LLM Çağrı Hatası:", error);
+    logger.error("[LLM] hata:", error);
     return "Şu anda TARAS yapay zeka asistanına ulaşılamıyor. Lütfen daha sonra tekrar deneyin.";
   }
 };
@@ -77,7 +84,10 @@ export const generateAdvisoryStream = async (
   sessionId: string,
   onChunk: (text: string) => void,
 ): Promise<string> => {
+  const start = Date.now();
   const history = await getSessionHistory(sessionId);
+  logger.debug(`[LLM] "${userMessage.slice(0, 50)}..." (gecmis: ${history.length})`);
+
   const chat = ai.chats.create({
     ...CHAT_CONFIG,
     history: buildGeminiHistory(history),
@@ -88,12 +98,22 @@ export const generateAdvisoryStream = async (
   });
 
   let fullText = "";
+  let chunkCount = 0;
+  let firstChunkAt = 0;
   for await (const chunk of stream) {
     const text = chunk.text ?? "";
     if (text) {
+      if (!firstChunkAt) {
+        firstChunkAt = Date.now() - start;
+        logger.debug(`[LLM] ilk token: ${firstChunkAt}ms`);
+      }
       fullText += text;
+      chunkCount++;
       onChunk(text);
     }
   }
+
+  const total = Date.now() - start;
+  logger.debug(`[LLM] bitti: ${total}ms toplam, ${firstChunkAt}ms TTFT, ${chunkCount} chunk, ${fullText.length} chr`);
   return fullText;
 };

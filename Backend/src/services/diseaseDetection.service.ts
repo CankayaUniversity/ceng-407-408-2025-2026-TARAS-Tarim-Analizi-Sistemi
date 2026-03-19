@@ -103,7 +103,8 @@ async function invokeLambdaAsync(detectionId: string, imageUuid: string, s3Key: 
       data: { status: DetectionStatus.PROCESSING, processing_started_at: new Date() },
     });
 
-    logger.info(`Starting Lambda invocation for detection ${detectionId}`, { imageUuid });
+    const start = Date.now();
+    logger.info(`[DISEASE] Lambda cagiriliyor: ${s3Key.split("/").pop()}`);
 
     // S3 key gonder — Lambda goruntuyu S3'ten okur (6MB payload limitini onler)
     const payload = { s3_bucket: DISEASE_DETECTION_BUCKET, s3_key: s3Key };
@@ -115,8 +116,7 @@ async function invokeLambdaAsync(detectionId: string, imageUuid: string, s3Key: 
 
     const response = await lambdaClient.send(command);
     const responsePayload = JSON.parse(Buffer.from(response.Payload || "").toString());
-
-    logger.info(`Lambda response received for detection ${detectionId}:`, { statusCode: responsePayload.statusCode });
+    const duration = Date.now() - start;
 
     if (responsePayload.statusCode === 200) {
       const result: DiseaseDetectionResult = JSON.parse(responsePayload.body);
@@ -132,14 +132,14 @@ async function invokeLambdaAsync(detectionId: string, imageUuid: string, s3Key: 
           recommendations: result.recommendations as any,
         },
       });
-      logger.info(`Detection ${detectionId} completed successfully`, { disease: result.disease, confidence: result.confidence });
+      logger.info(`[DISEASE] ${result.disease} %${result.confidence} (${duration}ms)`);
     } else {
       const errorBody = JSON.parse(responsePayload.body);
       await prisma.diseaseDetection.update({
         where: { detection_id: detectionId },
         data: { status: DetectionStatus.FAILED, completed_at: new Date(), error_message: errorBody.error || "Unknown Lambda error" },
       });
-      logger.error(`Detection ${detectionId} failed:`, errorBody);
+      logger.error(`[DISEASE] Lambda hata (${duration}ms):`, errorBody);
     }
   } catch (error) {
     logger.error(`Lambda invocation error for detection ${detectionId}:`, error);
@@ -155,6 +155,7 @@ export async function getUserDetections(userId: string): Promise<any[]> {
       select: {
         detection_id: true,
         image_uuid: true,
+        image_s3_key: true,
         status: true,
         uploaded_at: true,
         processing_started_at: true,
@@ -166,7 +167,22 @@ export async function getUserDetections(userId: string): Promise<any[]> {
         error_message: true,
       },
     });
-    return detections;
+
+    // Presigned URL'leri paralel olustur
+    const withUrls = await Promise.all(
+      detections.map(async (d) => {
+        let imageUrl: string | null = null;
+        try {
+          imageUrl = await generatePresignedDownloadUrl(
+            DISEASE_DETECTION_BUCKET, d.image_s3_key, 3600,
+          );
+        } catch { /* presigned URL olusturulamadi */ }
+        const { image_s3_key, ...rest } = d;
+        return { ...rest, imageUrl };
+      }),
+    );
+
+    return withUrls;
   } catch (error) {
     logger.error(`Failed to get detections for user ${userId}:`, error);
     throw new Error(`Failed to get detection requests: ${error instanceof Error ? error.message : "Unknown error"}`);

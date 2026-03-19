@@ -89,11 +89,7 @@ export const getUserDetectionRequests = asyncHandler(
     }
 
     try {
-      logger.info(`Fetching detection requests for user ${userId}`);
-
       const detections = await getUserDetections(userId);
-
-      logger.info(`Found ${detections.length} detection requests for user ${userId}`);
 
       res.status(200).json({
         success: true,
@@ -139,11 +135,7 @@ export const getDetectionRequest = asyncHandler(
     }
 
     try {
-      logger.info(`Fetching detection ${detectionId} for user ${userId}`);
-
       const detection = await getDetectionById(detectionId, userId);
-
-      logger.info(`Detection ${detectionId} retrieved successfully`);
 
       res.status(200).json({
         success: true,
@@ -194,11 +186,7 @@ export const getDetectionImage = asyncHandler(
     }
 
     try {
-      logger.info(`Generating presigned URL for detection ${detectionId}`);
-
-      const imageUrl = await getDetectionImageUrl(detectionId, userId, 3600); // 1 hour expiry
-
-      logger.info(`Presigned URL generated for detection ${detectionId}`);
+      const imageUrl = await getDetectionImageUrl(detectionId, userId, 3600);
 
       res.status(200).json({
         success: true,
@@ -253,11 +241,7 @@ export const deleteDetectionRequest = asyncHandler(
     }
 
     try {
-      logger.info(`Deleting detection ${detectionId} for user ${userId}`);
-
       await deleteDetection(detectionId, userId);
-
-      logger.info(`Detection ${detectionId} deleted successfully`);
 
       res.status(200).json({
         success: true,
