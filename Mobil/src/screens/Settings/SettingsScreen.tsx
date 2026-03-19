@@ -52,7 +52,7 @@ export const SettingsScreen = ({
           onPress: async () => {
             try {
               const report = await runNetworkDiagnostics();
-              console.log("Network Diagnostics Report:\n", report);
+              console.log("[NETDIAG] report:", report.length, "results");
 
               // Count successes and failures
               const lines = report.split("\n");

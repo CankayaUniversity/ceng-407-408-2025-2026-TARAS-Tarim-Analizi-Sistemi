@@ -114,16 +114,15 @@ export const DiseaseScreen = ({
       await diseaseAPI.pollDetectionStatus(
         detectionId,
         (status) => {
-          console.log("Detection status:", status);
+          console.log("[DISEASE] poll:", status);
         },
         30,
         2000,
       );
 
-      // Refresh the list when complete
       fetchDetections();
     } catch (error) {
-      console.error("Polling error:", error);
+      console.log("[DISEASE] poll err:", error);
       // Still refresh to show the failed status
       fetchDetections();
     }

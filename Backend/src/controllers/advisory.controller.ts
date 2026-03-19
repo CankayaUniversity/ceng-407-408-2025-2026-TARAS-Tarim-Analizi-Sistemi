@@ -107,7 +107,7 @@ export const getTarasAdviceStream = asyncHandler(
         `data: ${JSON.stringify({ done: true, session_id: currentSessionId })}\n\n`,
       );
     } catch (error) {
-      logger.error("Stream LLM Hatası:", error);
+      logger.error("[LLM] stream hatasi:", error);
       res.write(`data: ${JSON.stringify({ error: "LLM hatası oluştu." })}\n\n`);
     }
 

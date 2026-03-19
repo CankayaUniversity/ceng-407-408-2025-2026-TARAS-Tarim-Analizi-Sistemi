@@ -401,28 +401,21 @@ export interface DashboardData {
 export const dashboardAPI = {
   getFields: async (): Promise<FieldSummary[]> => {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
-    console.log(
-      "[DASHBOARD] getFields token:",
-      token ? (token === "DEMO_MODE_TOKEN" ? "DEMO" : "REAL") : "NONE",
-    );
 
     if (!token || token === "DEMO_MODE_TOKEN") {
-      console.log("[DASHBOARD] demo mode - no valid token");
       const { getDemoFields } = await import("./demoData");
       return getDemoFields();
     }
 
     try {
-      console.log("[DASHBOARD] fetch fields from API");
       const res = await authFetch<FieldSummary[]>("/dashboard/fields");
-      console.log("[DASHBOARD] fetch result:", res.success, res.error || "ok");
       if (res.success && res.data) {
         console.log("[DASHBOARD] fields:", res.data.length);
         return res.data;
       }
       throw new Error(res.error || "Failed to fetch fields");
     } catch (error) {
-      console.log("[DASHBOARD] err fallback to demo:", error);
+      console.log("[DASHBOARD] err, demo fallback:", error);
       const { getDemoFields } = await import("./demoData");
       return getDemoFields();
     }
@@ -432,25 +425,20 @@ export const dashboardAPI = {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
 
     if (!token || token === "DEMO_MODE_TOKEN") {
-      console.log("[DASHBOARD] demo:", fieldId);
       const { generateDemoDashboardData } = await import("./demoData");
       return generateDemoDashboardData(fieldId);
     }
 
     try {
-      console.log("[DASHBOARD] fetch:", fieldId);
       const res = await authFetch<DashboardData>(
         `/dashboard/fields/${fieldId}`,
       );
       if (res.success && res.data) {
         return res.data;
       }
-      if (!res.data) {
-        console.log("[DASHBOARD] null response for:", fieldId);
-      }
       throw new Error(res.error || "Failed to fetch dashboard data");
     } catch (error) {
-      console.log("[DASHBOARD] err:", error);
+      console.log("[DASHBOARD] err:", fieldId.slice(0, 8), error);
       const { generateDemoDashboardData } = await import("./demoData");
       return generateDemoDashboardData(fieldId);
     }
@@ -479,6 +467,7 @@ export interface DiseaseDetection {
   all_predictions: Record<string, number> | null;
   recommendations: string[] | null;
   error_message: string | null;
+  imageUrl?: string | null;
 }
 
 export interface SubmitDetectionResponse {
@@ -527,7 +516,7 @@ export const diseaseAPI = {
       }
 
       const json = await res.json();
-      console.log("[DISEASE] submit response:", JSON.stringify(json));
+      console.log("[DISEASE] submitted:", json.data?.detectionId?.slice(0, 8));
       return json;
     } catch (error) {
       console.log("[DISEASE] submit err:", error);
@@ -576,15 +565,12 @@ export const diseaseAPI = {
       onProgress?.(detection.status);
 
       if (detection.status === "COMPLETED") {
-        console.log(
-          "[DISEASE] poll COMPLETED:",
-          JSON.stringify(detection, null, 2),
-        );
+        console.log("[DISEASE] done:", detection.detected_disease, `${detection.confidence}%`);
         return detection;
       }
 
       if (detection.status === "FAILED") {
-        console.log("[DISEASE] poll FAILED:", detection.error_message);
+        console.log("[DISEASE] failed:", detection.error_message);
         throw new Error(detection.error_message || "Detection failed");
       }
 

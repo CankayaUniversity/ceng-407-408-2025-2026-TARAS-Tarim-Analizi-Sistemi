@@ -72,15 +72,11 @@ export const LoginScreen = ({
     setIsLoading(false);
     setServerStatus(null);
 
-    console.log("Login response:", response);
-    console.log("User data:", response.data?.user);
-
     if (response.success) {
       setUsername("");
       setPassword("");
-      // Pass user's username to onLoginSuccess (no fullName field in User type)
       const displayName = response.data?.user.username || "";
-      console.log("Calling onLoginSuccess with:", displayName);
+      console.log("[LOGIN] ok:", displayName);
       onLoginSuccess(displayName);
     } else {
       showPopup(response.error || t.login.errorLoginFailed);
@@ -145,10 +141,9 @@ export const LoginScreen = ({
     setIsLoading(false);
     setServerStatus(null);
 
-    console.log("[LOGIN] AWS response:", response.success, response.error);
-
     if (response.success) {
       const displayName = response.data?.user.username || "";
+      console.log("[LOGIN] ok:", displayName);
       onLoginSuccess(displayName);
     } else {
       showPopup(response.error || t.login.errorLoginFailed);
