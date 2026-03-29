@@ -8,13 +8,17 @@ transform = A.Compose([
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.1),
     A.RandomBrightnessContrast(brightness_limit=0.15, contrast_limit=0.15, p=0.3),
-    A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.08, rotate_limit=15, p=0.4),
+    
+    # Updated: Replaced ShiftScaleRotate with Affine
+    A.Affine(translate_percent=(-0.05, 0.05), scale=(0.92, 1.08), rotate=(-15, 15), p=0.4),
+    
     A.HueSaturationValue(hue_shift_limit=8, sat_shift_limit=15, val_shift_limit=8, p=0.2),
-
 
     # Yeni eklenen düşük olasılıklı augmentler
     A.GaussianBlur(blur_limit=(3, 3), p=0.1),
-    A.GaussNoise(var_limit=(10.0, 30.0), p=0.1),
+    
+    # Updated: Replaced var_limit with std_range
+    A.GaussNoise(std_range=(0.01, 0.04), p=0.1),
 ])
 
 def augment_folder(path, target_count):
