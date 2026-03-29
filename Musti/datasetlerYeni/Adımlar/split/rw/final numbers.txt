@@ -1,0 +1,6 @@
+Healthy 118
+Late Blight: 74
+Leaf Blight (Early Blight + Target Spot): 125
+Mold: 166
+Septoria: 149
+Spider Mites: 75
