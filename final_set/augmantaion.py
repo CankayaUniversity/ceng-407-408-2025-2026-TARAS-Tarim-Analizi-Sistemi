@@ -4,21 +4,23 @@ import random
 import albumentations as A
 from tqdm import tqdm
 
-# 1. Augmentation Teknikleri
 transform = A.Compose([
     A.HorizontalFlip(p=0.5),
-    A.VerticalFlip(p=0.2),
-    A.RandomRotate90(p=0.5),
-    A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.3),
-    A.ShiftScaleRotate(shift_limit=0.06, scale_limit=0.1, rotate_limit=20, p=0.5),
-    A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=10, p=0.3),
+    A.VerticalFlip(p=0.1),
+    A.RandomBrightnessContrast(brightness_limit=0.15, contrast_limit=0.15, p=0.3),
+    A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.08, rotate_limit=15, p=0.4),
+    A.HueSaturationValue(hue_shift_limit=8, sat_shift_limit=15, val_shift_limit=8, p=0.2),
+
+
+    # Yeni eklenen düşük olasılıklı augmentler
+    A.GaussianBlur(blur_limit=(3, 3), p=0.1),
+    A.GaussNoise(var_limit=(10.0, 30.0), p=0.1),
 ])
 
 def augment_folder(path, target_count):
     if not os.path.exists(path):
         return
     
-    # Mevcut resimleri al
     images = [f for f in os.listdir(path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
     current_count = len(images)
     
@@ -26,7 +28,7 @@ def augment_folder(path, target_count):
         return
     
     if current_count >= target_count:
-        return # Hedefe zaten ulaşılmış
+        return  # Hedefe zaten ulaşılmış
 
     needed = target_count - current_count
     
@@ -38,9 +40,12 @@ def augment_folder(path, target_count):
         # Rastgele bir kaynak resim seç
         source_name = random.choice(images)
         image = cv2.imread(os.path.join(path, source_name))
+        
+        if image is None:
+            continue
+        
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        # Augmentation uygula
         augmented = transform(image=image)['image']
         augmented = cv2.cvtColor(augmented, cv2.COLOR_RGB2BGR)
 
@@ -48,8 +53,7 @@ def augment_folder(path, target_count):
         new_name = f"aug_{i}_{source_name}"
         cv2.imwrite(os.path.join(path, new_name), augmented)
 
-# --- ANA DÖNGÜ ---
-# Hedef tanımlamaları
+
 configs = [
     {'base': 'Pv_400', 'stage': 'stage1', 'target': 267},
     {'base': 'Pv_400', 'stage': 'stage2', 'target': 133},
@@ -70,3 +74,8 @@ for config in configs:
         augment_folder(train_path, config['target'])
 
 print("\nVeri artırma işlemi tamamlandı! Artık her sınıf hedef sayıya ulaştı.")
+
+
+
+
+
