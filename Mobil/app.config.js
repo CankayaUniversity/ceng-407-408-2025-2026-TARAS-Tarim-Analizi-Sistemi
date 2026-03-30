@@ -20,6 +20,7 @@ export default {
         },
       ],
       "./plugins/withNetworkSecurityConfig.js",
+      ["react-native-ble-plx", { neverForBackground: true }],
     ],
     ios: {
       supportsTabletMode: true,
@@ -29,13 +30,20 @@ export default {
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: true,
         },
+        NSBluetoothAlwaysUsageDescription: "TARAS needs Bluetooth to configure gateway devices.",
       },
     },
     android: {
       package: "com.tarasmobil.app",
       userInterfaceStyle: "automatic",
       usesCleartextTraffic: true,
-      permissions: ["INTERNET", "ACCESS_NETWORK_STATE"],
+      permissions: [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_FINE_LOCATION",
+      ],
     },
     extra: {
       apiHost,

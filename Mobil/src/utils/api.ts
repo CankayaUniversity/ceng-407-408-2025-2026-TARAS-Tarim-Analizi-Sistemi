@@ -311,6 +311,37 @@ export const socketAPI = {
 
   isConnected: () => socket?.connected ?? false,
   getSocket: () => socket,
+
+  // Donanim eslestirme olaylarini dinle
+  onPairingEvents: (callbacks: {
+    onNodeDiscovered?: (data: any) => void;
+    onPairComplete?: (data: any) => void;
+  }) => {
+    if (!socket) return () => {};
+    if (callbacks.onNodeDiscovered) {
+      socket.on("node_discovered", callbacks.onNodeDiscovered);
+    }
+    if (callbacks.onPairComplete) {
+      socket.on("pair_complete", callbacks.onPairComplete);
+    }
+    return () => {
+      if (callbacks.onNodeDiscovered) {
+        socket?.off("node_discovered", callbacks.onNodeDiscovered);
+      }
+      if (callbacks.onPairComplete) {
+        socket?.off("pair_complete", callbacks.onPairComplete);
+      }
+    };
+  },
+
+  onSensorAlert: (callback: (data: { sensorNodeId: string; macAddress: string; errorCode: number }) => void) => {
+    if (!socket) return () => {};
+    const handler = (data: Record<string, unknown>) => {
+      if (data.type === "sensor-alert") callback(data as any);
+    };
+    socket.on("sensor-update", handler);
+    return () => { socket?.off("sensor-update", handler); };
+  },
 };
 
 // Gorsel yukleme
@@ -442,6 +473,99 @@ export const dashboardAPI = {
       const { generateDemoDashboardData } = await import("./demoData");
       return generateDemoDashboardData(fieldId);
     }
+  },
+};
+
+// Gateway islemleri
+export const gatewayAPI = {
+  async register(
+    mac: string,
+    farmId: string,
+    name?: string,
+  ): Promise<ApiResponse<{ api_key: string; gateway_id: string }>> {
+    return authFetch("/gateway/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mac, farm_id: farmId, name }),
+    });
+  },
+
+  async getFarms(): Promise<ApiResponse<Array<{ farm_id: string; name: string }>>> {
+    return authFetch("/gateway/farms");
+  },
+
+  async getGateways(): Promise<
+    ApiResponse<
+      Array<{
+        gateway_id: string;
+        name: string;
+        mac: string;
+        is_online: boolean;
+        sensor_count: number;
+        firmware_version: string | null;
+        farm_id: string;
+      }>
+    >
+  > {
+    return authFetch("/gateway/list");
+  },
+
+  async stopPairing(gatewayId: string): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/gateway/${gatewayId}/pair/stop`, {
+      method: "POST",
+    });
+  },
+
+  async rejectNode(
+    gatewayId: string,
+    mac: string,
+    reason = "declined",
+  ): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/gateway/${gatewayId}/pair/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mac, reason }),
+    });
+  },
+
+  async startPairing(
+    gatewayId: string,
+    timeoutSec = 30,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/gateway/${gatewayId}/pair/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ timeout_sec: timeoutSec }),
+    });
+  },
+
+  async approveNode(
+    gatewayId: string,
+    mac: string,
+    zoneId: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/gateway/${gatewayId}/pair/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mac, zone_id: zoneId }),
+    });
+  },
+
+  async getLatestFirmware(): Promise<
+    ApiResponse<{ version: string; file_size: number; changelog: string | null; created_at: string }>
+  > {
+    return authFetch("/gateway/firmware/latest");
+  },
+
+  async triggerOta(
+    gatewayId: string,
+    version?: string,
+  ): Promise<ApiResponse<{ version: string }>> {
+    return authFetch(`/gateway/${gatewayId}/ota`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version }),
+    });
   },
 };
 

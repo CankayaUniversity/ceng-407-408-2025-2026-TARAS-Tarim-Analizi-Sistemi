@@ -60,6 +60,7 @@ import {
   CarbonFootprintScreen,
   ThemeMode,
 } from "./src/screens";
+import { HardwareSetupModal } from "./src/screens/Settings/HardwareSetupModal";
 
 // Components
 import { ChatWindow } from "./src/components/ChatWindow";
@@ -83,6 +84,7 @@ import { getTheme } from "./src/utils/theme";
 import {
   authAPI,
   dashboardAPI,
+  socketAPI,
   FieldSummary,
   DashboardData,
 } from "./src/utils/api";
@@ -117,6 +119,7 @@ function AppContent() {
   const [dataSource, setDataSource] = useState<"aws" | "demo">("demo");
   const [fields, setFields] = useState<FieldSummary[]>([]);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [showHardwareSetup, setShowHardwareSetup] = useState(false);
   const [fieldSelectorOpen, setFieldSelectorOpen] = useState(false);
 
   // ── Responsive / derived ───────────────────────────────────────────────
@@ -193,6 +196,15 @@ function AppContent() {
     };
 
     initialize();
+
+    // Sensor ariza bildirimi dinle
+    const sensorErrors: Record<number, string> = { 1: "SHT31", 2: "Toprak nemi", 3: "SHT31 + Toprak nemi" };
+    const cleanupAlert = socketAPI.onSensorAlert((data) => {
+      const name = sensorErrors[data.errorCode] || `Kod ${data.errorCode}`;
+      showPopup(`Sensor ariza: ${data.macAddress} — ${name} sensoru basarisiz`);
+    });
+
+    return () => { cleanupAlert(); };
   }, []);
 
   useEffect(() => {
@@ -267,6 +279,7 @@ function AppContent() {
     setScreen(SCREEN_TYPE.HOME);
     setDataSource("demo");
   };
+
 
   // ── Local components ───────────────────────────────────────────────────
   // AnimatedScreen JSX helper — inline component OLMAMALI, remount yapar
@@ -414,7 +427,7 @@ function AppContent() {
                   <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} isActive={screen === SCREEN_TYPE.DISEASE} />,
                 )}
                 {animatedScreen(SCREEN_TYPE.SETTINGS,
-                  <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} />,
+                  <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} onHardwareSetup={() => setShowHardwareSetup(true)} />,
                 )}
               </View>
             </>
@@ -430,6 +443,12 @@ function AppContent() {
               <MaterialCommunityIcons name="chat" size={28} color="#fff" />
             </TouchableOpacity>
           )}
+
+          <HardwareSetupModal
+            visible={showHardwareSetup}
+            theme={theme}
+            onClose={() => setShowHardwareSetup(false)}
+          />
 
           <ChatWindow
             visible={showChat}

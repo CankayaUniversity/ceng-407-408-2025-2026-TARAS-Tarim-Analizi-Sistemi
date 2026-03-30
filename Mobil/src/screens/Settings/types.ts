@@ -8,6 +8,7 @@ export interface SettingsScreenProps {
   themeMode: ThemeMode;
   onThemeModeChange: (mode: ThemeMode) => void;
   onLogout: () => void;
+  onHardwareSetup: () => void;
 }
 
 export interface ThemeOption {

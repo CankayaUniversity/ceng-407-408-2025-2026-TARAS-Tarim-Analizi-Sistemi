@@ -37,10 +37,11 @@ const withNetworkSecurityConfig = (config) => {
     }
 
     // Get API host from environment variable
-    const apiHost = process.env.API_HOST || "";
+    const useLocal = process.env.USE_LOCAL_API === "true";
+    const apiHost = useLocal ? (process.env.API_HOST_LOCAL || "") : (process.env.API_HOST_AWS || "");
     // Extract domain/IP from URL (remove http:// and port)
     const domain =
-      apiHost.replace(/^https?:\/\//, "").replace(/:\d+$/, "") || "localhost";
+      apiHost.replace(/^https?:\/\//, "").replace(/:\d+$/, "") || "16.171.19.61";
 
     // Write the network security config
     const networkSecurityConfig = `<?xml version="1.0" encoding="utf-8"?>

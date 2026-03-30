@@ -26,6 +26,7 @@ export const SettingsScreen = ({
   themeMode,
   onThemeModeChange,
   onLogout,
+  onHardwareSetup,
 }: SettingsScreenProps) => {
   const { showPopup } = usePopupMessage();
   const { language, setLanguage, t } = useLanguage();
@@ -244,6 +245,40 @@ export const SettingsScreen = ({
           />
           <Text style={[appStyles.settingLabel, { color: theme.text }]}>
             {t.settings.awsConnectionTest}
+          </Text>
+        </View>
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={20}
+          color={theme.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {/* Donanim Kurulumu */}
+      <TouchableOpacity
+        style={[
+          {
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingVertical: 16,
+            paddingHorizontal: 16,
+            backgroundColor: theme.surface,
+            borderRadius: 8,
+            marginBottom: 12,
+          },
+        ]}
+        onPress={onHardwareSetup}
+      >
+        <View style={[appStyles.settingLeft]}>
+          <MaterialCommunityIcons
+            name="access-point"
+            size={20}
+            color={theme.accent}
+            style={{ marginRight: 12 }}
+          />
+          <Text style={[appStyles.settingLabel, { color: theme.text }]}>
+            {t.hardware.title}
           </Text>
         </View>
         <MaterialCommunityIcons

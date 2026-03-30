@@ -175,6 +175,60 @@ export interface StringDictionary {
     diagnosticsFailed: string;
   };
 
+  // Hardware Setup
+  hardware: {
+    title: string;
+    addGateway: string;
+    addGatewayDesc: string;
+    addSensorNode: string;
+    addSensorNodeDesc: string;
+    selectFarm: string;
+    scanningGateways: string;
+    noGatewaysFound: string;
+    enterWifi: string;
+    ssidPlaceholder: string;
+    passwordPlaceholder: string;
+    configureGateway: string;
+    provisioning: string;
+    gatewayConfigured: string;
+    selectGateway: string;
+    gatewayOffline: string;
+    selectZone: string;
+    startPairing: string;
+    searchingNodes: string;
+    nodeFound: string;
+    approve: string;
+    decline: string;
+    autoRejectNotice: string;
+    noZonesFound: string;
+    nodePaired: string;
+    pairingTimeout: string;
+    bleDisabled: string;
+    blePermissionNeeded: string;
+    connectionLost: string;
+    retry: string;
+    powerOnSensor: string;
+    done: string;
+    registering: string;
+    writingConfig: string;
+    waitingGateway: string;
+    testingWifi: string;
+    wifiFailed: string;
+    backendUnreachable: string;
+    provisionFailed: string;
+    online: string;
+    offline: string;
+    sensors: string;
+    firmwareVersion: string;
+    firmwareUpToDate: string;
+    updateAvailable: string;
+    updateConfirmTitle: string;
+    updateConfirmMessage: string;
+    updating: string;
+    updateSuccess: string;
+    updateFailed: string;
+  };
+
   // Chat
   chat: {
     title: string;
@@ -400,6 +454,59 @@ const tr: StringDictionary = {
     diagnosticsFailed: "Hata: Tanılama başarısız oldu",
   },
 
+  hardware: {
+    title: "Donanım Kurulumu",
+    addGateway: "Gateway Ekle",
+    addGatewayDesc: "BLE ile yeni gateway cihazı yapılandır",
+    addSensorNode: "Sensör Düğümü Ekle",
+    addSensorNodeDesc: "Gateway üzerinden yeni sensör eşleştir",
+    selectFarm: "Tarla Seçin",
+    scanningGateways: "Gateway Aranıyor",
+    noGatewaysFound: "Gateway bulunamadı",
+    enterWifi: "WiFi Bilgilerini Girin",
+    ssidPlaceholder: "Ağ adı (SSID)",
+    passwordPlaceholder: "WiFi Şifresi",
+    configureGateway: "Gateway Yapılandır",
+    provisioning: "Yapılandırılıyor...",
+    gatewayConfigured: "Gateway Yapılandırıldı",
+    selectGateway: "Gateway Seçin",
+    gatewayOffline: "Çevrimdışı",
+    selectZone: "Bölge Seçin",
+    startPairing: "Eşleştirmeyi Başlat",
+    searchingNodes: "Sensör Aranıyor",
+    nodeFound: "Sensör Bulundu",
+    approve: "Onayla",
+    decline: "Reddet",
+    autoRejectNotice: "Otomatik red",
+    noZonesFound: "Bölge bulunamadı",
+    nodePaired: "Sensör Eşleştirildi",
+    pairingTimeout: "Süre doldu, sensör bulunamadı",
+    bleDisabled: "Bluetooth kapalı, lütfen açın",
+    blePermissionNeeded: "Bluetooth izni gerekli",
+    connectionLost: "Bağlantı kesildi",
+    retry: "Tekrar Dene",
+    powerOnSensor: "Sensör düğümünü şimdi açın...",
+    done: "Tamam",
+    registering: "Kaydediliyor...",
+    writingConfig: "Yapılandırma yazılıyor...",
+    waitingGateway: "Gateway bekleniyor...",
+    testingWifi: "WiFi test ediliyor...",
+    wifiFailed: "WiFi bağlantısı başarısız. SSID ve şifreyi kontrol edin.",
+    backendUnreachable: "Backend sunucusuna ulaşılamıyor. İnternet bağlantısını kontrol edin.",
+    provisionFailed: "Yapılandırma başarısız.",
+    online: "Çevrimiçi",
+    offline: "Çevrimdışı",
+    sensors: "sensör",
+    firmwareVersion: "Yazılım",
+    firmwareUpToDate: "Güncel",
+    updateAvailable: "Güncelleme mevcut",
+    updateConfirmTitle: "Yazılım Güncellemesi",
+    updateConfirmMessage: "Gateway v{version} sürümüne güncellensin mi? Gateway yeniden başlatılacak.",
+    updating: "Yazılım güncelleniyor...",
+    updateSuccess: "Yazılım başarıyla güncellendi!",
+    updateFailed: "Yazılım güncellemesi başarısız",
+  },
+
   chat: {
     title: "TarasMobil Asistanı",
     placeholder: "Mesajınızı yazın...",
@@ -619,6 +726,59 @@ const en: StringDictionary = {
     diagnosticsStart: "Start",
     diagnosticsCompleted: "Diagnostics Completed",
     diagnosticsFailed: "Error: Diagnostics failed",
+  },
+
+  hardware: {
+    title: "Hardware Setup",
+    addGateway: "Add Gateway",
+    addGatewayDesc: "Configure a new gateway device via BLE",
+    addSensorNode: "Add Sensor Node",
+    addSensorNodeDesc: "Pair a new sensor via gateway",
+    selectFarm: "Select Farm",
+    scanningGateways: "Scanning for Gateways",
+    noGatewaysFound: "No gateways found",
+    enterWifi: "Enter WiFi Credentials",
+    ssidPlaceholder: "Network name (SSID)",
+    passwordPlaceholder: "WiFi Password",
+    configureGateway: "Configure Gateway",
+    provisioning: "Configuring...",
+    gatewayConfigured: "Gateway Configured",
+    selectGateway: "Select Gateway",
+    gatewayOffline: "Offline",
+    selectZone: "Select Zone",
+    startPairing: "Start Pairing",
+    searchingNodes: "Searching for Sensors",
+    nodeFound: "Sensor Found",
+    approve: "Approve",
+    decline: "Decline",
+    autoRejectNotice: "Auto-decline",
+    noZonesFound: "No zones found",
+    nodePaired: "Sensor Paired",
+    pairingTimeout: "Timed out, no sensor found",
+    bleDisabled: "Bluetooth is off, please enable it",
+    blePermissionNeeded: "Bluetooth permission required",
+    connectionLost: "Connection lost",
+    retry: "Retry",
+    powerOnSensor: "Power on the sensor node now...",
+    done: "Done",
+    registering: "Registering...",
+    writingConfig: "Writing configuration...",
+    waitingGateway: "Waiting for gateway...",
+    testingWifi: "Testing WiFi...",
+    wifiFailed: "WiFi connection failed. Check SSID and password.",
+    backendUnreachable: "Cannot reach backend server. Check internet connection.",
+    provisionFailed: "Configuration failed.",
+    online: "Online",
+    offline: "Offline",
+    sensors: "sensors",
+    firmwareVersion: "Firmware",
+    firmwareUpToDate: "Up to date",
+    updateAvailable: "Update available",
+    updateConfirmTitle: "Firmware Update",
+    updateConfirmMessage: "Update gateway to v{version}? The gateway will restart.",
+    updating: "Updating firmware...",
+    updateSuccess: "Firmware updated successfully!",
+    updateFailed: "Firmware update failed",
   },
 
   chat: {
