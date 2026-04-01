@@ -1,0 +1,23 @@
+--- EN IYI EPOCH: 20 ---
+COMBINED SCORE: 0.8765
+PV_F1: 0.9649 | RW_F1: 0.7438
+
+                                             precision    recall  f1-score   support
+
+                         Tomato_Late_blight      1.000     0.333     0.500         3
+                           Tomato_Leaf_Mold      1.000     0.750     0.857         8
+                         Tomato_Leaf_blight      0.750     0.500     0.600         6
+                  Tomato_Septoria_leaf_spot      0.600     0.857     0.706         7
+Tomato_Spider_mites_Two_spotted_spider_mite      1.000     1.000     1.000         3
+                             Tomato_healthy      0.667     1.000     0.800         6
+
+                                   accuracy                          0.758        33
+                                  macro avg      0.836     0.740     0.744        33
+                               weighted avg      0.809     0.758     0.748        33
+
+[[1 0 1 1 0 0]
+ [0 6 0 0 0 2]
+ [0 0 3 3 0 0]
+ [0 0 0 6 0 1]
+ [0 0 0 0 3 0]
+ [0 0 0 0 0 6]]
