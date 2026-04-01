@@ -65,8 +65,13 @@ export const AddGatewayFlow = ({
 
   // BLE manager olustur ve temizle
   useEffect(() => {
-    bleManagerRef.current = new BleManager();
-    console.log("[BLE] manager olusturuldu");
+    try {
+      bleManagerRef.current = new BleManager();
+      console.log("[BLE] manager olusturuldu");
+    } catch (err) {
+      console.log("[BLE] manager olusturulamadi (native modul yok):", err);
+      setError("BLE bu ortamda desteklenmiyor. Lutfen gelistirme derlemesi kullanin.");
+    }
 
     return () => {
       if (bleManagerRef.current) {
