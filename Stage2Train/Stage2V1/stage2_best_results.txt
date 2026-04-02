@@ -1,0 +1,23 @@
+--- STAGE 2 EN IYI EPOCH: 16 ---
+COMBINED SCORE: 0.9169
+PV_F1: 0.9912 | RW_F1: 0.8055
+
+                                             precision    recall  f1-score   support
+
+                         Tomato_Late_blight      1.000     0.857     0.923         7
+                           Tomato_Leaf_Mold      0.727     1.000     0.842        16
+                         Tomato_Leaf_blight      0.571     0.667     0.615        12
+                  Tomato_Septoria_leaf_spot      0.800     0.571     0.667        14
+Tomato_Spider_mites_Two_spotted_spider_mite      1.000     0.714     0.833         7
+                             Tomato_healthy      1.000     0.909     0.952        11
+
+                                   accuracy                          0.791        67
+                                  macro avg      0.850     0.786     0.805        67
+                               weighted avg      0.816     0.791     0.790        67
+
+[[ 6  1  0  0  0  0]
+ [ 0 16  0  0  0  0]
+ [ 0  3  8  1  0  0]
+ [ 0  0  6  8  0  0]
+ [ 0  1  0  1  5  0]
+ [ 0  1  0  0  0 10]]
