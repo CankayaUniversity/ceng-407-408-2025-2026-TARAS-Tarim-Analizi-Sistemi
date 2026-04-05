@@ -12,6 +12,8 @@ Thumbs.db
 */*.md
 */*.zip
 *.zip
+*.bat
+*.sh
 
 # Donanim specific ignores
 # Build directories
@@ -122,3 +124,4 @@ Mobil/*.tsbuildinfo
 */package-lock.json
 *.backup
 *.md
+
