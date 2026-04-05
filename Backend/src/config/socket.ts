@@ -81,19 +81,31 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
       free_heap?: number;
       buffered_count?: number;
       fw_version?: string;
+      pkt_recv?: number;
+      pkt_ok?: number;
+      pkt_drop?: number;
     }) => {
       if (!authenticatedGatewayId) return;
 
+      if (data.pkt_recv != null) {
+        logger.info(`[GATEWAY-HB] ${authenticatedGatewayId} recv=${data.pkt_recv} ok=${data.pkt_ok} drop=${data.pkt_drop}`);
+      }
+
+      const now = new Date();
       const updateData: Record<string, unknown> = {
-        last_heartbeat: new Date(),
-        last_seen: new Date(),
+        last_heartbeat: now,
+        last_seen: now,
       };
       if (data.fw_version) updateData.firmware_version = data.fw_version;
 
-      await prisma.gateway.update({
-        where: { gateway_id: authenticatedGatewayId },
-        data: updateData,
-      });
+      try {
+        await prisma.gateway.update({
+          where: { gateway_id: authenticatedGatewayId },
+          data: updateData,
+        });
+      } catch (e) {
+        logger.error(`[GATEWAY-WS] Heartbeat update failed for ${authenticatedGatewayId}:`, e);
+      }
 
       logger.debug(`[GATEWAY-WS] Heartbeat from ${authenticatedGatewayId}`, data);
     });
@@ -146,10 +158,14 @@ export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
 
     socket.on('disconnect', async () => {
       if (authenticatedGatewayId) {
-        await prisma.gateway.update({
-          where: { gateway_id: authenticatedGatewayId },
-          data: { status: "OFFLINE" },
-        });
+        try {
+          await prisma.gateway.update({
+            where: { gateway_id: authenticatedGatewayId },
+            data: { status: "OFFLINE" },
+          });
+        } catch (e) {
+          logger.error(`[GATEWAY-WS] Disconnect update failed for ${authenticatedGatewayId}:`, e);
+        }
         logger.info(`[GATEWAY-WS] Gateway disconnected: ${authenticatedGatewayId}`);
       } else {
         logger.info(`Client disconnected: ${socket.id}`);

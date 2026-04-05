@@ -569,37 +569,51 @@ export async function postDeviceData(req: Request, res: Response): Promise<void>
     }
 
     const now = Date.now();
-    // savedCount tanimlama createMany sonucundan gelecek
+    const calDry = sensorNode.cal_dry_value;
+    const calWet = sensorNode.cal_wet_value;
+    const hasCalibration = calDry != null && calWet != null && calDry !== calWet;
 
-    // Toplu kayit — buyuk buffer flush'lari icin performans
-    const readingsData = readings.map((r: any) => ({
-      node_id: sensorNode.node_id,
-      temperature: r.temperature ?? null,
-      humidity: r.humidity ?? null,
-      raw_temperature: r.raw_temperature ?? null,
-      raw_humidity: r.raw_humidity ?? null,
-      raw_sm_value: r.raw_sm_value ?? null,
-      sm_percent: r.sm_percent ?? null,
-      battery_voltage: r.battery_voltage ?? null,
-      created_at: new Date(now - (r.minutes_ago || 0) * 60000),
-    }));
+    const readingsData = readings.map((r: any) => {
+      const rawSm = r.raw_sm_value ?? null;
+      let smPercent: number | null = null;
+      if (hasCalibration && rawSm != null) {
+        // (dry - raw) / (dry - wet) * 100, clamped 0-100
+        smPercent = Math.max(0, Math.min(100,
+          ((calDry! - rawSm) / (calDry! - calWet!)) * 100
+        ));
+        smPercent = Math.round(smPercent * 10) / 10; // 1 decimal
+      }
+      return {
+        node_id: sensorNode.node_id,
+        temperature: r.temperature ?? null,
+        humidity: r.humidity ?? null,
+        raw_temperature: r.raw_temperature ?? null,
+        raw_humidity: r.raw_humidity ?? null,
+        raw_sm_value: rawSm,
+        sm_percent: smPercent,
+        battery_voltage: r.battery_voltage ?? null,
+        created_at: new Date(now - (r.minutes_ago || 0) * 60000),
+      };
+    });
 
     const result = await prisma.sensorReading.createMany({ data: readingsData });
     const savedCount = result.count;
 
     logger.info(`[DEVICE] ${savedCount} readings from ${sensorNode.hardware_mac}`);
 
-    // Emit socket update for the latest reading only
-    const latest = readings[readings.length - 1];
+    // Emit socket update for the latest reading (use calibrated data, not raw)
+    const latestCalibrated = readingsData[readingsData.length - 1];
+    const latestRaw = readings[readings.length - 1];
     const fieldId = sensorNode.zone?.field_id;
-    if (fieldId && latest) {
+    if (fieldId && latestCalibrated) {
       emitSensorUpdate(fieldId, {
         readingId: null,
         sensorNodeId: sensorNode.node_id,
         macAddress: sensorNode.hardware_mac,
-        temperature: latest.temperature ?? null,
-        humidity: latest.humidity ?? null,
-        sensorError: latest.sensor_error || 0,
+        temperature: latestCalibrated.temperature ?? null,
+        humidity: latestCalibrated.humidity ?? null,
+        smPercent: latestCalibrated.sm_percent ?? null,
+        sensorError: latestRaw?.sensor_error || 0,
         timestamp: new Date(),
       });
     }
@@ -656,6 +670,98 @@ export async function postDeviceData(req: Request, res: Response): Promise<void>
   }
 }
 
+export async function postDeviceDiagnostic(req: Request, res: Response): Promise<void> {
+  try {
+    const deviceKey = req.headers["x-device-key"] as string;
+    if (!deviceKey) {
+      res.status(401).json({ success: false, error: "Missing X-Device-Key header" });
+      return;
+    }
+
+    const sensorNode = await prisma.sensorNode.findUnique({
+      where: { device_key: deviceKey },
+      include: { zone: { include: { field: { include: { farm: true } } } } },
+    });
+
+    if (!sensorNode) {
+      res.status(401).json({ success: false, error: "Invalid device key" });
+      return;
+    }
+
+    const d = req.body;
+
+    await prisma.sensorDiagnostic.create({
+      data: {
+        node_id: sensorNode.node_id,
+        reset_reason: d.reset_reason ?? 0,
+        boot_count: d.boot_count ?? 0,
+        uptime_cycles: d.uptime_cycles ?? 0,
+        failures: d.failures && Object.keys(d.failures).length > 0 ? d.failures : undefined,
+      },
+    });
+
+    await prisma.sensorNode.update({
+      where: { node_id: sensorNode.node_id },
+      data: {
+        last_reset_reason: d.reset_reason ?? null,
+        last_boot_count: d.boot_count ?? null,
+        last_diag_at: new Date(),
+      },
+    });
+
+    // Alert on abnormal resets
+    const ABNORMAL = [7, 9, 15]; // WDT, BROWNOUT, PANIC
+    if (ABNORMAL.includes(d.reset_reason)) {
+      const names: Record<number, string> = {
+        7: "Watchdog timeout (firmware hang)",
+        9: "Brownout (low battery)",
+        15: "Panic (firmware crash)",
+      };
+      const userId = sensorNode.zone?.field?.farm?.user_id;
+      if (userId) {
+        await prisma.alert.create({
+          data: {
+            user_id: userId,
+            title: "Sensor Reset Detected",
+            message: `Sensor ${sensorNode.hardware_mac}: ${names[d.reset_reason] ?? "Unknown"}. Boot count: ${d.boot_count}.`,
+            severity: d.reset_reason === 9 ? "CRITICAL" : "WARNING",
+          },
+        });
+      }
+    }
+
+    logger.info(`[DIAG] ${sensorNode.hardware_mac} rst=${d.reset_reason} boots=${d.boot_count}`);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error("[DIAG] postDeviceDiagnostic error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+export async function getNodeDiagnostics(req: Request, res: Response): Promise<void> {
+  try {
+    const nodeId = req.params.nodeId as string;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const diagnostics = await prisma.sensorDiagnostic.findMany({
+      where: { node_id: nodeId as string },
+      orderBy: { created_at: "desc" },
+      take: limit,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: diagnostics.map((d) => ({
+        ...d,
+        id: d.id.toString(),
+      })),
+    });
+  } catch (error) {
+    logger.error("[DIAG] getNodeDiagnostics error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
 export default {
   getUserZones,
   getSensorsByZone,
@@ -666,4 +772,6 @@ export default {
   getFieldSensorHistory,
   registerDevice,
   postDeviceData,
+  postDeviceDiagnostic,
+  getNodeDiagnostics,
 };

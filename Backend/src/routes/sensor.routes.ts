@@ -4,8 +4,9 @@ import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Device data endpoint (device_key auth, no JWT)
+// Device endpoints (device_key auth, no JWT)
 router.post('/device/data', sensorController.postDeviceData);
+router.post('/device/diagnostic', sensorController.postDeviceDiagnostic);
 
 // All routes below require JWT auth
 router.use(authenticateToken);
@@ -20,6 +21,7 @@ router.get('/zone/:zoneId/history', sensorController.getZoneHistory);
 router.get('/zone/:zoneId/details', sensorController.getZoneDetails);
 router.get('/node/:nodeId/readings', sensorController.getNodeReadings);
 router.get('/field/:fieldId/history', sensorController.getFieldSensorHistory);
+router.get('/node/:nodeId/diagnostics', sensorController.getNodeDiagnostics);
 
 export default router;
 
