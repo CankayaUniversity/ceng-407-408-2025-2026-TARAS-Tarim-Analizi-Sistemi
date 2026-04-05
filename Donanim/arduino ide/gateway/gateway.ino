@@ -22,10 +22,11 @@
 #include <Update.h>
 #include <NimBLEDevice.h>
 #include <esp_mac.h>
+#include <driver/gpio.h>
 #include <mbedtls/md.h>
 
 // ── Configuration ────────────────────────────────────────────────────
-#define GW_FW_VERSION      "1.0.0"
+#define GW_FW_VERSION      "1.0.1"
 #define BACKEND_HOST       "16.171.19.61"
 #define BACKEND_PORT       3000
 #define BACKEND_DATA_PATH  "/api/sensors/device/data"
@@ -55,6 +56,24 @@
 #define PKT_CONFIG_ACK    0x21
 #define PKT_PAIR_REJECTED 0x05
 #define PKT_PAIR_BEACON   0x06
+#define PKT_DIAGNOSTIC    0x12
+
+// Diagnostic failure type enum → JSON key mapping
+static const char *DIAG_NAMES[] = {
+  NULL,              // 0x00 unused
+  "send_fail",       // 0x01
+  "ack_miss",        // 0x02
+  "sensor_fail",     // 0x03
+  "soil_fail",       // 0x04
+  "nvs_fail",        // 0x05
+  "wifi_fail",       // 0x06
+  "i2c_fail",        // 0x07
+  "ch_recovery",     // 0x08
+  "buf_overflow",    // 0x09
+  "abnormal_reset",  // 0x0A
+};
+#define DIAG_NAME_COUNT 11
+
 #define SENSOR_CAP_SHT31  0x01
 #define SENSOR_CAP_SOIL   0x02
 #define MAX_READINGS      33  // (250 - 2 header - 4 HMAC) / 7 = 34, using 33
@@ -107,6 +126,23 @@ struct PairedNode {
 };
 static PairedNode paired_nodes[MAX_PAIRED_NODES];
 static int paired_node_count = 0;
+
+// Telemetry counters (reported in heartbeat for remote debugging)
+static uint32_t packets_accepted = 0;
+static uint32_t packets_rejected = 0;
+static uint32_t packets_received = 0;
+
+// Pending HTTP POST queue — ACKs sent immediately, POSTs deferred
+#define MAX_PENDING_POSTS 10
+struct PendingPost {
+  char device_key[37];
+  uint8_t mac[6];
+  reading_entry_t readings[MAX_READINGS];
+  uint8_t count;
+  bool active;
+};
+static PendingPost pendingPosts[MAX_PENDING_POSTS];
+static int pendingPostCount = 0;
 
 static char gw_api_key[128] = {0};
 static char gw_id[64] = {0};
@@ -363,7 +399,30 @@ bool postReadingsToBackend(const char *dk, const String &json) {
 }
 
 // ── SPIFFS Buffer ────────────────────────────────────────────────────
-void initBuffer() { SPIFFS.begin(true); }
+static size_t bufferSizeCache = 0;    // Avoids SPIFFS open just to check size
+static int cachedUnsentCount = 0;     // Avoids full file scan every heartbeat
+
+void initBuffer() {
+  SPIFFS.begin(true);
+  // Read initial buffer size + unsent count once at boot (only full scan)
+  File f = SPIFFS.open(BUFFER_FILE, FILE_READ);
+  if (f) {
+    bufferSizeCache = f.size();
+    // Count unsent records for cache initialization
+    BufferRecordV2 rec;
+    while (f.available() >= 12) {
+      uint32_t magic; f.read((uint8_t *)&magic, 4);
+      if (magic != BUFFER_MAGIC_V2) break;
+      f.read(rec.mac, 6);
+      f.read(&rec.count, 1);
+      if (rec.count > MAX_READINGS || rec.count == 0) break;
+      uint8_t sent; f.read(&sent, 1);
+      f.seek(f.position() + rec.count * sizeof(reading_entry_t));
+      if (sent == 0x00) cachedUnsentCount++;
+    }
+    f.close();
+  }
+}
 
 bool readBufferRecordV2(File &f, BufferRecordV2 &rec) {
   if (f.available() < 12) return false;
@@ -380,12 +439,9 @@ bool readBufferRecordV2(File &f, BufferRecordV2 &rec) {
 }
 
 void bufferWriteCompact(const uint8_t *mac, const reading_entry_t *readings, uint8_t count) {
-  // Check size before writing — don't fill SPIFFS completely
-  File chk = SPIFFS.open(BUFFER_FILE, FILE_READ);
-  if (chk) {
-    size_t sz = chk.size(); chk.close();
-    if (sz > BUFFER_MAX_SIZE) { Serial.println("[BUF] Buffer full, dropping"); return; }
-  }
+  // Check cached size — no SPIFFS open needed
+  if (bufferSizeCache > BUFFER_MAX_SIZE) { Serial.println("[BUF] Buffer full, dropping"); return; }
+
   File f = SPIFFS.open(BUFFER_FILE, FILE_APPEND);
   if (!f) return;
   uint32_t magic = BUFFER_MAGIC_V2;
@@ -396,7 +452,10 @@ void bufferWriteCompact(const uint8_t *mac, const reading_entry_t *readings, uin
   f.write(&flag, 1); // sent_flag
   f.write((uint8_t *)readings, count * sizeof(reading_entry_t));
   f.close();
-  Serial.printf("[BUF] Buffered %d readings compact (%d bytes)\n", count, 12 + count * 7);
+  size_t recordSize = 12 + count * sizeof(reading_entry_t);
+  bufferSizeCache += recordSize;
+  cachedUnsentCount++;
+  Serial.printf("[BUF] Buffered %d readings compact (%d bytes)\n", count, recordSize);
 }
 
 void bufferFlush() {
@@ -406,6 +465,7 @@ void bufferFlush() {
   File dst = SPIFFS.open("/buf_tmp.dat", FILE_WRITE);
   if (!dst) { src.close(); return; }
   int flushed = 0, kept = 0;
+  size_t keptBytes = 0;
   BufferRecordV2 rec;
   while (readBufferRecordV2(src, rec)) {
     uint8_t sent; src.read(&sent, 1);
@@ -421,37 +481,27 @@ void bufferFlush() {
       if (posted) {
         flushed++;
       } else {
-        // Keep unsent record
         uint32_t magic = BUFFER_MAGIC_V2;
         uint8_t flag = 0x00;
         dst.write((uint8_t *)&magic, 4); dst.write(rec.mac, 6);
         dst.write(&rec.count, 1); dst.write(&flag, 1);
         dst.write((uint8_t *)readings, rec.count * sizeof(reading_entry_t));
         kept++;
+        keptBytes += 12 + rec.count * sizeof(reading_entry_t);
       }
     }
-    // Already-sent records (sent == 0xFF) are silently dropped during compaction
   }
   src.close(); dst.close();
   SPIFFS.remove(BUFFER_FILE);
   SPIFFS.rename("/buf_tmp.dat", BUFFER_FILE);
+  cachedUnsentCount = kept;
+  bufferSizeCache = keptBytes;
   if (flushed > 0 || kept > 0) Serial.printf("[BUF] Flushed %d, kept %d\n", flushed, kept);
 }
 
 
 int bufferGetUnsentCount() {
-  if (!SPIFFS.exists(BUFFER_FILE)) return 0;
-  File f = SPIFFS.open(BUFFER_FILE, FILE_READ);
-  if (!f) return 0;
-  int count = 0;
-  BufferRecordV2 rec;
-  while (readBufferRecordV2(f, rec)) {
-    uint8_t sent; f.read(&sent, 1);
-    f.seek(f.position() + rec.count * sizeof(reading_entry_t));
-    if (sent == 0x00) count++;
-  }
-  f.close();
-  return count;
+  return cachedUnsentCount;  // Updated by bufferWriteCompact/bufferFlush — no SPIFFS scan
 }
 
 // ── ESP-NOW ──────────────────────────────────────────────────────────
@@ -539,7 +589,7 @@ void exitRegistrationMode() {
 
 // ── ESP-NOW Packet Handlers ─────────────────────────────────────────
 void handleSensorData(const uint8_t *mac, const uint8_t *data, int len) {
-  // Identify sender by MAC (device_key no longer in packet)
+  packets_received++;
   int idx = findNodeByMac(mac);
   if (idx < 0) {
     char m[18]; macToStr(mac, m);
@@ -548,7 +598,14 @@ void handleSensorData(const uint8_t *mac, const uint8_t *data, int len) {
   }
 
   sensor_data_packet_t *pkt = (sensor_data_packet_t *)data;
-  uint8_t count = min(pkt->reading_count, (uint8_t)MAX_READINGS);
+
+  // Validate reading_count — corrupt/malicious packets could have 255
+  if (pkt->reading_count > MAX_READINGS) {
+    Serial.printf("[SEC] Invalid reading_count=%d, dropped\n", pkt->reading_count);
+    return;
+  }
+
+  uint8_t count = pkt->reading_count;
   size_t payload_size = 6 + count * sizeof(reading_entry_t); // type(1)+counter(4)+count(1)+readings
 
   // Verify HMAC-SHA256 (4-byte truncated)
@@ -561,13 +618,19 @@ void handleSensorData(const uint8_t *mac, const uint8_t *data, int len) {
     return;
   }
 
-  // Replay protection: counter must be > last seen (0 = accept first packet after boot/reset)
-  if (paired_nodes[idx].last_counter > 0 && pkt->counter <= paired_nodes[idx].last_counter) {
-    Serial.printf("[SEC] Replay detected: counter %lu <= last %lu, dropped\n",
-      (unsigned long)pkt->counter, (unsigned long)paired_nodes[idx].last_counter);
+  // Dedup: reject exact same counter (retry of identical packet)
+  // HMAC is the real security gate — counter sync issues must never block valid data
+  if (pkt->counter == paired_nodes[idx].last_counter) {
+    Serial.printf("[SEC] Duplicate ctr=%lu, dropped\n", (unsigned long)pkt->counter);
+    packets_rejected++;
     return;
   }
+  if (pkt->counter < paired_nodes[idx].last_counter) {
+    Serial.printf("[SEC] Counter jump: %lu < last %lu (reboot?), accepted\n",
+      (unsigned long)pkt->counter, (unsigned long)paired_nodes[idx].last_counter);
+  }
   paired_nodes[idx].last_counter = pkt->counter;
+  packets_accepted++;
 
   // Persist counter to NVS every 10 packets to survive reboots
   if (pkt->counter % 10 == 0) {
@@ -602,12 +665,68 @@ void handleSensorData(const uint8_t *mac, const uint8_t *data, int len) {
     espnowSend(mac, cfg_buf, cfg_size + 4);
   }
 
-  // Build JSON and post (or buffer compact binary if offline)
+  // Queue for deferred HTTP POST — don't block the ACK pipeline
   const char *dk = paired_nodes[idx].device_key;
   if (count == 0) return;
-  String json = buildReadingsJson(pkt->readings, count);
   Serial.printf("[DATA] %d readings from %s (HMAC OK, ctr=%lu)\n", count, dk, (unsigned long)pkt->counter);
-  if (!postReadingsToBackend(dk, json)) bufferWriteCompact(mac, pkt->readings, count);
+  if (pendingPostCount < MAX_PENDING_POSTS) {
+    PendingPost &pp = pendingPosts[pendingPostCount++];
+    strncpy(pp.device_key, dk, 36); pp.device_key[36] = '\0';
+    memcpy(pp.mac, mac, 6);
+    memcpy(pp.readings, pkt->readings, count * sizeof(reading_entry_t));
+    pp.count = count;
+    pp.active = true;
+  } else {
+    // Queue full — buffer to SPIFFS immediately
+    bufferWriteCompact(mac, pkt->readings, count);
+  }
+}
+
+void handleDiagnostic(const uint8_t *mac, const uint8_t *data, int len) {
+  int idx = findNodeByMac(mac);
+  if (idx < 0) return;
+
+  if (len < 16) return;  // minimum: 12 header + 4 HMAC (0 entries)
+  uint8_t entry_count = data[11];
+  size_t payload = 12 + entry_count * 3;
+  if (len < (int)(payload + 4)) return;
+  if (!verify_hmac_4(paired_nodes[idx].encryption_key, data, payload, data + payload)) return;
+
+  // Replay check (shares counter space with data packets)
+  uint32_t ctr; memcpy(&ctr, data + 1, 4);
+  if (ctr <= paired_nodes[idx].last_counter) return;
+  paired_nodes[idx].last_counter = ctr;
+
+  // Parse header
+  uint8_t reset_reason = data[6];
+  uint16_t boot_count; memcpy(&boot_count, data + 7, 2);
+  uint16_t uptime_cycles; memcpy(&uptime_cycles, data + 9, 2);
+
+  // Build JSON with enum-based failure entries
+  JsonDocument doc;
+  doc["reset_reason"] = reset_reason;
+  doc["boot_count"] = boot_count;
+  doc["uptime_cycles"] = uptime_cycles;
+  JsonObject failures = doc["failures"].to<JsonObject>();
+  for (uint8_t i = 0; i < entry_count; i++) {
+    uint8_t type = data[12 + i * 3];
+    uint16_t count; memcpy(&count, data + 12 + i * 3 + 1, 2);
+    const char *name = (type < DIAG_NAME_COUNT) ? DIAG_NAMES[type] : NULL;
+    if (name) failures[name] = count;
+  }
+
+  String json; serializeJson(doc, json);
+  const char *dk = paired_nodes[idx].device_key;
+
+  HTTPClient http;
+  String url = String("http://") + BACKEND_HOST + ":" + BACKEND_PORT + "/api/sensors/device/diagnostic";
+  http.begin(url);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-Device-Key", dk);
+  http.setTimeout(10000);
+  int code = http.POST(json);
+  http.end();
+  Serial.printf("[DIAG] %s rst=%d boots=%d entries=%d -> HTTP %d\n", dk, reset_reason, boot_count, entry_count, code);
 }
 
 void handlePairAccept(const uint8_t *mac, const uint8_t *data, int len) {
@@ -665,17 +784,33 @@ void handleConfigAck(const uint8_t *mac, const uint8_t *data, int len) {
   if (idx >= 0) { paired_nodes[idx].has_pending_config = false; Serial.printf("[CFG] ACK from node %d\n", idx); }
 }
 
+void flushPendingPosts() {
+  for (int i = 0; i < pendingPostCount; i++) {
+    PendingPost &pp = pendingPosts[i];
+    if (!pp.active) continue;
+    String json = buildReadingsJson(pp.readings, pp.count);
+    if (!postReadingsToBackend(pp.device_key, json)) {
+      bufferWriteCompact(pp.mac, pp.readings, pp.count);
+    }
+    pp.active = false;
+  }
+  pendingPostCount = 0;
+}
+
 void processEspNowQueue() {
   EspNowMessage msg;
   while (xQueueReceive(espNowQueue, &msg, 0) == pdTRUE) {
     if (msg.data_len < 1) continue;
     switch (msg.data[0]) {
       case PKT_SENSOR_DATA: handleSensorData(msg.mac, msg.data, msg.data_len); break;
+      case PKT_DIAGNOSTIC:  handleDiagnostic(msg.mac, msg.data, msg.data_len); break;
       case PKT_PAIR_ACCEPT: handlePairAccept(msg.mac, msg.data, msg.data_len); break;
       case PKT_CONFIG_ACK:  handleConfigAck(msg.mac, msg.data, msg.data_len); break;
       default: break;
     }
   }
+  // All ACKs sent — now do the slow HTTP POSTs without blocking the pipeline
+  if (pendingPostCount > 0) flushPendingPosts();
 }
 
 // ── OTA Update ───────────────────────────────────────────────────────
@@ -754,9 +889,14 @@ void sendHeartbeat() {
   hb["paired_nodes"] = paired_node_count;
   hb["buffered_unsent"] = bufferGetUnsentCount();
   hb["fw_version"] = GW_FW_VERSION;
+  hb["pkt_recv"] = packets_received;
+  hb["pkt_ok"] = packets_accepted;
+  hb["pkt_drop"] = packets_rejected;
   String out; serializeJson(a, out);
   socketIO.sendEVENT(out);
-  Serial.printf("[HB] heap=%d rssi=%d nodes=%d\n", ESP.getFreeHeap(), WiFi.RSSI(), paired_node_count);
+  Serial.printf("[HB] heap=%d rssi=%d nodes=%d recv=%lu ok=%lu drop=%lu\n",
+    ESP.getFreeHeap(), WiFi.RSSI(), paired_node_count,
+    (unsigned long)packets_received, (unsigned long)packets_accepted, (unsigned long)packets_rejected);
 }
 
 // ── Socket.IO Handlers ───────────────────────────────────────────────
@@ -1164,12 +1304,23 @@ void runBLEProvisioning() {
 
 // ── Setup & Loop ─────────────────────────────────────────────────────
 void setup() {
+  setCpuFrequencyMhz(80);  // 80MHz sufficient — ESP-NOW is interrupt-driven, HTTP is WiFi-bound
+
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n[BOOT] TARAS Gateway starting...");
+  Serial.println("\n[BOOT] TARAS Gateway starting (80MHz)...");
 
   pinMode(LED_PIN, OUTPUT);
   digitalWrite(LED_PIN, LOW);
+
+  // Pull down all unused GPIOs — prevent floating state current leakage and short circuit risk
+  // Skip: GPIO 0,5 (boot strapping), GPIO 2 (LED), GPIO 1,3 (UART), GPIO 6-11 (internal flash SPI)
+  const uint8_t pulldown_pins[] = {4, 12, 13, 14, 15, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33};
+  for (uint8_t pin : pulldown_pins) pinMode(pin, INPUT_PULLDOWN);
+  // Input-only pins (GPIOs 34-39 have no internal pull resistor on ESP32)
+  const uint8_t input_only_pins[] = {34, 35, 36, 39};
+  for (uint8_t pin : input_only_pins) gpio_set_direction((gpio_num_t)pin, GPIO_MODE_INPUT);
+
   currentMode = MODE_INIT;
   selectLedForMode();
 
@@ -1207,6 +1358,7 @@ void setup() {
   if (wifiOk) {
     Serial.printf("\n[WIFI] Connected IP=%s CH=%d RSSI=%d\n",
       WiFi.localIP().toString().c_str(), WiFi.channel(), WiFi.RSSI());
+    esp_wifi_set_ps(WIFI_PS_NONE);  // No power save — Socket.IO needs always-on radio
     socketIO.begin(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH);
     socketIO.onEvent(socketIOEventHandler);
     socketIO_initialized = true;
@@ -1307,6 +1459,8 @@ void loop() {
   if (now - lastFlush >= FLUSH_INTERVAL && WiFi.status() == WL_CONNECTED) { lastFlush = now; bufferFlush(); }
   loopRegistrationBeacon();
   loopSerialCommands();
-  selectLedForMode();
+  // Only update LED pattern when mode actually changes (not every loop iteration)
+  static GatewayMode lastLedMode = MODE_INIT;
+  if (currentMode != lastLedMode) { selectLedForMode(); lastLedMode = currentMode; }
   updateLED();
 }

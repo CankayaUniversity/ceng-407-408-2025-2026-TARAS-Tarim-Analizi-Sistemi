@@ -9,7 +9,7 @@
  *   → NORMAL MODE → SETUP & LOOP
  */
 
-#define DEBUG_MODE
+// #define DEBUG_MODE
 
 #include <Wire.h>
 #include <WiFi.h>
@@ -17,7 +17,9 @@
 #include <esp_wifi.h>
 #include <Preferences.h>
 #include <esp_sleep.h>
+#include <driver/gpio.h>
 #include <esp_mac.h>
+#include <esp_log.h>
 #include <mbedtls/md.h>
 
 // ── Pin Definitions ──────────────────────────────────────────────────
@@ -40,6 +42,19 @@
 #define PKT_CONFIG_ACK    0x21
 #define PKT_PAIR_REJECTED 0x05
 #define PKT_PAIR_BEACON   0x06
+#define PKT_DIAGNOSTIC    0x12
+
+// Diagnostic failure type enum
+#define DIAG_SEND_FAIL       0x01
+#define DIAG_ACK_MISS        0x02
+#define DIAG_SENSOR_FAIL     0x03
+#define DIAG_SOIL_FAIL       0x04
+#define DIAG_NVS_FAIL        0x05
+#define DIAG_WIFI_FAIL       0x06
+#define DIAG_I2C_FAIL        0x07
+#define DIAG_CH_RECOVERY     0x08
+#define DIAG_BUF_OVERFLOW    0x09
+#define DIAG_ABNORMAL_RESET  0x0A
 
 typedef struct __attribute__((packed)) {
   uint8_t type;
@@ -130,6 +145,28 @@ typedef struct {
   uint16_t consecutive_send_failures;
   uint16_t consecutive_sensor_failures;
   uint32_t hmac_counter;               // monotonic counter for replay protection
+  // Cached config — survives deep sleep, avoids NVS flash read every cycle
+  uint8_t device_key[16];
+  uint8_t encryption_key[16];
+  uint8_t gw_mac[6];
+  uint8_t wifi_channel;
+  uint16_t sleep_interval_sec;
+  uint8_t min_buffer_cycles;
+  uint16_t max_buffer_cycles;
+  uint16_t temp_threshold;
+  uint16_t hum_threshold;
+  uint16_t soil_threshold;
+  // Diagnostic delta counters (per-cycle, flushed to NVS on send)
+  uint8_t  last_reset_reason;
+  uint16_t diag_send_fail;
+  uint16_t diag_ack_miss;
+  uint16_t diag_sensor_fail;
+  uint8_t  diag_soil_fail;
+  uint8_t  diag_nvs_fail;
+  uint8_t  diag_wifi_fail;
+  uint8_t  diag_i2c_fail;
+  uint8_t  diag_ch_recovery;
+  uint8_t  diag_buf_overflow;
   stored_reading_t buffer[MAX_STORED_READINGS];  // 4 bytes × 2000 = 8KB
 } rtc_state_t;
 
@@ -144,18 +181,18 @@ static uint8_t espnow_recv_buf[250];
 static int espnow_recv_len = 0;
 static uint8_t espnow_recv_mac[6];
 
-// ── Config Globals (loaded from NVS) ─────────────────────────────────
+// ── Config Shortcuts (point into RTC cache) ──────────────────────────
 
-static uint8_t device_key[16];
-static uint8_t encryption_key[16]; // HMAC signing key
-static uint8_t gw_mac[6];
-static uint8_t wifi_channel;
-static uint16_t sleep_interval_sec;
-static uint8_t min_buffer_cycles;
-static uint16_t max_buffer_cycles;
-static uint16_t temp_threshold;
-static uint16_t hum_threshold;
-static uint16_t soil_threshold;
+static uint8_t *device_key = rtc.device_key;
+static uint8_t *encryption_key = rtc.encryption_key;
+static uint8_t *gw_mac = rtc.gw_mac;
+static uint8_t &wifi_channel = rtc.wifi_channel;
+static uint16_t &sleep_interval_sec = rtc.sleep_interval_sec;
+static uint8_t &min_buffer_cycles = rtc.min_buffer_cycles;
+static uint16_t &max_buffer_cycles = rtc.max_buffer_cycles;
+static uint16_t &temp_threshold = rtc.temp_threshold;
+static uint16_t &hum_threshold = rtc.hum_threshold;
+static uint16_t &soil_threshold = rtc.soil_threshold;
 
 // ── CRC8 ─────────────────────────────────────────────────────────────
 
@@ -205,9 +242,11 @@ bool writeCommand(uint16_t cmd) {
   return (Wire.endTransmission() == 0);
 }
 
-bool readSHT31(float &temperature, float &humidity) {
-  if (!writeCommand(0x2400)) return false;
-  delay(20);
+bool readSHT31(int16_t &temp_x100, uint16_t &hum_x100) {
+  // Low repeatability + clock stretching (0x2C10): ±0.25°C, ~2.5ms typical
+  // Clock stretching: I2C bus blocks exactly until data ready — no wasted delay()
+  if (!writeCommand(0x2C10)) return false;
+  // No delay needed — requestFrom blocks via clock stretch for exact measurement time
   if (Wire.requestFrom(SHT31_ADDR, 6) != 6) return false;
   uint8_t data[6];
   for (int i = 0; i < 6; i++) data[i] = Wire.read();
@@ -215,8 +254,9 @@ bool readSHT31(float &temperature, float &humidity) {
   if (crc8(data + 3, 2) != data[5]) return false;
   uint16_t rawT = ((uint16_t)data[0] << 8) | data[1];
   uint16_t rawH = ((uint16_t)data[3] << 8) | data[4];
-  temperature = -45.0f + 175.0f * ((float)rawT / 65535.0f);
-  humidity = 100.0f * ((float)rawH / 65535.0f);
+  // Integer math — ESP32-C6 RISC-V has no FPU, float is software-emulated
+  temp_x100 = (int16_t)(-4500 + ((int32_t)17500 * rawT + 32767) / 65535);
+  hum_x100 = (uint16_t)((uint32_t)10000 * rawH / 65535);
   return true;
 }
 
@@ -272,6 +312,21 @@ void nvs_load_config() {
 #ifdef DEBUG_MODE
   sleep_interval_sec = 10; // Debug: 10s sleep instead of NVS value
 #endif
+}
+
+void nvs_save_counter() {
+  Preferences prefs;
+  prefs.begin("taras", false);
+  prefs.putULong("hmac_ctr", rtc.hmac_counter);
+  prefs.end();
+}
+
+uint32_t nvs_load_counter() {
+  Preferences prefs;
+  prefs.begin("taras", true);
+  uint32_t ctr = prefs.getULong("hmac_ctr", 0);
+  prefs.end();
+  return ctr;
 }
 
 void nvs_save_config(uint16_t sleep, uint8_t min_b, uint16_t max_b,
@@ -351,7 +406,8 @@ void run_pairing_mode() {
 
   // Phase 1: Listen on channel 1 for PAIR_BEACON from gateway
   while (true) {
-    // Init radio for this listen window
+    // Init radio for this listen window (WiFi needs 80MHz PLL)
+    setCpuFrequencyMhz(80);
     WiFi.mode(WIFI_STA);
     esp_wifi_start();
     esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
@@ -510,24 +566,14 @@ void run_pairing_mode() {
 void read_sensors(int16_t &temp_x100, uint16_t &hum_x100, uint16_t &soil) {
   // Init I2C
   Wire.begin(SDA_PIN, SCL_PIN);
-  Wire.setClock(100000);
+  Wire.setClock(400000);  // SHT31 supports up to 1MHz; 4x faster = shorter wake time
+  Wire.setTimeOut(10);    // 10ms — SHT31 low rep max 4.4ms; catches bus lockup fast
 
-  // Cold boot: soft reset SHT31
-  static bool sht31_reset_done = false;
-  if (!sht31_reset_done) {
-    sht31_reset_done = true;
-    writeCommand(0x30A2);  // Soft reset
-    delay(20);
-    writeCommand(0x3041);  // Clear status
-    delay(20);
-#ifdef DEBUG_MODE
-    Serial.println("[NORM] Cold boot: SHT31 reset");
-#endif
-  }
+  // No SHT31 soft reset needed — single-shot measurement works from any state.
+  // Reset only wastes 40ms (two commands + two 20ms delays) every deep sleep wake.
 
-  // Read sensors
-  float temp = 0.0f, hum = 0.0f;
-  bool sht31_ok = readSHT31(temp, hum);
+  // Read sensors — readSHT31 returns integer x100 directly (no float on RISC-V)
+  bool sht31_ok = readSHT31(temp_x100, hum_x100);
   soil = readSoilMoisture();
   bool soil_ok = (soil > 0 && soil < 4095); // pegged at 0 or 4095 = disconnected
 
@@ -542,9 +588,8 @@ void read_sensors(int16_t &temp_x100, uint16_t &hum_x100, uint16_t &soil) {
     temp_x100 = NEVER_SENT;
     hum_x100 = 0;
     rtc.consecutive_sensor_failures++;
+    rtc.diag_sensor_fail++;
   } else {
-    temp_x100 = (int16_t)(temp * 100);
-    hum_x100 = (uint16_t)(hum * 100);
     rtc.consecutive_sensor_failures = 0;
   }
 
@@ -552,12 +597,14 @@ void read_sensors(int16_t &temp_x100, uint16_t &hum_x100, uint16_t &soil) {
 #ifdef DEBUG_MODE
     Serial.printf("[NORM] Soil sensor suspect: %d\n", soil);
 #endif
-    soil = 0xFFFF; // sentinel: 65535 (impossible for 12-bit ADC)
+    soil = 0xFFFF;
+    rtc.diag_soil_fail++;
   }
 
 #ifdef DEBUG_MODE
   if (sht31_ok || soil_ok)
-    Serial.printf("[NORM] T=%.2fC H=%.2f%% Soil=%d\n", temp, hum, soil_ok ? soil : -1);
+    Serial.printf("[NORM] T=%d.%02dC H=%d.%02d%% Soil=%d\n",
+      temp_x100 / 100, abs(temp_x100 % 100), hum_x100 / 100, hum_x100 % 100, soil_ok ? (int)soil : -1);
 #endif
 }
 
@@ -591,7 +638,7 @@ bool send_data() {
     // Build packet batch
     sensor_data_packet_t pkt;
     pkt.type = PKT_SENSOR_DATA;
-    pkt.counter = rtc.hmac_counter++;
+    pkt.counter = ++rtc.hmac_counter;
 
     uint8_t batch = min((uint16_t)MAX_READINGS_PER_PKT, rtc.cycle_count);
     pkt.reading_count = batch;
@@ -613,24 +660,27 @@ bool send_data() {
     compute_hmac_4(encryption_key, send_buf, payload_size, send_buf + payload_size);
     size_t pkt_size = payload_size + 4;
 
-    // Send with retry
+    // Single send, no retry — DATA_ACK is the success signal
+    // If ACK missing, keep readings in buffer for next cycle (new counter avoids replay)
     bool batch_ack = false;
-    for (int attempt = 0; attempt < 2 && !batch_ack; attempt++) {
 #ifdef DEBUG_MODE
-      Serial.printf("[NORM] Sending %d readings, attempt %d, ctr=%lu\n", batch, attempt + 1, pkt.counter);
+    Serial.printf("[NORM] Sending %d readings, ctr=%lu\n", batch, (unsigned long)pkt.counter);
 #endif
-      if (espnow_send_and_wait(gw_mac, send_buf, pkt_size, 200)) {
-        if (espnow_wait_for_packet(PKT_DATA_ACK, 500)) {
-          size_t ack_payload = sizeof(data_ack_packet_t);
-          if (espnow_recv_len >= (int)(ack_payload + 4) &&
-              verify_hmac_4(encryption_key, espnow_recv_buf, ack_payload, espnow_recv_buf + ack_payload)) {
-            batch_ack = true;
-          }
-#ifdef DEBUG_MODE
-          else Serial.println("[SEC] ACK HMAC failed, ignoring");
-#endif
+    if (espnow_send_and_wait(gw_mac, send_buf, pkt_size, 200)) {
+      if (espnow_wait_for_packet(PKT_DATA_ACK, 200)) {
+        size_t ack_payload = sizeof(data_ack_packet_t);
+        if (espnow_recv_len >= (int)(ack_payload + 4) &&
+            verify_hmac_4(encryption_key, espnow_recv_buf, ack_payload, espnow_recv_buf + ack_payload)) {
+          batch_ack = true;  // Only clear buffer on confirmed ACK
+        } else {
+          espnow_recv_flag = false;
+          rtc.diag_ack_miss++;
         }
+      } else {
+        rtc.diag_ack_miss++;
       }
+    } else {
+      rtc.diag_send_fail++;
     }
 
     if (!batch_ack) break;
@@ -639,6 +689,11 @@ bool send_data() {
     memmove(&rtc.buffer[0], &rtc.buffer[batch],
             (rtc.cycle_count - batch) * sizeof(stored_reading_t));
     rtc.cycle_count -= batch;
+  }
+
+  // Persist counter to NVS every 10 increments — survives power cycle
+  if (rtc.hmac_counter > 0 && rtc.hmac_counter % 10 == 0) {
+    nvs_save_counter();
   }
 
   return (rtc.cycle_count == 0);
@@ -651,7 +706,7 @@ bool channel_recovery() {
   // Build a zero-reading probe packet for channel scanning (no duplicate data)
   sensor_data_packet_t probe;
   probe.type = PKT_SENSOR_DATA;
-  probe.counter = rtc.hmac_counter++;
+  probe.counter = ++rtc.hmac_counter;
   probe.reading_count = 0; // probe only, no data
   size_t probe_payload = 6; // type(1)+counter(4)+count(1), no readings
   uint8_t probe_buf[16];
@@ -665,13 +720,14 @@ bool channel_recovery() {
     if (ch == wifi_channel) continue;
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     if (espnow_send_and_wait(gw_mac, probe_buf, probe_size, 200)) {
-      if (espnow_wait_for_packet(PKT_DATA_ACK, 500)) {
+      if (espnow_wait_for_packet(PKT_DATA_ACK, 200)) {
         size_t ack_pl = sizeof(data_ack_packet_t);
         if (espnow_recv_len >= (int)(ack_pl + 4) &&
             verify_hmac_4(encryption_key, espnow_recv_buf, ack_pl, espnow_recv_buf + ack_pl)) {
           wifi_channel = ch;
           Preferences p; p.begin("taras", false);
           p.putUChar("channel", ch); p.end();
+          rtc.diag_ch_recovery++;
 #ifdef DEBUG_MODE
           Serial.printf("[NORM] Gateway found on ch=%d, NVS updated\n", ch);
 #endif
@@ -681,6 +737,94 @@ bool channel_recovery() {
     }
   }
   return false;
+}
+
+void send_diagnostics() {
+  // Load NVS cumulative counters
+  Preferences prefs;
+  prefs.begin("taras", true);
+  uint16_t boot_cnt    = prefs.getUShort("dg_boots", 0);
+  uint16_t uptime_cyc  = prefs.getUShort("dg_uptime", 0);
+  uint16_t nv_send     = prefs.getUShort("dg_send", 0);
+  uint16_t nv_ack      = prefs.getUShort("dg_ack", 0);
+  uint16_t nv_sensor   = prefs.getUShort("dg_sensor", 0);
+  uint8_t  nv_soil     = prefs.getUChar("dg_soil", 0);
+  uint8_t  nv_nvs      = prefs.getUChar("dg_nvs", 0);
+  uint8_t  nv_wifi     = prefs.getUChar("dg_wifi", 0);
+  uint8_t  nv_i2c      = prefs.getUChar("dg_i2c", 0);
+  uint8_t  nv_chrec    = prefs.getUChar("dg_chrec", 0);
+  uint8_t  nv_bufovf   = prefs.getUChar("dg_bufovf", 0);
+  prefs.end();
+
+  // Merge RTC deltas into NVS totals
+  nv_send   += rtc.diag_send_fail;
+  nv_ack    += rtc.diag_ack_miss;
+  nv_sensor += rtc.diag_sensor_fail;
+  nv_soil   += rtc.diag_soil_fail;
+  nv_nvs    += rtc.diag_nvs_fail;
+  nv_wifi   += rtc.diag_wifi_fail;
+  nv_i2c    += rtc.diag_i2c_fail;
+  nv_chrec  += rtc.diag_ch_recovery;
+  nv_bufovf += rtc.diag_buf_overflow;
+
+  // Build variable-length diagnostic packet
+  uint8_t pkt[64];  // max 16 header + 10×3 entries + 4 HMAC = 50
+  pkt[0] = PKT_DIAGNOSTIC;
+  uint32_t ctr = ++rtc.hmac_counter;
+  memcpy(pkt + 1, &ctr, 4);
+  pkt[5] = 1;  // version
+  pkt[6] = rtc.last_reset_reason;
+  memcpy(pkt + 7, &boot_cnt, 2);
+  memcpy(pkt + 9, &uptime_cyc, 2);
+
+  // Pack only non-zero failure entries
+  uint8_t n = 0;
+  uint8_t *entries = pkt + 12;
+  #define DIAG_ENTRY(type, val) do { uint16_t v = (val); if (v > 0) { entries[n*3] = (type); memcpy(entries+n*3+1, &v, 2); n++; } } while(0)
+  DIAG_ENTRY(DIAG_SEND_FAIL,      nv_send);
+  DIAG_ENTRY(DIAG_ACK_MISS,       nv_ack);
+  DIAG_ENTRY(DIAG_SENSOR_FAIL,    nv_sensor);
+  DIAG_ENTRY(DIAG_SOIL_FAIL,      nv_soil);
+  DIAG_ENTRY(DIAG_NVS_FAIL,       nv_nvs);
+  DIAG_ENTRY(DIAG_WIFI_FAIL,      nv_wifi);
+  DIAG_ENTRY(DIAG_I2C_FAIL,       nv_i2c);
+  DIAG_ENTRY(DIAG_CH_RECOVERY,    nv_chrec);
+  DIAG_ENTRY(DIAG_BUF_OVERFLOW,   nv_bufovf);
+  #undef DIAG_ENTRY
+  pkt[11] = n;
+
+  size_t payload = 12 + n * 3;
+  compute_hmac_4(encryption_key, pkt, payload, pkt + payload);
+  espnow_send_and_wait(gw_mac, pkt, payload + 4, 200);
+
+#ifdef DEBUG_MODE
+  Serial.printf("[DIAG] Sent: rst=%d boots=%d entries=%d\n", rtc.last_reset_reason, boot_cnt, n);
+#endif
+
+  // Persist updated NVS counters + increment uptime
+  prefs.begin("taras", false);
+  prefs.putUShort("dg_send",   nv_send);
+  prefs.putUShort("dg_ack",    nv_ack);
+  prefs.putUShort("dg_sensor", nv_sensor);
+  prefs.putUChar("dg_soil",    nv_soil);
+  prefs.putUChar("dg_nvs",     nv_nvs);
+  prefs.putUChar("dg_wifi",    nv_wifi);
+  prefs.putUChar("dg_i2c",     nv_i2c);
+  prefs.putUChar("dg_chrec",   nv_chrec);
+  prefs.putUChar("dg_bufovf",  nv_bufovf);
+  prefs.putUShort("dg_uptime", uptime_cyc + 1);
+  prefs.end();
+
+  // Reset RTC deltas
+  rtc.diag_send_fail = 0;
+  rtc.diag_ack_miss = 0;
+  rtc.diag_sensor_fail = 0;
+  rtc.diag_soil_fail = 0;
+  rtc.diag_nvs_fail = 0;
+  rtc.diag_wifi_fail = 0;
+  rtc.diag_i2c_fail = 0;
+  rtc.diag_ch_recovery = 0;
+  rtc.diag_buf_overflow = 0;
 }
 
 void process_ack(bool ack_received, int16_t temp_x100, uint16_t hum_x100, uint16_t soil) {
@@ -734,15 +878,15 @@ void process_ack(bool ack_received, int16_t temp_x100, uint16_t hum_x100, uint16
 // ── Normal Mode ──────────────────────────────────────────────────────
 
 void run_normal_mode() {
-  ledOff();
+  // LED pin not configured in normal mode (saves GPIO register write on every wake)
 
 #ifdef DEBUG_MODE
   Serial.println("[NORM] Entering normal mode");
 #endif
 
-  // First-run: load config from NVS
-  static bool first_run = true;
-  if (first_run) {
+  // Cold boot: load config from NVS into RTC cache
+  // Warm wake (deep sleep): RTC cache is valid, skip flash read (~3ms saved)
+  if (rtc.wifi_channel == 0) {
     if (!nvs_load_pairing()) {
 #ifdef DEBUG_MODE
       Serial.println("[NORM] Pairing data invalid, factory reset");
@@ -751,7 +895,6 @@ void run_normal_mode() {
       ESP.restart();
     }
     nvs_load_config();
-    first_run = false;
   }
 
 #ifdef DEBUG_MODE
@@ -787,12 +930,13 @@ void run_normal_mode() {
 
   // Send data if needed
   if (should_send && rtc.cycle_count > 0) {
-    // Init WiFi + ESP-NOW (low power TX)
+    // WiFi requires PLL at 80MHz
+    setCpuFrequencyMhz(80);
     WiFi.mode(WIFI_STA);
     esp_wifi_start(); // explicit start — WiFi.mode may skip after esp_wifi_stop()
     esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
     esp_wifi_set_ps(WIFI_PS_NONE);
-    esp_wifi_set_max_tx_power(32); // 8dBm (vs default 20dBm) — saves ~60mA, good for <50m
+    esp_wifi_set_max_tx_power(78); // 20dBm max — needed for through-wall range
     esp_wifi_set_channel(wifi_channel, WIFI_SECOND_CHAN_NONE);
     esp_now_init();
     esp_now_register_send_cb(onEspNowSend);
@@ -806,13 +950,14 @@ void run_normal_mode() {
 
     bool ack_received = send_data();
 
-    // Channel recovery: scan all channels every 12th failure (~1 hour at 5-min cycles)
+    // Channel recovery: scan all channels every 6th failure (~1 hour at 10-min cycles)
     if (!ack_received && rtc.consecutive_send_failures > 0 &&
-        rtc.consecutive_send_failures % 12 == 0) {
+        rtc.consecutive_send_failures % 6 == 0) {
       ack_received = channel_recovery();
     }
 
     process_ack(ack_received, temp_x100, hum_x100, soil);
+    send_diagnostics();  // Piggyback on radio-on window
 
     esp_now_deinit();
     esp_wifi_stop();
@@ -823,6 +968,7 @@ void run_normal_mode() {
 #ifdef DEBUG_MODE
     Serial.println("[NORM] Buffer full, dropping oldest reading");
 #endif
+    rtc.diag_buf_overflow++;
     memmove(&rtc.buffer[0], &rtc.buffer[1],
             (MAX_STORED_READINGS - 1) * sizeof(stored_reading_t));
     rtc.cycle_count--;
@@ -834,6 +980,16 @@ void run_normal_mode() {
   delay((uint32_t)sleep_interval_sec * 1000UL);
   // Returns to loop() which re-calls run_normal_mode()
 #else
+  // Isolate GPIOs to prevent current leakage through floating pins
+  gpio_reset_pin((gpio_num_t)SDA_PIN);
+  gpio_reset_pin((gpio_num_t)SCL_PIN);
+  gpio_reset_pin((gpio_num_t)SOIL_PIN);
+  gpio_reset_pin((gpio_num_t)LED_PIN);
+
+  // Power down unused RTC domains (only timer wakeup needed)
+  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_OFF);
+  esp_sleep_pd_config(ESP_PD_DOMAIN_VDDSDIO, ESP_PD_OPTION_OFF);
+
   esp_sleep_enable_timer_wakeup((uint64_t)sleep_interval_sec * 1000000ULL);
   esp_deep_sleep_start();
   // Never returns
@@ -845,11 +1001,14 @@ void run_normal_mode() {
 static bool is_paired = false;
 
 void setup() {
-  // 80MHz sufficient — power saving for I2C, ADC, ESP-NOW
-  setCpuFrequencyMhz(80);
+  // 40MHz from XTAL (no PLL) — lowest for I2C, ADC; WiFi bumps to 80MHz when needed
+  setCpuFrequencyMhz(40);
 
-  pinMode(LED_PIN, OUTPUT);
-  ledOff();
+#ifndef DEBUG_MODE
+  // Suppress all IDF log formatting — saves ~1-2ms CPU time per boot
+  // WiFi/NVS subsystems format log strings even without Serial
+  esp_log_level_set("*", ESP_LOG_NONE);
+#endif
 
 #ifdef DEBUG_MODE
   Serial.begin(115200);
@@ -857,19 +1016,37 @@ void setup() {
   Serial.println("[BOOT] TARAS Sensor Node starting");
 #endif
 
+  // Cold boot flash window — 2s delay so USB CDC is catchable for reflash
+  if (rtc.magic != RTC_MAGIC) {
+    delay(2000);
+  }
+
   // Init RTC on cold boot
   if (rtc.magic != RTC_MAGIC) {
+    uint8_t rst = (uint8_t)esp_reset_reason();
     memset(&rtc, 0, sizeof(rtc));
     rtc.magic = RTC_MAGIC;
     rtc.last_sent_temp = NEVER_SENT;
+    rtc.hmac_counter = nvs_load_counter();
+    rtc.last_reset_reason = rst;
+    // Increment persistent boot counter
+    Preferences dg; dg.begin("taras", false);
+    dg.putUShort("dg_boots", dg.getUShort("dg_boots", 0) + 1);
+    dg.end();
   }
 
-  is_paired = nvs_is_paired();
+  // Warm wake: RTC valid + config cached → skip NVS flash read (~2ms saved)
+  is_paired = (rtc.magic == RTC_MAGIC && rtc.wifi_channel != 0);
+  if (!is_paired) {
+    is_paired = nvs_is_paired();
+  }
 
   if (!is_paired) {
+    pinMode(LED_PIN, OUTPUT);  // LED only needed for pairing blinks
+    ledOff();
     run_pairing_mode(); // never returns (loops internally)
   }
-  // If paired, fall through to loop()
+  // If paired, fall through to loop() — no LED pin setup needed
 }
 
 void loop() {
