@@ -101,13 +101,22 @@ model Farm {
   @@map("farms")
 }
 
+
 model Field {
-  field_id   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  farm_id    String?   @db.Uuid
-  name       String    @db.VarChar(100)
-  area       Float?
-  polygon    Json?
-  created_at DateTime? @default(now()) @db.Timestamptz
+  field_id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  farm_id                      String?   @db.Uuid
+  name                         String    @db.VarChar(100)
+  area                         Float?
+  polygon                      Json?
+  crop_name                    String?   @db.VarChar(100)
+  environment_type             String?   @db.VarChar(50)
+  irrigation_mode              String?   @db.VarChar(50)
+  ml_per_sm_percent            Float?
+  sm_percent_per_100ml         Float?
+  irrigation_gain_mm_per_100ml Float?
+  default_check_after_min      Int?      @default(60)
+  is_active                    Boolean?  @default(true)
+  created_at                   DateTime? @default(now()) @db.Timestamptz
 
   farm          Farm?          @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
   zones         Zone[]
@@ -115,6 +124,8 @@ model Field {
 
   @@map("fields")
 }
+
+
 
 model Zone {
   zone_id    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -274,15 +285,36 @@ model IrrigationJob {
   job_id                    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   zone_id                   String?    @db.Uuid
   created_at                DateTime?  @default(now()) @db.Timestamptz
+
+  recommendation_time       DateTime? @db.Timestamptz
   trigger_reading_id        BigInt?
+
   reasoning                 String?    @db.Text
+
+  should_irrigate           Booelan?
+  start_time                DateTime? @db.Timestamptz
+  growth_stage              String?   @db.VarChar(50)
+  
   recommended_duration_min  Int?
   recommended_volume_liters Float?
+  water_amount_ml           Float?
+
+  current_sm                Float?
+  target_sm                 Float?
+  sm_deficit                Float?
+  predicted_sm_after_check  Float?
+
+  urgency_level             String?   @db.VarChar(30)
+  recommended_check_after_min   Int?
+  followup_check_time       DateTime?  @db.Timestamptz
+
   status                    JobStatus? @default(PENDING)
+
   actual_start_time         DateTime?  @db.Timestamptz
   actual_duration_min       Int?
+  actual_water_amount_ml    Float?
+
   result_reading_id         BigInt?
-  calculated_gain_outcome   Float?
 
   zone            Zone?          @relation(fields: [zone_id], references: [zone_id])
   trigger_reading SensorReading? @relation("TriggerReading", fields: [trigger_reading_id], references: [id])
@@ -291,6 +323,14 @@ model IrrigationJob {
   @@index([zone_id, status])
   @@map("irrigation_jobs")
 }
+
+
+
+
+
+
+
+
 
 // =======================
 // CROPS & ALERTS
@@ -310,13 +350,15 @@ model CropDetail {
 }
 
 model Planting {
-  planting_id String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  zone_id     String?   @db.Uuid
-  crop_id     Int?
-  planted_at  DateTime  @db.Date
-  is_active   Boolean?  @default(true)
+  planting_id   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  zone_id       String?   @db.Uuid
+  crop_id       Int?
+  planting_date DateTime  @db.Date
+  growth_stage  String?   @db.VarChar(50)
+  is_active     Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamptz
 
-  zone Zone?       @relation(fields: [zone_id], references: [zone_id])
+  zone Zone?       @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
   crop CropDetail? @relation(fields: [crop_id], references: [crop_id])
 
   @@map("plantings")
