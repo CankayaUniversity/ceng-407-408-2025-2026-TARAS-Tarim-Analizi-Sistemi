@@ -145,7 +145,6 @@ export async function createIrrigationJob(data: {
   trigger_reading_id: bigint;
   reasoning: string;
   recommended_duration_min: number;
-  recommended_volume_liters: number;
 }) {
   return prisma.irrigationJob.create({
     data: {
@@ -187,7 +186,6 @@ export async function updateJobExecution(
     actual_start_time?: Date;
     actual_duration_min?: number;
     result_reading_id?: bigint;
-    calculated_gain_outcome?: number;
   },
 ) {
   return prisma.irrigationJob.update({

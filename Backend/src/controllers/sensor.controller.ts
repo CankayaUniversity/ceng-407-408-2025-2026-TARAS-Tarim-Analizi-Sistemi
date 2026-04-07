@@ -312,7 +312,7 @@ export async function getZoneDetails(
         active_plantings: zone.plantings.map((p) => ({
           planting_id: p.planting_id,
           crop_name: p.crop?.name,
-          planted_at: p.planted_at,
+          planting_date: p.planting_date,
           is_active: p.is_active,
         })),
         recent_kc_calibrations: zone.kc_history.slice(0, 5),

@@ -6,7 +6,6 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  url        = env("DATABASE_URL")
   extensions = [pgcrypto]
 }
 // =======================
@@ -291,12 +290,11 @@ model IrrigationJob {
 
   reasoning                 String?    @db.Text
 
-  should_irrigate           Booelan?
+  should_irrigate           Boolean?
   start_time                DateTime? @db.Timestamptz
   growth_stage              String?   @db.VarChar(50)
   
   recommended_duration_min  Int?
-  recommended_volume_liters Float?
   water_amount_ml           Float?
 
   current_sm                Float?

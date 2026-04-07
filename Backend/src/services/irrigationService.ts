@@ -39,8 +39,6 @@ export async function calculateIrrigationRecommendation(
   }
 
   const recommendedDurationMin = Math.round(moistureDeficit / irrigationGain);
-  const estimatedVolumePerMin = 10 * (zone.sensor_nodes.length || 1);
-  const recommendedVolumeLiters = recommendedDurationMin * estimatedVolumePerMin;
 
   const reasoning = isCritical
     ? `CRITICAL: Soil moisture (${currentSmPercent.toFixed(1)}%) below critical threshold (${criticalSm}%). Immediate irrigation required.`
@@ -51,7 +49,6 @@ export async function calculateIrrigationRecommendation(
     isCritical,
     moistureDeficit,
     recommendedDurationMin,
-    recommendedVolumeLiters,
     reasoning,
     zoneId,
     readingId,
@@ -98,7 +95,6 @@ export async function autoScheduleIrrigation(zoneId: string, readingId: bigint) 
       trigger_reading_id: readingId,
       reasoning: recommendation.reasoning,
       recommended_duration_min: recommendation.recommendedDurationMin,
-      recommended_volume_liters: recommendation.recommendedVolumeLiters,
       status: "PENDING",
     },
   });
@@ -228,7 +224,6 @@ export async function calibrateIrrigationGain(jobId: string) {
   await prisma.irrigationJob.update({
     where: { job_id: jobId },
     data: {
-      calculated_gain_outcome: actualGain,
       status: "ANALYZED",
     },
   });
@@ -281,21 +276,12 @@ export async function getZoneEfficiencyMetrics(zoneId: string, days: number = 30
 
   const totalJobs = jobs.length;
   const totalDuration = jobs.reduce((sum, j) => sum + (j.actual_duration_min || 0), 0);
-  const totalVolume = jobs.reduce((sum, j) => sum + (j.recommended_volume_liters || 0), 0);
-
-  const analyzedJobs = jobs.filter((j) => j.calculated_gain_outcome !== null);
-  const avgGain =
-    analyzedJobs.length > 0
-      ? analyzedJobs.reduce((sum, j) => sum + (j.calculated_gain_outcome || 0), 0) /
-        analyzedJobs.length
-      : 0;
+  const totalWaterMl = jobs.reduce((sum, j) => sum + (j.water_amount_ml || 0), 0);
 
   return {
     totalJobs,
     totalDuration,
-    totalVolume,
-    avgGain,
-    analyzedJobs: analyzedJobs.length,
+    totalWaterMl,
     periodDays: days,
   };
 }
