@@ -44,7 +44,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaView, SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Third-party
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -102,6 +102,7 @@ import LogoDark from "./src/assets/Taras-logo-dark.svg";
 
 function AppContent() {
   // ── Hooks ──────────────────────────────────────────────────────────────
+  const insets = useSafeAreaInsets();
   const systemColorScheme = useColorScheme();
   const { keyboardHeight } = useKeyboard();
   const { height: windowHeight } = useWindowDimensions();
@@ -240,13 +241,11 @@ function AppContent() {
   // ── Loading screen ─────────────────────────────────────────────────────
   if (isLoading) {
     return (
-      <SafeAreaProvider>
-        <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
-          <View style={[appStyles.container, styles.centered, { backgroundColor: theme.background }]}>
-            <Text style={{ color: theme.text }}>{t.common.loading}</Text>
-          </View>
-        </SafeAreaView>
-      </SafeAreaProvider>
+      <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
+        <View style={[appStyles.container, styles.centered, { backgroundColor: theme.background }]}>
+          <Text style={{ color: theme.text }}>{t.common.loading}</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
@@ -376,26 +375,56 @@ function AppContent() {
     </View>
   );
 
+  // insets.bottom on iPhone ≈ 34pt (full safe area zone, not just the indicator line).
+  // Float the pill just above the indicator by capping at 8pt on devices that have a
+  // home indicator (insets > 20). On Android 3-button nav (insets ≈ 48) keep full clearance.
+  const navBottom = insets.bottom > 20 ? 8 : Math.max(insets.bottom + 4, 8);
+  const fabBottom = navBottom + 80 + 8;
+
   const bottomNavJSX = (
-    <View style={[appStyles.bottomNavWrapper, { backgroundColor: theme.surface }]}>
-      <View style={appStyles.bottomNav}>
-        {NAV_ITEMS.map((item) => (
+    <View
+      style={[
+        styles.floatingNavOuter,
+        {
+          backgroundColor: theme.surface,
+          marginBottom: navBottom,
+          shadowColor: isDark ? "#000" : "#334155",
+        },
+      ]}
+    >
+      {NAV_ITEMS.map((item) => {
+        const isActive = screen === item.id;
+        return (
           <TouchableOpacity
             key={item.id}
-            style={[appStyles.navItem, screen === item.id && { backgroundColor: theme.accentDim + "22" }]}
+            style={styles.floatingNavItem}
             onPress={() => setScreen(item.id as ScreenType)}
-            activeOpacity={0.7}
+            activeOpacity={0.75}
           >
-            <MaterialCommunityIcons
-              name={item.icon as any}
-              size={24}
-              color={screen === item.id ? theme.accent : theme.accentDim}
-              style={appStyles.navIcon}
-            />
-            <Text style={[appStyles.navLabel, { color: theme.accentDim }]}>{item.label}</Text>
+            <View
+              style={[
+                styles.floatingNavPill,
+                isActive && { backgroundColor: theme.accent + "22" },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={item.icon as any}
+                size={22}
+                color={isActive ? theme.accent : theme.accentDim}
+              />
+              <Text
+                style={[
+                  styles.floatingNavLabel,
+                  { color: isActive ? theme.accent : theme.accentDim },
+                ]}
+                numberOfLines={1}
+              >
+                {item.label}
+              </Text>
+            </View>
           </TouchableOpacity>
-        ))}
-      </View>
+        );
+      })}
     </View>
   );
 
@@ -403,8 +432,7 @@ function AppContent() {
   const isLoggedIn = screen !== SCREEN_TYPE.LOGIN;
 
   return (
-    <SafeAreaProvider>
-      <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView edges={["top", "left", "right"]} style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
         <View style={[appStyles.container, { backgroundColor: theme.background }]}>
           <StatusBar style={isDark ? "light" : "dark"} />
 
@@ -437,7 +465,7 @@ function AppContent() {
 
           {isLoggedIn && (
             <TouchableOpacity
-              style={[appStyles.fab, { backgroundColor: theme.accent }]}
+              style={[appStyles.fab, { backgroundColor: theme.accent, bottom: fabBottom }]}
               onPress={() => setShowChat(true)}
             >
               <MaterialCommunityIcons name="chat" size={28} color="#fff" />
@@ -465,17 +493,18 @@ function AppContent() {
           />
         </View>
       </SafeAreaView>
-    </SafeAreaProvider>
   );
 }
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <PopupMessageProvider>
-        <AppContent />
-      </PopupMessageProvider>
-    </LanguageProvider>
+    <SafeAreaProvider>
+      <LanguageProvider>
+        <PopupMessageProvider>
+          <AppContent />
+        </PopupMessageProvider>
+      </LanguageProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -581,5 +610,35 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+  },
+
+  // Floating bottom nav
+  floatingNavOuter: {
+    flexDirection: "row",
+    marginHorizontal: 12,
+    borderRadius: 28,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    elevation: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+  },
+  floatingNavItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  floatingNavPill: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderRadius: 20,
+    width: "100%",
+  },
+  floatingNavLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    marginTop: 4,
   },
 });

@@ -20,16 +20,10 @@ export const appStyles = StyleSheet.create({
   },
 
   bottomNavWrapper: {
-    marginHorizontal: 12,
-    marginBottom: 16,
-    borderRadius: 16,
-    overflow: "hidden",
-    elevation: 4,
+    // kept for backwards compat — replaced by floatingNavOuter in App.tsx
   },
   bottomNav: {
     flexDirection: "row",
-    paddingVertical: 10,
-    paddingHorizontal: 8,
   },
   navItem: {
     flex: 1,
@@ -44,7 +38,7 @@ export const appStyles = StyleSheet.create({
   fab: {
     position: "absolute",
     right: 24,
-    bottom: 90,
+    bottom: 100,
     width: 56,
     height: 56,
     borderRadius: 28,
