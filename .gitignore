@@ -125,3 +125,5 @@ Mobil/*.tsbuildinfo
 *.backup
 *.md
 
+*.html
+*.docx
