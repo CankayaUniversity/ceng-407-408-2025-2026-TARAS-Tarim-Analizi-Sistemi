@@ -50,6 +50,13 @@ enum GatewayStatus {
   @@map("gateway_status")
 }
 
+enum ActivityTypeCategory {
+  YAKIT
+  GUBRE
+  ELEKTRIK
+  @@map("activity_type_category")
+}
+
 // =======================
 // USER MANAGEMENT
 // =======================
@@ -93,9 +100,10 @@ model Farm {
   location_text String?   @db.Text
   created_at    DateTime? @default(now()) @db.Timestamptz
 
-  user     User?     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  fields   Field[]
-  gateways Gateway[]
+  user        User?       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  fields      Field[]
+  gateways    Gateway[]
+  carbon_logs CarbonLog[]
 
   @@map("farms")
 }
@@ -448,4 +456,52 @@ model GatewayFirmware {
   created_at  DateTime @default(now()) @db.Timestamptz
 
   @@map("gateway_firmware")
+}
+
+// =======================
+// CARBON FOOTPRINT
+// =======================
+
+model ActivityType {
+  activity_type_id Int                  @id @default(autoincrement())
+  name             String               @db.VarChar(100)
+  category         ActivityTypeCategory
+  unit             String               @db.VarChar(20)
+  is_active        Boolean              @default(true)
+
+  carbon_logs      CarbonLog[]
+  emission_factors EmissionFactor[]
+
+  @@map("activity_types")
+}
+
+model EmissionFactor {
+  emission_factor_id Int       @id @default(autoincrement())
+  activity_type_id   Int
+  emission_factor    Float
+  source             String?   @db.VarChar(200)
+  used_from          DateTime  @db.Timestamptz
+  used_until         DateTime? @db.Timestamptz
+
+  activity_type ActivityType @relation(fields: [activity_type_id], references: [activity_type_id])
+
+  @@index([activity_type_id, used_from])
+  @@map("emission_factors")
+}
+
+model CarbonLog {
+  carbon_log_id    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  farm_id          String   @db.Uuid
+  activity_type_id Int
+  activity_date    DateTime @db.Timestamptz
+  activity_amount  Float
+  emission_amount  Float
+  notes            String?  @db.Text
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  farm          Farm         @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
+  activity_type ActivityType @relation(fields: [activity_type_id], references: [activity_type_id])
+
+  @@index([farm_id, activity_date])
+  @@map("carbon_logs")
 }

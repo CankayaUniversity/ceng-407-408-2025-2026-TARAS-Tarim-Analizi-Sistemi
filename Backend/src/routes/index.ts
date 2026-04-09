@@ -6,6 +6,7 @@ import gatewayRoutes from './gateway.routes';
 import dashboardRoutes from './dashboard.routes';
 import diseaseRoutes from './disease.routes';
 import advisoryRoutes from './advisory.routes';
+import carbonRoutes from './carbon.routes';
 import { DEBUG_MODE } from '../config/debug';
 
 const router = Router();
@@ -26,6 +27,7 @@ router.use('/gateway', gatewayRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/disease', diseaseRoutes);
 router.use('/advisory', advisoryRoutes);
+router.use('/carbon', carbonRoutes);
 
 if (DEBUG_MODE) {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
