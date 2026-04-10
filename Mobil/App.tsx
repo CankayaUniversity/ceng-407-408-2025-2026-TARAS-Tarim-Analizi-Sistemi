@@ -42,6 +42,7 @@ import {
   AppState,
   ScrollView,
   StyleSheet,
+  Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import * as NavigationBar from "expo-navigation-bar";
@@ -446,7 +447,10 @@ function AppContent() {
   const isLoggedIn = screen !== SCREEN_TYPE.LOGIN;
 
   return (
-    <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView
+      edges={Platform.OS === "ios" ? ["top", "left", "right"] : undefined}
+      style={[appStyles.safeArea, { backgroundColor: theme.background }]}
+    >
         <View style={[appStyles.container, { backgroundColor: theme.background }]}>
           <StatusBar style={isDark ? "light" : "dark"} />
 
