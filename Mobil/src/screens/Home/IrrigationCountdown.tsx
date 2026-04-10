@@ -1,152 +1,78 @@
-// Sulama geri sayimi - bir sonraki sulamaya kalan sureyi gosterir
-// Props: theme, isoTimestamp (hedef zaman)
-
+// Sulama geri sayimi — HH:MM formatinda yanip sonen iki nokta ile
 import { useState, useEffect } from "react";
-import { View, Text } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import { Theme } from "../../utils/theme";
-import {
-  useResponsive,
-  calculateCardDimensions,
-  getResponsiveFontSize,
-  spacing,
-} from "../../utils/responsive";
+import { ms, s } from "../../utils/responsive";
+
+const FONT_SIZE = ms(36, 0.5);
+const LINE_HEIGHT = FONT_SIZE * 1.1;
+const COLON_WIDTH = FONT_SIZE * 0.3;
+const COLON_BLINK_MS = 1000;
+const DEFAULT_TARGET_HOUR = 12;
 
 interface IrrigationCountdownProps {
   theme: Theme;
   isoTimestamp?: string;
 }
 
-export const IrrigationCountdown = ({
-  theme,
-  isoTimestamp,
-}: IrrigationCountdownProps) => {
-  const { screenWidth, screenHeight, isTablet } = useResponsive();
-
-  // Calculate card dimensions using responsive utilities (same as MetricCard)
-  const cardLayout = calculateCardDimensions(screenWidth, screenHeight, {
-    horizontalPadding: spacing.md * 2, // 32px total
-    cardsPerRow: 2,
-    cardGap: spacing.sm, // 8px
-    cardMargin: 4,
-  });
-
-  const countdownFontSize = getResponsiveFontSize(
-    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.4 },
-    cardLayout.scaleFactor,
-    isTablet,
-  );
-
-  const [hours, setHours] = useState<string>("00");
-  const [minutes, setMinutes] = useState<string>("00");
-  const [colonVisible, setColonVisible] = useState<boolean>(true);
-
-  const computeRemaining = () => {
-    const now = new Date();
-    let targetTime: Date;
-
-    if (isoTimestamp) {
-      targetTime = new Date(isoTimestamp);
-    } else {
-      targetTime = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        12,
-        0,
-        0,
-        0,
-      );
-      if (now >= targetTime) {
-        targetTime = new Date(targetTime.getTime() + 24 * 60 * 60 * 1000);
-      }
-    }
-
-    const diffMs = targetTime.getTime() - now.getTime();
-    if (diffMs <= 0) {
-      setHours("00");
-      setMinutes("00");
-      return;
-    }
-    const totalMinutes = Math.floor(diffMs / 60000);
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    setHours(String(h).padStart(2, "0"));
-    setMinutes(String(m).padStart(2, "0"));
-  };
+export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdownProps) => {
+  const [hours, setHours] = useState("00");
+  const [minutes, setMinutes] = useState("00");
+  const [colonVisible, setColonVisible] = useState(true);
 
   useEffect(() => {
-    computeRemaining();
-    const colonInterval = setInterval(() => setColonVisible((c) => !c), 1000);
+    const compute = () => {
+      const now = new Date();
+      let target: Date;
+
+      if (isoTimestamp) {
+        target = new Date(isoTimestamp);
+      } else {
+        target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), DEFAULT_TARGET_HOUR);
+        if (now >= target) target = new Date(target.getTime() + 86400000);
+      }
+
+      const diffMs = Math.max(0, target.getTime() - now.getTime());
+      const totalMin = Math.floor(diffMs / 60000);
+      setHours(String(Math.floor(totalMin / 60)).padStart(2, "0"));
+      setMinutes(String(totalMin % 60).padStart(2, "0"));
+    };
+
+    compute();
+    const colonInterval = setInterval(() => setColonVisible((c) => !c), COLON_BLINK_MS);
+
+    // Dakika basinda senkronize guncelleme
     const now = new Date();
-    const msUntilNextMinute =
-      (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
-    let minuteInterval: any = null;
-    const minuteTimeout: any = setTimeout(() => {
-      computeRemaining();
-      minuteInterval = setInterval(computeRemaining, 60 * 1000);
-    }, msUntilNextMinute);
+    const msToNextMin = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+    let minInterval: ReturnType<typeof setInterval> | null = null;
+    const minTimeout = setTimeout(() => {
+      compute();
+      minInterval = setInterval(compute, 60000);
+    }, msToNextMin);
 
     return () => {
       clearInterval(colonInterval);
-      clearTimeout(minuteTimeout);
-      if (minuteInterval) clearInterval(minuteInterval);
+      clearTimeout(minTimeout);
+      if (minInterval) clearInterval(minInterval);
     };
   }, [isoTimestamp]);
 
+  const digitStyle = [st.digit, { color: theme.text }];
+  const colonStyle = [st.digit, { color: theme.text, opacity: colonVisible ? 1 : 0 }];
+
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "flex-start",
-      }}
-    >
-      <Text
-        style={{
-          color: theme.text,
-          fontSize: countdownFontSize,
-          fontWeight: "400",
-          lineHeight: countdownFontSize * 1.1,
-        }}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.7}
-      >
-        {hours}
-      </Text>
-      <View
-        style={{
-          width: countdownFontSize * 0.3,
-          alignItems: "center",
-          justifyContent: "center",
-          marginHorizontal: 1,
-        }}
-      >
-        <Text
-          style={{
-            opacity: colonVisible ? 1 : 0,
-            color: theme.text,
-            fontSize: countdownFontSize,
-            fontWeight: "400",
-            lineHeight: countdownFontSize * 1.1,
-          }}
-        >
-          {":"}
-        </Text>
+    <View style={st.row}>
+      <Text style={digitStyle} numberOfLines={1}>{hours}</Text>
+      <View style={st.colonWrap}>
+        <Text style={colonStyle}>:</Text>
       </View>
-      <Text
-        style={{
-          color: theme.text,
-          fontSize: countdownFontSize,
-          fontWeight: "400",
-          lineHeight: countdownFontSize * 1.1,
-        }}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        minimumFontScale={0.7}
-      >
-        {minutes}
-      </Text>
+      <Text style={digitStyle} numberOfLines={1}>{minutes}</Text>
     </View>
   );
 };
+
+const st = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center" },
+  digit: { fontSize: FONT_SIZE, fontWeight: "400", lineHeight: LINE_HEIGHT },
+  colonWrap: { width: COLON_WIDTH, alignItems: "center", justifyContent: "center", marginHorizontal: s(1) },
+});

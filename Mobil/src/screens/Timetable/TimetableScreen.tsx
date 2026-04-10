@@ -20,6 +20,7 @@ import { SensorDataTable } from "./SensorDataTable";
 import { TimetableScreenProps, ChartDataPoint, SensorReading } from "./types";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 
 export const TimetableScreen = ({
   theme,
@@ -284,9 +285,9 @@ export const TimetableScreen = ({
   const renderChartFallback = (title: string) => (
     <View
       style={{
-        marginBottom: 24,
+        marginBottom: vs(24),
         borderRadius: 12,
-        padding: 16,
+        padding: s(16),
         backgroundColor: theme.surface,
         borderWidth: 1,
         borderColor: theme.textSecondary + "20",
@@ -294,23 +295,23 @@ export const TimetableScreen = ({
     >
       <Text
         style={{
-          fontSize: 16,
+          fontSize: ms(16, 0.3),
           fontWeight: "600",
           color: theme.text,
-          marginBottom: 8,
+          marginBottom: vs(8),
         }}
       >
         {title}
       </Text>
-      <Text style={{ color: theme.textSecondary, fontSize: 13, lineHeight: 20 }}>
+      <Text style={{ color: theme.textSecondary, fontSize: ms(13, 0.3), lineHeight: ms(20, 0.3) }}>
         {t.timetable.loadFailed}
       </Text>
       <Text
         style={{
           color: theme.textSecondary,
-          fontSize: 12,
-          lineHeight: 18,
-          marginTop: 6,
+          fontSize: ms(12, 0.3),
+          lineHeight: ms(18, 0.3),
+          marginTop: vs(6),
         }}
       >
         {t.timetable.table}
@@ -327,7 +328,7 @@ export const TimetableScreen = ({
         <Text
           style={[
             appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 16 },
+            { color: theme.textSecondary, marginTop: vs(16) },
           ]}
         >
           {t.timetable.loadingSensorData}
@@ -344,7 +345,7 @@ export const TimetableScreen = ({
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          padding: 20,
+          padding: s(20),
         }}
         refreshControl={
           <RefreshControl
@@ -358,7 +359,7 @@ export const TimetableScreen = ({
           name="alert-circle"
           size={48}
           color={theme.accent}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: vs(16) }}
         />
         <Text style={[appStyles.placeholderText, { color: theme.text }]}>
           {t.timetable.loadFailed}
@@ -371,7 +372,7 @@ export const TimetableScreen = ({
         <Text
           style={[
             appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 8 },
+            { color: theme.textSecondary, marginTop: vs(8) },
           ]}
         >
           {t.timetable.pullToRefresh}
@@ -393,13 +394,13 @@ export const TimetableScreen = ({
         />
       }
     >
-      <View style={{ padding: 16 }}>
+      <View style={{ padding: s(16) }}>
         <View
           style={{
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: 8,
+            marginBottom: vs(8),
           }}
         >
           <Text style={[appStyles.placeholderText, { color: theme.text }]}>
@@ -407,13 +408,13 @@ export const TimetableScreen = ({
           </Text>
           <View
             style={{
-              paddingHorizontal: 8,
-              paddingVertical: 4,
+              paddingHorizontal: s(8),
+              paddingVertical: vs(4),
               borderRadius: 6,
               backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}>
+            <Text style={{ color: "#fff", fontSize: ms(10, 0.3), fontWeight: "600" }}>
               {dataSource === "aws" ? "AWS" : "DEMO"}
             </Text>
           </View>
@@ -421,7 +422,7 @@ export const TimetableScreen = ({
         <Text
           style={[
             appStyles.placeholderSub,
-            { color: theme.textSecondary, marginBottom: 8 },
+            { color: theme.textSecondary, marginBottom: vs(8) },
           ]}
         >
           {fieldName || t.common.loading}
@@ -431,16 +432,16 @@ export const TimetableScreen = ({
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: vs(12) }}
         >
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: s(8) }}>
             {timeRangeOptions.map((option) => (
               <TouchableOpacity
                 key={option.hours}
                 onPress={() => handleTimeRangeChange(option.hours)}
                 style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
+                  paddingHorizontal: s(14),
+                  paddingVertical: vs(8),
                   borderRadius: 8,
                   backgroundColor:
                     timeRange === option.hours ? theme.accent : theme.surface,
@@ -453,7 +454,7 @@ export const TimetableScreen = ({
               >
                 <Text
                   style={{
-                    fontSize: 12,
+                    fontSize: ms(12, 0.3),
                     fontWeight: "600",
                     color: timeRange === option.hours ? "#fff" : theme.text,
                   }}
@@ -468,9 +469,9 @@ export const TimetableScreen = ({
         {lastUpdated && (
           <Text
             style={{
-              fontSize: 11,
+              fontSize: ms(11, 0.3),
               color: theme.textSecondary,
-              marginBottom: 16,
+              marginBottom: vs(16),
             }}
           >
             {t.timetable.lastUpdated}: {lastUpdated.toLocaleTimeString()}
@@ -478,12 +479,12 @@ export const TimetableScreen = ({
         )}
 
         {/* Tablo butonu */}
-        <View style={{ flexDirection: "row", marginBottom: 16 }}>
+        <View style={{ flexDirection: "row", marginBottom: vs(16) }}>
           <TouchableOpacity
             onPress={() => setShowTable(true)}
             style={{
-              paddingHorizontal: 10,
-              paddingVertical: 6,
+              paddingHorizontal: s(10),
+              paddingVertical: vs(6),
               borderRadius: 8,
               backgroundColor: theme.surface,
               borderWidth: 1,
@@ -499,9 +500,9 @@ export const TimetableScreen = ({
             />
             <Text
               style={{
-                marginLeft: 6,
+                marginLeft: s(6),
                 color: theme.textSecondary,
-                fontSize: 12,
+                fontSize: ms(12, 0.3),
                 fontWeight: "600",
               }}
             >
@@ -552,25 +553,25 @@ export const TimetableScreen = ({
         onRequestClose={() => setShowTable(false)}
       >
         <View
-          style={{ flex: 1, backgroundColor: theme.background, padding: 16 }}
+          style={{ flex: 1, backgroundColor: theme.background, padding: s(16) }}
         >
           <View
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: 12,
-              marginTop: 12,
+              marginBottom: vs(12),
+              marginTop: vs(12),
             }}
           >
             <Text
-              style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}
+              style={{ color: theme.text, fontSize: ms(16, 0.3), fontWeight: "700" }}
             >
               {fieldName} - {t.timetable.last72Hours}
             </Text>
             <TouchableOpacity
               onPress={() => setShowTable(false)}
-              style={{ padding: 8 }}
+              style={{ padding: s(8) }}
             >
               <MaterialCommunityIcons
                 name="close"
@@ -586,7 +587,7 @@ export const TimetableScreen = ({
             style={{
               flexDirection: "row",
               justifyContent: "flex-end",
-              marginTop: 16,
+              marginTop: vs(16),
             }}
           >
             <TouchableOpacity
@@ -610,8 +611,8 @@ export const TimetableScreen = ({
                 }
               }}
               style={{
-                paddingHorizontal: 12,
-                paddingVertical: 10,
+                paddingHorizontal: s(12),
+                paddingVertical: vs(10),
                 borderRadius: 8,
                 backgroundColor: theme.accent,
                 flexDirection: "row",
@@ -625,9 +626,9 @@ export const TimetableScreen = ({
               />
               <Text
                 style={{
-                  marginLeft: 8,
+                  marginLeft: s(8),
                   color: theme.background,
-                  fontSize: 12,
+                  fontSize: ms(12, 0.3),
                   fontWeight: "700",
                 }}
               >

@@ -2,6 +2,7 @@
 // Props: message (yazi), visible, onHide, duration (sure ms)
 import { useEffect, useRef, useState } from "react";
 import { Animated, Text, StyleSheet, View } from "react-native";
+import { s, vs, ms } from "../utils/responsive";
 
 interface PopupMessageProps {
   message: string;
@@ -57,7 +58,7 @@ export const PopupMessage = ({
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 120,
+    bottom: vs(120),
     left: 0,
     right: 0,
     alignItems: "center",
@@ -66,8 +67,8 @@ const styles = StyleSheet.create({
   },
   popup: {
     backgroundColor: "rgba(0, 0, 0, 0.85)",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+    paddingHorizontal: s(24),
+    paddingVertical: vs(14),
     borderRadius: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -75,5 +76,5 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
   },
-  text: { color: "#fff", fontSize: 18, fontWeight: "600", textAlign: "center" },
+  text: { color: "#fff", fontSize: ms(16, 0.3), fontWeight: "600", textAlign: "center" },
 });

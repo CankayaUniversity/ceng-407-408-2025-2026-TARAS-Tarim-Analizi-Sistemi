@@ -465,13 +465,33 @@ export const dashboardAPI = {
         `/dashboard/fields/${fieldId}`,
       );
       if (res.success && res.data) {
+        // Basarili veriyi onbellekle
+        AsyncStorage.setItem(
+          `dashboard_cache_${fieldId}`,
+          JSON.stringify({ data: res.data, cachedAt: new Date().toISOString() }),
+        ).catch(() => {});
         return res.data;
       }
       throw new Error(res.error || "Failed to fetch dashboard data");
     } catch (error) {
       console.log("[DASHBOARD] err:", fieldId.slice(0, 8), error);
+      // Onbellekten yukle
+      const cached = await dashboardAPI.getCachedDashboard(fieldId);
+      if (cached) {
+        console.log("[DASHBOARD] onbellekten yuklendi:", fieldId.slice(0, 8));
+        return cached.data;
+      }
       const { generateDemoDashboardData } = await import("./demoData");
       return generateDemoDashboardData(fieldId);
+    }
+  },
+
+  getCachedDashboard: async (fieldId: string): Promise<{ data: DashboardData; cachedAt: string } | null> => {
+    try {
+      const raw = await AsyncStorage.getItem(`dashboard_cache_${fieldId}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
     }
   },
 };
@@ -566,6 +586,68 @@ export const gatewayAPI = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ version }),
     });
+  },
+};
+
+// Karbon ayak izi islemleri
+export const carbonAPI = {
+  async getActivityTypes(): Promise<
+    ApiResponse<Record<string, Array<{ activity_type_id: number; name: string; unit: string }>>>
+  > {
+    return authFetch("/carbon/activity-types");
+  },
+
+  async getLogs(
+    farmId: string,
+    params?: { startDate?: string; endDate?: string; category?: string },
+  ): Promise<ApiResponse<unknown[]>> {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.category) query.set("category", params.category);
+    const qs = query.toString();
+    return authFetch(`/carbon/farm/${farmId}/logs${qs ? `?${qs}` : ""}`);
+  },
+
+  async createLog(
+    farmId: string,
+    body: {
+      activity_type_id: number;
+      activity_date: string;
+      activity_amount: number;
+      notes?: string;
+    },
+  ): Promise<ApiResponse<{ carbon_log_id: string; emission_amount: number }>> {
+    return authFetch(`/carbon/farm/${farmId}/logs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+
+  async deleteLog(
+    farmId: string,
+    logId: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/carbon/farm/${farmId}/logs/${logId}`, {
+      method: "DELETE",
+    });
+  },
+
+  async getSummary(
+    farmId: string,
+    params?: { startDate?: string; endDate?: string },
+  ): Promise<
+    ApiResponse<{
+      total_emission: number;
+      by_category: Array<{ category: string; total: number; count: number }>;
+    }>
+  > {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    const qs = query.toString();
+    return authFetch(`/carbon/farm/${farmId}/summary${qs ? `?${qs}` : ""}`);
   },
 };
 

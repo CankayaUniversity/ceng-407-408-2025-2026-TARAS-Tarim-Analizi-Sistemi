@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { NetworkDiagnostics } from "../utils/networkDiagnostics";
 import { useLanguage } from "../context/LanguageContext";
+import { s, vs, ms } from "../utils/responsive";
 
 interface NetworkDiagScreenProps {
   onBack: () => void;
@@ -31,7 +32,6 @@ export default function NetworkDiagScreen({
     setIsRunning(true);
     setReport("Running diagnostics...\n");
 
-    // Import API_HOST fresh each time to ensure we have current value
     const { API_HOST: currentHost } = await import("../utils/api");
     console.log("[NETDIAG] starting with host:", currentHost || "EMPTY");
 
@@ -74,21 +74,21 @@ export default function NetworkDiagScreen({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          padding: 16,
+          padding: s(16),
           borderBottomWidth: 1,
           borderBottomColor: theme.textSecondary + "30",
           backgroundColor: theme.surface,
         }}
       >
-        <TouchableOpacity onPress={onBack} style={{ marginRight: 16 }}>
-          <Text style={{ color: theme.accent, fontSize: 18 }}>
+        <TouchableOpacity onPress={onBack} style={{ marginRight: s(16) }}>
+          <Text style={{ color: theme.accent, fontSize: ms(18, 0.3) }}>
             ← {t.common.back}
           </Text>
         </TouchableOpacity>
         <Text
           style={{
             color: theme.text,
-            fontSize: 20,
+            fontSize: ms(20, 0.3),
             fontWeight: "bold",
             flex: 1,
           }}
@@ -98,7 +98,7 @@ export default function NetworkDiagScreen({
       </View>
 
       {/* Aksiyon butonlari */}
-      <View style={{ padding: 16, gap: 12 }}>
+      <View style={{ padding: s(16), gap: s(12) }}>
         <TouchableOpacity
           onPress={runDiagnostics}
           disabled={isRunning}
@@ -106,22 +106,22 @@ export default function NetworkDiagScreen({
             backgroundColor: isRunning
               ? theme.textSecondary + "50"
               : theme.accent,
-            padding: 16,
+            padding: s(16),
             borderRadius: 8,
             alignItems: "center",
           }}
         >
           {isRunning ? (
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              style={{ flexDirection: "row", alignItems: "center", gap: s(8) }}
             >
               <ActivityIndicator color="#fff" />
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
+              <Text style={{ color: "#fff", fontSize: ms(16, 0.3), fontWeight: "600" }}>
                 {t.networkDiag.running}
               </Text>
             </View>
           ) : (
-            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "600" }}>
+            <Text style={{ color: "#fff", fontSize: ms(16, 0.3), fontWeight: "600" }}>
               {t.networkDiag.startButton}
             </Text>
           )}
@@ -132,7 +132,7 @@ export default function NetworkDiagScreen({
             onPress={shareReport}
             style={{
               backgroundColor: theme.surface,
-              padding: 16,
+              padding: s(16),
               borderRadius: 8,
               alignItems: "center",
               borderWidth: 1,
@@ -140,7 +140,7 @@ export default function NetworkDiagScreen({
             }}
           >
             <Text
-              style={{ color: theme.accent, fontSize: 16, fontWeight: "600" }}
+              style={{ color: theme.accent, fontSize: ms(16, 0.3), fontWeight: "600" }}
             >
               {t.networkDiag.shareReport}
             </Text>
@@ -149,17 +149,17 @@ export default function NetworkDiagScreen({
       </View>
 
       {/* Bilgi kutusu */}
-      <View style={{ padding: 16, paddingTop: 0 }}>
+      <View style={{ padding: s(16), paddingTop: 0 }}>
         <View
           style={{
             backgroundColor: theme.surface,
-            padding: 12,
+            padding: s(12),
             borderRadius: 8,
             borderLeftWidth: 4,
             borderLeftColor: theme.accent,
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 14, lineHeight: 20 }}>
+          <Text style={{ color: theme.text, fontSize: ms(14, 0.3), lineHeight: ms(20, 0.3) }}>
             {t.networkDiag.infoHeader}
             {"\n"}• {t.networkDiag.bulletNetworkStatus}
             {"\n"}• {t.networkDiag.bulletDNS}
@@ -169,7 +169,7 @@ export default function NetworkDiagScreen({
           </Text>
           {lastRun && (
             <Text
-              style={{ color: theme.textSecondary, fontSize: 12, marginTop: 8 }}
+              style={{ color: theme.textSecondary, fontSize: ms(12, 0.3), marginTop: vs(8) }}
             >
               {t.networkDiag.lastRun}:{" "}
               {lastRun.toLocaleTimeString(
@@ -183,13 +183,13 @@ export default function NetworkDiagScreen({
       {/* Rapor */}
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16, paddingTop: 0 }}
+        contentContainerStyle={{ padding: s(16), paddingTop: 0 }}
       >
         {report ? (
           <View
             style={{
               backgroundColor: theme.surface,
-              padding: 12,
+              padding: s(12),
               borderRadius: 8,
               borderWidth: 1,
               borderColor: theme.textSecondary + "30",
@@ -198,20 +198,20 @@ export default function NetworkDiagScreen({
             <Text
               style={{
                 color: theme.text,
-                fontSize: 12,
+                fontSize: ms(12, 0.3),
                 fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-                lineHeight: 18,
+                lineHeight: ms(18, 0.3),
               }}
             >
               {report}
             </Text>
           </View>
         ) : (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+          <View style={{ alignItems: "center", paddingVertical: vs(40) }}>
             <Text
               style={{
                 color: theme.textSecondary,
-                fontSize: 16,
+                fontSize: ms(16, 0.3),
                 textAlign: "center",
               }}
             >
@@ -225,14 +225,14 @@ export default function NetworkDiagScreen({
       {!isRunning && (
         <View
           style={{
-            padding: 16,
+            padding: s(16),
             borderTopWidth: 1,
             borderTopColor: theme.textSecondary + "30",
             backgroundColor: theme.background,
           }}
         >
           <Text
-            style={{ color: theme.textSecondary, fontSize: 12, lineHeight: 18 }}
+            style={{ color: theme.textSecondary, fontSize: ms(12, 0.3), lineHeight: ms(18, 0.3) }}
           >
             {t.networkDiag.tip}
           </Text>

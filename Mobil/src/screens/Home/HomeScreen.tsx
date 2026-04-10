@@ -6,6 +6,7 @@ import {
   View,
   ScrollView,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useThree } from "@react-three/fiber/native";
 import { ColorPlane, NodeInfo } from "../../components/ColorPlane";
@@ -30,11 +31,57 @@ function SceneBackground({ color }: { color: string }) {
   return null;
 }
 
+// Kamera otomatik sigdirma — tarla modeli her zaman gorunur kalir
+// Sahne icinden useThree ile gercek viewport ve kamera bilgisine erisir
+const FIELD_EXTENT = 8; // ColorPlane TARGET_SIZE
+const PADDING = 1.15; // %15 bosluk
+
+function CameraAutoFit() {
+  const { camera, viewport, invalidate } = useThree();
+  const fitted = useRef(false);
+
+  useEffect(() => {
+    const cam = camera as any;
+    if (!cam.isPerspectiveCamera) return;
+
+    // Kameradan sahne merkezine mesafe
+    const pos = cam.position;
+    const dist = Math.sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
+
+    const halfExtent = (FIELD_EXTENT / 2) * PADDING;
+
+    // Dikey FOV: modelin dikey olarak sigmasi icin gereken aci
+    const vFovRad = 2 * Math.atan(halfExtent / dist);
+
+    // Yatay FOV: modelin yatay olarak sigmasi icin gereken aci
+    // Eger canvas dar (portrait) ise yatay sigdirma daha kritik
+    const aspect = viewport.aspect || 1;
+    const hFovRad = 2 * Math.atan(halfExtent / (dist * aspect));
+
+    // Ikisinden buyugunu sec — her iki eksende de sigsin
+    const requiredFov = Math.max(vFovRad, hFovRad) * (180 / Math.PI);
+
+    // Makul sinirlar icinde tut
+    const clampedFov = Math.min(40, Math.max(12, requiredFov));
+
+    if (Math.abs(cam.fov - clampedFov) > 0.5) {
+      cam.fov = clampedFov;
+      cam.updateProjectionMatrix();
+      invalidate();
+    }
+    fitted.current = true;
+  }, [camera, viewport.aspect, invalidate]);
+
+  return null;
+}
+
 interface HomeScreenProps {
   theme: Theme;
   isDark: boolean;
   dashboardData: DashboardData | null;
   isActive?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 export const HomeScreen = memo(({
@@ -42,11 +89,13 @@ export const HomeScreen = memo(({
   isDark,
   dashboardData,
   isActive = true,
+  refreshing = false,
+  onRefresh,
 }: HomeScreenProps) => {
   const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // 3D Canvas proplari — referans degismemeli
+  // 3D Canvas — FOV CameraAutoFit tarafindan sahne icinden ayarlanir
   const cameraConfig = useMemo(() => ({ position: [0, 16, 22.6], fov: 22 }), []);
   const canvasStyle = useMemo(() => ({ flex: 1 }), []);
 
@@ -83,7 +132,15 @@ export const HomeScreen = memo(({
   return (
     <View style={{ flex: 1, position: "relative" }}>
       <View style={{ flex: 1, marginHorizontal: spacing.sm }}>
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
+        <ScrollView
+          style={{ flexGrow: 0, flexShrink: 0 }}
+          showsVerticalScrollIndicator={true}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} colors={[theme.accent]} />
+            ) : undefined
+          }
+        >
           <StatusCard
             theme={theme}
             dashboardData={dashboardData}
@@ -115,6 +172,7 @@ export const HomeScreen = memo(({
             }
           >
             <SceneBackground color={theme.background} />
+            <CameraAutoFit />
             <Suspense
               fallback={
                 <View

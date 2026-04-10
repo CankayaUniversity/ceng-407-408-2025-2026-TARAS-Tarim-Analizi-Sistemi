@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { appStyles } from "../../styles";
 import { CameraViewProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 
 const _ExpoCamera: any = require("expo-camera");
 
@@ -81,7 +82,7 @@ export const CameraView = ({
           <Text style={{ color: theme.textSecondary }}>
             {t.camera.liveCameraUnavailable}
           </Text>
-          <Text style={{ color: theme.textSecondary, marginTop: 6 }}>
+          <Text style={{ color: theme.textSecondary, marginTop: vs(6) }}>
             {t.camera.liveCameraMessage}
           </Text>
         </View>
@@ -114,13 +115,13 @@ export const CameraView = ({
           />
           <Text
             style={{
-              marginTop: 10,
-              paddingHorizontal: 10,
-              paddingVertical: 4,
+              marginTop: vs(10),
+              paddingHorizontal: s(10),
+              paddingVertical: vs(4),
               borderRadius: 8,
               backgroundColor: "rgba(0,0,0,0.5)",
               color: "#fff",
-              fontSize: 12,
+              fontSize: ms(12, 0.3),
               fontWeight: "600",
             }}
           >
@@ -136,10 +137,10 @@ export const CameraView = ({
         onPress={onPickFromGallery}
         style={{
           position: "absolute",
-          left: 16,
-          bottom: 16,
-          width: 56,
-          height: 56,
+          left: s(16),
+          bottom: s(16),
+          width: s(56),
+          height: s(56),
           borderRadius: 12,
           backgroundColor: theme.surface,
           alignItems: "center",
@@ -158,9 +159,9 @@ export const CameraView = ({
         style={{
           position: "absolute",
           alignSelf: "center",
-          bottom: 12,
-          width: 78,
-          height: 78,
+          bottom: s(12),
+          width: s(78),
+          height: s(78),
           borderRadius: 39,
           alignItems: "center",
           justifyContent: "center",
@@ -169,8 +170,8 @@ export const CameraView = ({
       >
         <View
           style={{
-            width: 78,
-            height: 78,
+            width: s(78),
+            height: s(78),
             borderRadius: 39,
             borderWidth: 6,
             borderColor: theme.surface,
@@ -180,8 +181,8 @@ export const CameraView = ({
         >
           <View
             style={{
-              width: 56,
-              height: 56,
+              width: s(56),
+              height: s(56),
               borderRadius: 28,
               backgroundColor: theme.background,
             }}
@@ -194,10 +195,10 @@ export const CameraView = ({
         onPress={onToggleFlash}
         style={{
           position: "absolute",
-          right: 16,
-          bottom: 16,
-          width: 50,
-          height: 50,
+          right: s(16),
+          bottom: s(16),
+          width: s(50),
+          height: s(50),
           borderRadius: 12,
           backgroundColor: theme.surface,
           alignItems: "center",

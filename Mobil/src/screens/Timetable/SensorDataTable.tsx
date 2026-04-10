@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { SensorReading, TimetableScreenProps } from "./types";
 import { useState } from "react";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 
 interface SensorDataTableProps {
   theme: TimetableScreenProps["theme"];
@@ -34,14 +35,14 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
   const filteredData = data.filter((r) => selectedNodes.has(r.node_id));
 
   const headerStyle = {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: vs(8),
+    paddingHorizontal: s(8),
     backgroundColor: theme.surface,
   };
 
   const cellStyle = {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
+    paddingVertical: vs(8),
+    paddingHorizontal: s(8),
     borderBottomWidth: 1,
     borderBottomColor: theme.textSecondary + "20",
   };
@@ -49,13 +50,13 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
   return (
     <View style={{ flex: 1 }}>
       <View
-        style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}
+        style={{ flexDirection: "row", alignItems: "center", marginBottom: vs(12) }}
       >
         <MaterialCommunityIcons name="table" size={20} color={theme.accent} />
         <Text
           style={{
-            marginLeft: 8,
-            fontSize: 13,
+            marginLeft: s(8),
+            fontSize: ms(13, 0.3),
             fontWeight: "600",
             color: theme.text,
           }}
@@ -69,17 +70,17 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={{ marginBottom: 8, maxHeight: 28 }}
+        style={{ marginBottom: vs(8), maxHeight: vs(28) }}
       >
         {uniqueNodes.map((nodeId) => (
           <TouchableOpacity
             key={nodeId}
             onPress={() => toggleNode(nodeId)}
             style={{
-              paddingHorizontal: 8,
-              paddingVertical: 3,
+              paddingHorizontal: s(8),
+              paddingVertical: vs(3),
               borderRadius: 12,
-              marginRight: 6,
+              marginRight: s(6),
               backgroundColor: selectedNodes.has(nodeId)
                 ? theme.accent
                 : theme.surface,
@@ -92,7 +93,7 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
             <Text
               style={{
                 color: selectedNodes.has(nodeId) ? "#fff" : theme.text,
-                fontSize: 10,
+                fontSize: ms(10, 0.3),
                 fontWeight: "600",
               }}
             >
@@ -109,7 +110,7 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
           nestedScrollEnabled
           directionalLockEnabled
         >
-          <View style={{ minWidth: 640 }}>
+          <View style={{ minWidth: s(640) }}>
             {/* Header */}
             <View style={{ flexDirection: "row" }}>
               <View style={[headerStyle, { flex: 2 }]}>

@@ -5,6 +5,7 @@ import { View, Image, Text, TouchableOpacity } from "react-native";
 import { appStyles } from "../../styles";
 import { PhotoPreviewProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs } from "../../utils/responsive";
 
 export const PhotoPreview = ({
   theme,
@@ -32,17 +33,17 @@ export const PhotoPreview = ({
         style={{ width: "86%", aspectRatio: 1, borderRadius: 12 }}
         resizeMode="cover"
       />
-      <View style={{ flexDirection: "row", marginTop: 16 }}>
+      <View style={{ flexDirection: "row", marginTop: vs(16) }}>
         <TouchableOpacity
           onPress={onCancel}
           style={{
-            paddingHorizontal: 16,
-            paddingVertical: 10,
+            paddingHorizontal: s(16),
+            paddingVertical: vs(10),
             borderRadius: 8,
             backgroundColor: theme.surface,
             borderWidth: 1,
             borderColor: theme.textSecondary,
-            marginRight: 8,
+            marginRight: s(8),
           }}
         >
           <Text style={{ color: theme.text }}>{t.camera.cancelButton}</Text>

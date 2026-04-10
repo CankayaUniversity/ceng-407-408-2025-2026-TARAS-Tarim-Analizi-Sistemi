@@ -15,6 +15,7 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Theme } from "../../types";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 import { AddGatewayFlow } from "./AddGatewayFlow";
 import { AddSensorNodeFlow } from "./AddSensorNodeFlow";
 
@@ -102,7 +103,7 @@ export const HardwareSetupModal = ({
             {view !== "menu" ? (
               <MaterialCommunityIcons name="close" size={24} color="#fff" />
             ) : (
-              <View style={{ width: 24 }} />
+              <View style={{ width: s(24) }} />
             )}
           </TouchableOpacity>
         </View>
@@ -219,18 +220,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: s(16),
+    paddingVertical: vs(14),
   },
   headerButton: {
-    width: 40,
-    height: 40,
+    width: s(40),
+    height: s(40),
     alignItems: "center",
     justifyContent: "center",
   },
   headerTitle: {
     flex: 1,
-    fontSize: 18,
+    fontSize: ms(18, 0.3),
     fontWeight: "700",
     color: "#fff",
     textAlign: "center",
@@ -239,13 +240,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuContainer: {
-    padding: 20,
-    gap: 16,
+    padding: s(20),
+    gap: s(16),
   },
   menuCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: s(16),
     borderRadius: 12,
     elevation: 2,
     shadowColor: "#000",
@@ -254,23 +255,23 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   menuIconWrap: {
-    width: 56,
-    height: 56,
+    width: s(56),
+    height: s(56),
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 16,
+    marginRight: s(16),
   },
   menuTextWrap: {
     flex: 1,
   },
   menuTitle: {
-    fontSize: 16,
+    fontSize: ms(16, 0.3),
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: vs(4),
   },
   menuDesc: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: ms(13, 0.3),
+    lineHeight: ms(18, 0.3),
   },
 });

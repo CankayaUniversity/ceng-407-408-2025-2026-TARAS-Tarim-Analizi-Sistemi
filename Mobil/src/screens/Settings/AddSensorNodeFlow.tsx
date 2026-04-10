@@ -72,11 +72,11 @@ export const AddSensorNodeFlow = ({
   const [selectedZone, setSelectedZone] = useState<ZoneItem | null>(null);
 
   // Adim 3: Eslestirme
-  const [isPairingActive, setIsPairingActive] = useState(false);
+  const [_isPairingActive, setIsPairingActive] = useState(false);
   const [discoveredNode, setDiscoveredNode] = useState<DiscoveredNode | null>(
     null,
   );
-  const [isPaired, setIsPaired] = useState(false);
+  const [_isPaired, setIsPaired] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [pairingTimeLeft, setPairingTimeLeft] = useState(30);
   const [approvalTimeLeft, setApprovalTimeLeft] = useState(20);

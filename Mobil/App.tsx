@@ -30,7 +30,7 @@ if (__DEV__) {
 }
 
 // React
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 // React Native
 import {
@@ -39,11 +39,12 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   useColorScheme,
-  Animated,
+  AppState,
   ScrollView,
   StyleSheet,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import * as NavigationBar from "expo-navigation-bar";
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Third-party
@@ -64,6 +65,8 @@ import { HardwareSetupModal } from "./src/screens/Settings/HardwareSetupModal";
 
 // Components
 import { ChatWindow } from "./src/components/ChatWindow";
+import { ChatBubble } from "./src/components/ChatBubble";
+import { DraggableAIButton } from "./src/components/DraggableAIButton";
 import { ProfileButton } from "./src/components/ProfileButton";
 
 // Context
@@ -91,6 +94,9 @@ import {
 import { getDemoFields, generateDemoDashboardData } from "./src/utils/demoData";
 import {
   spacing,
+  s,
+  vs,
+  ms,
   getHeaderDimensions,
   getProfileButtonSize,
   useResponsive,
@@ -104,8 +110,8 @@ function AppContent() {
   // ── Hooks ──────────────────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
   const systemColorScheme = useColorScheme();
-  const { keyboardHeight } = useKeyboard();
-  const { height: windowHeight } = useWindowDimensions();
+  useKeyboard();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
   const { showPopup } = usePopupMessage();
   const { t } = useLanguage();
@@ -127,16 +133,19 @@ function AppContent() {
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
   const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
-  const { messages, chatInput, setChatInput, sendMessage, isLoading: chatLoading, startNewChat } = useChat(setScreen, selectedFieldId);
+  const { messages, chatInput, setChatInput, sendMessage, isLoading: chatLoading, startNewChat, pendingBubble, clearPendingBubble, historySessions, isLoadingHistory, loadHistory, loadSessionById } = useChat(setScreen, selectedFieldId);
 
-  // ── Animated values ────────────────────────────────────────────────────
-  const screenOpacities = useRef({
-    [SCREEN_TYPE.CARBON]: new Animated.Value(0),
-    [SCREEN_TYPE.TIMETABLE]: new Animated.Value(0),
-    [SCREEN_TYPE.HOME]: new Animated.Value(0),
-    [SCREEN_TYPE.DISEASE]: new Animated.Value(0),
-    [SCREEN_TYPE.SETTINGS]: new Animated.Value(0),
-  }).current;
+  // AI buton konumu ve LLM navigasyon
+  const [aiSpotIndex, setAiSpotIndex] = useState(0);
+  const [aiMoveTarget, setAiMoveTarget] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (pendingBubble) {
+      setShowChat(false);
+      // LLM navigasyon olunca buton karsi tarafa zipla
+      setAiMoveTarget(aiSpotIndex === 0 ? 1 : 0);
+    }
+  }, [pendingBubble]);
 
   // ── Data helpers ───────────────────────────────────────────────────────
   const loadDashboardData = async (fieldId: string, isDemo: boolean) => {
@@ -151,6 +160,25 @@ function AppContent() {
       setDashboardData(generateDemoDashboardData(fieldId));
     }
   };
+
+  // Pull-to-refresh state
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    if (!selectedFieldId) return;
+    setRefreshing(true);
+    await loadDashboardData(selectedFieldId, dataSource === "demo");
+    setRefreshing(false);
+  };
+
+  // Uygulama on plana gelince veri guncelle
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active" && selectedFieldId && dataSource === "aws") {
+        loadDashboardData(selectedFieldId, false);
+      }
+    });
+    return () => sub.remove();
+  }, [selectedFieldId, dataSource]);
 
   const handleFieldSelect = async (fieldId: string) => {
     setSelectedFieldId(fieldId);
@@ -208,35 +236,27 @@ function AppContent() {
     return () => { cleanupAlert(); };
   }, []);
 
-  useEffect(() => {
-    if (isLoading || screen === SCREEN_TYPE.LOGIN) return;
-
-    const screenTypes = [
-      SCREEN_TYPE.CARBON,
-      SCREEN_TYPE.TIMETABLE,
-      SCREEN_TYPE.HOME,
-      SCREEN_TYPE.DISEASE,
-      SCREEN_TYPE.SETTINGS,
-    ];
-    screenTypes.forEach((screenType) => {
-      Animated.timing(screenOpacities[screenType], {
-        toValue: screen === screenType ? 1 : 0,
-        duration: 120,
-        useNativeDriver: true,
-      }).start();
-    });
-  }, [screen, screenOpacities, isLoading]);
-
   // ── Computed values ────────────────────────────────────────────────────
   const isDark =
     themeMode === "dark" ||
     (themeMode !== "light" && systemColorScheme === "dark");
   const theme = useMemo(() => getTheme(isDark), [isDark]);
 
-  const chatHeight =
-    keyboardHeight > 0
-      ? windowHeight - keyboardHeight - 80
-      : Math.min(windowHeight * 0.6, 500);
+  // Android navigasyon cubugu buton rengini tema ile esle
+  useEffect(() => {
+    NavigationBar.setButtonStyleAsync(isDark ? "light" : "dark");
+  }, [isDark]);
+
+
+  const navBottom = insets.bottom > 20 ? 8 : Math.max(insets.bottom + 4, 8);
+  const aiSize = s(54);
+  // AI buton pozisyonu: nav bar ustunde, sabit gap
+  const aiBottomOffset = navBottom + vs(60) + vs(12);
+  const navBarY = windowHeight - insets.top - aiBottomOffset - aiSize;
+  const aiSafeSpots = useMemo(() => [
+    { x: windowWidth - aiSize - s(16), y: navBarY },
+    { x: s(16), y: navBarY },
+  ], [windowWidth, navBarY, aiSize]);
 
   // ── Loading screen ─────────────────────────────────────────────────────
   if (isLoading) {
@@ -282,18 +302,22 @@ function AppContent() {
 
   // ── Local components ───────────────────────────────────────────────────
   // AnimatedScreen JSX helper — inline component OLMAMALI, remount yapar
-  const animatedScreen = (
-    screenType: Exclude<ScreenType, "login">,
-    children: React.ReactNode,
-  ) => (
-    <Animated.View
-      key={screenType}
-      style={[styles.screenLayer, { opacity: screenOpacities[screenType] }]}
-      pointerEvents={screen === screenType ? "auto" : "none"}
-    >
-      {children}
-    </Animated.View>
-  );
+  const renderScreen = (): React.ReactNode => {
+    switch (screen) {
+      case SCREEN_TYPE.CARBON:
+        return <CarbonFootprintScreen theme={theme} />;
+      case SCREEN_TYPE.TIMETABLE:
+        return <TimetableScreen theme={theme} isActive selectedFieldId={selectedFieldId} />;
+      case SCREEN_TYPE.HOME:
+        return <HomeScreen theme={theme} isDark={isDark} dashboardData={dashboardData} isActive refreshing={refreshing} onRefresh={handleRefresh} />;
+      case SCREEN_TYPE.DISEASE:
+        return <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} isActive />;
+      case SCREEN_TYPE.SETTINGS:
+        return <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} onHardwareSetup={() => setShowHardwareSetup(true)} />;
+      default:
+        return null;
+    }
+  };
 
   // Header ve FieldSelector JSX olarak inline — fonksiyon component olarak
   // tanimlanirsa React her renderda unmount/remount yapar ve 3D flicker olur
@@ -304,14 +328,14 @@ function AppContent() {
         style={[styles.fieldSelectorButton, { backgroundColor: theme.surface, borderColor: theme.accent + "30" }]}
       >
         <View style={styles.fieldSelectorButtonContent}>
-          <Ionicons name="leaf" size={14} color={theme.accent} />
+          <Ionicons name="leaf" size={ms(14, 0.3)} color={theme.accent} />
           <Text style={[styles.fieldSelectorLabel, { color: theme.text }]} numberOfLines={1}>
             {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
           </Text>
         </View>
         <Ionicons
           name={fieldSelectorOpen ? "chevron-up" : "chevron-down"}
-          size={14}
+          size={ms(14, 0.3)}
           color={theme.textSecondary}
           style={styles.fieldSelectorChevron}
         />
@@ -332,7 +356,7 @@ function AppContent() {
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="leaf-outline" size={14} color={theme.textSecondary} style={styles.fieldSelectorItemIcon} />
+                  <Ionicons name="leaf-outline" size={ms(14, 0.3)} color={theme.textSecondary} style={styles.fieldSelectorItemIcon} />
                   <Text style={[styles.fieldSelectorItemLabel, { color: theme.text }]}>{field.name}</Text>
                 </TouchableOpacity>
               ))}
@@ -365,7 +389,7 @@ function AppContent() {
       </View>
 
       <View style={[styles.headerRight, { marginRight: headerDims.elementGap }]}>
-        <View style={[styles.dataSourceBadge, { backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b" }]}>
+        <View style={[styles.dataSourceBadge, { backgroundColor: dataSource === "aws" ? theme.accent : theme.accentDim }]}>
           <Text style={styles.dataSourceBadgeText}>
             {dataSource === "aws" ? t.home.dataSourceAWS : t.home.dataSourceDemo}
           </Text>
@@ -375,16 +399,10 @@ function AppContent() {
     </View>
   );
 
-  // insets.bottom on iPhone ≈ 34pt (full safe area zone, not just the indicator line).
-  // Float the pill just above the indicator by capping at 8pt on devices that have a
-  // home indicator (insets > 20). On Android 3-button nav (insets ≈ 48) keep full clearance.
-  const navBottom = insets.bottom > 20 ? 8 : Math.max(insets.bottom + 4, 8);
-  const fabBottom = navBottom + 80 + 8;
-
   const bottomNavJSX = (
     <View
       style={[
-        styles.floatingNavOuter,
+        styles.navBar,
         {
           backgroundColor: theme.surface,
           marginBottom: navBottom,
@@ -397,31 +415,27 @@ function AppContent() {
         return (
           <TouchableOpacity
             key={item.id}
-            style={styles.floatingNavItem}
+            style={[
+              styles.navTab,
+              isActive && { backgroundColor: theme.accent + "22" },
+            ]}
             onPress={() => setScreen(item.id as ScreenType)}
-            activeOpacity={0.75}
+            activeOpacity={0.7}
           >
-            <View
+            <MaterialCommunityIcons
+              name={item.icon as any}
+              size={ms(20, 0.3)}
+              color={isActive ? theme.accent : theme.accentDim}
+            />
+            <Text
               style={[
-                styles.floatingNavPill,
-                isActive && { backgroundColor: theme.accent + "22" },
+                styles.navLabel,
+                { color: isActive ? theme.accent : theme.accentDim },
               ]}
+              numberOfLines={1}
             >
-              <MaterialCommunityIcons
-                name={item.icon as any}
-                size={22}
-                color={isActive ? theme.accent : theme.accentDim}
-              />
-              <Text
-                style={[
-                  styles.floatingNavLabel,
-                  { color: isActive ? theme.accent : theme.accentDim },
-                ]}
-                numberOfLines={1}
-              >
-                {item.label}
-              </Text>
-            </View>
+              {item.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -432,64 +446,60 @@ function AppContent() {
   const isLoggedIn = screen !== SCREEN_TYPE.LOGIN;
 
   return (
-    <SafeAreaView edges={["top", "left", "right"]} style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
         <View style={[appStyles.container, { backgroundColor: theme.background }]}>
           <StatusBar style={isDark ? "light" : "dark"} />
 
           {!isLoggedIn ? (
             <LoginScreen theme={theme} onLoginSuccess={handleLoginSuccess} onSkip={handleSkip} />
+          ) : showChat ? (
+            /* Tam ekran sohbet — header, nav bar ve AI butonu gizli */
+            <ChatWindow
+              messages={messages}
+              chatInput={chatInput}
+              theme={theme}
+              isLoading={chatLoading}
+              onClose={() => setShowChat(false)}
+              onSendMessage={sendMessage}
+              onInputChange={setChatInput}
+              onNewChat={startNewChat}
+              historySessions={historySessions}
+              isLoadingHistory={isLoadingHistory}
+              onLoadHistory={loadHistory}
+              onSelectSession={loadSessionById}
+            />
           ) : (
             <>
               {appHeaderJSX}
               <View style={styles.screensContainer}>
-                {animatedScreen(SCREEN_TYPE.CARBON,
-                  <CarbonFootprintScreen theme={theme} />,
-                )}
-                {animatedScreen(SCREEN_TYPE.TIMETABLE,
-                  <TimetableScreen theme={theme} isActive={screen === SCREEN_TYPE.TIMETABLE} selectedFieldId={selectedFieldId} />,
-                )}
-                {animatedScreen(SCREEN_TYPE.HOME,
-                  <HomeScreen theme={theme} isDark={isDark} dashboardData={dashboardData} isActive={screen === SCREEN_TYPE.HOME} />,
-                )}
-                {animatedScreen(SCREEN_TYPE.DISEASE,
-                  <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} isActive={screen === SCREEN_TYPE.DISEASE} />,
-                )}
-                {animatedScreen(SCREEN_TYPE.SETTINGS,
-                  <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} onHardwareSetup={() => setShowHardwareSetup(true)} />,
-                )}
+                {renderScreen()}
               </View>
+
+              {bottomNavJSX}
+
+              <ChatBubble
+                message={pendingBubble?.text ?? ""}
+                visible={!!pendingBubble}
+                theme={theme}
+                bottom={windowHeight - insets.top - navBarY + s(8)}
+                onPress={() => { clearPendingBubble(); setShowChat(true); }}
+                onDismiss={clearPendingBubble}
+              />
+              <DraggableAIButton
+                theme={theme}
+                onPress={() => { clearPendingBubble(); setShowChat(true); }}
+                safeSpots={aiSafeSpots}
+                moveToSpot={aiMoveTarget}
+                onMoveComplete={() => setAiMoveTarget(null)}
+                onSpotChanged={setAiSpotIndex}
+              />
             </>
-          )}
-
-          {isLoggedIn && bottomNavJSX}
-
-          {isLoggedIn && (
-            <TouchableOpacity
-              style={[appStyles.fab, { backgroundColor: theme.accent, bottom: fabBottom }]}
-              onPress={() => setShowChat(true)}
-            >
-              <MaterialCommunityIcons name="chat" size={28} color="#fff" />
-            </TouchableOpacity>
           )}
 
           <HardwareSetupModal
             visible={showHardwareSetup}
             theme={theme}
             onClose={() => setShowHardwareSetup(false)}
-          />
-
-          <ChatWindow
-            visible={showChat}
-            messages={messages}
-            chatInput={chatInput}
-            chatHeight={chatHeight}
-            keyboardHeight={keyboardHeight}
-            theme={theme}
-            isLoading={chatLoading}
-            onClose={() => setShowChat(false)}
-            onSendMessage={sendMessage}
-            onInputChange={setChatInput}
-            onNewChat={startNewChat}
           />
         </View>
       </SafeAreaView>
@@ -550,8 +560,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: vs(6),
+    paddingHorizontal: s(12),
     borderRadius: 8,
     borderWidth: 1,
   },
@@ -559,24 +569,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    gap: 6,
+    gap: s(6),
   },
   fieldSelectorLabel: {
-    fontSize: 13,
+    fontSize: ms(13, 0.3),
     fontWeight: "600",
     flex: 1,
   },
   fieldSelectorChevron: {
-    marginLeft: 6,
+    marginLeft: s(6),
   },
   fieldSelectorDropdown: {
     position: "absolute",
-    top: 38,
+    top: vs(38),
     left: 0,
     right: 0,
     borderRadius: 8,
     borderWidth: 1,
-    maxHeight: 200,
+    maxHeight: vs(200),
     overflow: "hidden",
     zIndex: 1001,
     elevation: 10,
@@ -588,14 +598,14 @@ const styles = StyleSheet.create({
   fieldSelectorItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: s(12),
+    paddingVertical: vs(10),
   },
   fieldSelectorItemIcon: {
-    marginRight: 8,
+    marginRight: s(8),
   },
   fieldSelectorItemLabel: {
-    fontSize: 13,
+    fontSize: ms(13, 0.3),
     fontWeight: "500",
   },
 
@@ -612,33 +622,28 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
 
-  // Floating bottom nav
-  floatingNavOuter: {
+  // Bottom navigation
+  navBar: {
     flexDirection: "row",
-    marginHorizontal: 12,
-    borderRadius: 28,
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+    marginHorizontal: s(12),
+    borderRadius: 24,
+    padding: s(4),
     elevation: 10,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
   },
-  floatingNavItem: {
+  navTab: {
     flex: 1,
     alignItems: "center",
-  },
-  floatingNavPill: {
-    alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 6,
+    paddingVertical: vs(12),
     borderRadius: 20,
-    width: "100%",
+    marginHorizontal: s(2),
   },
-  floatingNavLabel: {
-    fontSize: 10,
+  navLabel: {
+    fontSize: ms(10, 0.3),
     fontWeight: "600",
-    marginTop: 4,
+    marginTop: vs(3),
   },
 });

@@ -15,6 +15,7 @@ import { appStyles } from "../../styles";
 import { sensorAPI } from "../../utils/api";
 import { TimetableScreenProps, SensorReading } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 
 export const SensorDataDumpScreen = ({
   theme,
@@ -116,7 +117,7 @@ export const SensorDataDumpScreen = ({
         <Text
           style={[
             appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 16 },
+            { color: theme.textSecondary, marginTop: vs(16) },
           ]}
         >
           {t.timetable.loadingSensorData}
@@ -133,7 +134,7 @@ export const SensorDataDumpScreen = ({
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          padding: 20,
+          padding: s(20),
         }}
         refreshControl={
           <RefreshControl
@@ -147,7 +148,7 @@ export const SensorDataDumpScreen = ({
           name="alert-circle"
           size={48}
           color={theme.accent}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: vs(16) }}
         />
         <Text style={[appStyles.placeholderText, { color: theme.text }]}>
           {t.timetable.loadFailed}
@@ -160,7 +161,7 @@ export const SensorDataDumpScreen = ({
         <Text
           style={[
             appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 8 },
+            { color: theme.textSecondary, marginTop: vs(8) },
           ]}
         >
           {t.timetable.pullToRefresh}
@@ -171,32 +172,32 @@ export const SensorDataDumpScreen = ({
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <View style={{ padding: 16 }}>
+      <View style={{ padding: s(16) }}>
         <View
           style={{
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: 8,
+            marginBottom: vs(8),
           }}
         >
-          <Text style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>
+          <Text style={{ color: theme.text, fontSize: ms(16, 0.3), fontWeight: "700" }}>
             {t.timetable.sensorDump} (72 {t.timetable.hours})
           </Text>
           <View
             style={{
-              paddingHorizontal: 8,
-              paddingVertical: 4,
+              paddingHorizontal: s(8),
+              paddingVertical: vs(4),
               borderRadius: 6,
               backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}>
+            <Text style={{ color: "#fff", fontSize: ms(10, 0.3), fontWeight: "600" }}>
               {dataSource === "aws" ? "AWS" : "DEMO"}
             </Text>
           </View>
         </View>
-        <Text style={{ color: theme.textSecondary, marginBottom: 4 }}>
+        <Text style={{ color: theme.textSecondary, marginBottom: vs(4) }}>
           {fieldName} — {t.timetable.total}: {readings.length} |{" "}
           {t.timetable.showing}: {filteredReadings.length}
         </Text>
@@ -207,15 +208,15 @@ export const SensorDataDumpScreen = ({
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={(nodeId) => nodeId}
-          contentContainerStyle={{ paddingVertical: 6 }}
+          contentContainerStyle={{ paddingVertical: vs(6) }}
           renderItem={({ item: nodeId }) => (
             <TouchableOpacity
               onPress={() => toggleNode(nodeId)}
               style={{
-                paddingHorizontal: 8,
-                paddingVertical: 3,
+                paddingHorizontal: s(8),
+                paddingVertical: vs(3),
                 borderRadius: 12,
-                marginRight: 6,
+                marginRight: s(6),
                 backgroundColor: selectedNodes.has(nodeId)
                   ? theme.accent
                   : theme.surface,
@@ -228,7 +229,7 @@ export const SensorDataDumpScreen = ({
               <Text
                 style={{
                   color: selectedNodes.has(nodeId) ? "#fff" : theme.text,
-                  fontSize: 10,
+                  fontSize: ms(10, 0.3),
                   fontWeight: "600",
                 }}
               >
@@ -259,29 +260,29 @@ export const SensorDataDumpScreen = ({
             horizontal
             scrollEnabled={false}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ minWidth: 820 }}
+            contentContainerStyle={{ minWidth: s(820) }}
           >
             <View
               style={{
                 flexDirection: "row",
                 backgroundColor: theme.surface,
-                minWidth: 820,
+                minWidth: s(820),
               }}
             >
               {[
-                { label: t.timetable.dateTime, width: 220 },
-                { label: "Node", width: 100 },
-                { label: `${t.timetable.temperature} (°C)`, width: 120 },
-                { label: `${t.timetable.humidity} (%)`, width: 120 },
-                { label: `${t.timetable.soilMoisture} (%)`, width: 140 },
-                { label: t.timetable.rawMoisture, width: 120 },
-                { label: "ET0", width: 100 },
+                { label: t.timetable.dateTime, width: s(220) },
+                { label: "Node", width: s(100) },
+                { label: `${t.timetable.temperature} (°C)`, width: s(120) },
+                { label: `${t.timetable.humidity} (%)`, width: s(120) },
+                { label: `${t.timetable.soilMoisture} (%)`, width: s(140) },
+                { label: t.timetable.rawMoisture, width: s(120) },
+                { label: "ET0", width: s(100) },
               ].map((h) => (
                 <View
                   key={h.label}
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
                     width: h.width,
                   }}
                 >
@@ -310,14 +311,14 @@ export const SensorDataDumpScreen = ({
               nestedScrollEnabled
               onScroll={(e) => handleScroll(e.nativeEvent.contentOffset.x)}
               scrollEventThrottle={16}
-              contentContainerStyle={{ minWidth: 820 }}
+              contentContainerStyle={{ minWidth: s(820) }}
             >
               <View
                 style={{
                   flexDirection: "row",
                   borderBottomWidth: 1,
                   borderBottomColor: theme.textSecondary + "20",
-                  minWidth: 820,
+                  minWidth: s(820),
                   backgroundColor: isEven
                     ? theme.background
                     : theme.surface + "40",
@@ -325,27 +326,27 @@ export const SensorDataDumpScreen = ({
               >
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 220,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(220),
                   }}
                 >
                   <Text style={{ color: theme.text }}>{time}</Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 100,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(100),
                   }}
                 >
                   <Text style={{ color: theme.text }}>{item.node_id}</Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 120,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(120),
                   }}
                 >
                   <Text style={{ color: theme.text }}>
@@ -354,9 +355,9 @@ export const SensorDataDumpScreen = ({
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 120,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(120),
                   }}
                 >
                   <Text style={{ color: theme.text }}>
@@ -365,9 +366,9 @@ export const SensorDataDumpScreen = ({
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 140,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(140),
                   }}
                 >
                   <Text style={{ color: theme.text }}>
@@ -376,18 +377,18 @@ export const SensorDataDumpScreen = ({
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 120,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(120),
                   }}
                 >
                   <Text style={{ color: theme.text }}>{item.raw_sm_value}</Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 100,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(100),
                   }}
                 >
                   <Text style={{ color: theme.text }}>
@@ -406,10 +407,10 @@ export const SensorDataDumpScreen = ({
           onPress={jumpToLatest}
           style={{
             position: "absolute",
-            bottom: 20,
-            right: 20,
-            width: 56,
-            height: 56,
+            bottom: s(20),
+            right: s(20),
+            width: s(56),
+            height: s(56),
             borderRadius: 28,
             backgroundColor: theme.accent,
             justifyContent: "center",

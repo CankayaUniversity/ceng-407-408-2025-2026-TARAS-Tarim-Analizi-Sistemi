@@ -1,5 +1,4 @@
-// Sohbet penceresi - AI asistan ile mesajlasma
-// Props: visible, messages, chatInput, chatHeight, keyboardHeight, theme, onClose, onSendMessage, onInputChange
+// Tam ekran sohbet penceresi — LLM asistan arayuzu + gecmis panel
 import { useRef, useEffect, useState } from "react";
 import {
   View,
@@ -7,338 +6,364 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Pressable,
+  Keyboard,
+  Platform,
   StyleSheet,
-  Animated,
+  ActivityIndicator,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ChatMessage, Theme } from "../types";
+import { ChatSessionSummary } from "../hooks/useChat";
 import { useKeyboard } from "../hooks/useKeyboard";
-import { appStyles } from "../styles";
 import { useLanguage } from "../context/LanguageContext";
+import { s, vs, ms } from "../utils/responsive";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ChatWindowProps {
-  visible: boolean;
   messages: ChatMessage[];
   chatInput: string;
-  chatHeight: number;
-  keyboardHeight: number;
   theme: Theme;
   isLoading?: boolean;
   onClose: () => void;
   onSendMessage: () => void;
   onInputChange: (text: string) => void;
   onNewChat?: () => void;
+  // Gecmis
+  historySessions: ChatSessionSummary[];
+  isLoadingHistory: boolean;
+  onLoadHistory: () => void;
+  onSelectSession: (sessionId: string) => void;
 }
 
+// Zaman formatlama — "2 dk once", "Dun", "3 Nis"
+const formatSessionTime = (iso: string | null): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = Date.now();
+  const diffMin = Math.floor((now - d.getTime()) / 60000);
+  if (diffMin < 1) return "Az önce";
+  if (diffMin < 60) return `${diffMin} dk`;
+  if (diffMin < 1440) return `${Math.floor(diffMin / 60)} sa`;
+  if (diffMin < 2880) return "Dün";
+  return `${d.getDate()} ${["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"][d.getMonth()]}`;
+};
+
 export const ChatWindow = ({
-  visible,
   messages,
   chatInput,
-  chatHeight,
-  keyboardHeight,
   theme,
   isLoading,
   onClose,
   onSendMessage,
   onInputChange,
   onNewChat,
+  historySessions,
+  isLoadingHistory,
+  onLoadHistory,
+  onSelectSession,
 }: ChatWindowProps) => {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
-  const { animatedPadding } = useKeyboard();
+  const { keyboardHeight } = useKeyboard();
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
-  const handleFocus = () => {
-    setIsInputFocused(true);
-    setTimeout(
-      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-      80,
-    );
-  };
-
-  const handleBlur = () => {
-    setIsInputFocused(false);
-    setTimeout(
-      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-      80,
-    );
-  };
+  const scrollToEnd = () =>
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 60);
 
   const handleSendPress = () => {
     chatInputRef.current?.blur();
-    setTimeout(() => onSendMessage(), 120);
+    setTimeout(() => onSendMessage(), 80);
   };
 
-  const handleClose = () => {
-    chatInputRef.current?.blur();
-    setTimeout(() => onClose(), 120);
+  const handleHistoryToggle = () => {
+    if (!showHistory) onLoadHistory();
+    setShowHistory(!showHistory);
   };
 
-  const animatedPaddingBottom = animatedPadding.interpolate({
-    inputRange: [0, 1],
-    outputRange: [24, keyboardHeight || 24],
-  });
+  const handleSelectSession = (sid: string) => {
+    setShowHistory(false);
+    onSelectSession(sid);
+  };
+
+  // Android: OS klavye kapatma butonu TextInput'u blur etmez
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = Keyboard.addListener("keyboardDidHide", () => {
+      chatInputRef.current?.blur();
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    scrollToEnd();
   }, [messages]);
 
-  if (!visible) return null;
-
-  const isUserMessage = (sender: string) => sender === "user";
+  const hasInput = chatInput.trim().length > 0;
+  const bottomPadding = keyboardHeight > 0 ? keyboardHeight : insets.bottom + vs(8);
 
   return (
-    <View style={styles.chatOverlay}>
-      <Pressable style={styles.chatBackdrop} onPress={handleClose} />
-      <Animated.View
-        style={[styles.chatContainer, { paddingBottom: animatedPaddingBottom }]}
-      >
-        <View
-          style={[
-            styles.chatWindow,
-            { backgroundColor: theme.surface, height: chatHeight },
-          ]}
-        >
-          {/* Header */}
-          <View style={[styles.chatHeader, { backgroundColor: theme.accent }]}>
-            <View style={styles.chatHeaderLeft}>
-              <MaterialCommunityIcons name="robot" size={24} color="#fff" />
-              <Text style={styles.chatHeaderTitle}>{t.chat.title}</Text>
-            </View>
-            <View style={styles.chatHeaderRight}>
-              {onNewChat && (
-                <TouchableOpacity
-                  onPress={onNewChat}
-                  disabled={isLoading}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={{ marginRight: 12, opacity: isLoading ? 0.4 : 1 }}
-                >
-                  <MaterialCommunityIcons name="chat-plus-outline" size={22} color="#fff" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                onPress={onClose}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <MaterialCommunityIcons name="close" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + vs(8), borderBottomColor: theme.accent + "15" }]}>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MaterialCommunityIcons name="chevron-down" size={ms(24, 0.3)} color={theme.textSecondary} />
+        </TouchableOpacity>
 
+        <View style={styles.headerCenter}>
+          <View style={[styles.headerDot, { backgroundColor: theme.accent }]} />
+          <Text style={[styles.headerTitle, { color: theme.textSecondary }]}>
+            {showHistory ? t.chat.history : t.chat.title}
+          </Text>
+        </View>
+
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={handleHistoryToggle}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ opacity: 0.7 }}
+          >
+            <MaterialCommunityIcons
+              name={showHistory ? "chat" : "history"}
+              size={ms(18, 0.3)}
+              color={theme.textSecondary}
+            />
+          </TouchableOpacity>
+          {!showHistory && onNewChat && (
+            <TouchableOpacity
+              onPress={onNewChat}
+              disabled={isLoading}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ opacity: isLoading ? 0.3 : 0.7, marginLeft: s(12) }}
+            >
+              <MaterialCommunityIcons name="refresh" size={ms(18, 0.3)} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {showHistory ? (
+        /* Gecmis panel */
+        <ScrollView style={styles.historyList} contentContainerStyle={styles.historyContent}>
+          {isLoadingHistory ? (
+            <ActivityIndicator style={{ marginTop: vs(40) }} color={theme.accent} />
+          ) : historySessions.length === 0 ? (
+            <Text style={[styles.historyEmpty, { color: theme.textSecondary }]}>
+              {t.chat.historyEmpty}
+            </Text>
+          ) : (
+            historySessions.map((session) => (
+              <TouchableOpacity
+                key={session.session_id}
+                style={[styles.historyItem, { borderBottomColor: theme.accent + "10" }]}
+                onPress={() => handleSelectSession(session.session_id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.historyItemTop}>
+                  <Text
+                    style={[styles.historyField, { color: theme.text }]}
+                    numberOfLines={1}
+                  >
+                    {session.field_name}
+                  </Text>
+                  <Text style={[styles.historyTime, { color: theme.textSecondary }]}>
+                    {formatSessionTime(session.last_message_at || session.started_at)}
+                  </Text>
+                </View>
+                <Text
+                  style={[styles.historyPreview, { color: theme.textSecondary }]}
+                  numberOfLines={2}
+                >
+                  {session.last_message || "—"}
+                </Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      ) : (
+        <>
           {/* Mesajlar */}
           <ScrollView
             ref={scrollViewRef}
-            style={[
-              styles.messagesScroll,
-              { backgroundColor: theme.background },
-            ]}
+            style={styles.messages}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {messages.map((message) => (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageRow,
-                  isUserMessage(message.sender) && styles.messageRowUser,
-                ]}
-              >
-                {!isUserMessage(message.sender) && (
+            {messages.map((msg) => {
+              const isUser = msg.sender === "user";
+              return (
+                <View key={msg.id} style={[styles.msgRow, isUser && styles.msgRowUser]}>
                   <View
                     style={[
-                      styles.avatarContainer,
-                      { backgroundColor: theme.accent + "20" },
+                      styles.bubble,
+                      isUser ? styles.bubbleUser : styles.bubbleAssistant,
+                      isUser
+                        ? { backgroundColor: theme.accent }
+                        : { backgroundColor: theme.surface, borderColor: theme.accent + "12", borderWidth: 1 },
                     ]}
                   >
-                    <MaterialCommunityIcons
-                      name="robot"
-                      size={16}
-                      color={theme.accent}
-                    />
+                    <Text style={[styles.msgText, { color: isUser ? "#fff" : theme.text }]}>
+                      {msg.text}
+                    </Text>
                   </View>
-                )}
-                <View
-                  style={[
-                    styles.messageBubble,
-                    isUserMessage(message.sender)
-                      ? { backgroundColor: theme.accent }
-                      : {
-                          backgroundColor: theme.surface,
-                          borderWidth: 1,
-                          borderColor: theme.accent + "40",
-                        },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.messageText,
-                      {
-                        color: isUserMessage(message.sender)
-                          ? "#fff"
-                          : theme.text,
-                      },
-                    ]}
-                  >
-                    {message.text}
-                  </Text>
                 </View>
-                {isUserMessage(message.sender) && (
-                  <View
-                    style={[
-                      styles.avatarContainer,
-                      { backgroundColor: theme.accent },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="account"
-                      size={16}
-                      color="#fff"
-                    />
-                  </View>
-                )}
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
 
-          {/* Input alani */}
-          <View
-            style={[
-              styles.chatInputArea,
-              {
-                backgroundColor: theme.surface,
-                borderTopColor: theme.accent + "20",
-              },
-            ]}
-          >
-            <View style={styles.inputRow}>
+          {/* Input */}
+          <View style={[styles.inputWrap, { paddingBottom: bottomPadding, borderTopColor: theme.accent + "10" }]}>
+            <View
+              style={[
+                styles.inputPill,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: isInputFocused ? theme.accent + "60" : theme.accent + "20",
+                },
+              ]}
+            >
               <TextInput
                 ref={chatInputRef}
-                style={[
-                  appStyles.loginInput,
-                  {
-                    backgroundColor: theme.surface,
-                    color: theme.text,
-                    borderColor: isInputFocused
-                      ? theme.accent
-                      : theme.accentDim,
-                    flex: 1,
-                    marginBottom: 0,
-                    marginRight: 8,
-                  },
-                ]}
+                style={[styles.input, { color: theme.text }]}
                 placeholder={t.chat.placeholder}
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.textSecondary + "80"}
                 value={chatInput}
                 onChangeText={onInputChange}
                 onSubmitEditing={handleSendPress}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
+                onFocus={() => { setIsInputFocused(true); scrollToEnd(); }}
+                onBlur={() => setIsInputFocused(false)}
                 returnKeyType="send"
                 blurOnSubmit={false}
                 multiline
                 maxLength={500}
               />
               <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  {
-                    backgroundColor: chatInput.trim()
-                      ? theme.accent
-                      : theme.surface,
-                    borderColor: chatInput.trim()
-                      ? "transparent"
-                      : theme.accent + "30",
-                    borderWidth: chatInput.trim() ? 0 : 1,
-                  },
-                ]}
+                style={[styles.sendBtn, { backgroundColor: hasInput ? theme.accent : "transparent" }]}
                 onPress={handleSendPress}
-                disabled={!chatInput.trim()}
+                disabled={!hasInput || isLoading}
                 activeOpacity={0.8}
               >
                 <MaterialCommunityIcons
-                  name="send"
-                  size={18}
-                  color={chatInput.trim() ? "#fff" : theme.accent}
+                  name="arrow-up"
+                  size={ms(16, 0.3)}
+                  color={hasInput ? "#fff" : theme.accent + "40"}
                 />
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Animated.View>
+        </>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  chatOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1000,
-  },
-  chatBackdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  chatContainer: { flex: 1, justifyContent: "flex-end", padding: 12 },
-  chatWindow: {
-    borderRadius: 20,
-    overflow: "hidden",
-    elevation: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-  },
-  chatHeader: {
+  container: { flex: 1 },
+  // Header
+  header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: s(14),
+    paddingBottom: vs(10),
+    borderBottomWidth: 1,
   },
-  chatHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  chatHeaderRight: { flexDirection: "row", alignItems: "center" },
-  chatHeaderTitle: { fontSize: 17, fontWeight: "700", color: "#fff" },
-  messagesScroll: { flex: 1 },
-  messagesContent: { padding: 16, gap: 12 },
-  messageRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
-  messageRowUser: { flexDirection: "row-reverse" },
-  avatarContainer: {
-    width: 28,
-    height: 28,
+  headerCenter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: s(6),
+  },
+  headerDot: { width: s(6), height: s(6), borderRadius: 3 },
+  headerTitle: {
+    fontSize: ms(12, 0.3),
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  // Mesajlar
+  messages: { flex: 1 },
+  messagesContent: {
+    paddingHorizontal: s(12),
+    paddingVertical: vs(10),
+    gap: vs(6),
+  },
+  msgRow: { flexDirection: "row", justifyContent: "flex-start" },
+  msgRowUser: { justifyContent: "flex-end" },
+  bubble: {
+    maxWidth: "82%",
+    paddingHorizontal: s(12),
+    paddingVertical: vs(8),
+    borderRadius: 14,
+  },
+  bubbleAssistant: { borderBottomLeftRadius: 4 },
+  bubbleUser: { borderBottomRightRadius: 4 },
+  msgText: { fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
+  // Input
+  inputWrap: {
+    paddingHorizontal: s(10),
+    paddingTop: vs(8),
+    borderTopWidth: 1,
+  },
+  inputPill: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingLeft: s(14),
+    paddingRight: s(4),
+    paddingVertical: vs(4),
+  },
+  input: {
+    flex: 1,
+    fontSize: ms(14, 0.3),
+    lineHeight: ms(19, 0.3),
+    maxHeight: vs(100),
+    paddingVertical: vs(6),
+  },
+  sendBtn: {
+    width: s(28),
+    height: s(28),
     borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 1,
   },
-  messageBubble: {
-    maxWidth: "75%",
-    flexShrink: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
+  // Gecmis
+  historyList: { flex: 1 },
+  historyContent: { paddingHorizontal: s(14) },
+  historyEmpty: {
+    textAlign: "center",
+    marginTop: vs(40),
+    fontSize: ms(14, 0.3),
   },
-  messageText: { fontSize: 15, lineHeight: 20, flexWrap: "wrap" },
-  chatInputArea: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
+  historyItem: {
+    paddingVertical: vs(12),
+    borderBottomWidth: 1,
   },
-  inputRow: { flexDirection: "row", alignItems: "center", width: "100%" },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  historyItemTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
+    marginBottom: vs(4),
+  },
+  historyField: {
+    fontSize: ms(14, 0.3),
+    fontWeight: "600",
+    flex: 1,
+  },
+  historyTime: {
+    fontSize: ms(11, 0.3),
+    marginLeft: s(8),
+  },
+  historyPreview: {
+    fontSize: ms(13, 0.3),
+    lineHeight: ms(18, 0.3),
   },
 });

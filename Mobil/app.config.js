@@ -37,6 +37,7 @@ export default {
       package: "com.tarasmobil.app",
       userInterfaceStyle: "automatic",
       usesCleartextTraffic: true,
+      navigationBarColor: "#0e1215",
       permissions: [
         "INTERNET",
         "ACCESS_NETWORK_STATE",

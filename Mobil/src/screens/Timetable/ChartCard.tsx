@@ -7,12 +7,13 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { ChartCardProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 
 // Sabitler
 const MAX_DISPLAY_POINTS = 50;
-const CHART_HEIGHT = 160;
-const Y_AXIS_WIDTH = 40;
-const X_AXIS_LABEL_HEIGHT = 25;
+const CHART_HEIGHT = vs(160);
+const Y_AXIS_WIDTH = s(40);
+const X_AXIS_LABEL_HEIGHT = vs(25);
 const POPUP_HIDE_DELAY = 2000;
 
 // Tarih formatla: GG/AA
@@ -61,7 +62,7 @@ export const ChartCard = ({
 
   // Layout calculations
   const screenWidth = Dimensions.get("window").width;
-  const chartContainerWidth = screenWidth - 64;
+  const chartContainerWidth = screenWidth - s(64);
   const chartDrawableWidth = chartContainerWidth - Y_AXIS_WIDTH;
 
   // Sanitize and prepare data (moved before early return)
@@ -321,10 +322,10 @@ export const ChartCard = ({
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 24,
+    marginBottom: vs(24),
     borderRadius: 12,
-    padding: 16,
-    paddingBottom: 8,
+    padding: s(16),
+    paddingBottom: vs(8),
   },
   loadingContainer: {
     flex: 1,
@@ -332,46 +333,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    fontSize: 11,
+    fontSize: ms(11, 0.3),
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 8,
+    marginBottom: vs(8),
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
   },
   title: {
-    marginLeft: 8,
-    fontSize: 13,
+    marginLeft: s(8),
+    fontSize: ms(13, 0.3),
     fontWeight: "600",
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: s(8),
+    paddingVertical: vs(2),
     borderRadius: 4,
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: ms(9, 0.3),
     fontWeight: "600",
   },
   popupContainer: {
-    height: 28,
+    height: vs(28),
     justifyContent: "center",
     alignItems: "center",
   },
   valuePopup: {
     backgroundColor: "#1a1a1a",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: s(12),
+    paddingVertical: vs(4),
     borderRadius: 6,
   },
   valueText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: ms(13, 0.3),
     fontWeight: "bold",
   },
   chartContainer: {
@@ -390,20 +391,20 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   timeLabelContainer: {
-    height: 24,
+    height: vs(24),
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: vs(4),
   },
   timePopup: {
     backgroundColor: "#1a1a1a",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: s(10),
+    paddingVertical: vs(3),
     borderRadius: 4,
   },
   timeText: {
     color: "#fff",
-    fontSize: 10,
+    fontSize: ms(10, 0.3),
     fontWeight: "600",
   },
 });

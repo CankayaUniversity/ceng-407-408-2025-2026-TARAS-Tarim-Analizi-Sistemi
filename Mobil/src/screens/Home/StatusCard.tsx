@@ -6,7 +6,7 @@ import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
 import { MetricCard } from "./MetricCard";
 import { IrrigationCountdown } from "./IrrigationCountdown";
 import { StatusCardProps } from "./types";
-import { spacing } from "../../utils/responsive";
+import { spacing, ms } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 
 // Son okuma zamanini formatla - tarih ve saat gosterir
@@ -122,7 +122,7 @@ export const StatusCard = ({
       {!loading && (
         <Text
           style={{
-            fontSize: 11,
+            fontSize: ms(11, 0.3),
             color: theme.textSecondary,
             textAlign: "right",
             marginTop: spacing.xs,

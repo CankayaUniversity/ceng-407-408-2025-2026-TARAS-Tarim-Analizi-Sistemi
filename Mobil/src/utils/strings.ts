@@ -234,6 +234,9 @@ export interface StringDictionary {
     title: string;
     placeholder: string;
     newChat: string;
+    tapToOpen: string;
+    history: string;
+    historyEmpty: string;
   };
 
   // Network Diagnostics
@@ -280,6 +283,33 @@ export interface StringDictionary {
   carbon: {
     title: string;
     comingSoon: string;
+    loadError: string;
+    typeRequired: string;
+    amountRequired: string;
+    logSuccess: string;
+    logError: string;
+    kgCO2: string;
+    deleteConfirmTitle: string;
+    deleteConfirmMessage: string;
+    deleteSuccess: string;
+    deleteError: string;
+    loadingFarms: string;
+    noFarmFound: string;
+    summaryTitle: string;
+    addLog: string;
+    selectActivityType: string;
+    noData: string;
+    amount: string;
+    date: string;
+    notes: string;
+    notesPlaceholder: string;
+    logActivity: string;
+    recentLogs: string;
+    noLogs: string;
+    noLogsSubtitle: string;
+    categoryFuel: string;
+    categoryFertilizer: string;
+    categoryElectricity: string;
   };
 }
 
@@ -511,6 +541,9 @@ const tr: StringDictionary = {
     title: "TarasMobil Asistanı",
     placeholder: "Mesajınızı yazın...",
     newChat: "Yeni Sohbet",
+    tapToOpen: "Sohbeti açmak için dokunun",
+    history: "Geçmiş Sohbetler",
+    historyEmpty: "Henüz sohbet geçmişi yok",
   },
 
   networkDiag: {
@@ -554,6 +587,33 @@ const tr: StringDictionary = {
   carbon: {
     title: "Karbon Ayak İzi",
     comingSoon: "Yakında...",
+    loadError: "Veriler yüklenemedi",
+    typeRequired: "Lütfen bir aktivite tipi seçin",
+    amountRequired: "Lütfen bir miktar girin",
+    logSuccess: "Kayıt eklendi",
+    logError: "Kayıt eklenemedi",
+    kgCO2: "kg CO₂",
+    deleteConfirmTitle: "Kaydı Sil",
+    deleteConfirmMessage: "Bu kaydı silmek istediğinize emin misiniz?",
+    deleteSuccess: "Kayıt silindi",
+    deleteError: "Kayıt silinemedi",
+    loadingFarms: "Çiftlikler yükleniyor...",
+    noFarmFound: "Çiftlik bulunamadı",
+    summaryTitle: "Toplam Emisyon",
+    addLog: "Yeni Kayıt",
+    selectActivityType: "Aktivite tipi seçin",
+    noData: "Veri yok",
+    amount: "Miktar",
+    date: "Tarih",
+    notes: "Notlar",
+    notesPlaceholder: "Opsiyonel not ekleyin...",
+    logActivity: "Kaydet",
+    recentLogs: "Son Kayıtlar",
+    noLogs: "Henüz kayıt yok",
+    noLogsSubtitle: "Aktivite kaydı ekleyerek karbon ayak izinizi takip edin",
+    categoryFuel: "Yakıt",
+    categoryFertilizer: "Gübre",
+    categoryElectricity: "Elektrik",
   },
 };
 
@@ -782,9 +842,12 @@ const en: StringDictionary = {
   },
 
   chat: {
-    title: "TarasMobil Assistant",
+    title: "TARAS Assistant",
     placeholder: "Type your message...",
     newChat: "New Chat",
+    tapToOpen: "Tap to open chat",
+    history: "Past Conversations",
+    historyEmpty: "No conversation history yet",
   },
 
   networkDiag: {
@@ -828,6 +891,33 @@ const en: StringDictionary = {
   carbon: {
     title: "Carbon Footprint",
     comingSoon: "Coming Soon...",
+    loadError: "Failed to load data",
+    typeRequired: "Please select an activity type",
+    amountRequired: "Please enter an amount",
+    logSuccess: "Log added",
+    logError: "Failed to add log",
+    kgCO2: "kg CO₂",
+    deleteConfirmTitle: "Delete Log",
+    deleteConfirmMessage: "Are you sure you want to delete this log?",
+    deleteSuccess: "Log deleted",
+    deleteError: "Failed to delete log",
+    loadingFarms: "Loading farms...",
+    noFarmFound: "No farm found",
+    summaryTitle: "Total Emissions",
+    addLog: "New Log",
+    selectActivityType: "Select activity type",
+    noData: "No data",
+    amount: "Amount",
+    date: "Date",
+    notes: "Notes",
+    notesPlaceholder: "Add an optional note...",
+    logActivity: "Save",
+    recentLogs: "Recent Logs",
+    noLogs: "No logs yet",
+    noLogsSubtitle: "Track your carbon footprint by adding activity logs",
+    categoryFuel: "Fuel",
+    categoryFertilizer: "Fertilizer",
+    categoryElectricity: "Electricity",
   },
 };
 
