@@ -9,7 +9,7 @@ router.use(authenticateToken);
 // Rate limiter — sadece extended modda
 let limiter: any = null;
 if (process.env.LLM_PROVIDER !== "groq") {
-  try { limiter = require("../middleware/rateLimiter").advisoryLimiter; } catch { /* */ }
+  try { limiter = require("../services/llm/rateLimiter").advisoryLimiter; } catch { /* */ }
 }
 
 router.get("/session", getFieldChatSession);

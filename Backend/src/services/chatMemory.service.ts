@@ -2,7 +2,7 @@ import prisma from "../config/database";
 import logger from "../utils/logger";
 
 interface ChatHistoryMessage {
-  role: "user" | "model";
+  role: "user" | "assistant";
   content: string;
 }
 
@@ -20,7 +20,7 @@ export const getSessionHistory = async (sessionId: string): Promise<ChatHistoryM
     });
 
     return history.reverse().map((msg) => ({
-      role: (msg.sender === "user" ? "user" : "model") as "user" | "model",
+      role: (msg.sender === "user" ? "user" : "assistant") as "user" | "assistant",
       content: msg.content || "",
     }));
   } catch (error) {
@@ -71,5 +71,22 @@ export const getSessionMessages = async (sessionId: string) => {
     where: { session_id: sessionId },
     orderBy: { created_at: "asc" },
     take: 50,
+  });
+};
+
+// Kullanicinin tum sohbet oturumlarini getir
+export const getUserSessions = async (userId: string) => {
+  return prisma.chatSession.findMany({
+    where: { user_id: userId },
+    orderBy: { started_at: "desc" },
+    take: 20,
+    include: {
+      field: { select: { name: true } },
+      messages: {
+        orderBy: { created_at: "desc" },
+        take: 1,
+        select: { content: true, created_at: true },
+      },
+    },
   });
 };

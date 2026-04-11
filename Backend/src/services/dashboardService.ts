@@ -181,8 +181,30 @@ export async function getFieldDashboard(
   };
 }
 
+// Hafif envanter — sadece isimler ve ID'ler
+export async function getFieldInventory(userId: string) {
+  return prisma.farm.findMany({
+    where: { user_id: userId },
+    select: {
+      farm_id: true,
+      name: true,
+      fields: {
+        select: {
+          field_id: true,
+          name: true,
+          crop_name: true,
+          zones: {
+            select: { zone_id: true, name: true },
+          },
+        },
+      },
+    },
+  });
+}
+
 export default {
   getUserFields,
   checkFieldAccess,
   getFieldDashboard,
+  getFieldInventory,
 };

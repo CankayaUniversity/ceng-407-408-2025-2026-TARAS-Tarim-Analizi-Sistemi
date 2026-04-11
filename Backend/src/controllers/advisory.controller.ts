@@ -12,7 +12,7 @@ const LLM_MODE = process.env.LLM_PROVIDER || "groq";
 let ext: any = null;
 if (LLM_MODE !== "groq") {
   try {
-    ext = require("../services/llm.extended");
+    ext = require("../services/llm/llm.extended");
     logger.info(`[LLM] extended provider aktif`);
   } catch { logger.info("[LLM] groq provider aktif"); }
 }
