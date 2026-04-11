@@ -1,8 +1,8 @@
 // Popup mesaj - ekranda kisa sureli bildirim gosterir
 // Props: message (yazi), visible, onHide, duration (sure ms)
 import { useEffect, useRef, useState } from "react";
-import { Animated, Text, StyleSheet, View } from "react-native";
-import { s, vs, ms } from "../utils/responsive";
+import { Animated, Text, View } from "react-native";
+import { vs } from "../utils/responsive";
 
 interface PopupMessageProps {
   message: string;
@@ -47,34 +47,24 @@ export const PopupMessage = ({
   if (!isShowing || !message) return null;
 
   return (
-    <View style={styles.container} pointerEvents="none">
-      <Animated.View style={[styles.popup, { opacity: fadeAnim }]}>
-        <Text style={styles.text}>{message}</Text>
+    <View
+      className="absolute left-0 right-0 center z-[9999]"
+      style={{ bottom: vs(120) }}
+      pointerEvents="none"
+    >
+      <Animated.View
+        className="bg-black/85 px-6 py-3.5 rounded-xl"
+        style={{
+          opacity: fadeAnim,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 8,
+        }}
+      >
+        <Text className="text-white text-base font-semibold text-center">{message}</Text>
       </Animated.View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    bottom: vs(120),
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-  },
-  popup: {
-    backgroundColor: "rgba(0, 0, 0, 0.85)",
-    paddingHorizontal: s(24),
-    paddingVertical: vs(14),
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  text: { color: "#fff", fontSize: ms(16, 0.3), fontWeight: "600", textAlign: "center" },
-});

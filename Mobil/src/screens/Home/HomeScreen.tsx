@@ -130,8 +130,8 @@ export const HomeScreen = memo(({
   const handleClosePopup = useCallback(() => handleNodeSelect(null), [handleNodeSelect]);
 
   return (
-    <View style={{ flex: 1, position: "relative" }}>
-      <View style={{ flex: 1, marginHorizontal: spacing.sm }}>
+    <View className="flex-1 relative">
+      <View className="flex-1" style={{ marginHorizontal: spacing.sm }}>
         <ScrollView
           style={{ flexGrow: 0, flexShrink: 0 }}
           showsVerticalScrollIndicator={true}
@@ -160,12 +160,8 @@ export const HomeScreen = memo(({
             style={canvasStyle}
             fallback={
               <View
-                style={{
-                  flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  backgroundColor: theme.background,
-                }}
+                className="flex-1 justify-center items-center"
+                style={{ backgroundColor: theme.background }}
               >
                 <ActivityIndicator size="large" color={theme.accent} />
               </View>
@@ -175,13 +171,7 @@ export const HomeScreen = memo(({
             <CameraAutoFit />
             <Suspense
               fallback={
-                <View
-                  style={{
-                    flex: 1,
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
+                <View className="flex-1 justify-center items-center">
                   <ActivityIndicator size="large" color={theme.accent} />
                 </View>
               }

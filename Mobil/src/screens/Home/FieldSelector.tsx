@@ -21,29 +21,18 @@ export const FieldSelector = ({
   if (fields.length === 0) return null;
 
   return (
-    <View
-      style={{
-        paddingHorizontal: spacing.md,
-        paddingTop: spacing.xs,
-        paddingBottom: spacing.xs,
-        position: "relative",
-      }}
-    >
+    <View className="relative" style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}>
       <TouchableOpacity
         onPress={() => setIsOpen(!isOpen)}
+        className="row-between surface-bg rounded-xl"
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
-          backgroundColor: theme.surface,
-          borderRadius: spacing.sm + 2,
           borderWidth: 1,
           borderColor: theme.accent + "30",
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+        <View className="row flex-1">
           <Ionicons
             name="leaf"
             size={18}
@@ -51,11 +40,7 @@ export const FieldSelector = ({
             style={{ marginRight: spacing.sm }}
           />
           <Text
-            style={{
-              color: theme.text,
-              fontSize: 15,
-              fontWeight: "600",
-            }}
+            className="text-primary text-[15px] font-semibold"
             numberOfLines={1}
           >
             {selectedField?.name ?? t.home.selectField}
@@ -70,8 +55,8 @@ export const FieldSelector = ({
 
       {isOpen && (
         <View
+          className="absolute surface-bg rounded-xl overflow-hidden"
           style={{
-            position: "absolute",
             top:
               spacing.xs +
               spacing.sm +
@@ -81,12 +66,9 @@ export const FieldSelector = ({
               2,
             left: spacing.md,
             right: spacing.md,
-            backgroundColor: theme.surface,
-            borderRadius: spacing.sm + 2,
             borderWidth: 1,
             borderColor: theme.accent + "30",
             maxHeight: 200,
-            overflow: "hidden",
             zIndex: 1000,
             elevation: 10,
             shadowColor: "#000",
@@ -105,14 +87,12 @@ export const FieldSelector = ({
                     onSelectField(field.id);
                     setIsOpen(false);
                   }}
+                  className="row surface-bg"
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm + 2,
                     borderBottomWidth: index < arr.length - 1 ? 1 : 0,
                     borderBottomColor: theme.accent + "15",
-                    backgroundColor: theme.surface,
                   }}
                   activeOpacity={0.7}
                 >
@@ -122,13 +102,7 @@ export const FieldSelector = ({
                     color={theme.textSecondary}
                     style={{ marginRight: spacing.sm }}
                   />
-                  <Text
-                    style={{
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: "500",
-                    }}
-                  >
+                  <Text className="text-primary text-sm font-medium">
                     {field.name}
                   </Text>
                 </TouchableOpacity>

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  StyleSheet,
   Alert,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -391,29 +390,32 @@ export const AddSensorNodeFlow = ({
 
   // Gateway secim ekrani
   const renderGatewaySelect = (): React.JSX.Element => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: theme.text }]}>
+    <View className="flex-1 p-5">
+      <Text className="text-primary font-bold text-xl mb-5">
         {t.hardware.selectGateway}
       </Text>
 
       {isLoadingGateways ? (
-        <View style={styles.centerWrap}>
+        <View className="flex-1 center">
           <ActivityIndicator size="large" color={theme.accent} />
         </View>
       ) : (
         <FlatList
           data={gateways}
           keyExtractor={(item) => item.gateway_id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ gap: 10 }}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[
-                styles.listItem,
-                {
-                  backgroundColor: theme.surface,
-                  opacity: item.is_online ? 1 : 0.5,
-                },
-              ]}
+              className="row surface-bg rounded-[10px]"
+              style={{
+                padding: 14,
+                opacity: item.is_online ? 1 : 0.5,
+                elevation: 1,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+              }}
               onPress={() => handleGatewaySelect(item)}
               activeOpacity={item.is_online ? 0.7 : 1}
               disabled={!item.is_online}
@@ -424,29 +426,20 @@ export const AddSensorNodeFlow = ({
                 color={item.is_online ? theme.accent : theme.textSecondary}
                 style={{ marginRight: 12 }}
               />
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.listItemTitle, { color: theme.text }]}
-                >
+              <View className="flex-1">
+                <Text className="text-primary text-[15px] font-semibold mb-0.5">
                   {item.name || item.mac}
                 </Text>
-                <View style={styles.statusRow}>
+                <View className="row" style={{ gap: 6 }}>
                   <View
-                    style={[
-                      styles.statusDot,
-                      {
-                        backgroundColor: item.is_online
-                          ? "#22c55e"
-                          : "#ef4444",
-                      },
-                    ]}
+                    className="rounded-full"
+                    style={{
+                      width: 8,
+                      height: 8,
+                      backgroundColor: item.is_online ? "#22c55e" : "#ef4444",
+                    }}
                   />
-                  <Text
-                    style={[
-                      styles.listItemSub,
-                      { color: theme.textSecondary },
-                    ]}
-                  >
+                  <Text className="text-secondary text-xs">
                     {item.is_online
                       ? t.hardware.online
                       : t.hardware.offline}
@@ -460,10 +453,11 @@ export const AddSensorNodeFlow = ({
                   <ActivityIndicator size="small" color={theme.accent} />
                 ) : (
                   <TouchableOpacity
-                    style={{ backgroundColor: theme.accent, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}
+                    className="rounded-xl"
+                    style={{ backgroundColor: theme.accent, paddingHorizontal: 10, paddingVertical: 4 }}
                     onPress={(e) => { e.stopPropagation(); handleOtaUpdate(item); }}
                   >
-                    <Text style={{ color: "#fff", fontSize: 11, fontWeight: "600" }}>
+                    <Text className="text-white text-[11px] font-semibold">
                       {t.hardware.updateAvailable}
                     </Text>
                   </TouchableOpacity>
@@ -475,21 +469,14 @@ export const AddSensorNodeFlow = ({
                   color={theme.textSecondary}
                 />
               ) : (
-                <Text
-                  style={[
-                    styles.offlineLabel,
-                    { color: theme.textSecondary },
-                  ]}
-                >
+                <Text className="text-secondary text-[11px] font-medium">
                   {t.hardware.gatewayOffline}
                 </Text>
               )}
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <Text
-              style={[styles.emptyText, { color: theme.textSecondary }]}
-            >
+            <Text className="text-secondary text-sm text-center mt-10">
               {t.hardware.noGatewaysFound}
             </Text>
           }
@@ -509,37 +496,37 @@ export const AddSensorNodeFlow = ({
     });
 
     return (
-      <View style={styles.stepContainer}>
-        <Text style={[styles.stepTitle, { color: theme.text }]}>
+      <View className="flex-1 p-5">
+        <Text className="text-primary font-bold text-xl mb-5">
           {t.hardware.selectZone}
         </Text>
 
         {isLoadingZones ? (
-          <View style={styles.centerWrap}>
+          <View className="flex-1 center">
             <ActivityIndicator size="large" color={theme.accent} />
           </View>
         ) : (
           <FlatList
             data={Object.entries(grouped)}
             keyExtractor={([key]) => key}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={{ gap: 10 }}
             renderItem={({ item: [fieldName, fieldZones] }) => (
               <View>
-                <Text
-                  style={[
-                    styles.groupHeader,
-                    { color: theme.textSecondary },
-                  ]}
-                >
+                <Text className="text-secondary text-[13px] font-bold uppercase tracking-wide mb-2 mt-2">
                   {fieldName}
                 </Text>
                 {fieldZones.map((zone) => (
                   <TouchableOpacity
                     key={zone.zone_id}
-                    style={[
-                      styles.listItem,
-                      { backgroundColor: theme.surface, marginBottom: 8 },
-                    ]}
+                    className="row surface-bg rounded-[10px] mb-2"
+                    style={{
+                      padding: 14,
+                      elevation: 1,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 2,
+                    }}
                     onPress={() => handleZoneSelect(zone)}
                     activeOpacity={0.7}
                   >
@@ -549,13 +536,8 @@ export const AddSensorNodeFlow = ({
                       color={theme.accent}
                       style={{ marginRight: 12 }}
                     />
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.listItemTitle,
-                          { color: theme.text },
-                        ]}
-                      >
+                    <View className="flex-1">
+                      <Text className="text-primary text-[15px] font-semibold">
                         {zone.zone_name}
                       </Text>
                     </View>
@@ -569,9 +551,7 @@ export const AddSensorNodeFlow = ({
               </View>
             )}
             ListEmptyComponent={
-              <Text
-                style={[styles.emptyText, { color: theme.textSecondary }]}
-              >
+              <Text className="text-secondary text-sm text-center mt-10">
                 {t.hardware.noZonesFound}
               </Text>
             }
@@ -583,40 +563,36 @@ export const AddSensorNodeFlow = ({
 
   // Eslestirme ekrani
   const renderPairing = (): React.JSX.Element => (
-    <View style={styles.stepContainer}>
+    <View className="flex-1 p-5">
       {!discoveredNode ? (
         // Bekleme durumu
-        <View style={styles.centerWrap}>
+        <View className="flex-1 center">
           <ActivityIndicator
             size="large"
             color={theme.accent}
             style={{ marginBottom: 24 }}
           />
-          <Text style={[styles.pairingTitle, { color: theme.text }]}>
+          <Text className="text-primary text-lg font-bold text-center mb-2">
             {t.hardware.searchingNodes}
           </Text>
-          <Text
-            style={[
-              styles.pairingSubtext,
-              { color: theme.textSecondary },
-            ]}
-          >
+          <Text className="text-secondary text-sm text-center mb-6 leading-5">
             {t.hardware.powerOnSensor}
           </Text>
-          <Text style={[styles.timerText, { color: theme.accent }]}>
+          <Text
+            className="text-3xl font-bold mb-6"
+            style={{ color: theme.accent }}
+          >
             {formatTime(pairingTimeLeft)}
           </Text>
 
           {/* Zaman doldu */}
           {pairingTimeLeft === 0 && (
             <TouchableOpacity
-              style={[
-                styles.retryButton,
-                { backgroundColor: theme.accent },
-              ]}
+              className="rounded-[10px] mt-4"
+              style={{ backgroundColor: theme.accent, paddingVertical: 10, paddingHorizontal: 20 }}
               onPress={handleRetryPairing}
             >
-              <Text style={styles.retryButtonText}>
+              <Text className="text-white text-sm font-semibold">
                 {t.hardware.retry}
               </Text>
             </TouchableOpacity>
@@ -624,12 +600,17 @@ export const AddSensorNodeFlow = ({
         </View>
       ) : (
         // Node kesfedildi — onay/red ekrani
-        <View style={styles.centerWrap}>
+        <View className="flex-1 center">
           <View
-            style={[
-              styles.discoveredCard,
-              { backgroundColor: theme.surface },
-            ]}
+            className="items-center surface-bg rounded-2xl w-full mb-4"
+            style={{
+              padding: 24,
+              elevation: 2,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+            }}
           >
             <MaterialCommunityIcons
               name="thermometer-lines"
@@ -637,28 +618,30 @@ export const AddSensorNodeFlow = ({
               color={theme.accent}
               style={{ marginBottom: 12 }}
             />
-            <Text style={[styles.nodeFoundTitle, { color: theme.text }]}>
+            <Text className="text-primary text-lg font-bold mb-2">
               {t.hardware.nodeFound}
             </Text>
-            <Text
-              style={[styles.nodeMac, { color: theme.textSecondary }]}
-            >
+            <Text className="text-secondary text-[13px] font-mono mb-1">
               MAC: {discoveredNode.mac}
             </Text>
 
             {/* 20s geri sayim */}
-            <Text style={[styles.timerText, { color: approvalTimeLeft <= 5 ? "#ef4444" : theme.accent, marginTop: 12 }]}>
+            <Text
+              className="text-3xl font-bold mt-3"
+              style={{ color: approvalTimeLeft <= 5 ? "#ef4444" : theme.accent }}
+            >
               {approvalTimeLeft}s
             </Text>
-            <Text style={[styles.pairingSubtext, { color: theme.textSecondary, fontSize: 12 }]}>
+            <Text className="text-secondary text-xs text-center">
               {t.hardware.autoRejectNotice}: {approvalTimeLeft}s
             </Text>
           </View>
 
           {/* Approve / Decline buttons */}
-          <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+          <View className="flex-row mt-4" style={{ gap: 12 }}>
             <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: "#22c55e", flex: 1, opacity: isApproving ? 0.5 : 1 }]}
+              className="flex-1 row justify-center rounded-xl mt-4"
+              style={{ backgroundColor: "#22c55e", paddingVertical: 14, paddingHorizontal: 24, opacity: isApproving ? 0.5 : 1 }}
               onPress={handleApproveNode}
               activeOpacity={0.7}
               disabled={isApproving}
@@ -668,16 +651,17 @@ export const AddSensorNodeFlow = ({
               ) : (
                 <MaterialCommunityIcons name="check" size={20} color="#fff" style={{ marginRight: 6 }} />
               )}
-              <Text style={styles.primaryBtnText}>{t.hardware.approve}</Text>
+              <Text className="text-white text-base font-bold">{t.hardware.approve}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.primaryBtn, { backgroundColor: "#ef4444", flex: 1 }]}
+              className="flex-1 row justify-center rounded-xl mt-4"
+              style={{ backgroundColor: "#ef4444", paddingVertical: 14, paddingHorizontal: 24 }}
               onPress={handleDeclineNode}
               activeOpacity={0.7}
             >
               <MaterialCommunityIcons name="close" size={20} color="#fff" style={{ marginRight: 6 }} />
-              <Text style={styles.primaryBtnText}>{t.hardware.decline}</Text>
+              <Text className="text-white text-base font-bold">{t.hardware.decline}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -687,12 +671,14 @@ export const AddSensorNodeFlow = ({
 
   // Basari ekrani
   const renderDone = (): React.JSX.Element => (
-    <View style={[styles.stepContainer, styles.centerWrap]}>
+    <View className="flex-1 p-5 center">
       <View
-        style={[
-          styles.successIcon,
-          { backgroundColor: theme.accent + "20" },
-        ]}
+        className="center rounded-full mb-6"
+        style={{
+          width: 100,
+          height: 100,
+          backgroundColor: theme.accent + "20",
+        }}
       >
         <MaterialCommunityIcons
           name="check-circle"
@@ -700,31 +686,35 @@ export const AddSensorNodeFlow = ({
           color={theme.accent}
         />
       </View>
-      <Text style={[styles.doneTitle, { color: theme.text }]}>
+      <Text className="text-primary text-xl font-bold mb-2 text-center">
         {t.hardware.nodePaired}
       </Text>
       <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: theme.accent }]}
+        className="row justify-center rounded-xl mt-4"
+        style={{ backgroundColor: theme.accent, paddingVertical: 14, paddingHorizontal: 24 }}
         onPress={onComplete}
         activeOpacity={0.7}
       >
-        <Text style={styles.primaryBtnText}>{t.hardware.done}</Text>
+        <Text className="text-white text-base font-bold">{t.hardware.done}</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={styles.flowContainer}>
+    <View className="flex-1">
       {/* Hata mesaji */}
       {error && (
-        <View style={[styles.errorBar, { backgroundColor: "#ef4444" + "20" }]}>
+        <View
+          className="row rounded-lg mx-5 mt-2"
+          style={{ backgroundColor: "#ef4444" + "20", paddingVertical: 10, paddingHorizontal: 16 }}
+        >
           <MaterialCommunityIcons
             name="alert-circle"
             size={18}
             color="#ef4444"
             style={{ marginRight: 8 }}
           />
-          <Text style={[styles.errorText, { color: "#ef4444" }]}>
+          <Text className="flex-1 text-[13px] font-medium" style={{ color: "#ef4444" }}>
             {error}
           </Text>
         </View>
@@ -739,7 +729,7 @@ export const AddSensorNodeFlow = ({
       {/* Geri butonu (eslestirme ve tamam disinda) */}
       {step !== "pairing" && step !== "done" && step !== "gatewaySelect" && (
         <TouchableOpacity
-          style={styles.backButton}
+          className="row px-5 py-3"
           onPress={handleStepBack}
         >
           <MaterialCommunityIcons
@@ -748,7 +738,7 @@ export const AddSensorNodeFlow = ({
             color={theme.textSecondary}
             style={{ marginRight: 4 }}
           />
-          <Text style={{ color: theme.textSecondary, fontSize: 14 }}>
+          <Text className="text-secondary text-sm">
             {t.common.back}
           </Text>
         </TouchableOpacity>
@@ -756,174 +746,3 @@ export const AddSensorNodeFlow = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  flowContainer: {
-    flex: 1,
-  },
-  stepContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  stepTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 20,
-  },
-  centerWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  listContent: {
-    gap: 10,
-  },
-  listItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 10,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  listItemTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  listItemSub: {
-    fontSize: 12,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 40,
-  },
-  statusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  offlineLabel: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  groupHeader: {
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginTop: 8,
-  },
-  pairingTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  pairingSubtext: {
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  timerText: {
-    fontSize: 32,
-    fontWeight: "700",
-    marginBottom: 24,
-  },
-  discoveredCard: {
-    alignItems: "center",
-    padding: 24,
-    borderRadius: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    width: "100%",
-    marginBottom: 16,
-  },
-  nodeFoundTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  nodeMac: {
-    fontSize: 13,
-    fontFamily: "monospace",
-    marginBottom: 4,
-  },
-  nodeCaps: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  primaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 16,
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  retryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginTop: 16,
-  },
-  retryButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  successIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-  doneTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  errorBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginHorizontal: 20,
-    marginTop: 8,
-    borderRadius: 8,
-  },
-  errorText: {
-    fontSize: 13,
-    fontWeight: "500",
-    flex: 1,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-});

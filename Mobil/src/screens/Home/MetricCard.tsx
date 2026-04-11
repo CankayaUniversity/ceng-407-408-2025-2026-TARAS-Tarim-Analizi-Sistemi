@@ -1,5 +1,5 @@
 // Metrik karti — tek bir olcum degerini gosterir (2x2 grid icinde)
-import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ActivityIndicator } from "react-native";
 import { MetricCardProps } from "./types";
 import {
   useResponsive,
@@ -40,42 +40,49 @@ export const MetricCard = ({
   );
 
   return (
-    <View style={[styles.wrapper, { marginHorizontal: s(2), marginBottom: spacing.sm }]}>
+    <View className="flex-1" style={{ marginHorizontal: s(2), marginBottom: spacing.sm }}>
       <View
-        style={[styles.card, {
+        className="border rounded-xl justify-between"
+        style={{
           backgroundColor: theme.surface,
           borderColor: theme.accent + "20",
           padding: cardPadding,
           height: cardLayout.cardHeight,
-        }]}
+        }}
       >
         {/* Baslik + ikon */}
-        <View style={styles.header}>
+        <View className="row-between">
           <Text
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={[styles.title, { color: theme.textSecondary, fontSize: titleFontSize }]}
+            className="font-semibold flex-1"
+            style={{ color: theme.textSecondary, fontSize: titleFontSize }}
           >
             {title}
           </Text>
-          <View style={styles.iconWrap}>{icon}</View>
+          <View style={{ marginLeft: s(4) }}>{icon}</View>
         </View>
 
         {/* Deger */}
-        <View style={[styles.valueArea, { justifyContent: loading ? "center" : "flex-end" }]}>
+        <View className="items-start flex-1" style={{ justifyContent: loading ? "center" : "flex-end" }}>
           {loading ? (
             <ActivityIndicator size={VALUE_FONT * 0.7} color={theme.accent} />
           ) : value !== null ? (
             typeof value === "string" ? (
-              <View style={styles.valueRow}>
+              <View className="flex-row items-baseline">
                 <Text
                   numberOfLines={1}
-                  style={[styles.value, { color: theme.text, fontSize: VALUE_FONT, lineHeight: VALUE_FONT * 1.1 }]}
+                  className="font-normal"
+                  style={{ color: theme.text, fontSize: VALUE_FONT, lineHeight: VALUE_FONT * 1.1 }}
                 >
                   {value}
                 </Text>
                 {unit?.trim() ? (
-                  <Text numberOfLines={1} style={[styles.unit, { color: theme.textSecondary }]}>
+                  <Text
+                    numberOfLines={1}
+                    className="font-normal"
+                    style={{ fontSize: UNIT_FONT, color: theme.textSecondary, marginLeft: s(2) }}
+                  >
                     {unit.trim()}
                   </Text>
                 ) : null}
@@ -84,8 +91,8 @@ export const MetricCard = ({
               <View>{value}</View>
             )
           ) : (
-            <Text style={[styles.value, { color: theme.textSecondary, fontSize: VALUE_FONT }]}>
-              —
+            <Text className="font-normal" style={{ color: theme.textSecondary, fontSize: VALUE_FONT }}>
+              {"\u2014"}
             </Text>
           )}
         </View>
@@ -93,23 +100,3 @@ export const MetricCard = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  wrapper: { flex: 1 },
-  card: {
-    borderWidth: 1,
-    borderRadius: 12,
-    justifyContent: "space-between",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  title: { fontWeight: "600", flex: 1 },
-  iconWrap: { marginLeft: s(4) },
-  valueArea: { alignItems: "flex-start", flex: 1 },
-  valueRow: { flexDirection: "row", alignItems: "baseline" },
-  value: { fontWeight: "400" },
-  unit: { fontSize: UNIT_FONT, fontWeight: "400", marginLeft: s(2) },
-});

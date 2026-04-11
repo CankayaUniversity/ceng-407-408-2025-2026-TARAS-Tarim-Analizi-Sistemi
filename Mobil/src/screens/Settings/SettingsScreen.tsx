@@ -3,12 +3,12 @@
 
 import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { appStyles } from "../../styles";
 import { SettingsScreenProps, ThemeOption } from "./types";
 import { runNetworkDiagnostics } from "../../utils/networkDiagnostics";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { Language } from "../../utils/strings";
+import { s, vs, ms } from "../../utils/responsive";
 
 interface LanguageOption {
   code: Language;
@@ -73,56 +73,48 @@ export const SettingsScreen = ({
 
   return (
     <ScrollView
-      style={[
-        appStyles.settingsContainer,
-        { backgroundColor: theme.background, paddingTop: 4 },
-      ]}
+      className="screen-bg"
+      style={{ paddingHorizontal: s(24), paddingTop: vs(24) }}
     >
-      <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+      <Text
+        className="text-primary font-bold"
+        style={{ fontSize: ms(24, 0.3), marginBottom: vs(6) }}
+      >
         {t.settings.title}
       </Text>
 
       {/* Theme Mode */}
       <View
-        style={[
-          appStyles.settingItem,
-          {
-            borderBottomColor: theme.surface,
-            flexDirection: "column",
-            alignItems: "stretch",
-          },
-        ]}
+        className="mb-5"
+        style={{
+          paddingVertical: vs(20),
+          borderBottomWidth: 1,
+          borderBottomColor: theme.surface,
+        }}
       >
-        <View style={[appStyles.settingLeft, { marginBottom: 12 }]}>
+        <View className="row mb-3">
           <MaterialCommunityIcons
             name={isDark ? "moon-waning-crescent" : "white-balance-sunny"}
             size={20}
             color={theme.accent}
             style={{ marginRight: 12 }}
           />
-          <Text style={[appStyles.settingLabel, { color: theme.text }]}>
+          <Text
+            className="text-primary font-semibold"
+            style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
+          >
             {t.settings.themeMode}
           </Text>
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 4,
-          }}
-        >
+        <View className="row-between" style={{ gap: 4 }}>
           {themeOptions.map((opt) => (
             <TouchableOpacity
               key={opt.mode}
+              className="flex-1 center rounded-lg"
               style={{
-                flex: 1,
-                borderRadius: 8,
                 paddingHorizontal: 4,
                 paddingVertical: 8,
-                alignItems: "center",
-                justifyContent: "center",
                 backgroundColor:
                   themeMode === opt.mode ? theme.accent : theme.surface,
                 borderWidth: themeMode === opt.mode ? 2 : 1,
@@ -138,11 +130,10 @@ export const SettingsScreen = ({
                 style={{ marginBottom: 2 }}
               />
               <Text
+                className="text-center font-semibold"
                 style={{
                   color: themeMode === opt.mode ? "#fff" : theme.text,
                   fontSize: 9,
-                  fontWeight: "600",
-                  textAlign: "center",
                 }}
               >
                 {opt.label}
@@ -154,45 +145,36 @@ export const SettingsScreen = ({
 
       {/* Language */}
       <View
-        style={[
-          appStyles.settingItem,
-          {
-            borderBottomColor: theme.surface,
-            flexDirection: "column",
-            alignItems: "stretch",
-          },
-        ]}
+        className="mb-5"
+        style={{
+          paddingVertical: vs(20),
+          borderBottomWidth: 1,
+          borderBottomColor: theme.surface,
+        }}
       >
-        <View style={[appStyles.settingLeft, { marginBottom: 12 }]}>
+        <View className="row mb-3">
           <MaterialCommunityIcons
             name="translate"
             size={20}
             color={theme.accent}
             style={{ marginRight: 12 }}
           />
-          <Text style={[appStyles.settingLabel, { color: theme.text }]}>
+          <Text
+            className="text-primary font-semibold"
+            style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
+          >
             {t.settings.language}
           </Text>
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
+        <View className="row-between" style={{ gap: 8 }}>
           {LANGUAGE_OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt.code}
+              className="flex-1 center rounded-lg"
               style={{
-                flex: 1,
-                borderRadius: 8,
                 paddingHorizontal: 8,
                 paddingVertical: 12,
-                alignItems: "center",
-                justifyContent: "center",
                 backgroundColor:
                   language === opt.code ? theme.accent : theme.surface,
                 borderWidth: language === opt.code ? 2 : 1,
@@ -202,11 +184,9 @@ export const SettingsScreen = ({
               onPress={() => setLanguage(opt.code)}
             >
               <Text
+                className="text-center font-semibold text-[13px]"
                 style={{
                   color: language === opt.code ? "#fff" : theme.text,
-                  fontSize: 13,
-                  fontWeight: "600",
-                  textAlign: "center",
                 }}
               >
                 {opt.code === "tr"
@@ -220,30 +200,21 @@ export const SettingsScreen = ({
 
       {/* AWS Connection Test */}
       <TouchableOpacity
-        style={[
-          appStyles.settingItem,
-          {
-            borderBottomColor: theme.surface,
-            backgroundColor: theme.surface,
-            borderRadius: 8,
-            marginBottom: 12,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingVertical: 16,
-            paddingHorizontal: 16,
-          },
-        ]}
+        className="row-between surface-bg rounded-lg mb-3"
+        style={{ paddingVertical: 16, paddingHorizontal: 16 }}
         onPress={handleRunDiagnostics}
       >
-        <View style={[appStyles.settingLeft]}>
+        <View className="row">
           <MaterialCommunityIcons
             name="network-strength-4"
             size={20}
             color={theme.accent}
             style={{ marginRight: 12 }}
           />
-          <Text style={[appStyles.settingLabel, { color: theme.text }]}>
+          <Text
+            className="text-primary font-semibold"
+            style={{ fontSize: ms(16, 0.3) }}
+          >
             {t.settings.awsConnectionTest}
           </Text>
         </View>
@@ -256,28 +227,21 @@ export const SettingsScreen = ({
 
       {/* Donanim Kurulumu */}
       <TouchableOpacity
-        style={[
-          {
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            paddingVertical: 16,
-            paddingHorizontal: 16,
-            backgroundColor: theme.surface,
-            borderRadius: 8,
-            marginBottom: 12,
-          },
-        ]}
+        className="row-between surface-bg rounded-lg mb-3"
+        style={{ paddingVertical: 16, paddingHorizontal: 16 }}
         onPress={onHardwareSetup}
       >
-        <View style={[appStyles.settingLeft]}>
+        <View className="row">
           <MaterialCommunityIcons
             name="access-point"
             size={20}
             color={theme.accent}
             style={{ marginRight: 12 }}
           />
-          <Text style={[appStyles.settingLabel, { color: theme.text }]}>
+          <Text
+            className="text-primary font-semibold"
+            style={{ fontSize: ms(16, 0.3) }}
+          >
             {t.hardware.title}
           </Text>
         </View>
@@ -290,7 +254,12 @@ export const SettingsScreen = ({
 
       {/* Logout */}
       <TouchableOpacity
-        style={[appStyles.logoutButton, { backgroundColor: "#ef4444" }]}
+        className="row justify-center rounded-xl mt-6"
+        style={{
+          backgroundColor: "#ef4444",
+          paddingVertical: vs(12),
+          paddingHorizontal: s(24),
+        }}
         onPress={onLogout}
       >
         <MaterialCommunityIcons
@@ -299,7 +268,9 @@ export const SettingsScreen = ({
           color="#fff"
           style={{ marginRight: 8 }}
         />
-        <Text style={appStyles.logoutButtonText}>{t.settings.logout}</Text>
+        <Text style={{ fontSize: ms(16, 0.3), fontWeight: "700", color: "#fff" }}>
+          {t.settings.logout}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );

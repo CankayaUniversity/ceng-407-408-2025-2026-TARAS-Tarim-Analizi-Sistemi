@@ -29,13 +29,12 @@ export const ProfileButton = ({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
+      className="center"
       style={{
         width: size,
         height: size,
         borderRadius: size / 2,
         backgroundColor: theme.accent,
-        alignItems: "center",
-        justifyContent: "center",
         borderWidth: 2,
         borderColor: theme.accent + "40",
         shadowColor: "#000",
@@ -46,12 +45,10 @@ export const ProfileButton = ({
       }}
     >
       <Text
+        className="font-bold text-center tracking-wider"
         style={{
           color: theme.surface,
-          fontSize: fontSize,
-          fontWeight: "700",
-          letterSpacing: 0.5,
-          textAlign: "center",
+          fontSize,
         }}
       >
         {initials}

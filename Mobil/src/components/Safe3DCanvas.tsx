@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   ScrollView,
-  StyleSheet,
   Platform,
   InteractionManager,
 } from "react-native";
@@ -231,11 +230,11 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
   // Bekleme durumu
   if (canvasState === "waiting") {
     return (
-      <View style={{ flex: 1 }}>
+      <View className="flex-1">
         {fallback}
-        <View style={styles.loadingOverlay}>
+        <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
           <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>
+          <Text className="mt-3 text-sm" style={{ color: theme.text }}>
             {t.errors.preparing}
           </Text>
         </View>
@@ -246,7 +245,7 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
   // GL test durumu
   if (canvasState === "testing" && GLView) {
     return (
-      <View style={{ flex: 1 }}>
+      <View className="flex-1">
         {fallback}
         <View style={{ position: "absolute", width: 1, height: 1, opacity: 0 }}>
           <GLView
@@ -255,9 +254,9 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
             onContextCreate={handleGLContextCreate}
           />
         </View>
-        <View style={styles.loadingOverlay}>
+        <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
           <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={[styles.loadingText, { color: theme.text }]}>
+          <Text className="mt-3 text-sm" style={{ color: theme.text }}>
             {t.errors.checking3DModule}
           </Text>
         </View>
@@ -268,55 +267,68 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
   // Hata durumu
   if (canvasState === "error") {
     return (
-      <View style={{ flex: 1 }}>
+      <View className="flex-1">
         {fallback}
         <View
-          style={[
-            styles.errorOverlay,
-            { backgroundColor: theme.surface, borderColor: theme.accentDim },
-          ]}
+          className="absolute bottom-4 left-4 right-4 rounded-lg p-3 border"
+          style={{ backgroundColor: theme.surface, borderColor: theme.accentDim, maxHeight: "80%" }}
         >
-          <Text style={[styles.errorTitle, { color: theme.text }]}>
+          <Text className="text-sm font-semibold mb-2" style={{ color: theme.text }}>
             {t.errors.cannotLoad3D}
           </Text>
           {errorMessage ? (
-            <Text style={[styles.errorMessage, { color: theme.textSecondary }]}>
+            <Text className="text-xs mb-3" style={{ color: theme.textSecondary }}>
               {errorMessage}
             </Text>
           ) : null}
 
-          <View style={styles.buttonRow}>
+          <View className="flex-row gap-2">
             <TouchableOpacity
               onPress={handleRetry}
-              style={[styles.button, { backgroundColor: theme.accent }]}
+              className="py-2 px-4 rounded-md"
+              style={{ backgroundColor: theme.accent }}
             >
-              <Text style={styles.buttonText}>{t.common.retry}</Text>
+              <Text className="text-white text-xs font-semibold">{t.common.retry}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setShowDebug(!showDebug)}
-              style={[styles.debugButton, { backgroundColor: "#6b7280" }]}
+              className="bg-gray-500 py-2 px-4 rounded-md"
             >
-              <Text style={styles.buttonText}>
+              <Text className="text-white text-xs font-semibold">
                 {showDebug ? t.errors.hideDebug : t.errors.showDebug}
               </Text>
             </TouchableOpacity>
           </View>
 
           {showDebug && (
-            <ScrollView style={styles.debugContainer} nestedScrollEnabled>
-              <Text style={styles.debugHeader}>
+            <ScrollView
+              className="mt-3 bg-gray-800 rounded-md p-2.5"
+              style={{ maxHeight: 250 }}
+              nestedScrollEnabled
+            >
+              <Text className="text-xs font-semibold text-amber-500 mb-1">
                 Debug (Attempt {renderAttemptRef.current + 1}):
               </Text>
-              <Text style={styles.debugInfo}>{__DEV__ ? "DEV" : "PROD"}</Text>
+              <Text className="text-[11px] text-emerald-400 mb-2">
+                {__DEV__ ? "DEV" : "PROD"}
+              </Text>
               {debugInfo.map((info, i) => (
-                <View key={i} style={styles.debugEntry}>
-                  <Text style={styles.debugTime}>[{info.timestamp}]</Text>
-                  <Text style={styles.debugStage}>{info.stage}</Text>
+                <View key={i} className="mb-2 border-b border-gray-700 pb-1.5">
+                  <Text className="text-[10px] text-gray-400 font-mono">
+                    [{info.timestamp}]
+                  </Text>
+                  <Text className="text-[11px] text-blue-400 font-semibold">
+                    {info.stage}
+                  </Text>
                   {info.glInfo && (
-                    <Text style={styles.debugGl}>{info.glInfo}</Text>
+                    <Text className="text-[10px] text-emerald-400 font-mono">
+                      {info.glInfo}
+                    </Text>
                   )}
                   {info.error && (
-                    <Text style={styles.debugError}>{info.error}</Text>
+                    <Text className="text-[10px] text-red-400 font-mono">
+                      {info.error}
+                    </Text>
                   )}
                 </View>
               ))}
@@ -331,7 +343,7 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
   if (canvasState === "loading") {
     try {
       return (
-        <View style={{ flex: 1 }}>
+        <View className="flex-1">
           <Canvas
             frameloop="demand"
             camera={camera}
@@ -345,9 +357,9 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
           >
             {children}
           </Canvas>
-          <View style={styles.loadingOverlay}>
+          <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
             <ActivityIndicator size="large" color={theme.accent} />
-            <Text style={[styles.loadingText, { color: theme.text }]}>
+            <Text className="mt-3 text-sm" style={{ color: theme.text }}>
               {t.errors.loading3D}
             </Text>
           </View>
@@ -366,7 +378,7 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
           );
         }
       }, 0);
-      return <View style={{ flex: 1 }}>{fallback}</View>;
+      return <View className="flex-1">{fallback}</View>;
     }
   }
 
@@ -387,60 +399,7 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
     );
   } catch (renderError: any) {
     console.log("[3D] render err:", renderError);
-    return <View style={{ flex: 1 }}>{fallback}</View>;
+    return <View className="flex-1">{fallback}</View>;
   }
 });
 
-const styles = StyleSheet.create({
-  errorOverlay: {
-    position: "absolute",
-    bottom: 16,
-    left: 16,
-    right: 16,
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    maxHeight: "80%",
-  },
-  errorTitle: { fontSize: 14, fontWeight: "600", marginBottom: 8 },
-  errorMessage: { fontSize: 12, marginBottom: 12 },
-  buttonRow: { flexDirection: "row", gap: 8 },
-  button: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 6 },
-  debugButton: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 6 },
-  buttonText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  debugContainer: {
-    marginTop: 12,
-    backgroundColor: "#1f2937",
-    borderRadius: 6,
-    padding: 10,
-    maxHeight: 250,
-  },
-  debugHeader: {
-    color: "#f59e0b",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  debugInfo: { color: "#34d399", fontSize: 11, marginBottom: 8 },
-  debugEntry: {
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#374151",
-    paddingBottom: 6,
-  },
-  debugTime: { color: "#9ca3af", fontSize: 10, fontFamily: "monospace" },
-  debugStage: { color: "#60a5fa", fontSize: 11, fontWeight: "600" },
-  debugGl: { color: "#34d399", fontSize: 10, fontFamily: "monospace" },
-  debugError: { color: "#f87171", fontSize: 10, fontFamily: "monospace" },
-  loadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  loadingText: { marginTop: 12, fontSize: 14 },
-});

@@ -6,11 +6,11 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  StyleSheet,
   Animated,
   useWindowDimensions,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import Markdown from "@ronradtke/react-native-markdown-display";
 import { Theme } from "../types";
 import { s, vs, ms } from "../utils/responsive";
 import { useLanguage } from "../context/LanguageContext";
@@ -85,32 +85,47 @@ export const ChatBubble = ({
 
   return (
     <Animated.View
-      style={[
-        styles.container,
-        {
-          bottom,
-          maxHeight: maxBubbleHeight,
-          opacity,
-          transform: [{ translateY }],
-        },
-      ]}
+      style={{
+        position: "absolute",
+        right: s(12),
+        left: s(48),
+        bottom,
+        maxHeight: maxBubbleHeight,
+        zIndex: 999,
+        alignItems: "flex-end" as const,
+        opacity,
+        transform: [{ translateY }],
+      }}
     >
       <TouchableOpacity
-        style={[
-          styles.bubble,
-          {
-            backgroundColor: theme.background,
-            borderColor: theme.accent + "18",
-            shadowColor: theme.isDark ? "#000" : "#334155",
-          },
-        ]}
+        className="w-full rounded-2xl border overflow-hidden"
+        style={{
+          backgroundColor: theme.background,
+          borderColor: theme.accent + "18",
+          shadowColor: theme.isDark ? "#000" : "#334155",
+          elevation: 12,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.2,
+          shadowRadius: 12,
+        }}
         onPress={onPress}
         activeOpacity={0.9}
       >
         {/* Ince header — sohbet penceresiyle ayni */}
-        <View style={[styles.header, { borderBottomColor: theme.accent + "15" }]}>
-          <View style={[styles.dot, { backgroundColor: theme.accent }]} />
-          <Text style={[styles.headerText, { color: theme.textSecondary }]}>
+        <View
+          className="row border-b"
+          style={{
+            paddingHorizontal: s(12),
+            paddingVertical: vs(8),
+            gap: s(6),
+            borderBottomColor: theme.accent + "15",
+          }}
+        >
+          <View className="rounded-full bg-slateGrey-500" style={{ width: s(5), height: s(5) }} />
+          <Text
+            className="flex-1 font-semibold uppercase tracking-wider"
+            style={{ fontSize: ms(11, 0.3), color: theme.textSecondary }}
+          >
             {t.chat.title}
           </Text>
           <TouchableOpacity
@@ -127,73 +142,30 @@ export const ChatBubble = ({
 
         {/* Mesaj icerigi — scroll edilebilir */}
         <ScrollView
-          style={styles.content}
+          style={{ paddingHorizontal: s(12), paddingVertical: vs(10) }}
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          <Text style={[styles.text, { color: theme.text }]}>
+          <Markdown style={{
+            body: { color: theme.text, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
+            strong: { fontWeight: "700", color: theme.text },
+            bullet_list: { marginVertical: vs(2) },
+            ordered_list: { marginVertical: vs(2) },
+            list_item: { marginVertical: vs(1) },
+            paragraph: { marginVertical: vs(2) },
+          }}>
             {message}
-          </Text>
+          </Markdown>
         </ScrollView>
 
         {/* Alt ipucu */}
-        <Text style={[styles.hint, { color: theme.textSecondary + "60" }]}>
+        <Text
+          className="text-center"
+          style={{ fontSize: ms(10, 0.3), paddingBottom: vs(8), color: theme.textSecondary + "60" }}
+        >
           {t.chat.tapToOpen}
         </Text>
       </TouchableOpacity>
     </Animated.View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    right: s(12),
-    left: s(48),
-    zIndex: 999,
-    alignItems: "flex-end",
-  },
-  bubble: {
-    width: "100%",
-    borderRadius: 16,
-    borderWidth: 1,
-    elevation: 12,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    overflow: "hidden",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: s(12),
-    paddingVertical: vs(8),
-    borderBottomWidth: 1,
-    gap: s(6),
-  },
-  dot: {
-    width: s(5),
-    height: s(5),
-    borderRadius: 2.5,
-  },
-  headerText: {
-    flex: 1,
-    fontSize: ms(11, 0.3),
-    fontWeight: "600",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  content: {
-    paddingHorizontal: s(12),
-    paddingVertical: vs(10),
-  },
-  text: {
-    fontSize: ms(14, 0.3),
-    lineHeight: ms(19, 0.3),
-  },
-  hint: {
-    fontSize: ms(10, 0.3),
-    textAlign: "center",
-    paddingBottom: vs(8),
-  },
-});

@@ -100,11 +100,8 @@ export const DiseaseResultCard = ({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
+      className="surface-bg rounded-2xl p-4 mb-4"
       style={{
-        backgroundColor: theme.surface,
-        borderRadius: spacing.md,
-        padding: spacing.md,
-        marginBottom: spacing.md,
         borderWidth: 1,
         borderColor: theme.accent + "20",
         shadowColor: "#000",
@@ -114,17 +111,10 @@ export const DiseaseResultCard = ({
         elevation: 3,
       }}
     >
-      <View style={{ flexDirection: "row", gap: spacing.md }}>
+      <View className="flex-row" style={{ gap: spacing.md }}>
         <View
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: spacing.sm,
-            backgroundColor: theme.background,
-            overflow: "hidden",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          className="rounded-lg bg-platinum-50 dark:bg-onyx-950 overflow-hidden center"
+          style={{ width: 80, height: 80 }}
         >
           {imageUrl ? (
             <Image
@@ -141,53 +131,33 @@ export const DiseaseResultCard = ({
           )}
         </View>
 
-        <View style={{ flex: 1 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: spacing.xs,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.xs,
-              }}
-            >
+        <View className="flex-1">
+          <View className="flex-row justify-between items-center mb-1">
+            <View className="row" style={{ gap: spacing.xs }}>
               <Ionicons
                 name={statusInfo.icon as any}
                 size={16}
                 color={statusInfo.color}
               />
               <Text
-                style={{
-                  color: statusInfo.color,
-                  fontSize: 12,
-                  fontWeight: "600",
-                }}
+                style={{ color: statusInfo.color }}
+                className="text-xs font-semibold"
               >
                 {statusInfo.text}
               </Text>
             </View>
-            <Text style={{ color: theme.textSecondary, fontSize: 11 }}>
+            <Text className="text-secondary text-[11px]">
               {formatDate(detection.uploaded_at, t, language)}
             </Text>
           </View>
 
           {detection.status === "PROCESSING" && (
             <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: spacing.sm,
-                marginBottom: spacing.xs,
-              }}
+              className="row mb-1"
+              style={{ gap: spacing.sm }}
             >
               <ActivityIndicator size="small" color={theme.accent} />
-              <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+              <Text className="text-secondary text-xs">
                 {t.disease.analyzingLeaf}
               </Text>
             </View>
@@ -195,38 +165,20 @@ export const DiseaseResultCard = ({
 
           {detection.status === "COMPLETED" && detection.detected_disease && (
             <View>
-              <Text
-                style={{
-                  color: theme.text,
-                  fontSize: 15,
-                  fontWeight: "700",
-                  marginBottom: spacing.xs,
-                }}
-              >
+              <Text className="text-primary text-[15px] font-bold mb-1">
                 {detection.detected_disease}
               </Text>
               <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: spacing.xs,
-                  marginBottom: spacing.xs,
-                }}
+                className="row mb-1"
+                style={{ gap: spacing.xs }}
               >
                 <View
-                  style={{
-                    backgroundColor: theme.accent + "20",
-                    paddingHorizontal: spacing.sm,
-                    paddingVertical: 3,
-                    borderRadius: 4,
-                  }}
+                  className="rounded px-2 py-0.5"
+                  style={{ backgroundColor: theme.accent + "20" }}
                 >
                   <Text
-                    style={{
-                      color: theme.accent,
-                      fontSize: 11,
-                      fontWeight: "600",
-                    }}
+                    className="text-[11px] font-semibold"
+                    style={{ color: theme.accent }}
                   >
                     {confidencePct != null ? confidencePct.toFixed(1) : "--"}%{" "}
                     {t.disease.confidence}
@@ -236,15 +188,8 @@ export const DiseaseResultCard = ({
 
               {detection.all_predictions &&
                 Object.keys(detection.all_predictions).length > 1 && (
-                  <View style={{ marginTop: spacing.xs }}>
-                    <Text
-                      style={{
-                        color: theme.textSecondary,
-                        fontSize: 11,
-                        fontWeight: "600",
-                        marginBottom: 2,
-                      }}
-                    >
+                  <View className="mt-1">
+                    <Text className="text-secondary text-[11px] font-semibold mb-0.5">
                       {t.disease.allPredictions}
                     </Text>
                     {Object.entries(detection.all_predictions)
@@ -255,10 +200,7 @@ export const DiseaseResultCard = ({
                         return (
                           <Text
                             key={label}
-                            style={{
-                              color: theme.textSecondary,
-                              fontSize: 11,
-                            }}
+                            className="text-secondary text-[11px]"
                           >
                             {label}: {scorePct.toFixed(1)}%
                           </Text>
@@ -270,13 +212,13 @@ export const DiseaseResultCard = ({
           )}
 
           {detection.status === "FAILED" && (
-            <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+            <Text className="text-secondary text-xs">
               {detection.error_message || t.disease.analysisFailed}
             </Text>
           )}
 
           {detection.status === "NOT_STARTED" && (
-            <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+            <Text className="text-secondary text-xs">
               {t.disease.waitingInQueue}
             </Text>
           )}
@@ -285,10 +227,8 @@ export const DiseaseResultCard = ({
         {onDelete && (
           <TouchableOpacity
             onPress={onDelete}
-            style={{
-              padding: spacing.xs,
-              alignSelf: "flex-start",
-            }}
+            className="self-start"
+            style={{ padding: spacing.xs }}
           >
             <Ionicons
               name="trash-outline"

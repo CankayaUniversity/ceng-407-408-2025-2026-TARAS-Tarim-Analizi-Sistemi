@@ -48,9 +48,10 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View className="flex-1">
       <View
-        style={{ flexDirection: "row", alignItems: "center", marginBottom: vs(12) }}
+        className="row"
+        style={{ marginBottom: vs(12) }}
       >
         <MaterialCommunityIcons name="table" size={20} color={theme.accent} />
         <Text
@@ -103,7 +104,7 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
         ))}
       </ScrollView>
 
-      <ScrollView style={{ flex: 1 }} nestedScrollEnabled>
+      <ScrollView className="flex-1" nestedScrollEnabled>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -112,7 +113,7 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
         >
           <View style={{ minWidth: s(640) }}>
             {/* Header */}
-            <View style={{ flexDirection: "row" }}>
+            <View className="flex-row">
               <View style={[headerStyle, { flex: 2 }]}>
                 <Text style={{ color: theme.text, fontWeight: "700" }}>
                   {t.timetable.time}
@@ -146,8 +147,8 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
               return (
                 <View
                   key={`${r.id}-${r.created_at}`}
+                  className="flex-row"
                   style={{
-                    flexDirection: "row",
                     backgroundColor: isEven
                       ? theme.background
                       : theme.surface + "40",

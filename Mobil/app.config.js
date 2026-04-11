@@ -1,43 +1,55 @@
-import "dotenv/config";
-
 const useLocal = process.env.USE_LOCAL_API === "true";
 const apiHost = useLocal
   ? process.env.API_HOST_LOCAL
   : process.env.API_HOST_AWS;
+const useHermesV1 = process.env.USE_HERMES_V1 === "true";
 
-export default {
+const plugins = [
+  [
+    "expo-camera",
+    {
+      cameraPermission: "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
+      enableBarcodeScanner: false,
+    },
+  ],
+  "./plugins/withNetworkSecurityConfig.js",
+  ["react-native-ble-plx", { neverForBackground: true }],
+  [
+    "expo-build-properties",
+    {
+      buildReactNativeFromSource: useHermesV1,
+      useHermesV1,
+    },
+  ],
+];
+
+module.exports = {
   expo: {
     name: "TarasMobil",
     slug: "tarasmobil",
     version: "1.0.0",
     assetBundlePatterns: ["**/*"],
     userInterfaceStyle: "automatic",
-    plugins: [
-      [
-        "expo-camera",
-        {
-          cameraPermission: "Allow TarasMobil to access your camera.",
-        },
-      ],
-      "./plugins/withNetworkSecurityConfig.js",
-      ["react-native-ble-plx", { neverForBackground: true }],
-    ],
+    plugins,
+    locales: {
+      tr: "./locales/tr.json",
+      en: "./locales/en.json",
+    },
     ios: {
       supportsTabletMode: true,
       bundleIdentifier: "com.tarasmobil.app",
       userInterfaceStyle: "automatic",
       infoPlist: {
+        CFBundleAllowMixedLocalizations: true,
         NSAppTransportSecurity: {
           NSAllowsArbitraryLoads: true,
         },
-        NSBluetoothAlwaysUsageDescription: "TARAS needs Bluetooth to configure gateway devices.",
       },
     },
     android: {
       package: "com.tarasmobil.app",
       userInterfaceStyle: "automatic",
       usesCleartextTraffic: true,
-      navigationBarColor: "#0e1215",
       permissions: [
         "INTERNET",
         "ACCESS_NETWORK_STATE",

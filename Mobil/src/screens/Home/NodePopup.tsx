@@ -57,35 +57,23 @@ export const NodePopup = ({
     const status = getStatusInfo(value, type);
     return (
       <View
+        className="screen-bg rounded-lg p-2"
         style={{
-          flex: 1,
-          backgroundColor: theme.background,
-          borderRadius: spacing.sm,
-          padding: spacing.sm,
           borderLeftWidth: 3,
           borderLeftColor: status.color,
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            marginBottom: spacing.xs,
-          }}
-        >
-          <Text style={{ color: theme.textSecondary, fontSize: 10 }}>
+        <View className="flex-row items-start justify-between mb-1">
+          <Text className="text-secondary text-[10px]">
             {label}
           </Text>
           {icon}
         </View>
-        <View style={{ flexDirection: "row", alignItems: "baseline" }}>
-          <Text style={{ color: theme.text, fontSize: 22, fontWeight: "600" }}>
+        <View className="flex-row items-baseline">
+          <Text className="text-primary text-[22px] font-semibold">
             {value.toFixed(1)}
           </Text>
-          <Text
-            style={{ color: theme.textSecondary, fontSize: 11, marginLeft: 2 }}
-          >
+          <Text className="text-secondary text-[11px] ml-0.5">
             {unit}
           </Text>
         </View>
@@ -110,30 +98,18 @@ export const NodePopup = ({
       <TouchableOpacity
         activeOpacity={1}
         onPress={onClose}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}
+        className="absolute top-0 left-0 right-0 bottom-0"
       />
 
       <View
-        style={{
-          position: "absolute",
-          top: 0,
-          left: spacing.sm,
-          right: spacing.sm,
-        }}
+        className="absolute top-0"
+        style={{ left: spacing.sm, right: spacing.sm }}
       >
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => {}}
+          className="surface-bg rounded-xl p-3"
           style={{
-            backgroundColor: theme.surface,
-            borderRadius: spacing.sm + 2,
-            padding: spacing.sm + 2,
             borderWidth: 1,
             borderColor: theme.accent + "30",
             shadowColor: "#000",
@@ -143,43 +119,25 @@ export const NodePopup = ({
             elevation: 8,
           }}
         >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: spacing.sm,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View className="row-between mb-2">
+            <View className="row">
               <View
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: theme.accent,
-                  marginRight: spacing.xs + 2,
-                }}
+                className="w-2 h-2 rounded-full bg-slateGrey-500"
+                style={{ marginRight: spacing.xs + 2 }}
               />
-              <Text
-                style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}
-              >
+              <Text className="text-primary text-[15px] font-bold">
                 {selectedNode.id.replace("node-", `${t.nodePopup.sensor} `)}
               </Text>
             </View>
             <TouchableOpacity
               onPress={onClose}
-              style={{
-                padding: 3,
-                borderRadius: spacing.sm,
-                backgroundColor: theme.background,
-              }}
+              className="p-0.5 rounded-lg bg-platinum-50 dark:bg-onyx-950"
             >
               <Ionicons name="close" size={18} color={theme.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <View style={{ flexDirection: "row", gap: spacing.xs + 2 }}>
+          <View className="flex-row" style={{ gap: spacing.xs + 2 }}>
             {renderMetric(
               selectedNode.moisture,
               "moisture",

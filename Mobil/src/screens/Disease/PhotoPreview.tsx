@@ -2,10 +2,9 @@
 // Props: theme, photoUri, onCancel, onSend
 
 import { View, Image, Text, TouchableOpacity } from "react-native";
-import { appStyles } from "../../styles";
 import { PhotoPreviewProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
-import { s, vs } from "../../utils/responsive";
+import { s, vs, ms } from "../../utils/responsive";
 
 export const PhotoPreview = ({
   theme,
@@ -17,43 +16,42 @@ export const PhotoPreview = ({
 
   return (
     <View
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: theme.background + "CC",
-      }}
+      className="overlay-fill"
+      style={{ backgroundColor: theme.background + "CC" }}
     >
       <Image
         source={{ uri: photoUri }}
         style={{ width: "86%", aspectRatio: 1, borderRadius: 12 }}
         resizeMode="cover"
       />
-      <View style={{ flexDirection: "row", marginTop: vs(16) }}>
+      <View className="flex-row" style={{ marginTop: vs(16) }}>
         <TouchableOpacity
           onPress={onCancel}
+          className="rounded-lg surface-bg"
           style={{
             paddingHorizontal: s(16),
             paddingVertical: vs(10),
-            borderRadius: 8,
-            backgroundColor: theme.surface,
             borderWidth: 1,
             borderColor: theme.textSecondary,
             marginRight: s(8),
           }}
         >
-          <Text style={{ color: theme.text }}>{t.camera.cancelButton}</Text>
+          <Text className="text-primary">
+            {t.camera.cancelButton}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={onSend}
-          style={[appStyles.primaryButton, { backgroundColor: theme.accent }]}
+          className="rounded-xl"
+          style={{
+            backgroundColor: theme.accent,
+            paddingVertical: vs(14),
+            paddingHorizontal: s(24),
+          }}
         >
           <Text
-            style={[appStyles.primaryButtonText, { color: theme.background }]}
+            className="text-center font-bold"
+            style={{ color: theme.background, fontSize: ms(16, 0.3) }}
           >
             {t.camera.sendButton}
           </Text>

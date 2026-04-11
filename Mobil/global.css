@@ -1,3 +1,77 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ===========================
+   TARAS Reusable Components
+   =========================== */
+
+@layer components {
+  /* --- Layout --- */
+  .screen-bg {
+    @apply flex-1 bg-platinum-50 dark:bg-onyx-950;
+  }
+  .surface-bg {
+    @apply bg-platinum-100 dark:bg-slateGrey-900;
+  }
+  .center {
+    @apply items-center justify-center;
+  }
+  .row {
+    @apply flex-row items-center;
+  }
+  .row-between {
+    @apply flex-row items-center justify-between;
+  }
+  .overlay-fill {
+    @apply absolute left-0 right-0 top-0 bottom-0 items-center justify-center;
+  }
+
+  /* --- Typography --- */
+  .text-primary {
+    @apply text-platinum-950 dark:text-slateGrey-50;
+  }
+  .text-secondary {
+    @apply text-slateGrey-600 dark:text-slateGrey-300;
+  }
+  .text-accent {
+    @apply text-slateGrey-500;
+  }
+
+  /* --- Cards --- */
+  .card {
+    @apply surface-bg rounded-xl;
+  }
+  .card-bordered {
+    @apply surface-bg rounded-xl border;
+  }
+  .card-item {
+    @apply row surface-bg rounded-[10px];
+  }
+
+  /* --- Buttons --- */
+  .btn-primary {
+    @apply items-center rounded-xl bg-slateGrey-500;
+  }
+  .btn-surface {
+    @apply items-center rounded-lg surface-bg border;
+  }
+
+  /* --- Section titles --- */
+  .section-title {
+    @apply text-primary font-bold text-xl mb-5;
+  }
+  .section-label {
+    @apply text-secondary text-[13px] font-semibold uppercase tracking-wide;
+  }
+
+  /* --- Empty states --- */
+  .empty-text {
+    @apply text-secondary text-sm text-center mt-10;
+  }
+
+  /* --- Input fields --- */
+  .input-field {
+    @apply w-full rounded-xl border mb-3 surface-bg text-primary;
+  }
+}

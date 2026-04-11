@@ -113,6 +113,7 @@ export interface StringDictionary {
     sentSuccess: string;
     liveCameraUnavailable: string;
     liveCameraMessage: string;
+    systemPermissionDescription: string;
     cancelButton: string;
     sendButton: string;
   };
@@ -423,6 +424,8 @@ const tr: StringDictionary = {
     liveCameraUnavailable: "Canlı kamera kullanılamıyor",
     liveCameraMessage:
       "Cihaz kameranızı kullanmak için izin verin veya albümden seçin.",
+    systemPermissionDescription:
+      "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
     cancelButton: "İptal",
     sendButton: "Gönder",
   },
@@ -727,6 +730,8 @@ const en: StringDictionary = {
     liveCameraUnavailable: "Live camera unavailable",
     liveCameraMessage:
       "Grant permission to use your device camera or select from album.",
+    systemPermissionDescription:
+      "Camera access is required for plant disease detection.",
     cancelButton: "Cancel",
     sendButton: "Send",
   },

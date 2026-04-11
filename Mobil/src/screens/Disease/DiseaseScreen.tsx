@@ -12,15 +12,15 @@ import {
   ActivityIndicator,
   Modal,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import { appStyles } from "../../styles";
 import { Theme } from "../../utils/theme";
 import { diseaseAPI, DiseaseDetection } from "../../utils/api";
 import { DiseaseResultCard } from "./DiseaseResultCard";
 import { DiseaseCameraScreen } from "./DiseaseCameraScreen";
 import { DiseaseScreenProps } from "./types";
 import { spacing } from "../../utils/responsive";
+import { s, vs } from "../../utils/responsive";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
@@ -166,42 +166,27 @@ export const DiseaseScreen = ({
   }
 
   return (
-    <View style={[appStyles.container, { backgroundColor: theme.background }]}>
-      <View
-        style={{
-          paddingHorizontal: spacing.md,
-          paddingTop: spacing.md,
-          paddingBottom: spacing.sm,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "700",
-            color: theme.text,
-            marginBottom: spacing.xs,
-          }}
-        >
+    <View className="screen-bg">
+      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm }}>
+        <Text className="text-primary text-2xl font-bold mb-1">
           {t.disease.title}
         </Text>
-        <Text style={{ fontSize: 13, color: theme.textSecondary }}>
+        <Text className="text-secondary text-[13px]">
           {t.disease.subtitle}
         </Text>
       </View>
 
       {loading && !refreshing ? (
-        <View
-          style={[appStyles.placeholder, { backgroundColor: theme.background }]}
-        >
+        <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
           <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={{ color: theme.textSecondary, marginTop: spacing.md }}>
+          <Text className="text-secondary mt-4">
             {t.disease.loadingResults}
           </Text>
         </View>
       ) : (
         <>
           <ScrollView
-            style={{ flex: 1 }}
+            className="flex-1"
             contentContainerStyle={{
               paddingHorizontal: spacing.md,
               paddingBottom: 100,
@@ -216,32 +201,16 @@ export const DiseaseScreen = ({
             }
           >
             {detections.length === 0 ? (
-              <View
-                style={{ paddingVertical: spacing.xxl, alignItems: "center" }}
-              >
+              <View className="items-center" style={{ paddingVertical: spacing.xxl }}>
                 <Ionicons
                   name="leaf-outline"
                   size={64}
                   color={theme.textSecondary}
                 />
-                <Text
-                  style={{
-                    color: theme.text,
-                    fontSize: 16,
-                    fontWeight: "600",
-                    marginTop: spacing.md,
-                  }}
-                >
+                <Text className="text-primary text-base font-semibold mt-4">
                   {t.disease.noAnalysisYet}
                 </Text>
-                <Text
-                  style={{
-                    color: theme.textSecondary,
-                    fontSize: 13,
-                    marginTop: spacing.xs,
-                    textAlign: "center",
-                  }}
-                >
+                <Text className="text-secondary text-[13px] mt-1 text-center">
                   {t.disease.noAnalysisSubtitle}
                 </Text>
               </View>
@@ -261,12 +230,16 @@ export const DiseaseScreen = ({
 
           <TouchableOpacity
             onPress={() => setShowCamera(true)}
-            style={[
-              appStyles.fab,
-              {
-                backgroundColor: theme.accent,
-              },
-            ]}
+            className="absolute center"
+            style={{
+              right: s(24),
+              bottom: vs(100),
+              width: s(56),
+              height: s(56),
+              borderRadius: 28,
+              backgroundColor: theme.accent,
+              elevation: 6,
+            }}
           >
             <Ionicons name="camera" size={28} color={theme.background} />
           </TouchableOpacity>
@@ -280,36 +253,29 @@ export const DiseaseScreen = ({
         transparent
         onRequestClose={() => setSelectedDetection(null)}
       >
-        <SafeAreaView
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+        <BlurView
+          intensity={40}
+          tint={theme.isDark ? "dark" : "light"}
+          style={{ flex: 1 }}
         >
           <View
+            className="screen-bg"
             style={{
-              flex: 1,
               marginTop: 60,
-              backgroundColor: theme.background,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
             }}
           >
             {/* Header */}
             <View
+              className="flex-row justify-between items-center"
               style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
                 padding: spacing.md,
                 borderBottomWidth: 1,
                 borderBottomColor: theme.accent + "20",
               }}
             >
-              <Text
-                style={{
-                  fontSize: 17,
-                  fontWeight: "700",
-                  color: theme.text,
-                }}
-              >
+              <Text className="text-primary text-[17px] font-bold">
                 {t.disease.detailTitle}
               </Text>
               <TouchableOpacity onPress={() => setSelectedDetection(null)}>
@@ -350,19 +316,11 @@ export const DiseaseScreen = ({
 
                 {/* All predictions */}
                 <View
-                  style={{
-                    backgroundColor: theme.surface,
-                    borderRadius: spacing.sm,
-                    padding: spacing.sm,
-                  }}
+                  className="surface-bg rounded-lg"
+                  style={{ padding: spacing.sm }}
                 >
                   <Text
-                    style={{
-                      color: theme.textSecondary,
-                      fontSize: 11,
-                      fontWeight: "600",
-                      marginBottom: spacing.xs,
-                    }}
+                    className="text-secondary text-[11px] font-semibold mb-1"
                   >
                     all_predictions
                   </Text>
@@ -375,31 +333,21 @@ export const DiseaseScreen = ({
                         return (
                           <View
                             key={label}
+                            className="flex-row justify-between py-0.5"
                             style={{
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              paddingVertical: 2,
                               borderBottomWidth: 1,
                               borderBottomColor: theme.accent + "10",
                             }}
                           >
                             <Text
-                              style={{
-                                color: theme.text,
-                                fontSize: 12,
-                                flex: 1,
-                              }}
+                              className="text-primary text-xs flex-1"
                               numberOfLines={2}
                             >
                               {label}
                             </Text>
                             <Text
-                              style={{
-                                color: theme.accent,
-                                fontSize: 12,
-                                fontWeight: "600",
-                                marginLeft: spacing.sm,
-                              }}
+                              className="text-xs font-semibold ml-2"
+                              style={{ color: theme.accent }}
                             >
                               {pct.toFixed(2)}%
                             </Text>
@@ -407,9 +355,7 @@ export const DiseaseScreen = ({
                         );
                       })
                   ) : (
-                    <Text
-                      style={{ color: theme.textSecondary, fontSize: 12 }}
-                    >
+                    <Text className="text-secondary text-xs">
                       {t.disease.detailNoData}
                     </Text>
                   )}
@@ -419,26 +365,16 @@ export const DiseaseScreen = ({
                 {selectedDetection.recommendations &&
                   selectedDetection.recommendations.length > 0 && (
                     <View
-                      style={{
-                        backgroundColor: theme.surface,
-                        borderRadius: spacing.sm,
-                        padding: spacing.sm,
-                      }}
+                      className="surface-bg rounded-lg"
+                      style={{ padding: spacing.sm }}
                     >
-                      <Text
-                        style={{
-                          color: theme.textSecondary,
-                          fontSize: 11,
-                          fontWeight: "600",
-                          marginBottom: spacing.xs,
-                        }}
-                      >
+                      <Text className="text-secondary text-[11px] font-semibold mb-1">
                         {t.disease.detailRecommendations}
                       </Text>
                       {selectedDetection.recommendations.map((rec, i) => (
                         <Text
                           key={i}
-                          style={{ color: theme.text, fontSize: 12, marginBottom: 2 }}
+                          className="text-primary text-xs mb-0.5"
                         >
                           • {rec}
                         </Text>
@@ -477,7 +413,7 @@ export const DiseaseScreen = ({
               </ScrollView>
             )}
           </View>
-        </SafeAreaView>
+        </BlurView>
       </Modal>
     </View>
   );
@@ -491,27 +427,17 @@ interface DetailRowProps {
   mono?: boolean;
 }
 
-const DetailRow = ({ label, value, theme, bold, mono }: DetailRowProps) => (
+const DetailRow = ({ label, value, theme: _theme, bold, mono }: DetailRowProps) => (
   <View
-    style={{
-      backgroundColor: theme.surface,
-      borderRadius: spacing.sm,
-      padding: spacing.sm,
-    }}
+    className="surface-bg rounded-lg"
+    style={{ padding: spacing.sm }}
   >
-    <Text
-      style={{
-        color: theme.textSecondary,
-        fontSize: 11,
-        fontWeight: "600",
-        marginBottom: 2,
-      }}
-    >
+    <Text className="text-secondary text-[11px] font-semibold mb-0.5">
       {label}
     </Text>
     <Text
+      className="text-primary"
       style={{
-        color: theme.text,
         fontSize: bold ? 15 : 13,
         fontWeight: bold ? "700" : "400",
         fontFamily: mono ? "monospace" : undefined,

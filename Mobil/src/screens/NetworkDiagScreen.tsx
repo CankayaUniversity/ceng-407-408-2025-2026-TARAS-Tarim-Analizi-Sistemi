@@ -68,16 +68,14 @@ export default function NetworkDiagScreen({
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View className="screen-bg">
       {/* Header */}
       <View
+        className="row surface-bg"
         style={{
-          flexDirection: "row",
-          alignItems: "center",
           padding: s(16),
           borderBottomWidth: 1,
           borderBottomColor: theme.textSecondary + "30",
-          backgroundColor: theme.surface,
         }}
       >
         <TouchableOpacity onPress={onBack} style={{ marginRight: s(16) }}>
@@ -86,12 +84,8 @@ export default function NetworkDiagScreen({
           </Text>
         </TouchableOpacity>
         <Text
-          style={{
-            color: theme.text,
-            fontSize: ms(20, 0.3),
-            fontWeight: "bold",
-            flex: 1,
-          }}
+          className="flex-1 text-primary font-bold"
+          style={{ fontSize: ms(20, 0.3) }}
         >
           {t.networkDiag.title}
         </Text>
@@ -102,19 +96,16 @@ export default function NetworkDiagScreen({
         <TouchableOpacity
           onPress={runDiagnostics}
           disabled={isRunning}
+          className="items-center rounded-lg"
           style={{
             backgroundColor: isRunning
               ? theme.textSecondary + "50"
               : theme.accent,
             padding: s(16),
-            borderRadius: 8,
-            alignItems: "center",
           }}
         >
           {isRunning ? (
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: s(8) }}
-            >
+            <View className="row" style={{ gap: s(8) }}>
               <ActivityIndicator color="#fff" />
               <Text style={{ color: "#fff", fontSize: ms(16, 0.3), fontWeight: "600" }}>
                 {t.networkDiag.running}
@@ -130,18 +121,14 @@ export default function NetworkDiagScreen({
         {report && !isRunning && (
           <TouchableOpacity
             onPress={shareReport}
+            className="items-center rounded-lg surface-bg"
             style={{
-              backgroundColor: theme.surface,
               padding: s(16),
-              borderRadius: 8,
-              alignItems: "center",
               borderWidth: 1,
               borderColor: theme.textSecondary + "30",
             }}
           >
-            <Text
-              style={{ color: theme.accent, fontSize: ms(16, 0.3), fontWeight: "600" }}
-            >
+            <Text style={{ color: theme.accent, fontSize: ms(16, 0.3), fontWeight: "600" }}>
               {t.networkDiag.shareReport}
             </Text>
           </TouchableOpacity>
@@ -151,15 +138,17 @@ export default function NetworkDiagScreen({
       {/* Bilgi kutusu */}
       <View style={{ padding: s(16), paddingTop: 0 }}>
         <View
+          className="surface-bg rounded-lg"
           style={{
-            backgroundColor: theme.surface,
             padding: s(12),
-            borderRadius: 8,
             borderLeftWidth: 4,
             borderLeftColor: theme.accent,
           }}
         >
-          <Text style={{ color: theme.text, fontSize: ms(14, 0.3), lineHeight: ms(20, 0.3) }}>
+          <Text
+            className="text-primary"
+            style={{ fontSize: ms(14, 0.3), lineHeight: ms(20, 0.3) }}
+          >
             {t.networkDiag.infoHeader}
             {"\n"}• {t.networkDiag.bulletNetworkStatus}
             {"\n"}• {t.networkDiag.bulletDNS}
@@ -169,7 +158,8 @@ export default function NetworkDiagScreen({
           </Text>
           {lastRun && (
             <Text
-              style={{ color: theme.textSecondary, fontSize: ms(12, 0.3), marginTop: vs(8) }}
+              className="text-secondary"
+              style={{ fontSize: ms(12, 0.3), marginTop: vs(8) }}
             >
               {t.networkDiag.lastRun}:{" "}
               {lastRun.toLocaleTimeString(
@@ -182,22 +172,21 @@ export default function NetworkDiagScreen({
 
       {/* Rapor */}
       <ScrollView
-        style={{ flex: 1 }}
+        className="flex-1"
         contentContainerStyle={{ padding: s(16), paddingTop: 0 }}
       >
         {report ? (
           <View
+            className="surface-bg rounded-lg"
             style={{
-              backgroundColor: theme.surface,
               padding: s(12),
-              borderRadius: 8,
               borderWidth: 1,
               borderColor: theme.textSecondary + "30",
             }}
           >
             <Text
+              className="text-primary"
               style={{
-                color: theme.text,
                 fontSize: ms(12, 0.3),
                 fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
                 lineHeight: ms(18, 0.3),
@@ -207,13 +196,10 @@ export default function NetworkDiagScreen({
             </Text>
           </View>
         ) : (
-          <View style={{ alignItems: "center", paddingVertical: vs(40) }}>
+          <View className="items-center" style={{ paddingVertical: vs(40) }}>
             <Text
-              style={{
-                color: theme.textSecondary,
-                fontSize: ms(16, 0.3),
-                textAlign: "center",
-              }}
+              className="text-secondary text-center"
+              style={{ fontSize: ms(16, 0.3) }}
             >
               {t.networkDiag.promptMessage}
             </Text>
@@ -224,15 +210,16 @@ export default function NetworkDiagScreen({
       {/* Ipucu */}
       {!isRunning && (
         <View
+          className="bg-platinum-50 dark:bg-onyx-950"
           style={{
             padding: s(16),
             borderTopWidth: 1,
             borderTopColor: theme.textSecondary + "30",
-            backgroundColor: theme.background,
           }}
         >
           <Text
-            style={{ color: theme.textSecondary, fontSize: ms(12, 0.3), lineHeight: ms(18, 0.3) }}
+            className="text-secondary"
+            style={{ fontSize: ms(12, 0.3), lineHeight: ms(18, 0.3) }}
           >
             {t.networkDiag.tip}
           </Text>

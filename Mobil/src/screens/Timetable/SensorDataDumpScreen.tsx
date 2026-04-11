@@ -129,7 +129,8 @@ export const SensorDataDumpScreen = ({
   if (error) {
     return (
       <ScrollView
-        style={{ flex: 1, backgroundColor: theme.background }}
+        className="flex-1"
+        style={{ backgroundColor: theme.background }}
         contentContainerStyle={{
           flex: 1,
           justifyContent: "center",
@@ -171,28 +172,21 @@ export const SensorDataDumpScreen = ({
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <View className="flex-1" style={{ backgroundColor: theme.background }}>
       <View style={{ padding: s(16) }}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: vs(8),
-          }}
-        >
+        <View className="row-between" style={{ marginBottom: vs(8) }}>
           <Text style={{ color: theme.text, fontSize: ms(16, 0.3), fontWeight: "700" }}>
             {t.timetable.sensorDump} (72 {t.timetable.hours})
           </Text>
           <View
+            className="rounded-md"
             style={{
               paddingHorizontal: s(8),
               paddingVertical: vs(4),
-              borderRadius: 6,
               backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
             }}
           >
-            <Text style={{ color: "#fff", fontSize: ms(10, 0.3), fontWeight: "600" }}>
+            <Text className="text-white font-semibold" style={{ fontSize: ms(10, 0.3) }}>
               {dataSource === "aws" ? "AWS" : "DEMO"}
             </Text>
           </View>
@@ -253,7 +247,7 @@ export const SensorDataDumpScreen = ({
           setShowJumpButton(offsetY > 500);
         }}
         scrollEventThrottle={400}
-        style={{ flex: 1 }}
+        className="flex-1"
         ListHeaderComponent={() => (
           <ScrollView
             ref={headerScrollRef}
@@ -263,8 +257,8 @@ export const SensorDataDumpScreen = ({
             contentContainerStyle={{ minWidth: s(820) }}
           >
             <View
+              className="flex-row"
               style={{
-                flexDirection: "row",
                 backgroundColor: theme.surface,
                 minWidth: s(820),
               }}
@@ -314,8 +308,8 @@ export const SensorDataDumpScreen = ({
               contentContainerStyle={{ minWidth: s(820) }}
             >
               <View
+                className="flex-row"
                 style={{
-                  flexDirection: "row",
                   borderBottomWidth: 1,
                   borderBottomColor: theme.textSecondary + "20",
                   minWidth: s(820),
@@ -405,20 +399,13 @@ export const SensorDataDumpScreen = ({
       {showJumpButton && (
         <TouchableOpacity
           onPress={jumpToLatest}
+          className="absolute rounded-full center shadow-md"
           style={{
-            position: "absolute",
             bottom: s(20),
             right: s(20),
             width: s(56),
             height: s(56),
-            borderRadius: 28,
             backgroundColor: theme.accent,
-            justifyContent: "center",
-            alignItems: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 4,
             elevation: 5,
           }}
         >

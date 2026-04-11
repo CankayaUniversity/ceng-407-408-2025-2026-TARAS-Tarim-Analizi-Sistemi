@@ -15,11 +15,11 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { appStyles } from "../../styles";
 import { authAPI, healthAPI } from "../../utils/api";
 import { LoginScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { vs, ms, s } from "../../utils/responsive";
 
 import LogoLight from "../../assets/Taras-logo-light.svg";
 import LogoDark from "../../assets/Taras-logo-dark.svg";
@@ -152,7 +152,7 @@ export const LoginScreen = ({
 
   return (
     <KeyboardAvoidingView
-      style={[appStyles.loginContainer, { backgroundColor: theme.background }]}
+      className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
@@ -176,11 +176,7 @@ export const LoginScreen = ({
 
         {serverStatus && (
           <Text
-            style={{
-              color: theme.textSecondary,
-              marginBottom: 12,
-              fontSize: 14,
-            }}
+            className="text-secondary text-sm mb-3"
           >
             {serverStatus}
           </Text>
@@ -188,14 +184,13 @@ export const LoginScreen = ({
 
         {isRegisterMode && (
           <TextInput
-            style={[
-              appStyles.loginInput,
-              {
-                backgroundColor: theme.surface,
-                color: theme.text,
-                borderColor: theme.accentDim,
-              },
-            ]}
+            className="w-full rounded-xl border mb-3 surface-bg text-primary"
+            style={{
+              paddingVertical: vs(12),
+              paddingHorizontal: s(16),
+              borderColor: theme.accentDim,
+              fontSize: ms(16, 0.3),
+            }}
             placeholder={t.login.emailPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={email}
@@ -207,14 +202,13 @@ export const LoginScreen = ({
         )}
 
         <TextInput
-          style={[
-            appStyles.loginInput,
-            {
-              backgroundColor: theme.surface,
-              color: theme.text,
-              borderColor: theme.accentDim,
-            },
-          ]}
+          className="w-full rounded-xl border mb-3 surface-bg text-primary"
+          style={{
+            paddingVertical: vs(12),
+            paddingHorizontal: s(16),
+            borderColor: theme.accentDim,
+            fontSize: ms(16, 0.3),
+          }}
           placeholder={t.login.usernamePlaceholder}
           placeholderTextColor={theme.textSecondary}
           value={username}
@@ -223,14 +217,13 @@ export const LoginScreen = ({
           editable={!isLoading}
         />
         <TextInput
-          style={[
-            appStyles.loginInput,
-            {
-              backgroundColor: theme.surface,
-              color: theme.text,
-              borderColor: theme.accentDim,
-            },
-          ]}
+          className="w-full rounded-xl border mb-3 surface-bg text-primary"
+          style={{
+            paddingVertical: vs(12),
+            paddingHorizontal: s(16),
+            borderColor: theme.accentDim,
+            fontSize: ms(16, 0.3),
+          }}
           placeholder={t.login.passwordPlaceholder}
           placeholderTextColor={theme.textSecondary}
           value={password}
@@ -240,14 +233,13 @@ export const LoginScreen = ({
         />
         {isRegisterMode && (
           <TextInput
-            style={[
-              appStyles.loginInput,
-              {
-                backgroundColor: theme.surface,
-                color: theme.text,
-                borderColor: theme.accentDim,
-              },
-            ]}
+            className="w-full rounded-xl border mb-3 surface-bg text-primary"
+            style={{
+              paddingVertical: vs(12),
+              paddingHorizontal: s(16),
+              borderColor: theme.accentDim,
+              fontSize: ms(16, 0.3),
+            }}
             placeholder={t.login.confirmPasswordPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={confirmPassword}
@@ -257,47 +249,48 @@ export const LoginScreen = ({
           />
         )}
         <TouchableOpacity
-          style={[
-            appStyles.loginButton,
-            { backgroundColor: theme.accent },
-            isLoading && { opacity: 0.6 },
-          ]}
+          className="w-full rounded-xl center mt-6"
+          style={{
+            backgroundColor: theme.accent,
+            paddingVertical: vs(14),
+            paddingHorizontal: s(24),
+            opacity: isLoading ? 0.6 : 1,
+          }}
           onPress={isRegisterMode ? handleRegister : handleLogin}
           disabled={isLoading}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={[appStyles.loginButtonText, { color: "#fff" }]}>
+            <Text
+              className="text-center font-bold"
+              style={{ color: "#fff", fontSize: ms(16, 0.3) }}
+            >
               {isRegisterMode ? t.login.registerButton : t.login.loginButton}
             </Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={{ marginTop: 16 }}
+          className="mt-4"
           onPress={toggleRegisterMode}
           disabled={isLoading}
         >
-          <Text style={[appStyles.skipButtonText, { color: theme.accent }]}>
+          <Text
+            className="text-center font-semibold"
+            style={{ color: theme.accent, fontSize: ms(14, 0.3) }}
+          >
             {isRegisterMode ? t.login.switchToLogin : t.login.switchToRegister}
           </Text>
         </TouchableOpacity>
 
-        <View
-          style={{
-            flexDirection: "row",
-            marginTop: 16,
-            gap: 12,
-          }}
-        >
+        <View className="flex-row mt-4 gap-3">
           <TouchableOpacity
+            className="rounded-lg border"
             style={{
               paddingVertical: 10,
               paddingHorizontal: 16,
-              borderWidth: 1,
               borderColor: theme.accentDim,
-              borderRadius: 8,
             }}
             onPress={() => {
               handleSkip();
@@ -306,7 +299,8 @@ export const LoginScreen = ({
             disabled={isLoading}
           >
             <Text
-              style={[appStyles.skipButtonText, { color: theme.accentDim }]}
+              className="text-center font-semibold"
+              style={{ color: theme.accentDim, fontSize: ms(14, 0.3) }}
             >
               {t.login.localDemoButton}
             </Text>
@@ -314,18 +308,18 @@ export const LoginScreen = ({
 
           {awsDemoUsername && awsDemoPassword && (
             <TouchableOpacity
+              className="rounded-lg border"
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 16,
-                borderWidth: 1,
                 borderColor: theme.accentDim,
-                borderRadius: 8,
               }}
               onPress={handleAwsDemo}
               disabled={isLoading}
             >
               <Text
-                style={[appStyles.skipButtonText, { color: theme.accentDim }]}
+                className="text-center font-semibold"
+                style={{ color: theme.accentDim, fontSize: ms(14, 0.3) }}
               >
                 {t.login.awsDemoButton}
               </Text>
@@ -334,13 +328,7 @@ export const LoginScreen = ({
         </View>
 
         <TouchableOpacity
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginTop: 16,
-            marginBottom: 20,
-            gap: 6,
-          }}
+          className="row mt-4 mb-5 gap-1.5"
           onPress={() => setLanguage(language === "tr" ? "en" : "tr")}
           disabled={isLoading}
         >
@@ -350,7 +338,8 @@ export const LoginScreen = ({
             color={theme.textSecondary}
           />
           <Text
-            style={[appStyles.skipButtonText, { color: theme.textSecondary }]}
+            className="text-center font-semibold"
+            style={{ color: theme.textSecondary, fontSize: ms(14, 0.3) }}
           >
             {language === "tr" ? "English" : "Türkçe"}
           </Text>

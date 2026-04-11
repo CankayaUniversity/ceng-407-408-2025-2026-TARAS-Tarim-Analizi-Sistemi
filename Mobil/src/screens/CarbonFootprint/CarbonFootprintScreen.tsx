@@ -12,7 +12,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
-  StyleSheet,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLanguage } from "../../context/LanguageContext";
@@ -242,9 +241,9 @@ export const CarbonFootprintScreen = ({
   // --- LOADING STATE ---
   if (isLoading) {
     return (
-      <View style={[s.center, { backgroundColor: theme.background }]}>
+      <View className="flex-1 center bg-platinum-50 dark:bg-onyx-950" style={{ gap: spacing.md }}>
         <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={[s.loadingText, { color: theme.textSecondary }]}>
+        <Text className="text-secondary text-sm" style={{ marginTop: spacing.sm }}>
           {t.carbon.loadingFarms}
         </Text>
       </View>
@@ -254,9 +253,9 @@ export const CarbonFootprintScreen = ({
   // --- NO FARM STATE ---
   if (!farmId) {
     return (
-      <View style={[s.center, { backgroundColor: theme.background }]}>
+      <View className="flex-1 center bg-platinum-50 dark:bg-onyx-950" style={{ gap: spacing.md }}>
         <MaterialCommunityIcons name="barn" size={48} color={theme.textSecondary} />
-        <Text style={[s.emptyTitle, { color: theme.text }]}>{t.carbon.noFarmFound}</Text>
+        <Text className="text-primary text-base font-semibold">{t.carbon.noFarmFound}</Text>
       </View>
     );
   }
@@ -269,34 +268,38 @@ export const CarbonFootprintScreen = ({
   return (
     <ScrollView
       ref={scrollRef}
-      style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={s.content}
+      className="screen-bg"
+      contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={refreshData} tintColor={theme.accent} />
       }
     >
       {/* --- OZET KARTI --- */}
-      <View style={[s.card, { backgroundColor: theme.surface }]}>
-        <Text style={[s.cardTitle, { color: theme.textSecondary }]}>
+      <View className="surface-bg rounded-xl" style={{ padding: spacing.md }}>
+        <Text className="text-secondary text-[13px] font-semibold uppercase tracking-wide" style={{ marginBottom: spacing.sm }}>
           {t.carbon.summaryTitle}
         </Text>
-        <Text style={[s.totalValue, { color: theme.text }]}>
+        <Text className="text-primary text-3xl font-bold">
           {summary?.total_emission?.toFixed(1) ?? "0"}{" "}
-          <Text style={[s.totalUnit, { color: theme.textSecondary }]}>{t.carbon.kgCO2}</Text>
+          <Text className="text-secondary text-base font-normal">{t.carbon.kgCO2}</Text>
         </Text>
 
-        <View style={s.categoryRow}>
+        <View className="flex-row" style={{ gap: spacing.sm, marginTop: spacing.md }}>
           {CATEGORIES.map(({ key, icon }) => (
-            <View key={key} style={[s.categoryCard, { backgroundColor: theme.background }]}>
+            <View
+              key={key}
+              className="flex-1 items-center bg-platinum-50 dark:bg-onyx-950 rounded-lg"
+              style={{ padding: spacing.sm, gap: 4 }}
+            >
               <MaterialCommunityIcons
                 name={icon as any}
                 size={20}
                 color={theme.accent}
               />
-              <Text style={[s.categoryValue, { color: theme.text }]}>
+              <Text className="text-primary text-base font-semibold">
                 {getCategoryTotal(key).toFixed(1)}
               </Text>
-              <Text style={[s.categoryLabel, { color: theme.textSecondary }]}>
+              <Text className="text-secondary text-[11px]">
                 {categoryLabel(key, t.carbon)}
               </Text>
             </View>
@@ -305,25 +308,25 @@ export const CarbonFootprintScreen = ({
       </View>
 
       {/* --- KAYIT FORMU --- */}
-      <View style={[s.card, { backgroundColor: theme.surface }]}>
-        <Text style={[s.cardTitle, { color: theme.textSecondary }]}>
+      <View className="surface-bg rounded-xl" style={{ padding: spacing.md }}>
+        <Text className="text-secondary text-[13px] font-semibold uppercase tracking-wide" style={{ marginBottom: spacing.sm }}>
           {t.carbon.addLog}
         </Text>
 
         {/* kategori butonlari */}
-        <View style={s.pillRow}>
+        <View className="flex-row" style={{ gap: spacing.sm, marginBottom: spacing.md }}>
           {CATEGORIES.map(({ key, icon }) => {
             const isSelected = selectedCategory === key;
             return (
               <TouchableOpacity
                 key={key}
-                style={[
-                  s.pill,
-                  {
-                    backgroundColor: isSelected ? theme.accent : theme.background,
-                    borderColor: theme.accent + "30",
-                  },
-                ]}
+                className="flex-1 row justify-center rounded-full border"
+                style={{
+                  gap: 6,
+                  paddingVertical: spacing.sm,
+                  backgroundColor: isSelected ? theme.accent : theme.background,
+                  borderColor: theme.accent + "30",
+                }}
                 onPress={() => handleCategorySelect(key)}
               >
                 <MaterialCommunityIcons
@@ -332,10 +335,8 @@ export const CarbonFootprintScreen = ({
                   color={isSelected ? theme.background : theme.textSecondary}
                 />
                 <Text
-                  style={[
-                    s.pillText,
-                    { color: isSelected ? theme.background : theme.text },
-                  ]}
+                  className="text-[13px] font-semibold"
+                  style={{ color: isSelected ? theme.background : theme.text }}
                 >
                   {categoryLabel(key, t.carbon)}
                 </Text>
@@ -348,10 +349,16 @@ export const CarbonFootprintScreen = ({
         {selectedCategory && (
           <>
             <TouchableOpacity
-              style={[s.dropdown, { borderColor: theme.accent + "30", backgroundColor: theme.background }]}
+              className="row rounded-lg border bg-platinum-50 dark:bg-onyx-950"
+              style={{
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm + 2,
+                borderColor: theme.accent + "30",
+                marginBottom: spacing.sm,
+              }}
               onPress={() => setShowDropdown(!showDropdown)}
             >
-              <Text style={{ color: selectedType ? theme.text : theme.textSecondary, flex: 1 }}>
+              <Text className="flex-1" style={{ color: selectedType ? theme.text : theme.textSecondary }}>
                 {selectedType
                   ? `${selectedType.name} (${selectedType.unit})`
                   : t.carbon.selectActivityType}
@@ -364,25 +371,34 @@ export const CarbonFootprintScreen = ({
             </TouchableOpacity>
 
             {showDropdown && (
-              <View style={[s.dropdownList, { backgroundColor: theme.background, borderColor: theme.accent + "20" }]}>
+              <View
+                className="rounded-lg border overflow-hidden bg-platinum-50 dark:bg-onyx-950"
+                style={{
+                  borderColor: theme.accent + "20",
+                  marginBottom: spacing.sm,
+                }}
+              >
                 {filteredTypes.length === 0 ? (
-                  <Text style={[s.dropdownEmpty, { color: theme.textSecondary }]}>
+                  <Text className="text-secondary text-[13px] text-center" style={{ padding: spacing.md }}>
                     {t.carbon.noData}
                   </Text>
                 ) : (
                   filteredTypes.map((type) => (
                     <TouchableOpacity
                       key={type.activity_type_id}
-                      style={[
-                        s.dropdownItem,
-                        selectedType?.activity_type_id === type.activity_type_id && {
-                          backgroundColor: theme.accent + "15",
-                        },
-                      ]}
+                      className="flex-row justify-between items-center"
+                      style={{
+                        paddingHorizontal: spacing.md,
+                        paddingVertical: spacing.sm + 2,
+                        backgroundColor:
+                          selectedType?.activity_type_id === type.activity_type_id
+                            ? theme.accent + "15"
+                            : undefined,
+                      }}
                       onPress={() => handleTypeSelect(type)}
                     >
-                      <Text style={{ color: theme.text }}>{type.name}</Text>
-                      <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{type.unit}</Text>
+                      <Text className="text-primary">{type.name}</Text>
+                      <Text className="text-secondary text-xs">{type.unit}</Text>
                     </TouchableOpacity>
                   ))
                 )}
@@ -394,13 +410,19 @@ export const CarbonFootprintScreen = ({
         {/* miktar ve tarih */}
         {selectedType && (
           <>
-            <View style={s.formRow}>
+            <View className="flex-row" style={{ marginBottom: spacing.sm }}>
               <View style={{ flex: 1, marginRight: spacing.sm }}>
-                <Text style={[s.inputLabel, { color: theme.textSecondary }]}>
+                <Text className="text-secondary text-xs font-medium mb-1">
                   {t.carbon.amount} ({selectedType.unit})
                 </Text>
                 <TextInput
-                  style={[s.input, { color: theme.text, borderColor: theme.accent + "30", backgroundColor: theme.background }]}
+                  className="border rounded-lg text-sm bg-platinum-50 dark:bg-onyx-950 text-primary"
+                  style={{
+                    borderColor: theme.accent + "30",
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                    marginBottom: spacing.sm,
+                  }}
                   value={amount}
                   onChangeText={setAmount}
                   keyboardType="numeric"
@@ -409,11 +431,17 @@ export const CarbonFootprintScreen = ({
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[s.inputLabel, { color: theme.textSecondary }]}>
+                <Text className="text-secondary text-xs font-medium mb-1">
                   {t.carbon.date}
                 </Text>
                 <TextInput
-                  style={[s.input, { color: theme.text, borderColor: theme.accent + "30", backgroundColor: theme.background }]}
+                  className="border rounded-lg text-sm bg-platinum-50 dark:bg-onyx-950 text-primary"
+                  style={{
+                    borderColor: theme.accent + "30",
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                    marginBottom: spacing.sm,
+                  }}
                   value={date}
                   onChangeText={setDate}
                   placeholder="YYYY-MM-DD"
@@ -422,9 +450,15 @@ export const CarbonFootprintScreen = ({
               </View>
             </View>
 
-            <Text style={[s.inputLabel, { color: theme.textSecondary }]}>{t.carbon.notes}</Text>
+            <Text className="text-secondary text-xs font-medium mb-1">{t.carbon.notes}</Text>
             <TextInput
-              style={[s.input, { color: theme.text, borderColor: theme.accent + "30", backgroundColor: theme.background }]}
+              className="border rounded-lg text-sm bg-platinum-50 dark:bg-onyx-950 text-primary"
+              style={{
+                borderColor: theme.accent + "30",
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+                marginBottom: spacing.sm,
+              }}
               value={notes}
               onChangeText={setNotes}
               placeholder={t.carbon.notesPlaceholder}
@@ -432,14 +466,20 @@ export const CarbonFootprintScreen = ({
             />
 
             <TouchableOpacity
-              style={[s.submitBtn, { backgroundColor: theme.accent, opacity: isSubmitting ? 0.6 : 1 }]}
+              className="rounded-[10px] center"
+              style={{
+                backgroundColor: theme.accent,
+                paddingVertical: spacing.sm + 4,
+                marginTop: spacing.xs,
+                opacity: isSubmitting ? 0.6 : 1,
+              }}
               onPress={handleSubmit}
               disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <ActivityIndicator size="small" color={theme.background} />
               ) : (
-                <Text style={[s.submitText, { color: theme.background }]}>
+                <Text className="text-[15px] font-semibold" style={{ color: theme.background }}>
                   {t.carbon.logActivity}
                 </Text>
               )}
@@ -449,16 +489,16 @@ export const CarbonFootprintScreen = ({
       </View>
 
       {/* --- SON KAYITLAR --- */}
-      <View style={[s.card, { backgroundColor: theme.surface }]}>
-        <Text style={[s.cardTitle, { color: theme.textSecondary }]}>
+      <View className="surface-bg rounded-xl" style={{ padding: spacing.md }}>
+        <Text className="text-secondary text-[13px] font-semibold uppercase tracking-wide" style={{ marginBottom: spacing.sm }}>
           {t.carbon.recentLogs}
         </Text>
 
         {logs.length === 0 ? (
-          <View style={s.emptyLogs}>
+          <View className="items-center" style={{ paddingVertical: spacing.xl, gap: spacing.xs }}>
             <MaterialCommunityIcons name="leaf" size={40} color={theme.textSecondary} />
-            <Text style={[s.emptyTitle, { color: theme.text }]}>{t.carbon.noLogs}</Text>
-            <Text style={{ color: theme.textSecondary, fontSize: 13 }}>
+            <Text className="text-primary text-base font-semibold">{t.carbon.noLogs}</Text>
+            <Text className="text-secondary text-[13px]">
               {t.carbon.noLogsSubtitle}
             </Text>
           </View>
@@ -466,16 +506,21 @@ export const CarbonFootprintScreen = ({
           logs.map((log) => (
             <View
               key={log.carbon_log_id}
-              style={[s.logRow, { borderBottomColor: theme.accent + "10" }]}
+              className="row"
+              style={{
+                paddingVertical: spacing.sm + 2,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.accent + "10",
+              }}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={[s.logName, { color: theme.text }]}>
+              <View className="flex-1">
+                <Text className="text-primary text-sm font-semibold mb-0.5">
                   {log.activity_type.name}
                 </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>
+                <Text className="text-secondary text-xs">
                   {log.activity_amount} {log.activity_type.unit} · {log.emission_amount.toFixed(2)} {t.carbon.kgCO2}
                 </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 11 }}>
+                <Text className="text-secondary text-[11px]">
                   {new Date(log.activity_date).toLocaleDateString()}
                   {log.notes ? ` · ${log.notes}` : ""}
                 </Text>
@@ -495,152 +540,3 @@ export const CarbonFootprintScreen = ({
     </ScrollView>
   );
 };
-
-const s = StyleSheet.create({
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  content: {
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  loadingText: {
-    fontSize: 14,
-    marginTop: spacing.sm,
-  },
-  card: {
-    borderRadius: 12,
-    padding: spacing.md,
-  },
-  cardTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: spacing.sm,
-  },
-  totalValue: {
-    fontSize: 32,
-    fontWeight: "700",
-  },
-  totalUnit: {
-    fontSize: 16,
-    fontWeight: "400",
-  },
-  categoryRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-  },
-  categoryCard: {
-    flex: 1,
-    borderRadius: 8,
-    padding: spacing.sm,
-    alignItems: "center",
-    gap: 4,
-  },
-  categoryValue: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  categoryLabel: {
-    fontSize: 11,
-  },
-  pillRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  pill: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: spacing.sm,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  pillText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  dropdown: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: spacing.sm,
-  },
-  dropdownList: {
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: spacing.sm,
-    overflow: "hidden",
-  },
-  dropdownItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 2,
-  },
-  dropdownEmpty: {
-    padding: spacing.md,
-    textAlign: "center",
-    fontSize: 13,
-  },
-  formRow: {
-    flexDirection: "row",
-    marginBottom: spacing.sm,
-  },
-  inputLabel: {
-    fontSize: 12,
-    fontWeight: "500",
-    marginBottom: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    fontSize: 14,
-    marginBottom: spacing.sm,
-  },
-  submitBtn: {
-    borderRadius: 10,
-    paddingVertical: spacing.sm + 4,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: spacing.xs,
-  },
-  submitText: {
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  emptyLogs: {
-    alignItems: "center",
-    paddingVertical: spacing.xl,
-    gap: spacing.xs,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  logRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.sm + 2,
-    borderBottomWidth: 1,
-  },
-  logName: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-});

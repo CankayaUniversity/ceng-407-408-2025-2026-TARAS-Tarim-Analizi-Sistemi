@@ -1,0 +1,4 @@
+{
+  "NSCameraUsageDescription": "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
+  "NSBluetoothAlwaysUsageDescription": "TARAS, ağ geçidi cihazlarını yapılandırmak için Bluetooth'a ihtiyaç duyar."
+}

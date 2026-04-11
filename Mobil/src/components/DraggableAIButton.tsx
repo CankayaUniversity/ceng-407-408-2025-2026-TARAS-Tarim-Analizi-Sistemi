@@ -3,7 +3,6 @@ import { useRef, useEffect, useCallback } from "react";
 import {
   Animated,
   PanResponder,
-  StyleSheet,
   GestureResponderEvent,
   PanResponderGestureState,
 } from "react-native";
@@ -146,37 +145,30 @@ export const DraggableAIButton = ({
     }),
   ).current;
 
+  // Animated.View — tum stiller style icinde kalmali (transform, position, boyut)
   return (
     <Animated.View
-      style={[
-        styles.button,
-        {
-          backgroundColor: theme.accent,
-          shadowColor: theme.isDark ? "#000" : "#334155",
-          transform: position.getTranslateTransform(),
-        },
-      ]}
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: BUTTON_SIZE,
+        height: BUTTON_SIZE,
+        borderRadius: BUTTON_SIZE / 2,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: theme.accent,
+        shadowColor: theme.isDark ? "#000" : "#334155",
+        elevation: 10,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 12,
+        zIndex: 998,
+        transform: position.getTranslateTransform(),
+      }}
       {...panResponder.panHandlers}
     >
       <MaterialCommunityIcons name="robot" size={s(22)} color="#fff" />
     </Animated.View>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: BUTTON_SIZE,
-    height: BUTTON_SIZE,
-    borderRadius: BUTTON_SIZE / 2,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 10,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    zIndex: 998,
-  },
-});

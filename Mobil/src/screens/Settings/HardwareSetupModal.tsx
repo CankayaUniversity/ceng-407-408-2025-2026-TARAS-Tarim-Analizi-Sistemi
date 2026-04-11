@@ -7,7 +7,6 @@ import {
   Text,
   Modal,
   TouchableOpacity,
-  StyleSheet,
   SafeAreaView,
   StatusBar,
   Platform,
@@ -75,13 +74,24 @@ export const HardwareSetupModal = ({
       onRequestClose={handleBack}
     >
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.background }]}
+        className="screen-bg"
+        style={{
+          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+        }}
       >
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: theme.accent }]}>
+        <View
+          className="row-between"
+          style={{
+            backgroundColor: theme.accent,
+            paddingHorizontal: s(16),
+            paddingVertical: vs(14),
+          }}
+        >
           <TouchableOpacity
             onPress={handleBack}
-            style={styles.headerButton}
+            className="center"
+            style={{ width: s(40), height: s(40) }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <MaterialCommunityIcons
@@ -91,13 +101,18 @@ export const HardwareSetupModal = ({
             />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle} numberOfLines={1}>
+          <Text
+            className="flex-1 text-center font-bold text-white"
+            style={{ fontSize: ms(18, 0.3) }}
+            numberOfLines={1}
+          >
             {getTitle()}
           </Text>
 
           <TouchableOpacity
             onPress={handleClose}
-            style={styles.headerButton}
+            className="center"
+            style={{ width: s(40), height: s(40) }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {view !== "menu" ? (
@@ -109,20 +124,31 @@ export const HardwareSetupModal = ({
         </View>
 
         {/* Icerik */}
-        <View style={[styles.content, { backgroundColor: theme.background }]}>
+        <View className="screen-bg">
           {view === "menu" && (
-            <View style={styles.menuContainer}>
+            <View style={{ padding: s(20), gap: s(16) }}>
               {/* Gateway Ekle */}
               <TouchableOpacity
-                style={[styles.menuCard, { backgroundColor: theme.surface }]}
+                className="row surface-bg rounded-xl"
+                style={{
+                  padding: s(16),
+                  elevation: 2,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                }}
                 onPress={() => setView("gateway")}
                 activeOpacity={0.7}
               >
                 <View
-                  style={[
-                    styles.menuIconWrap,
-                    { backgroundColor: theme.accent + "20" },
-                  ]}
+                  className="center rounded-xl"
+                  style={{
+                    width: s(56),
+                    height: s(56),
+                    backgroundColor: theme.accent + "20",
+                    marginRight: s(16),
+                  }}
                 >
                   <MaterialCommunityIcons
                     name="access-point"
@@ -130,15 +156,16 @@ export const HardwareSetupModal = ({
                     color={theme.accent}
                   />
                 </View>
-                <View style={styles.menuTextWrap}>
-                  <Text style={[styles.menuTitle, { color: theme.text }]}>
+                <View className="flex-1">
+                  <Text
+                    className="text-primary font-bold"
+                    style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
+                  >
                     {t.hardware.addGateway}
                   </Text>
                   <Text
-                    style={[
-                      styles.menuDesc,
-                      { color: theme.textSecondary },
-                    ]}
+                    className="text-secondary"
+                    style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3) }}
                   >
                     {t.hardware.addGatewayDesc}
                   </Text>
@@ -152,15 +179,26 @@ export const HardwareSetupModal = ({
 
               {/* Sensor Node Ekle */}
               <TouchableOpacity
-                style={[styles.menuCard, { backgroundColor: theme.surface }]}
+                className="row surface-bg rounded-xl"
+                style={{
+                  padding: s(16),
+                  elevation: 2,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 3,
+                }}
                 onPress={() => setView("sensor")}
                 activeOpacity={0.7}
               >
                 <View
-                  style={[
-                    styles.menuIconWrap,
-                    { backgroundColor: theme.accent + "20" },
-                  ]}
+                  className="center rounded-xl"
+                  style={{
+                    width: s(56),
+                    height: s(56),
+                    backgroundColor: theme.accent + "20",
+                    marginRight: s(16),
+                  }}
                 >
                   <MaterialCommunityIcons
                     name="thermometer-lines"
@@ -168,15 +206,16 @@ export const HardwareSetupModal = ({
                     color={theme.accent}
                   />
                 </View>
-                <View style={styles.menuTextWrap}>
-                  <Text style={[styles.menuTitle, { color: theme.text }]}>
+                <View className="flex-1">
+                  <Text
+                    className="text-primary font-bold"
+                    style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
+                  >
                     {t.hardware.addSensorNode}
                   </Text>
                   <Text
-                    style={[
-                      styles.menuDesc,
-                      { color: theme.textSecondary },
-                    ]}
+                    className="text-secondary"
+                    style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3) }}
                   >
                     {t.hardware.addSensorNodeDesc}
                   </Text>
@@ -210,68 +249,3 @@ export const HardwareSetupModal = ({
     </Modal>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: s(16),
-    paddingVertical: vs(14),
-  },
-  headerButton: {
-    width: s(40),
-    height: s(40),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: ms(18, 0.3),
-    fontWeight: "700",
-    color: "#fff",
-    textAlign: "center",
-  },
-  content: {
-    flex: 1,
-  },
-  menuContainer: {
-    padding: s(20),
-    gap: s(16),
-  },
-  menuCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: s(16),
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  menuIconWrap: {
-    width: s(56),
-    height: s(56),
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: s(16),
-  },
-  menuTextWrap: {
-    flex: 1,
-  },
-  menuTitle: {
-    fontSize: ms(16, 0.3),
-    fontWeight: "700",
-    marginBottom: vs(4),
-  },
-  menuDesc: {
-    fontSize: ms(13, 0.3),
-    lineHeight: ms(18, 0.3),
-  },
-});

@@ -6,7 +6,7 @@ import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
 import { MetricCard } from "./MetricCard";
 import { IrrigationCountdown } from "./IrrigationCountdown";
 import { StatusCardProps } from "./types";
-import { spacing, ms } from "../../utils/responsive";
+import { ms } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 
 // Son okuma zamanini formatla - tarih ve saat gosterir
@@ -69,8 +69,8 @@ export const StatusCard = ({
   );
 
   return (
-    <View style={{ flex: 1, paddingHorizontal: spacing.md, paddingTop: 4 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+    <View className="flex-1 px-4 pt-1">
+      <View className="flex-row flex-wrap">
         <MetricCard
           theme={theme}
           title={t.home.airTemperature}
@@ -96,7 +96,7 @@ export const StatusCard = ({
         />
       </View>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+      <View className="flex-row flex-wrap">
         <MetricCard
           theme={theme}
           title={t.home.timeToIrrigation}
@@ -121,12 +121,10 @@ export const StatusCard = ({
 
       {!loading && (
         <Text
+          className="text-right mt-1 mr-1"
           style={{
             fontSize: ms(11, 0.3),
             color: theme.textSecondary,
-            textAlign: "right",
-            marginTop: spacing.xs,
-            marginRight: spacing.xs,
           }}
         >
           {t.home.lastReading}: {lastReadingTime ?? "—"}

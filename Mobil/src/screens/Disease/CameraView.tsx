@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, LayoutChangeEvent } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { appStyles } from "../../styles";
 import { CameraViewProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
 import { s, vs, ms } from "../../utils/responsive";
@@ -52,7 +51,16 @@ export const CameraView = ({
 
   return (
     <View
-      style={[appStyles.cameraBorderContainer, { borderColor: theme.accent }]}
+      className="flex-1 rounded-[20px] overflow-hidden"
+      style={{
+        borderWidth: 3,
+        borderColor: theme.accent,
+        elevation: 8,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      }}
       onLayout={onLayoutContainer}
     >
       {isActive && canUseCameraComponent ? (
@@ -60,7 +68,7 @@ export const CameraView = ({
           ref={(r: any) => {
             cameraRef.current = r;
           }}
-          style={appStyles.cameraView}
+          style={{ flex: 1 }}
           type={"back"}
           flashMode={
             ExpoCamera?.FlashMode
@@ -73,35 +81,25 @@ export const CameraView = ({
           }
         />
       ) : isActive ? (
-        <View
-          style={[
-            appStyles.cameraView,
-            { alignItems: "center", justifyContent: "center" },
-          ]}
-        >
-          <Text style={{ color: theme.textSecondary }}>
+        <View className="flex-1 center">
+          <Text className="text-secondary">
             {t.camera.liveCameraUnavailable}
           </Text>
-          <Text style={{ color: theme.textSecondary, marginTop: vs(6) }}>
+          <Text
+            className="text-secondary"
+            style={{ marginTop: vs(6) }}
+          >
             {t.camera.liveCameraMessage}
           </Text>
         </View>
       ) : (
-        <View style={[appStyles.cameraView, { backgroundColor: "#000" }]} />
+        <View className="flex-1 bg-black" />
       )}
 
       {frameSize > 0 && (
         <View
           pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          className="overlay-fill"
         >
           <View
             style={{
@@ -114,6 +112,7 @@ export const CameraView = ({
             }}
           />
           <Text
+            className="font-semibold"
             style={{
               marginTop: vs(10),
               paddingHorizontal: s(10),
@@ -122,7 +121,6 @@ export const CameraView = ({
               backgroundColor: "rgba(0,0,0,0.5)",
               color: "#fff",
               fontSize: ms(12, 0.3),
-              fontWeight: "600",
             }}
           >
             {language === "tr"
@@ -135,16 +133,13 @@ export const CameraView = ({
       {/* Galeri butonu */}
       <TouchableOpacity
         onPress={onPickFromGallery}
+        className="absolute center rounded-xl"
         style={{
-          position: "absolute",
           left: s(16),
           bottom: s(16),
           width: s(56),
           height: s(56),
-          borderRadius: 12,
           backgroundColor: theme.surface,
-          alignItems: "center",
-          justifyContent: "center",
           borderWidth: 1,
           borderColor: theme.accent + "44",
         }}
@@ -156,35 +151,31 @@ export const CameraView = ({
       {/* Cek butonu */}
       <TouchableOpacity
         onPress={onTakePicture}
+        className="absolute self-center center"
         style={{
-          position: "absolute",
-          alignSelf: "center",
           bottom: s(12),
           width: s(78),
           height: s(78),
           borderRadius: 39,
-          alignItems: "center",
-          justifyContent: "center",
         }}
         activeOpacity={0.8}
       >
         <View
+          className="center"
           style={{
             width: s(78),
             height: s(78),
             borderRadius: 39,
             borderWidth: 6,
             borderColor: theme.surface,
-            alignItems: "center",
-            justifyContent: "center",
           }}
         >
           <View
+            className="bg-platinum-50 dark:bg-onyx-950"
             style={{
               width: s(56),
               height: s(56),
               borderRadius: 28,
-              backgroundColor: theme.background,
             }}
           />
         </View>
@@ -193,16 +184,13 @@ export const CameraView = ({
       {/* Flas butonu */}
       <TouchableOpacity
         onPress={onToggleFlash}
+        className="absolute center rounded-xl"
         style={{
-          position: "absolute",
           right: s(16),
           bottom: s(16),
           width: s(50),
           height: s(50),
-          borderRadius: 12,
           backgroundColor: theme.surface,
-          alignItems: "center",
-          justifyContent: "center",
           borderWidth: 1,
           borderColor: flashOn ? theme.accent : theme.accent + "44",
         }}

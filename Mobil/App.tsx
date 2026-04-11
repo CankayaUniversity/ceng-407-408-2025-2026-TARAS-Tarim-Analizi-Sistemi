@@ -6,7 +6,7 @@ import "react-native-url-polyfill/auto";
 
 // Bilinen kutuphane uyarilari — uygulama islevselligini etkilemez
 import { LogBox } from "react-native";
-const SUPPRESSED = ["EXGL", "SafeAreaView has been deprecated", "WebGLUniforms"];
+const SUPPRESSED = ["EXGL", "SafeAreaView has been deprecated", "WebGLUniforms", "InteractionManager has been deprecated"];
 LogBox.ignoreLogs(SUPPRESSED);
 if (__DEV__) {
   const _log = console.log.bind(console);
@@ -38,19 +38,19 @@ import {
   View,
   TouchableOpacity,
   useWindowDimensions,
-  useColorScheme,
+  useColorScheme as useSystemColorScheme,
   AppState,
   ScrollView,
-  StyleSheet,
   Platform,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import * as NavigationBar from "expo-navigation-bar";
+import * as SystemUI from "expo-system-ui";
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Third-party
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useCameraPermissions } from "expo-camera";
+import { colorScheme as nativeWindColorScheme } from "nativewind";
 
 // Screens
 import {
@@ -110,7 +110,7 @@ import LogoDark from "./src/assets/Taras-logo-dark.svg";
 function AppContent() {
   // ── Hooks ──────────────────────────────────────────────────────────────
   const insets = useSafeAreaInsets();
-  const systemColorScheme = useColorScheme();
+  const systemColorScheme = useSystemColorScheme();
   useKeyboard();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [permission, requestPermission] = useCameraPermissions();
@@ -243,10 +243,13 @@ function AppContent() {
     (themeMode !== "light" && systemColorScheme === "dark");
   const theme = useMemo(() => getTheme(isDark), [isDark]);
 
-  // Android navigasyon cubugu buton rengini tema ile esle
+  // NativeWind renk semasi — render sirasinda senkron guncelle
+  nativeWindColorScheme.set(isDark ? "dark" : "light");
+
+  // Sistem arka plan rengini tema ile esle
   useEffect(() => {
-    NavigationBar.setButtonStyleAsync(isDark ? "light" : "dark");
-  }, [isDark]);
+    SystemUI.setBackgroundColorAsync(theme.background);
+  }, [theme.background]);
 
 
   const navBottom = insets.bottom > 20 ? 8 : Math.max(insets.bottom + 4, 8);
@@ -263,8 +266,8 @@ function AppContent() {
   if (isLoading) {
     return (
       <SafeAreaView style={[appStyles.safeArea, { backgroundColor: theme.background }]}>
-        <View style={[appStyles.container, styles.centered, { backgroundColor: theme.background }]}>
-          <Text style={{ color: theme.text }}>{t.common.loading}</Text>
+        <View className={`flex-1 justify-center items-center ${isDark ? "dark" : ""}`} style={{ backgroundColor: theme.background }}>
+          <Text className="text-primary">{t.common.loading}</Text>
         </View>
       </SafeAreaView>
     );
@@ -323,14 +326,24 @@ function AppContent() {
   // Header ve FieldSelector JSX olarak inline — fonksiyon component olarak
   // tanimlanirsa React her renderda unmount/remount yapar ve 3D flicker olur
   const fieldSelectorJSX = fields.length > 0 ? (
-    <View style={styles.fieldSelectorContainer}>
+    <View className="flex-1 relative">
       <TouchableOpacity
         onPress={() => setFieldSelectorOpen(!fieldSelectorOpen)}
-        style={[styles.fieldSelectorButton, { backgroundColor: theme.surface, borderColor: theme.accent + "30" }]}
+        className="row-between rounded-lg border"
+        style={{
+          paddingVertical: vs(6),
+          paddingHorizontal: s(12),
+          backgroundColor: theme.surface,
+          borderColor: theme.accent + "30",
+        }}
       >
-        <View style={styles.fieldSelectorButtonContent}>
+        <View className="row flex-1" style={{ gap: s(6) }}>
           <Ionicons name="leaf" size={ms(14, 0.3)} color={theme.accent} />
-          <Text style={[styles.fieldSelectorLabel, { color: theme.text }]} numberOfLines={1}>
+          <Text
+            className="font-semibold flex-1"
+            style={{ fontSize: ms(13, 0.3), color: theme.text }}
+            numberOfLines={1}
+          >
             {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
           </Text>
         </View>
@@ -338,12 +351,25 @@ function AppContent() {
           name={fieldSelectorOpen ? "chevron-up" : "chevron-down"}
           size={ms(14, 0.3)}
           color={theme.textSecondary}
-          style={styles.fieldSelectorChevron}
+          style={{ marginLeft: s(6) }}
         />
       </TouchableOpacity>
 
       {fieldSelectorOpen && (
-        <View style={[styles.fieldSelectorDropdown, { backgroundColor: theme.surface, borderColor: theme.accent + "30" }]}>
+        <View
+          className="absolute left-0 right-0 rounded-lg border overflow-hidden z-[1001]"
+          style={{
+            top: vs(38),
+            maxHeight: vs(200),
+            backgroundColor: theme.surface,
+            borderColor: theme.accent + "30",
+            elevation: 10,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 8,
+          }}
+        >
           <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
             {fields
               .filter((f) => f.id !== selectedFieldId)
@@ -351,14 +377,15 @@ function AppContent() {
                 <TouchableOpacity
                   key={field.id}
                   onPress={() => handleFieldSelect(field.id)}
+                  className="row"
                   style={[
-                    styles.fieldSelectorItem,
+                    { paddingHorizontal: s(12), paddingVertical: vs(10) },
                     index < arr.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.accent + "15" },
                   ]}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="leaf-outline" size={ms(14, 0.3)} color={theme.textSecondary} style={styles.fieldSelectorItemIcon} />
-                  <Text style={[styles.fieldSelectorItemLabel, { color: theme.text }]}>{field.name}</Text>
+                  <Ionicons name="leaf-outline" size={ms(14, 0.3)} color={theme.textSecondary} style={{ marginRight: s(8) }} />
+                  <Text className="font-medium" style={{ fontSize: ms(13, 0.3), color: theme.text }}>{field.name}</Text>
                 </TouchableOpacity>
               ))}
           </ScrollView>
@@ -369,15 +396,13 @@ function AppContent() {
 
   const appHeaderJSX = (
     <View
-      style={[
-        styles.headerRow,
-        {
-          paddingHorizontal: headerDims.headerPadding,
-          paddingTop: headerDims.headerTopPadding,
-          paddingBottom: spacing.xs,
-          backgroundColor: theme.background,
-        },
-      ]}
+      className="flex-row justify-between items-center z-[1000]"
+      style={{
+        paddingHorizontal: headerDims.headerPadding,
+        paddingTop: headerDims.headerTopPadding,
+        paddingBottom: spacing.xs,
+        backgroundColor: theme.background,
+      }}
     >
       <View style={{ marginLeft: headerDims.elementGap }}>
         {isDark
@@ -385,13 +410,16 @@ function AppContent() {
           : <LogoLight width={headerDims.logoSize} height={headerDims.logoSize} />}
       </View>
 
-      <View style={[styles.fieldSelectorWrapper, { marginHorizontal: spacing.sm }]}>
+      <View className="flex-1 relative" style={{ marginHorizontal: spacing.sm }}>
         {fieldSelectorJSX}
       </View>
 
-      <View style={[styles.headerRight, { marginRight: headerDims.elementGap }]}>
-        <View style={[styles.dataSourceBadge, { backgroundColor: dataSource === "aws" ? theme.accent : theme.accentDim }]}>
-          <Text style={styles.dataSourceBadgeText}>
+      <View className="row gap-2" style={{ marginRight: headerDims.elementGap }}>
+        <View
+          className="px-2 py-1 rounded-md"
+          style={{ backgroundColor: dataSource === "aws" ? theme.accent : theme.accentDim }}
+        >
+          <Text className="text-white text-[10px] font-semibold">
             {dataSource === "aws" ? t.home.dataSourceAWS : t.home.dataSourceDemo}
           </Text>
         </View>
@@ -402,22 +430,26 @@ function AppContent() {
 
   const bottomNavJSX = (
     <View
-      style={[
-        styles.navBar,
-        {
-          backgroundColor: theme.surface,
-          marginBottom: navBottom,
-          shadowColor: isDark ? "#000" : "#334155",
-        },
-      ]}
+      className="flex-row rounded-3xl p-1"
+      style={{
+        marginHorizontal: s(12),
+        marginBottom: navBottom,
+        backgroundColor: theme.surface,
+        shadowColor: isDark ? "#000" : "#334155",
+        elevation: 10,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 16,
+      }}
     >
       {NAV_ITEMS.map((item) => {
         const isActive = screen === item.id;
         return (
           <TouchableOpacity
             key={item.id}
+            className="flex-1 center rounded-[20px]"
             style={[
-              styles.navTab,
+              { paddingVertical: vs(12), marginHorizontal: s(2) },
               isActive && { backgroundColor: theme.accent + "22" },
             ]}
             onPress={() => setScreen(item.id as ScreenType)}
@@ -429,10 +461,12 @@ function AppContent() {
               color={isActive ? theme.accent : theme.accentDim}
             />
             <Text
-              style={[
-                styles.navLabel,
-                { color: isActive ? theme.accent : theme.accentDim },
-              ]}
+              className="font-semibold"
+              style={{
+                fontSize: ms(10, 0.3),
+                marginTop: vs(3),
+                color: isActive ? theme.accent : theme.accentDim,
+              }}
               numberOfLines={1}
             >
               {item.label}
@@ -451,62 +485,62 @@ function AppContent() {
       edges={Platform.OS === "ios" ? ["top", "left", "right"] : undefined}
       style={[appStyles.safeArea, { backgroundColor: theme.background }]}
     >
-        <View style={[appStyles.container, { backgroundColor: theme.background }]}>
-          <StatusBar style={isDark ? "light" : "dark"} />
+      <View className="flex-1" style={{ backgroundColor: theme.background }}>
+        <StatusBar style={isDark ? "light" : "dark"} />
 
-          {!isLoggedIn ? (
-            <LoginScreen theme={theme} onLoginSuccess={handleLoginSuccess} onSkip={handleSkip} />
-          ) : showChat ? (
-            /* Tam ekran sohbet — header, nav bar ve AI butonu gizli */
-            <ChatWindow
-              messages={messages}
-              chatInput={chatInput}
-              theme={theme}
-              isLoading={chatLoading}
-              onClose={() => setShowChat(false)}
-              onSendMessage={sendMessage}
-              onInputChange={setChatInput}
-              onNewChat={startNewChat}
-              historySessions={historySessions}
-              isLoadingHistory={isLoadingHistory}
-              onLoadHistory={loadHistory}
-              onSelectSession={loadSessionById}
-            />
-          ) : (
-            <>
-              {appHeaderJSX}
-              <View style={styles.screensContainer}>
-                {renderScreen()}
-              </View>
-
-              {bottomNavJSX}
-
-              <ChatBubble
-                message={pendingBubble?.text ?? ""}
-                visible={!!pendingBubble}
-                theme={theme}
-                bottom={windowHeight - insets.top - navBarY + s(8)}
-                onPress={() => { clearPendingBubble(); setShowChat(true); }}
-                onDismiss={clearPendingBubble}
-              />
-              <DraggableAIButton
-                theme={theme}
-                onPress={() => { clearPendingBubble(); setShowChat(true); }}
-                safeSpots={aiSafeSpots}
-                moveToSpot={aiMoveTarget}
-                onMoveComplete={() => setAiMoveTarget(null)}
-                onSpotChanged={setAiSpotIndex}
-              />
-            </>
-          )}
-
-          <HardwareSetupModal
-            visible={showHardwareSetup}
+        {!isLoggedIn ? (
+          <LoginScreen theme={theme} onLoginSuccess={handleLoginSuccess} onSkip={handleSkip} />
+        ) : showChat ? (
+          /* Tam ekran sohbet — header, nav bar ve AI butonu gizli */
+          <ChatWindow
+            messages={messages}
+            chatInput={chatInput}
             theme={theme}
-            onClose={() => setShowHardwareSetup(false)}
+            isLoading={chatLoading}
+            onClose={() => setShowChat(false)}
+            onSendMessage={sendMessage}
+            onInputChange={setChatInput}
+            onNewChat={startNewChat}
+            historySessions={historySessions}
+            isLoadingHistory={isLoadingHistory}
+            onLoadHistory={loadHistory}
+            onSelectSession={loadSessionById}
           />
-        </View>
-      </SafeAreaView>
+        ) : (
+          <>
+            {appHeaderJSX}
+            <View className="flex-1 relative">
+              {renderScreen()}
+            </View>
+
+            {bottomNavJSX}
+
+            <ChatBubble
+              message={pendingBubble?.text ?? ""}
+              visible={!!pendingBubble}
+              theme={theme}
+              bottom={windowHeight - insets.top - navBarY + s(8)}
+              onPress={() => { clearPendingBubble(); setShowChat(true); }}
+              onDismiss={clearPendingBubble}
+            />
+            <DraggableAIButton
+              theme={theme}
+              onPress={() => { clearPendingBubble(); setShowChat(true); }}
+              safeSpots={aiSafeSpots}
+              moveToSpot={aiMoveTarget}
+              onMoveComplete={() => setAiMoveTarget(null)}
+              onSpotChanged={setAiSpotIndex}
+            />
+          </>
+        )}
+
+        <HardwareSetupModal
+          visible={showHardwareSetup}
+          theme={theme}
+          onClose={() => setShowHardwareSetup(false)}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -521,133 +555,3 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  centered: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Header
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  fieldSelectorWrapper: {
-    flex: 1,
-    position: "relative",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  dataSourceBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  dataSourceBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-
-  // Field selector
-  fieldSelectorContainer: {
-    flex: 1,
-    position: "relative",
-  },
-  fieldSelectorButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: vs(6),
-    paddingHorizontal: s(12),
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  fieldSelectorButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-    gap: s(6),
-  },
-  fieldSelectorLabel: {
-    fontSize: ms(13, 0.3),
-    fontWeight: "600",
-    flex: 1,
-  },
-  fieldSelectorChevron: {
-    marginLeft: s(6),
-  },
-  fieldSelectorDropdown: {
-    position: "absolute",
-    top: vs(38),
-    left: 0,
-    right: 0,
-    borderRadius: 8,
-    borderWidth: 1,
-    maxHeight: vs(200),
-    overflow: "hidden",
-    zIndex: 1001,
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-  },
-  fieldSelectorItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: s(12),
-    paddingVertical: vs(10),
-  },
-  fieldSelectorItemIcon: {
-    marginRight: s(8),
-  },
-  fieldSelectorItemLabel: {
-    fontSize: ms(13, 0.3),
-    fontWeight: "500",
-  },
-
-  // Screen container and layers
-  screensContainer: {
-    flex: 1,
-    position: "relative",
-  },
-  screenLayer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-
-  // Bottom navigation
-  navBar: {
-    flexDirection: "row",
-    marginHorizontal: s(12),
-    borderRadius: 24,
-    padding: s(4),
-    elevation: 10,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-  },
-  navTab: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: vs(12),
-    borderRadius: 20,
-    marginHorizontal: s(2),
-  },
-  navLabel: {
-    fontSize: ms(10, 0.3),
-    fontWeight: "600",
-    marginTop: vs(3),
-  },
-});

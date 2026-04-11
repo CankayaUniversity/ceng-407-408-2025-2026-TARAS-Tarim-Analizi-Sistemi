@@ -23,8 +23,8 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 // Yayin hizi sabitleri — karakter/saniye
-const TYPING_CHARS_PER_TICK = 3;
-const TYPING_TICK_MS = 16; // ~60fps
+const TYPING_CHARS_PER_TICK = 1;
+const TYPING_TICK_MS = 25;
 
 const WELCOME: ChatMessage = {
   id: "1",
@@ -269,7 +269,7 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
                     : m,
                 ),
               );
-            }, 1200);
+            }, 500);
           }
 
           if (parsed.chunk) {

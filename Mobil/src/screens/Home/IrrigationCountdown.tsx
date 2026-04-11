@@ -1,6 +1,6 @@
 // Sulama geri sayimi — HH:MM formatinda yanip sonen iki nokta ile
 import { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text } from "react-native";
 import { Theme } from "../../utils/theme";
 import { ms, s } from "../../utils/responsive";
 
@@ -57,22 +57,33 @@ export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdown
     };
   }, [isoTimestamp]);
 
-  const digitStyle = [st.digit, { color: theme.text }];
-  const colonStyle = [st.digit, { color: theme.text, opacity: colonVisible ? 1 : 0 }];
-
   return (
-    <View style={st.row}>
-      <Text style={digitStyle} numberOfLines={1}>{hours}</Text>
-      <View style={st.colonWrap}>
-        <Text style={colonStyle}>:</Text>
+    <View className="row">
+      <Text
+        className="font-normal"
+        style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.text }}
+        numberOfLines={1}
+      >
+        {hours}
+      </Text>
+      <View
+        className="center"
+        style={{ width: COLON_WIDTH, marginHorizontal: s(1) }}
+      >
+        <Text
+          className="font-normal"
+          style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.text, opacity: colonVisible ? 1 : 0 }}
+        >
+          :
+        </Text>
       </View>
-      <Text style={digitStyle} numberOfLines={1}>{minutes}</Text>
+      <Text
+        className="font-normal"
+        style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.text }}
+        numberOfLines={1}
+      >
+        {minutes}
+      </Text>
     </View>
   );
 };
-
-const st = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center" },
-  digit: { fontSize: FONT_SIZE, fontWeight: "400", lineHeight: LINE_HEIGHT },
-  colonWrap: { width: COLON_WIDTH, alignItems: "center", justifyContent: "center", marginHorizontal: s(1) },
-});

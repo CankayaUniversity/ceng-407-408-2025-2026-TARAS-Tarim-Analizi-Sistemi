@@ -4,13 +4,13 @@
 import React, { useState, useRef } from "react";
 import { View, Text, TouchableOpacity, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import { appStyles } from "../../styles";
 import { CameraView, canUseCameraComponent } from "./CameraView";
 import { PhotoPreview } from "./PhotoPreview";
 import { DiseaseScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
+import { vs, ms, s } from "../../utils/responsive";
 
 export const DiseaseCameraScreen = ({
   theme,
@@ -145,21 +145,22 @@ export const DiseaseCameraScreen = ({
 
   if (!permission) {
     return (
-      <View
-        style={[appStyles.placeholder, { backgroundColor: theme.background }]}
-      >
-        <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+      <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
+        <Text className="text-primary font-bold" style={{ fontSize: ms(24, 0.3) }}>
           {t.camera.permissionTitle}
         </Text>
         <TouchableOpacity
-          style={[
-            appStyles.primaryButton,
-            { backgroundColor: theme.accent, marginTop: 24 },
-          ]}
+          className="rounded-xl mt-6"
+          style={{
+            backgroundColor: theme.accent,
+            paddingVertical: vs(14),
+            paddingHorizontal: s(24),
+          }}
           onPress={onRequestPermission}
         >
           <Text
-            style={[appStyles.primaryButtonText, { color: theme.background }]}
+            className="text-center font-bold"
+            style={{ color: theme.background, fontSize: ms(16, 0.3) }}
           >
             {t.camera.permissionButton}
           </Text>
@@ -170,26 +171,28 @@ export const DiseaseCameraScreen = ({
 
   if (!permission.granted) {
     return (
-      <View
-        style={[appStyles.placeholder, { backgroundColor: theme.background }]}
-      >
-        <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+      <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
+        <Text className="text-primary font-bold" style={{ fontSize: ms(24, 0.3) }}>
           {t.camera.permissionDeniedTitle}
         </Text>
         <Text
-          style={[
-            appStyles.placeholderSub,
-            { color: theme.textSecondary, marginBottom: 24 },
-          ]}
+          className="text-secondary mb-6"
+          style={{ fontSize: ms(14, 0.3) }}
         >
           {t.camera.permissionDeniedMessage}
         </Text>
         <TouchableOpacity
-          style={[appStyles.primaryButton, { backgroundColor: theme.accent }]}
+          className="rounded-xl"
+          style={{
+            backgroundColor: theme.accent,
+            paddingVertical: vs(14),
+            paddingHorizontal: s(24),
+          }}
           onPress={onRequestPermission}
         >
           <Text
-            style={[appStyles.primaryButtonText, { color: theme.background }]}
+            className="text-center font-bold"
+            style={{ color: theme.background, fontSize: ms(16, 0.3) }}
           >
             {t.camera.retryButton}
           </Text>
@@ -200,7 +203,8 @@ export const DiseaseCameraScreen = ({
 
   return (
     <View
-      style={[appStyles.cameraContainer, { backgroundColor: theme.background }]}
+      className="screen-bg"
+      style={{ padding: s(16) }}
     >
       {!isPreview && (
         <CameraView
@@ -216,14 +220,8 @@ export const DiseaseCameraScreen = ({
 
       {flashOverlayVisible && (
         <View
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            backgroundColor: theme.accent + "33",
-          }}
+          className="absolute left-0 right-0 top-0 bottom-0"
+          style={{ backgroundColor: theme.accent + "33" }}
         />
       )}
 
@@ -238,18 +236,10 @@ export const DiseaseCameraScreen = ({
 
       {isPreparingImage && (
         <View
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            top: 0,
-            bottom: 0,
-            backgroundColor: theme.background + "AA",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          className="overlay-fill"
+          style={{ backgroundColor: theme.background + "AA" }}
         >
-          <Text style={{ color: theme.text, fontWeight: "600" }}>
+          <Text className="text-primary font-semibold">
             {t.common.loading}
           </Text>
         </View>

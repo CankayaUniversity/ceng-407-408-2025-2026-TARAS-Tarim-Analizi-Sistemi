@@ -9,7 +9,6 @@ import {
   TextInput,
   FlatList,
   ActivityIndicator,
-  StyleSheet,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { BleManager, Device } from "react-native-ble-plx";
@@ -255,23 +254,33 @@ export const AddGatewayFlow = ({
 
   // Tarla secim ekrani
   const renderFarmSelect = (): React.JSX.Element => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: theme.text }]}>
+    <View className="flex-1 p-5">
+      <Text
+        className="text-primary font-bold text-xl mb-5"
+      >
         {t.hardware.selectFarm}
       </Text>
 
       {isLoadingFarms ? (
-        <View style={styles.centerWrap}>
+        <View className="center">
           <ActivityIndicator size="large" color={theme.accent} />
         </View>
       ) : (
         <FlatList
           data={farms}
           keyExtractor={(item) => item.farm_id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={{ gap: 10 }}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[styles.listItem, { backgroundColor: theme.surface }]}
+              className="row surface-bg rounded-[10px]"
+              style={{
+                padding: 14,
+                elevation: 1,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.05,
+                shadowRadius: 2,
+              }}
               onPress={() => handleFarmSelect(item)}
               activeOpacity={0.7}
             >
@@ -281,16 +290,11 @@ export const AddGatewayFlow = ({
                 color={theme.accent}
                 style={{ marginRight: 12 }}
               />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.listItemTitle, { color: theme.text }]}>
+              <View className="flex-1">
+                <Text className="text-primary text-[15px] font-semibold mb-0.5">
                   {item.name}
                 </Text>
-                <Text
-                  style={[
-                    styles.listItemSub,
-                    { color: theme.textSecondary },
-                  ]}
-                >
+                <Text className="text-secondary text-xs">
                   {item.farm_id.substring(0, 8)}...
                 </Text>
               </View>
@@ -302,9 +306,7 @@ export const AddGatewayFlow = ({
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <Text
-              style={[styles.emptyText, { color: theme.textSecondary }]}
-            >
+            <Text className="text-secondary text-sm text-center mt-10">
               {t.hardware.noGatewaysFound}
             </Text>
           }
@@ -315,20 +317,15 @@ export const AddGatewayFlow = ({
 
   // BLE tarama ekrani
   const renderBleScan = (): React.JSX.Element => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: theme.text }]}>
+    <View className="flex-1 p-5">
+      <Text className="text-primary font-bold text-xl mb-5">
         {t.hardware.scanningGateways}
       </Text>
 
       {isScanning && (
-        <View style={styles.scanningRow}>
+        <View className="row mb-4">
           <ActivityIndicator size="small" color={theme.accent} />
-          <Text
-            style={[
-              styles.scanningText,
-              { color: theme.textSecondary },
-            ]}
-          >
+          <Text className="text-secondary text-[13px] ml-2.5">
             {t.hardware.scanningGateways}...
           </Text>
         </View>
@@ -337,10 +334,18 @@ export const AddGatewayFlow = ({
       <FlatList
         data={devices}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={{ gap: 10 }}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[styles.listItem, { backgroundColor: theme.surface }]}
+            className="row surface-bg rounded-[10px]"
+            style={{
+              padding: 14,
+              elevation: 1,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.05,
+              shadowRadius: 2,
+            }}
             onPress={() => handleDeviceSelect(item)}
             activeOpacity={0.7}
           >
@@ -350,16 +355,11 @@ export const AddGatewayFlow = ({
               color={theme.accent}
               style={{ marginRight: 12 }}
             />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.listItemTitle, { color: theme.text }]}>
+            <View className="flex-1">
+              <Text className="text-primary text-[15px] font-semibold mb-0.5">
                 {item.name || item.id}
               </Text>
-              <Text
-                style={[
-                  styles.listItemSub,
-                  { color: theme.textSecondary },
-                ]}
-              >
+              <Text className="text-secondary text-xs">
                 RSSI: {item.rssi ?? "N/A"} dBm
               </Text>
             </View>
@@ -372,17 +372,16 @@ export const AddGatewayFlow = ({
         )}
         ListEmptyComponent={
           !isScanning ? (
-            <View style={styles.centerWrap}>
-              <Text
-                style={[styles.emptyText, { color: theme.textSecondary }]}
-              >
+            <View className="center">
+              <Text className="text-secondary text-sm text-center mt-10">
                 {t.hardware.noGatewaysFound}
               </Text>
               <TouchableOpacity
-                style={[styles.retryButton, { backgroundColor: theme.accent }]}
+                className="rounded-[10px] mt-4"
+                style={{ backgroundColor: theme.accent, paddingVertical: 10, paddingHorizontal: 20 }}
                 onPress={handleStartScan}
               >
-                <Text style={styles.retryButtonText}>
+                <Text className="text-white text-sm font-semibold">
                   {t.hardware.retry}
                 </Text>
               </TouchableOpacity>
@@ -395,24 +394,22 @@ export const AddGatewayFlow = ({
 
   // WiFi bilgi girdi ekrani
   const renderWifiInput = (): React.JSX.Element => (
-    <View style={styles.stepContainer}>
-      <Text style={[styles.stepTitle, { color: theme.text }]}>
+    <View className="flex-1 p-5">
+      <Text className="text-primary font-bold text-xl mb-5">
         {t.hardware.enterWifi}
       </Text>
 
-      <View style={styles.inputGroup}>
-        <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+      <View className="mb-4">
+        <Text className="text-secondary text-[13px] font-semibold mb-1.5">
           SSID
         </Text>
         <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.surface,
-              color: theme.text,
-              borderColor: theme.accentDim,
-            },
-          ]}
+          className="rounded-[10px] border text-base surface-bg text-primary"
+          style={{
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderColor: theme.accentDim,
+          }}
           placeholder={t.hardware.ssidPlaceholder}
           placeholderTextColor={theme.textSecondary}
           value={ssid}
@@ -422,19 +419,17 @@ export const AddGatewayFlow = ({
         />
       </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>
+      <View className="mb-4">
+        <Text className="text-secondary text-[13px] font-semibold mb-1.5">
           {t.hardware.passwordPlaceholder}
         </Text>
         <TextInput
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.surface,
-              color: theme.text,
-              borderColor: theme.accentDim,
-            },
-          ]}
+          className="rounded-[10px] border text-base surface-bg text-primary"
+          style={{
+            paddingVertical: 12,
+            paddingHorizontal: 16,
+            borderColor: theme.accentDim,
+          }}
           placeholder={t.hardware.passwordPlaceholder}
           placeholderTextColor={theme.textSecondary}
           value={wifiPassword}
@@ -446,7 +441,8 @@ export const AddGatewayFlow = ({
       </View>
 
       <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: theme.accent }]}
+        className="row justify-center rounded-xl mt-6"
+        style={{ backgroundColor: theme.accent, paddingVertical: 14, paddingHorizontal: 24 }}
         onPress={handleConfigure}
         activeOpacity={0.7}
       >
@@ -456,7 +452,7 @@ export const AddGatewayFlow = ({
           color="#fff"
           style={{ marginRight: 8 }}
         />
-        <Text style={styles.primaryBtnText}>
+        <Text className="text-white text-base font-bold">
           {t.hardware.configureGateway}
         </Text>
       </TouchableOpacity>
@@ -465,13 +461,13 @@ export const AddGatewayFlow = ({
 
   // Provizyon durumu ekrani
   const renderProvisioning = (): React.JSX.Element => (
-    <View style={[styles.stepContainer, styles.centerWrap]}>
+    <View className="flex-1 p-5 center">
       <ActivityIndicator
         size="large"
         color={theme.accent}
         style={{ marginBottom: 24 }}
       />
-      <Text style={[styles.statusText, { color: theme.text }]}>
+      <Text className="text-primary text-base font-semibold text-center">
         {provisionStatus || t.hardware.provisioning}
       </Text>
     </View>
@@ -479,12 +475,14 @@ export const AddGatewayFlow = ({
 
   // Basari ekrani
   const renderDone = (): React.JSX.Element => (
-    <View style={[styles.stepContainer, styles.centerWrap]}>
+    <View className="flex-1 p-5 center">
       <View
-        style={[
-          styles.successIcon,
-          { backgroundColor: theme.accent + "20" },
-        ]}
+        className="center rounded-full mb-6"
+        style={{
+          width: 100,
+          height: 100,
+          backgroundColor: theme.accent + "20",
+        }}
       >
         <MaterialCommunityIcons
           name="check-circle"
@@ -492,31 +490,35 @@ export const AddGatewayFlow = ({
           color={theme.accent}
         />
       </View>
-      <Text style={[styles.doneTitle, { color: theme.text }]}>
+      <Text className="text-primary text-xl font-bold mb-2 text-center">
         {t.hardware.gatewayConfigured}
       </Text>
       <TouchableOpacity
-        style={[styles.primaryBtn, { backgroundColor: theme.accent }]}
+        className="row justify-center rounded-xl mt-4"
+        style={{ backgroundColor: theme.accent, paddingVertical: 14, paddingHorizontal: 24 }}
         onPress={onComplete}
         activeOpacity={0.7}
       >
-        <Text style={styles.primaryBtnText}>{t.hardware.done}</Text>
+        <Text className="text-white text-base font-bold">{t.hardware.done}</Text>
       </TouchableOpacity>
     </View>
   );
 
   return (
-    <View style={styles.flowContainer}>
+    <View className="flex-1">
       {/* Hata mesaji */}
       {error && (
-        <View style={[styles.errorBar, { backgroundColor: "#ef4444" + "20" }]}>
+        <View
+          className="row rounded-lg mx-5 mt-2"
+          style={{ backgroundColor: "#ef4444" + "20", paddingVertical: 10, paddingHorizontal: 16 }}
+        >
           <MaterialCommunityIcons
             name="alert-circle"
             size={18}
             color="#ef4444"
             style={{ marginRight: 8 }}
           />
-          <Text style={[styles.errorText, { color: "#ef4444" }]}>
+          <Text className="flex-1 text-[13px] font-medium" style={{ color: "#ef4444" }}>
             {error}
           </Text>
         </View>
@@ -532,7 +534,7 @@ export const AddGatewayFlow = ({
       {/* Geri butonu (provizyon ve tamam disinda) */}
       {step !== "provisioning" && step !== "done" && step !== "farmSelect" && (
         <TouchableOpacity
-          style={styles.backButton}
+          className="row px-5 py-3"
           onPress={handleStepBack}
         >
           <MaterialCommunityIcons
@@ -541,7 +543,7 @@ export const AddGatewayFlow = ({
             color={theme.textSecondary}
             style={{ marginRight: 4 }}
           />
-          <Text style={{ color: theme.textSecondary, fontSize: 14 }}>
+          <Text className="text-secondary text-sm">
             {t.common.back}
           </Text>
         </TouchableOpacity>
@@ -549,137 +551,3 @@ export const AddGatewayFlow = ({
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  flowContainer: {
-    flex: 1,
-  },
-  stepContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  stepTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 20,
-  },
-  centerWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  listContent: {
-    gap: 10,
-  },
-  listItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 10,
-    elevation: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  listItemTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  listItemSub: {
-    fontSize: 12,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 40,
-  },
-  scanningRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  scanningText: {
-    fontSize: 13,
-    marginLeft: 10,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  input: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    fontSize: 16,
-  },
-  primaryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginTop: 24,
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  retryButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginTop: 16,
-  },
-  retryButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  statusText: {
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  successIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 24,
-  },
-  doneTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  errorBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    marginHorizontal: 20,
-    marginTop: 8,
-    borderRadius: 8,
-  },
-  errorText: {
-    fontSize: 13,
-    fontWeight: "500",
-    flex: 1,
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-});

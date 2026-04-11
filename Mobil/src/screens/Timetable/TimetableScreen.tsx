@@ -11,9 +11,8 @@ import {
   Modal,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { appStyles } from "../../styles";
 import { sensorAPI } from "../../utils/api";
+import { secureGet } from "../../utils/secureStorage";
 import { ErrorBoundary } from "../../components/ErrorBoundary";
 import { ChartCard } from "./ChartCard";
 import { SensorDataTable } from "./SensorDataTable";
@@ -58,7 +57,7 @@ export const TimetableScreen = ({
     try {
       setError(null);
 
-      const token = await AsyncStorage.getItem("auth_token");
+      const token = await secureGet("auth_token");
       const isDemoMode = !token || token === "DEMO_MODE_TOKEN";
 
       if (isDemoMode) {
@@ -284,35 +283,29 @@ export const TimetableScreen = ({
 
   const renderChartFallback = (title: string) => (
     <View
+      className="rounded-xl surface-bg"
       style={{
         marginBottom: vs(24),
-        borderRadius: 12,
         padding: s(16),
-        backgroundColor: theme.surface,
         borderWidth: 1,
         borderColor: theme.textSecondary + "20",
       }}
     >
       <Text
-        style={{
-          fontSize: ms(16, 0.3),
-          fontWeight: "600",
-          color: theme.text,
-          marginBottom: vs(8),
-        }}
+        className="text-primary font-semibold"
+        style={{ fontSize: ms(16, 0.3), marginBottom: vs(8) }}
       >
         {title}
       </Text>
-      <Text style={{ color: theme.textSecondary, fontSize: ms(13, 0.3), lineHeight: ms(20, 0.3) }}>
+      <Text
+        className="text-secondary"
+        style={{ fontSize: ms(13, 0.3), lineHeight: ms(20, 0.3) }}
+      >
         {t.timetable.loadFailed}
       </Text>
       <Text
-        style={{
-          color: theme.textSecondary,
-          fontSize: ms(12, 0.3),
-          lineHeight: ms(18, 0.3),
-          marginTop: vs(6),
-        }}
+        className="text-secondary"
+        style={{ fontSize: ms(12, 0.3), lineHeight: ms(18, 0.3), marginTop: vs(6) }}
       >
         {t.timetable.table}
       </Text>
@@ -321,15 +314,11 @@ export const TimetableScreen = ({
 
   if (isLoading) {
     return (
-      <View
-        style={[appStyles.placeholder, { backgroundColor: theme.background }]}
-      >
+      <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
         <ActivityIndicator size="large" color={theme.accent} />
         <Text
-          style={[
-            appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: vs(16) },
-          ]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3), marginTop: vs(16) }}
         >
           {t.timetable.loadingSensorData}
         </Text>
@@ -340,7 +329,7 @@ export const TimetableScreen = ({
   if (error) {
     return (
       <ScrollView
-        style={{ flex: 1, backgroundColor: theme.background }}
+        className="screen-bg"
         contentContainerStyle={{
           flex: 1,
           justifyContent: "center",
@@ -361,19 +350,21 @@ export const TimetableScreen = ({
           color={theme.accent}
           style={{ marginBottom: vs(16) }}
         />
-        <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+        <Text
+          className="text-primary font-bold"
+          style={{ fontSize: ms(24, 0.3), marginBottom: vs(6) }}
+        >
           {t.timetable.loadFailed}
         </Text>
         <Text
-          style={[appStyles.placeholderSub, { color: theme.textSecondary }]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3) }}
         >
           {error}
         </Text>
         <Text
-          style={[
-            appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: vs(8) },
-          ]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3), marginTop: vs(8) }}
         >
           {t.timetable.pullToRefresh}
         </Text>
@@ -384,7 +375,7 @@ export const TimetableScreen = ({
   return (
     <ScrollView
       ref={scrollViewRef}
-      style={{ flex: 1, backgroundColor: theme.background }}
+      className="screen-bg"
       scrollEnabled={scrollEnabled}
       refreshControl={
         <RefreshControl
@@ -396,21 +387,20 @@ export const TimetableScreen = ({
     >
       <View style={{ padding: s(16) }}>
         <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: vs(8),
-          }}
+          className="flex-row justify-between items-center"
+          style={{ marginBottom: vs(8) }}
         >
-          <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+          <Text
+            className="text-primary font-bold"
+            style={{ fontSize: ms(24, 0.3) }}
+          >
             {t.timetable.title}
           </Text>
           <View
+            className="rounded-md"
             style={{
               paddingHorizontal: s(8),
               paddingVertical: vs(4),
-              borderRadius: 6,
               backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
             }}
           >
@@ -420,10 +410,8 @@ export const TimetableScreen = ({
           </View>
         </View>
         <Text
-          style={[
-            appStyles.placeholderSub,
-            { color: theme.textSecondary, marginBottom: vs(8) },
-          ]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3), marginBottom: vs(8) }}
         >
           {fieldName || t.common.loading}
         </Text>
@@ -434,15 +422,15 @@ export const TimetableScreen = ({
           showsHorizontalScrollIndicator={false}
           style={{ marginBottom: vs(12) }}
         >
-          <View style={{ flexDirection: "row", gap: s(8) }}>
+          <View className="flex-row" style={{ gap: s(8) }}>
             {timeRangeOptions.map((option) => (
               <TouchableOpacity
                 key={option.hours}
                 onPress={() => handleTimeRangeChange(option.hours)}
+                className="rounded-lg"
                 style={{
                   paddingHorizontal: s(14),
                   paddingVertical: vs(8),
-                  borderRadius: 8,
                   backgroundColor:
                     timeRange === option.hours ? theme.accent : theme.surface,
                   borderWidth: 1,
@@ -468,29 +456,23 @@ export const TimetableScreen = ({
 
         {lastUpdated && (
           <Text
-            style={{
-              fontSize: ms(11, 0.3),
-              color: theme.textSecondary,
-              marginBottom: vs(16),
-            }}
+            className="text-secondary"
+            style={{ fontSize: ms(11, 0.3), marginBottom: vs(16) }}
           >
             {t.timetable.lastUpdated}: {lastUpdated.toLocaleTimeString()}
           </Text>
         )}
 
         {/* Tablo butonu */}
-        <View style={{ flexDirection: "row", marginBottom: vs(16) }}>
+        <View className="flex-row" style={{ marginBottom: vs(16) }}>
           <TouchableOpacity
             onPress={() => setShowTable(true)}
+            className="row rounded-lg surface-bg"
             style={{
               paddingHorizontal: s(10),
               paddingVertical: vs(6),
-              borderRadius: 8,
-              backgroundColor: theme.surface,
               borderWidth: 1,
               borderColor: theme.textSecondary + "30",
-              flexDirection: "row",
-              alignItems: "center",
             }}
           >
             <MaterialCommunityIcons
@@ -499,12 +481,8 @@ export const TimetableScreen = ({
               color={theme.textSecondary}
             />
             <Text
-              style={{
-                marginLeft: s(6),
-                color: theme.textSecondary,
-                fontSize: ms(12, 0.3),
-                fontWeight: "600",
-              }}
+              className="text-secondary font-semibold"
+              style={{ marginLeft: s(6), fontSize: ms(12, 0.3) }}
             >
               {t.timetable.table}
             </Text>
@@ -553,19 +531,16 @@ export const TimetableScreen = ({
         onRequestClose={() => setShowTable(false)}
       >
         <View
-          style={{ flex: 1, backgroundColor: theme.background, padding: s(16) }}
+          className="screen-bg"
+          style={{ padding: s(16) }}
         >
           <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: vs(12),
-              marginTop: vs(12),
-            }}
+            className="flex-row justify-between items-center"
+            style={{ marginBottom: vs(12), marginTop: vs(12) }}
           >
             <Text
-              style={{ color: theme.text, fontSize: ms(16, 0.3), fontWeight: "700" }}
+              className="text-primary font-bold"
+              style={{ fontSize: ms(16, 0.3) }}
             >
               {fieldName} - {t.timetable.last72Hours}
             </Text>
@@ -584,11 +559,8 @@ export const TimetableScreen = ({
           <SensorDataTable theme={theme} data={rawReadings} />
 
           <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "flex-end",
-              marginTop: vs(16),
-            }}
+            className="flex-row justify-end"
+            style={{ marginTop: vs(16) }}
           >
             <TouchableOpacity
               onPress={async () => {
@@ -610,13 +582,11 @@ export const TimetableScreen = ({
                   console.log("[TIMETABLE] share err:", e);
                 }
               }}
+              className="row rounded-lg"
               style={{
                 paddingHorizontal: s(12),
                 paddingVertical: vs(10),
-                borderRadius: 8,
                 backgroundColor: theme.accent,
-                flexDirection: "row",
-                alignItems: "center",
               }}
             >
               <MaterialCommunityIcons
@@ -625,11 +595,11 @@ export const TimetableScreen = ({
                 color={theme.background}
               />
               <Text
+                className="font-bold"
                 style={{
                   marginLeft: s(8),
                   color: theme.background,
                   fontSize: ms(12, 0.3),
-                  fontWeight: "700",
                 }}
               >
                 {t.timetable.shareCSV}

@@ -1,0 +1,4 @@
+{
+  "NSCameraUsageDescription": "Camera access is required for plant disease detection.",
+  "NSBluetoothAlwaysUsageDescription": "TARAS needs Bluetooth to configure gateway devices."
+}

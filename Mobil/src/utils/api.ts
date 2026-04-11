@@ -6,6 +6,7 @@ import { io, Socket } from "socket.io-client";
 import type { FieldData } from "./fieldPlaceholder";
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
+import { secureSet, secureGet, secureRemove } from "./secureStorage";
 
 // Environment variables from app.config.js
 export const API_HOST = Constants.expoConfig?.extra?.apiHost || "";
@@ -61,7 +62,7 @@ interface Zone {
 
 // Token ile header olustur
 async function getAuthHeaders() {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const token = await secureGet(TOKEN_KEY);
   return token ? { Authorization: `Bearer ${token}` } : null;
 }
 
@@ -126,8 +127,8 @@ export const authAPI = {
         email: "test@local.demo",
         role: "demo",
       };
-      await AsyncStorage.setItem(TOKEN_KEY, demoToken);
-      await AsyncStorage.setItem(USER_DATA_KEY, JSON.stringify(demoUser));
+      await secureSet(TOKEN_KEY, demoToken);
+      await secureSet(USER_DATA_KEY, JSON.stringify(demoUser));
       return { success: true, data: { token: demoToken, user: demoUser } };
     }
 
@@ -145,12 +146,9 @@ export const authAPI = {
 
       const data = await res.json();
       if (data.success && data.data?.token) {
-        await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+        await secureSet(TOKEN_KEY, data.data.token);
         if (data.data?.user) {
-          await AsyncStorage.setItem(
-            USER_DATA_KEY,
-            JSON.stringify(data.data.user),
-          );
+          await secureSet(USER_DATA_KEY, JSON.stringify(data.data.user));
         }
       }
       return data;
@@ -179,12 +177,9 @@ export const authAPI = {
       const data = await res.json();
 
       if (data.success && data.data?.token) {
-        await AsyncStorage.setItem(TOKEN_KEY, data.data.token);
+        await secureSet(TOKEN_KEY, data.data.token);
         if (data.data?.user) {
-          await AsyncStorage.setItem(
-            USER_DATA_KEY,
-            JSON.stringify(data.data.user),
-          );
+          await secureSet(USER_DATA_KEY, JSON.stringify(data.data.user));
         }
       }
       return data;
@@ -200,7 +195,7 @@ export const authAPI = {
 
   async getStoredUser(): Promise<User | null> {
     try {
-      const userJson = await AsyncStorage.getItem(USER_DATA_KEY);
+      const userJson = await secureGet(USER_DATA_KEY);
       return userJson ? JSON.parse(userJson) : null;
     } catch {
       return null;
@@ -208,16 +203,16 @@ export const authAPI = {
   },
 
   async logout() {
-    await AsyncStorage.removeItem(TOKEN_KEY);
-    await AsyncStorage.removeItem(USER_DATA_KEY);
+    await secureRemove(TOKEN_KEY);
+    await secureRemove(USER_DATA_KEY);
   },
 
   async getToken() {
-    return AsyncStorage.getItem(TOKEN_KEY);
+    return secureGet(TOKEN_KEY);
   },
 
   async isAuthenticated() {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const token = await secureGet(TOKEN_KEY);
     return !!token;
   },
 };
@@ -270,7 +265,7 @@ export interface SensorDataEvent {
 // WebSocket baglantisi
 export const socketAPI = {
   async connect(): Promise<Socket | null> {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const token = await secureGet(TOKEN_KEY);
     if (!token) return null;
     if (socket?.connected) return socket;
 
@@ -347,7 +342,7 @@ export const socketAPI = {
 // Gorsel yukleme
 export const imagesAPI = {
   async upload(imageUri: string, fileName = "image.jpg") {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const token = await secureGet(TOKEN_KEY);
     if (!token) return { success: false, error: "Oturum bulunamadı" };
 
     const formData = new FormData();
@@ -431,7 +426,7 @@ export interface DashboardData {
 // Dashboard verileri
 export const dashboardAPI = {
   getFields: async (): Promise<FieldSummary[]> => {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const token = await secureGet(TOKEN_KEY);
 
     if (!token || token === "DEMO_MODE_TOKEN") {
       const { getDemoFields } = await import("./demoData");
@@ -453,7 +448,7 @@ export const dashboardAPI = {
   },
 
   getFieldDashboard: async (fieldId: string): Promise<DashboardData> => {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const token = await secureGet(TOKEN_KEY);
 
     if (!token || token === "DEMO_MODE_TOKEN") {
       const { generateDemoDashboardData } = await import("./demoData");
@@ -694,7 +689,7 @@ export const diseaseAPI = {
   async submitDetection(
     imageUri: string,
   ): Promise<ApiResponse<SubmitDetectionResponse>> {
-    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    const token = await secureGet(TOKEN_KEY);
     if (!token) return { success: false, error: "Oturum bulunamadı" };
 
     try {

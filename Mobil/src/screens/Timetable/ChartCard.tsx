@@ -1,7 +1,7 @@
 // Grafik karti - sensor verilerini cizgi grafik olarak gosterir
 // Props: theme, title, icon, color, data, onTouchStart, onTouchEnd
 
-import { View, Text, Dimensions, StyleSheet } from "react-native";
+import { View, Text, Dimensions } from "react-native";
 import { LineChart } from "react-native-gifted-charts";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -180,13 +180,11 @@ export const ChartCard = ({
   if (!isReady) {
     return (
       <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.surface, height: CHART_HEIGHT + 100 },
-        ]}
+        className="rounded-xl"
+        style={{ marginBottom: vs(24), padding: s(16), paddingBottom: vs(8), backgroundColor: theme.surface, height: CHART_HEIGHT + 100 }}
       >
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+        <View className="flex-1 center">
+          <Text style={{ fontSize: ms(11, 0.3), color: theme.textSecondary }}>
             {t.common.loading}
           </Text>
         </View>
@@ -195,21 +193,24 @@ export const ChartCard = ({
   }
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      className="rounded-xl"
+      style={{ marginBottom: vs(24), padding: s(16), paddingBottom: vs(8), backgroundColor: theme.surface }}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
+      <View className="row-between" style={{ marginBottom: vs(8) }}>
+        <View className="row">
           <MaterialCommunityIcons name={icon as any} size={20} color={color} />
-          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+          <Text style={{ marginLeft: s(8), fontSize: ms(13, 0.3), fontWeight: "600", color: theme.text }}>
+            {title}
+          </Text>
         </View>
         {isInterpolated && (
           <View
-            style={[
-              styles.badge,
-              { backgroundColor: theme.textSecondary + "20" },
-            ]}
+            className="rounded"
+            style={{ paddingHorizontal: s(8), paddingVertical: vs(2), backgroundColor: theme.textSecondary + "20" }}
           >
-            <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
+            <Text style={{ fontSize: ms(9, 0.3), fontWeight: "600", color: theme.textSecondary }}>
               {t.timetable.interpolated}
             </Text>
           </View>
@@ -217,10 +218,10 @@ export const ChartCard = ({
       </View>
 
       {/* Value popup */}
-      <View style={styles.popupContainer}>
+      <View className="center" style={{ height: vs(28) }}>
         {selectedPoint && (
-          <View style={styles.valuePopup}>
-            <Text style={styles.valueText}>
+          <View className="bg-neutral-900 rounded-md" style={{ paddingHorizontal: s(12), paddingVertical: vs(4) }}>
+            <Text className="text-white font-bold" style={{ fontSize: ms(13, 0.3) }}>
               {selectedPoint.value.toFixed(1)} {unit}
             </Text>
           </View>
@@ -229,13 +230,11 @@ export const ChartCard = ({
 
       {/* Chart container */}
       <View
-        style={[
-          styles.chartContainer,
-          {
-            width: chartContainerWidth,
-            height: CHART_HEIGHT + X_AXIS_LABEL_HEIGHT,
-          },
-        ]}
+        className="relative"
+        style={{
+          width: chartContainerWidth,
+          height: CHART_HEIGHT + X_AXIS_LABEL_HEIGHT,
+        }}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
         onResponderGrant={handleTouchStart}
@@ -247,28 +246,30 @@ export const ChartCard = ({
         {labelIndices.map((idx) => (
           <View
             key={`grid-${idx}`}
-            style={[
-              styles.gridLine,
-              {
-                left: getXPosition(idx),
-                height: CHART_HEIGHT,
-                backgroundColor: theme.textSecondary + "25",
-              },
-            ]}
+            style={{
+              position: "absolute",
+              top: 0,
+              width: 1,
+              zIndex: 1,
+              left: getXPosition(idx),
+              height: CHART_HEIGHT,
+              backgroundColor: theme.textSecondary + "25",
+            }}
           />
         ))}
 
         {/* Selection line */}
         {selectedIndex !== null && (
           <View
-            style={[
-              styles.selectionLine,
-              {
-                left: getXPosition(selectedIndex),
-                height: CHART_HEIGHT,
-                backgroundColor: color,
-              },
-            ]}
+            style={{
+              position: "absolute",
+              top: 0,
+              width: 2,
+              zIndex: 10,
+              left: getXPosition(selectedIndex),
+              height: CHART_HEIGHT,
+              backgroundColor: color,
+            }}
           />
         )}
 
@@ -309,104 +310,17 @@ export const ChartCard = ({
       </View>
 
       {/* Time label */}
-      <View style={styles.timeLabelContainer}>
+      <View className="center" style={{ height: vs(24), marginTop: vs(4) }}>
         {selectedPoint && (
-          <View style={styles.timePopup}>
-            <Text style={styles.timeText}>{getTimeLabel()}</Text>
+          <View className="bg-neutral-900 rounded" style={{ paddingHorizontal: s(10), paddingVertical: vs(3) }}>
+            <Text className="text-white font-semibold" style={{ fontSize: ms(10, 0.3) }}>
+              {getTimeLabel()}
+            </Text>
           </View>
         )}
       </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: vs(24),
-    borderRadius: 12,
-    padding: s(16),
-    paddingBottom: vs(8),
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    fontSize: ms(11, 0.3),
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: vs(8),
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  title: {
-    marginLeft: s(8),
-    fontSize: ms(13, 0.3),
-    fontWeight: "600",
-  },
-  badge: {
-    paddingHorizontal: s(8),
-    paddingVertical: vs(2),
-    borderRadius: 4,
-  },
-  badgeText: {
-    fontSize: ms(9, 0.3),
-    fontWeight: "600",
-  },
-  popupContainer: {
-    height: vs(28),
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  valuePopup: {
-    backgroundColor: "#1a1a1a",
-    paddingHorizontal: s(12),
-    paddingVertical: vs(4),
-    borderRadius: 6,
-  },
-  valueText: {
-    color: "#fff",
-    fontSize: ms(13, 0.3),
-    fontWeight: "bold",
-  },
-  chartContainer: {
-    position: "relative",
-  },
-  gridLine: {
-    position: "absolute",
-    top: 0,
-    width: 1,
-    zIndex: 1,
-  },
-  selectionLine: {
-    position: "absolute",
-    top: 0,
-    width: 2,
-    zIndex: 10,
-  },
-  timeLabelContainer: {
-    height: vs(24),
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: vs(4),
-  },
-  timePopup: {
-    backgroundColor: "#1a1a1a",
-    paddingHorizontal: s(10),
-    paddingVertical: vs(3),
-    borderRadius: 4,
-  },
-  timeText: {
-    color: "#fff",
-    fontSize: ms(10, 0.3),
-    fontWeight: "600",
-  },
-});
 
 export default ChartCard;

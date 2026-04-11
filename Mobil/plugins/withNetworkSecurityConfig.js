@@ -1,7 +1,6 @@
 const { withAndroidManifest, AndroidConfig } = require("@expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config();
 
 /**
  * Expo config plugin to add network security config for HTTP cleartext traffic
