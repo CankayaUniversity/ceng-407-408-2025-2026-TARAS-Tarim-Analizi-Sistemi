@@ -6,6 +6,17 @@ import { asyncHandler } from "../middleware/error.middleware";
 import prisma from "../config/database";
 import logger from "../utils/logger";
 
+// Provider gecisi — LLM_PROVIDER env ile kontrol edilir
+// "groq" (varsayilan) veya baska bir deger (extended modul gerektirir)
+const LLM_MODE = process.env.LLM_PROVIDER || "groq";
+let ext: any = null;
+if (LLM_MODE !== "groq") {
+  try {
+    ext = require("../services/llm.extended");
+    logger.info(`[LLM] extended provider aktif`);
+  } catch { logger.info("[LLM] groq provider aktif"); }
+}
+
 // Session olustur veya mevcut olanini kullan
 async function resolveSession(
   sessionId: string | undefined,
@@ -37,18 +48,21 @@ export const getTarasAdvice = asyncHandler(
 
     const userId = (req as any).user?.user_id;
     const currentSessionId = await resolveSession(session_id, userId, field_id);
+    await saveMessage(currentSessionId, "user", message);
 
-    const [, fieldContext] = await Promise.all([
-      saveMessage(currentSessionId, "user", message),
-      getFieldContextForLLM(field_id),
-    ]);
+    let llmResponse: string;
 
-    if ("error" in fieldContext) {
-      res.status(404).json({ success: false, error: fieldContext.error });
-      return;
+    if (ext) {
+      llmResponse = await ext.generateAdvisory(userId, field_id, message, currentSessionId);
+    } else {
+      const fieldContext = await getFieldContextForLLM(field_id);
+      if ("error" in fieldContext) {
+        res.status(404).json({ success: false, error: fieldContext.error });
+        return;
+      }
+      llmResponse = await generateAdvisory(fieldContext, message, currentSessionId);
     }
 
-    const llmResponse = await generateAdvisory(fieldContext, message, currentSessionId);
     await saveMessage(currentSessionId, "assistant", llmResponse);
 
     res.status(200).json({
@@ -73,16 +87,7 @@ export const getTarasAdviceStream = asyncHandler(
 
     const userId = (req as any).user?.user_id;
     const currentSessionId = await resolveSession(session_id, userId, field_id);
-
-    const [, fieldContext] = await Promise.all([
-      saveMessage(currentSessionId, "user", message),
-      getFieldContextForLLM(field_id),
-    ]);
-
-    if ("error" in fieldContext) {
-      res.status(404).json({ success: false, error: fieldContext.error });
-      return;
-    }
+    await saveMessage(currentSessionId, "user", message);
 
     // SSE basliklari
     res.setHeader("Content-Type", "text/event-stream");
@@ -91,14 +96,27 @@ export const getTarasAdviceStream = asyncHandler(
     res.flushHeaders();
 
     try {
-      const fullText = await generateAdvisoryStream(
-        fieldContext,
-        message,
-        currentSessionId,
-        (chunk) => {
-          res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
-        },
-      );
+      let fullText: string;
+
+      if (ext) {
+        fullText = await ext.generateAdvisoryStream(
+          userId, field_id, message, currentSessionId,
+          (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
+          (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
+          (screen: string) => res.write(`data: ${JSON.stringify({ navigate: screen })}\n\n`),
+        );
+      } else {
+        const fieldContext = await getFieldContextForLLM(field_id);
+        if ("error" in fieldContext) {
+          res.write(`data: ${JSON.stringify({ error: fieldContext.error })}\n\n`);
+          res.end();
+          return;
+        }
+        fullText = await generateAdvisoryStream(
+          fieldContext, message, currentSessionId,
+          (chunk) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
+        );
+      }
 
       await saveMessage(currentSessionId, "assistant", fullText);
       res.write(
@@ -113,21 +131,30 @@ export const getTarasAdviceStream = asyncHandler(
   },
 );
 
-// Kullanicinin belirli bir tarla icin mevcut chat session'ini getir
+// Belirli bir session veya tarla icin chat session getir
 export const getFieldChatSession = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.user_id;
     const fieldId = req.query.field_id as string;
+    const sessionId = req.query.session_id as string;
 
-    if (!userId || !fieldId) {
-      res.status(400).json({ success: false, error: "field_id gerekli." });
+    if (!userId || (!fieldId && !sessionId)) {
+      res.status(400).json({ success: false, error: "field_id veya session_id gerekli." });
       return;
     }
 
-    const session = await getFieldSession(userId, fieldId);
+    let session: any;
+
+    if (sessionId) {
+      session = await prisma.chatSession.findFirst({
+        where: { session_id: sessionId, user_id: userId },
+      });
+    } else {
+      session = await getFieldSession(userId, fieldId);
+    }
 
     if (!session) {
-      logger.debug(`[CHAT] session yok: field=${fieldId.slice(0, 8)}...`);
+      logger.debug(`[CHAT] session yok`);
       res.status(200).json({
         success: true,
         data: { session_id: null, messages: [] },
@@ -150,5 +177,34 @@ export const getFieldChatSession = asyncHandler(
         })),
       },
     });
+  },
+);
+
+// Kullanicinin tum sohbet gecmisini getir
+export const getChatHistory = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+
+    try {
+      const { getUserSessions } = require("../services/chatMemory.service");
+      const sessions = await getUserSessions(userId);
+
+      res.status(200).json({
+        success: true,
+        data: sessions.map((s: any) => ({
+          session_id: s.session_id,
+          field_name: s.field?.name ?? "—",
+          started_at: s.started_at,
+          last_message: s.messages?.[0]?.content?.slice(0, 100) ?? "",
+          last_message_at: s.messages?.[0]?.created_at ?? null,
+        })),
+      });
+    } catch {
+      res.status(200).json({ success: true, data: [] });
+    }
   },
 );

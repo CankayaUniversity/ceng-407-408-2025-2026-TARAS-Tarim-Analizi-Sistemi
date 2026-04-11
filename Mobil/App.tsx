@@ -66,7 +66,7 @@ import { HardwareSetupModal } from "./src/screens/Settings/HardwareSetupModal";
 
 // Components
 import { ChatWindow } from "./src/components/ChatWindow";
-import { ChatBubble } from "./src/components/ChatBubble";
+
 import { DraggableAIButton } from "./src/components/DraggableAIButton";
 import { ProfileButton } from "./src/components/ProfileButton";
 
@@ -134,19 +134,7 @@ function AppContent() {
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
   const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
-  const { messages, chatInput, setChatInput, sendMessage, isLoading: chatLoading, startNewChat, pendingBubble, clearPendingBubble, historySessions, isLoadingHistory, loadHistory, loadSessionById } = useChat(setScreen, selectedFieldId);
-
-  // AI buton konumu ve LLM navigasyon
-  const [aiSpotIndex, setAiSpotIndex] = useState(0);
-  const [aiMoveTarget, setAiMoveTarget] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (pendingBubble) {
-      setShowChat(false);
-      // LLM navigasyon olunca buton karsi tarafa zipla
-      setAiMoveTarget(aiSpotIndex === 0 ? 1 : 0);
-    }
-  }, [pendingBubble]);
+  const { messages, chatInput, setChatInput, sendMessage, isLoading: chatLoading, startNewChat } = useChat(selectedFieldId);
 
   // ── Data helpers ───────────────────────────────────────────────────────
   const loadDashboardData = async (fieldId: string, isDemo: boolean) => {
@@ -501,10 +489,6 @@ function AppContent() {
             onSendMessage={sendMessage}
             onInputChange={setChatInput}
             onNewChat={startNewChat}
-            historySessions={historySessions}
-            isLoadingHistory={isLoadingHistory}
-            onLoadHistory={loadHistory}
-            onSelectSession={loadSessionById}
           />
         ) : (
           <>
@@ -515,21 +499,10 @@ function AppContent() {
 
             {bottomNavJSX}
 
-            <ChatBubble
-              message={pendingBubble?.text ?? ""}
-              visible={!!pendingBubble}
-              theme={theme}
-              bottom={windowHeight - insets.top - navBarY + s(8)}
-              onPress={() => { clearPendingBubble(); setShowChat(true); }}
-              onDismiss={clearPendingBubble}
-            />
             <DraggableAIButton
               theme={theme}
-              onPress={() => { clearPendingBubble(); setShowChat(true); }}
+              onPress={() => setShowChat(true)}
               safeSpots={aiSafeSpots}
-              moveToSpot={aiMoveTarget}
-              onMoveComplete={() => setAiMoveTarget(null)}
-              onSpotChanged={setAiSpotIndex}
             />
           </>
         )}
