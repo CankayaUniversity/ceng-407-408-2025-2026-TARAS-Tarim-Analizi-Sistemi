@@ -13,12 +13,16 @@ const plugins = [
     },
   ],
   "./plugins/withNetworkSecurityConfig.js",
+  "./plugins/withDefaultLocaleStrings.js",
   ["react-native-ble-plx", { neverForBackground: true }],
   [
     "expo-build-properties",
     {
       buildReactNativeFromSource: useHermesV1,
       useHermesV1,
+      android: {
+        cmake: "3.22.1",
+      },
     },
   ],
 ];
