@@ -28,9 +28,9 @@ menu "AHT25 WiFi Configuration"
 
     config BACKEND_URL
         string "Backend URL"
-        default "http://16.171.19.61:3000/api/sensors/device/data"
+        default "http://backend.example.com:3000/api/sensors/device/data"
         help
-            HTTP endpoint to POST sensor data to.
+            HTTP endpoint to POST sensor data to. Set via idf.py menuconfig.
 
     config DEVICE_API_KEY
         string "Device API Key"

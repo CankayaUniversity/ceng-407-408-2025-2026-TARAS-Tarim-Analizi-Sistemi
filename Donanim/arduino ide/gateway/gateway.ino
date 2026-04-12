@@ -26,8 +26,9 @@
 #include <mbedtls/md.h>
 
 // ── Configuration ────────────────────────────────────────────────────
+// NOTE: Set BACKEND_HOST to your server IP/domain before flashing.
 #define GW_FW_VERSION      "1.0.1"
-#define BACKEND_HOST       "16.171.19.61"
+#define BACKEND_HOST       "backend.example.com"
 #define BACKEND_PORT       3000
 #define BACKEND_DATA_PATH  "/api/sensors/device/data"
 #define SOCKETIO_PATH      "/socket.io/?EIO=3"
