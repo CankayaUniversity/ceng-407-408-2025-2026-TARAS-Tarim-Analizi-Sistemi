@@ -12,6 +12,7 @@ Thumbs.db
 */*.md
 */*.zip
 *.zip
+*.7z
 *.bat
 *.sh
 
@@ -130,3 +131,4 @@ Mobil/*.tsbuildinfo
 
 # Hardware local config (contains real backend host)
 Donanim/arduino ide/gateway/gateway_config.h
+Donanim/arduino ide/gateway/isrg_root_x1.h
