@@ -30,23 +30,36 @@ async function getOrCreateKey(): Promise<AESEncryptionKey> {
   return cachedKey;
 }
 
-export async function secureSet(key: string, value: string): Promise<void> {
-  const aesKey = await getOrCreateKey();
-  const plaintext = new TextEncoder().encode(value);
-  const sealed = await aesEncryptAsync(plaintext, aesKey);
-  const combined = await sealed.combined("base64");
-  await AsyncStorage.setItem(key, combined);
+export async function secureGet(key: string): Promise<string | null> {
+  try {
+    const stored = await AsyncStorage.getItem(key);
+    if (!stored) return null;
+
+    const aesKey = await getOrCreateKey();
+    const bytes = base64ToBytes(stored);
+    const sealed = AESSealedData.fromCombined(bytes);
+    const decrypted = await aesDecryptAsync(sealed, aesKey);
+    return new TextDecoder().decode(decrypted as Uint8Array);
+  } catch (error) {
+    // Sifre cozme basarisiz (eski plaintext token veya bozuk veri)
+    // Bozuk anahtari temizle, null dondur — app login ekranina yonlensin
+    console.log("[SECURE] decrypt failed for", key, "— clearing");
+    await AsyncStorage.removeItem(key);
+    return null;
+  }
 }
 
-export async function secureGet(key: string): Promise<string | null> {
-  const stored = await AsyncStorage.getItem(key);
-  if (!stored) return null;
-
-  const aesKey = await getOrCreateKey();
-  const bytes = base64ToBytes(stored);
-  const sealed = AESSealedData.fromCombined(bytes);
-  const decrypted = await aesDecryptAsync(sealed, aesKey);
-  return new TextDecoder().decode(decrypted as Uint8Array);
+export async function secureSet(key: string, value: string): Promise<void> {
+  try {
+    const aesKey = await getOrCreateKey();
+    const plaintext = new TextEncoder().encode(value);
+    const sealed = await aesEncryptAsync(plaintext, aesKey);
+    const combined = await sealed.combined("base64");
+    await AsyncStorage.setItem(key, combined);
+  } catch (error) {
+    console.log("[SECURE] encrypt failed for", key, error);
+    throw error;
+  }
 }
 
 export async function secureRemove(key: string): Promise<void> {
