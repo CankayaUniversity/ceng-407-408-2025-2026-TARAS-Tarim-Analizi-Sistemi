@@ -127,3 +127,6 @@ Mobil/*.tsbuildinfo
 
 *.html
 *.docx
+
+# Hardware local config (contains real backend host)
+Donanim/arduino ide/gateway/gateway_config.h
