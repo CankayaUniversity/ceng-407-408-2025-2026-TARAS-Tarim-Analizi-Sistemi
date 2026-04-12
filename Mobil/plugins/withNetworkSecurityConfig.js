@@ -38,7 +38,8 @@ const withNetworkSecurityConfig = (config) => {
     // Get API host from environment variable — .env dosyasinda tanimli olmali
     const useLocal = process.env.USE_LOCAL_API === "true";
     const apiHost = useLocal ? (process.env.API_HOST_LOCAL || "") : (process.env.API_HOST_AWS || "");
-    // Extract domain/IP from URL (remove http:// and port)
+    // URL parse — protokol ve port temizle
+    const isHttps = apiHost.startsWith("https://");
     const domain = apiHost.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
     if (!domain) {
       throw new Error(
@@ -46,15 +47,22 @@ const withNetworkSecurityConfig = (config) => {
       );
     }
 
-    // Write the network security config
-    const networkSecurityConfig = `<?xml version="1.0" encoding="utf-8"?>
+    // HTTPS kullaniliyorsa cleartext istisnasi gerekmez — sadece TLS guvene
+    // HTTP kullaniliyorsa (yerel dev) sadece o domain icin cleartext'e izin ver
+    const networkSecurityConfig = isHttps
+      ? `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow cleartext (HTTP) traffic ONLY to the backend server -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>`
+      : `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">${domain}</domain>
     </domain-config>
-
-    <!-- Block all other HTTP traffic (HTTPS only) -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />

@@ -25,7 +25,15 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || 'localhost';
 const httpServer = createServer(app);
 
-app.use(helmet());
+// Reverse proxy (nginx) arkasinda calisirken gercek IP'yi al
+app.set('trust proxy', 1);
+
+app.use(helmet({
+  // API icin CSP gerekli degil — sadece JSON donduruyoruz
+  contentSecurityPolicy: false,
+  // HSTS — HTTPS uzerinden hizmet veriliyorken etkili olur
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+}));
 app.use(compression({
   filter: (req, res) => {
     // SSE bağlantılarında sıkıştırma yapma (streaming'i bozar)

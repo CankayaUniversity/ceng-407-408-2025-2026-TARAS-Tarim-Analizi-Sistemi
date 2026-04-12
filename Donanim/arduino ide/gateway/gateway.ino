@@ -14,6 +14,9 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include "isrg_root_x1.h"
+#include "gateway_config.h"  // Local: BACKEND_HOST tanimi (gitignored)
 #include <SPIFFS.h>
 #include <Preferences.h>
 #include <WebSocketsClient.h>
@@ -26,10 +29,11 @@
 #include <mbedtls/md.h>
 
 // ── Configuration ────────────────────────────────────────────────────
-// NOTE: Set BACKEND_HOST to your server IP/domain before flashing.
-#define GW_FW_VERSION      "1.0.1"
-#define BACKEND_HOST       "backend.example.com"
-#define BACKEND_PORT       3000
+// BACKEND_HOST gateway_config.h dosyasinda tanimli (gitignored).
+// HTTPS uses port 443 with WiFiClientSecure validating against ISRG Root X1
+// (Let's Encrypt root CA, bundled in isrg_root_x1.h).
+#define GW_FW_VERSION      "1.0.3"
+#define BACKEND_PORT       443
 #define BACKEND_DATA_PATH  "/api/sensors/device/data"
 #define SOCKETIO_PATH      "/socket.io/?EIO=3"
 
@@ -387,15 +391,17 @@ String buildReadingsJson(const reading_entry_t *readings, uint8_t count) {
 
 bool postReadingsToBackend(const char *dk, const String &json) {
   if (WiFi.status() != WL_CONNECTED) return false;
+  WiFiClientSecure client;
+  client.setCACert(ISRG_ROOT_X1_PEM);  // Let's Encrypt zincirini dogrula
   HTTPClient http;
-  String url = String("http://") + BACKEND_HOST + ":" + BACKEND_PORT + BACKEND_DATA_PATH;
-  http.begin(url);
+  String url = String("https://") + BACKEND_HOST + BACKEND_DATA_PATH;
+  http.begin(client, url);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Key", dk);
   http.setTimeout(10000);
   int code = http.POST(String("{\"readings\":") + json + "}");
   http.end();
-  Serial.printf("[HTTP] %s %d\n", dk, code);
+  Serial.printf("[HTTPS] %s %d\n", dk, code);
   return code == 200;
 }
 
@@ -719,9 +725,11 @@ void handleDiagnostic(const uint8_t *mac, const uint8_t *data, int len) {
   String json; serializeJson(doc, json);
   const char *dk = paired_nodes[idx].device_key;
 
+  WiFiClientSecure client;
+  client.setCACert(ISRG_ROOT_X1_PEM);
   HTTPClient http;
-  String url = String("http://") + BACKEND_HOST + ":" + BACKEND_PORT + "/api/sensors/device/diagnostic";
-  http.begin(url);
+  String url = String("https://") + BACKEND_HOST + "/api/sensors/device/diagnostic";
+  http.begin(client, url);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Key", dk);
   http.setTimeout(10000);
@@ -818,8 +826,15 @@ void processEspNowQueue() {
 void handleOtaUpdate(const char *url, const char *version) {
   Serial.printf("[OTA] Downloading v%s from %s\n", version ? version : "?", url);
 
+  WiFiClientSecure client;
+  client.setCACert(ISRG_ROOT_X1_PEM);
   HTTPClient http;
-  http.begin(url);
+  // HTTPS URL ise secure client kullan, HTTP ise dogrudan
+  if (String(url).startsWith("https://")) {
+    http.begin(client, url);
+  } else {
+    http.begin(url);
+  }
   http.setTimeout(30000);
   int httpCode = http.GET();
 
@@ -1155,9 +1170,11 @@ void bleTestAndSave() {
 
   // Backend health check
   Serial.println("[BLE] WiFi OK! Testing backend...");
+  WiFiClientSecure healthClient;
+  healthClient.setCACert(ISRG_ROOT_X1_PEM);
   HTTPClient http;
-  String healthUrl = String("http://") + BACKEND_HOST + ":" + BACKEND_PORT + "/api/health";
-  http.begin(healthUrl); http.setTimeout(10000);
+  String healthUrl = String("https://") + BACKEND_HOST + "/api/health";
+  http.begin(healthClient, healthUrl); http.setTimeout(10000);
   int healthCode = http.GET();
   http.end();
 
@@ -1360,7 +1377,7 @@ void setup() {
     Serial.printf("\n[WIFI] Connected IP=%s CH=%d RSSI=%d\n",
       WiFi.localIP().toString().c_str(), WiFi.channel(), WiFi.RSSI());
     esp_wifi_set_ps(WIFI_PS_NONE);  // No power save — Socket.IO needs always-on radio
-    socketIO.begin(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH);
+    socketIO.beginSslWithCA(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH, ISRG_ROOT_X1_PEM);
     socketIO.onEvent(socketIOEventHandler);
     socketIO_initialized = true;
   } else {
@@ -1384,10 +1401,10 @@ void loopWifiReconnect() {
     // WiFi just reconnected — init Socket.IO if not already
     if (WiFi.status() == WL_CONNECTED && !socketIO_connected && millis() - lastWifiCheck > 5000) {
       if (!socketIO_initialized) {
-        socketIO.begin(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH);
+        socketIO.beginSslWithCA(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH, ISRG_ROOT_X1_PEM);
         socketIO.onEvent(socketIOEventHandler);
         socketIO_initialized = true;
-        Serial.println("[WIFI] Reconnected, starting Socket.IO");
+        Serial.println("[WIFI] Reconnected, starting Socket.IO (SSL)");
       }
       lastWifiCheck = millis();
     }

@@ -27,11 +27,18 @@ const plugins = [
   ],
 ];
 
+// ── App version ──────────────────────────────────────────────────────
+// Yeni surum yayinlarken APP_VERSION ve APP_VERSION_CODE'u guncelle.
+// APP_VERSION: kullaniciya gosterilir (semver)
+// APP_VERSION_CODE: Android internal versionCode — her surumde +1 olmali
+const APP_VERSION = "0.5.0";
+//const APP_VERSION_CODE = 2;
+
 module.exports = {
   expo: {
-    name: "TarasMobil",
-    slug: "tarasmobil",
-    version: "1.0.0",
+    name: "Taras",
+    slug: "taras",
+    version: APP_VERSION,
     assetBundlePatterns: ["**/*"],
     userInterfaceStyle: "automatic",
     plugins,
@@ -41,19 +48,18 @@ module.exports = {
     },
     ios: {
       supportsTabletMode: true,
-      bundleIdentifier: "com.tarasmobil.app",
+      bundleIdentifier: "com.taras.app",
+      //buildNumber: String(APP_VERSION_CODE),
       userInterfaceStyle: "automatic",
       infoPlist: {
         CFBundleAllowMixedLocalizations: true,
-        NSAppTransportSecurity: {
-          NSAllowsArbitraryLoads: true,
-        },
       },
     },
     android: {
-      package: "com.tarasmobil.app",
+      package: "com.taras.app",
+      //versionCode: APP_VERSION_CODE,
       userInterfaceStyle: "automatic",
-      usesCleartextTraffic: true,
+      usesCleartextTraffic: false,
       permissions: [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
