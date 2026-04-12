@@ -35,12 +35,16 @@ const withNetworkSecurityConfig = (config) => {
       fs.mkdirSync(xmlDir, { recursive: true });
     }
 
-    // Get API host from environment variable
+    // Get API host from environment variable — .env dosyasinda tanimli olmali
     const useLocal = process.env.USE_LOCAL_API === "true";
     const apiHost = useLocal ? (process.env.API_HOST_LOCAL || "") : (process.env.API_HOST_AWS || "");
     // Extract domain/IP from URL (remove http:// and port)
-    const domain =
-      apiHost.replace(/^https?:\/\//, "").replace(/:\d+$/, "") || "16.171.19.61";
+    const domain = apiHost.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
+    if (!domain) {
+      throw new Error(
+        "[withNetworkSecurityConfig] API_HOST_AWS or API_HOST_LOCAL must be set in .env"
+      );
+    }
 
     // Write the network security config
     const networkSecurityConfig = `<?xml version="1.0" encoding="utf-8"?>
