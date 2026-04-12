@@ -3,12 +3,18 @@
 
 import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { SettingsScreenProps, ThemeOption } from "./types";
 import { runNetworkDiagnostics } from "../../utils/networkDiagnostics";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { Language } from "../../utils/strings";
 import { s, vs, ms } from "../../utils/responsive";
+
+// Surum bilgisi — app.config.js'den okunur
+const APP_NAME = Constants.expoConfig?.name ?? "App";
+const APP_VERSION = Constants.expoConfig?.version ?? "?";
+const APP_BUILD = Constants.expoConfig?.android?.versionCode ?? Constants.expoConfig?.ios?.buildNumber ?? "?";
 
 interface LanguageOption {
   code: Language;
@@ -272,6 +278,20 @@ export const SettingsScreen = ({
           {t.settings.logout}
         </Text>
       </TouchableOpacity>
+
+      {/* Surum bilgisi */}
+      <Text
+        className="text-center"
+        style={{
+          marginTop: vs(20),
+          marginBottom: vs(12),
+          fontSize: ms(11, 0.3),
+          color: theme.textSecondary,
+          opacity: 0.6,
+        }}
+      >
+        {APP_NAME} v{APP_VERSION} ({APP_BUILD})
+      </Text>
     </ScrollView>
   );
 };
