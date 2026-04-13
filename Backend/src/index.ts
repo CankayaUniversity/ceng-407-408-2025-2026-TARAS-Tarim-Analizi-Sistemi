@@ -41,12 +41,18 @@ app.use(compression({
     return compression.filter(req, res);
   },
 }));
+// CORS — fail-fast on missing CORS_ORIGINS rather than silently allowing wildcard.
+const corsOrigins = process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean);
+if (!corsOrigins || corsOrigins.length === 0) {
+  throw new Error('CORS_ORIGINS env var must be set to a comma-separated list of allowed origins');
+}
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || '*',
+  origin: corsOrigins,
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Bound request body memory to prevent slow-loris / large-payload DoS.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(requestLogger);
 app.use(debugLogger);
 

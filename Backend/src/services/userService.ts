@@ -7,7 +7,10 @@ export async function createUser(data: {
   password: string;
   role_id?: number;
 }) {
-  const hashedPassword = await bcrypt.hash(data.password, 10);
+  // bcrypt cost 12: ~300 ms per hash on EC2 t3.micro. Combined with authLimiter
+  // (10 req / 15 min / IP) this keeps brute-force impractical without making
+  // legitimate logins noticeably slow.
+  const hashedPassword = await bcrypt.hash(data.password, 12);
 
   return prisma.user.create({
     data: {
@@ -89,7 +92,7 @@ export async function getUserProfile(userId: string) {
 }
 
 export async function updateUserPassword(userId: string, newPassword: string) {
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
 
   return prisma.user.update({
     where: { user_id: userId },

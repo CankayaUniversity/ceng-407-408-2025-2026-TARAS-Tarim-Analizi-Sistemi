@@ -2,7 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
+const _JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!_JWT_SECRET_RAW || _JWT_SECRET_RAW === 'change-me-in-production' || _JWT_SECRET_RAW.length < 32) {
+  throw new Error('JWT_SECRET env var must be set to a strong random value (>=32 chars, not the default placeholder)');
+}
+const JWT_SECRET: string = _JWT_SECRET_RAW;
 
 interface JwtPayload {
   user_id: string;
