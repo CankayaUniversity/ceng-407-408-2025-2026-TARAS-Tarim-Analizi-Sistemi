@@ -1,0 +1,32 @@
+# Model weights - 213 MB, not appropriate for git. Developers/CI obtain the
+# file out-of-band (see README). An empty .gitkeep marks the folder.
+model/*.bin
+model/*.pth
+model/*.pt
+model/*.tflite
+model/*.keras
+model/*.onnx
+
+# Test fixtures - raw training images, stolen from C:\Dev\TARAS_Disease.
+# Also large, not for git. Developers/CI obtain them out-of-band.
+tests/fixtures/*.jpg
+tests/fixtures/*.JPG
+tests/fixtures/*.jpeg
+tests/fixtures/*.JPEG
+tests/fixtures/*.png
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor
+.vscode/
+.idea/
+
+# Virtualenvs
+venv/
+.venv/
+
+# Smoke-test output from swap_forward.bat
+swap_response.json
