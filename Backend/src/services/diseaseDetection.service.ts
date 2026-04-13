@@ -163,6 +163,7 @@ export async function getUserDetections(userId: string): Promise<any[]> {
         detected_disease: true,
         confidence: true,
         confidence_score: true,
+        all_predictions: true,
         recommendations: true,
         error_message: true,
       },

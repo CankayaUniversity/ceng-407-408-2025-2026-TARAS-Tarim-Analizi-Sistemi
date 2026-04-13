@@ -62,8 +62,6 @@ export interface StringDictionary {
 
   // Disease Screen
   disease: {
-    title: string;
-    subtitle: string;
     noAnalysisYet: string;
     noAnalysisSubtitle: string;
     loadingResults: string;
@@ -378,8 +376,6 @@ const tr: StringDictionary = {
   },
 
   disease: {
-    title: "Hastalık Tespit",
-    subtitle: "Yaprak fotoğrafları ile hastalık tespit sonuçları",
     noAnalysisYet: "Henüz analiz yok",
     noAnalysisSubtitle: "Yaprak fotoğrafı çekerek hastalık tespiti başlatın",
     loadingResults: "Yükleniyor...",
@@ -692,8 +688,6 @@ const en: StringDictionary = {
   },
 
   disease: {
-    title: "Disease Detection",
-    subtitle: "Disease detection results from leaf photos",
     noAnalysisYet: "No analysis yet",
     noAnalysisSubtitle: "Take a leaf photo to start disease detection",
     loadingResults: "Loading...",

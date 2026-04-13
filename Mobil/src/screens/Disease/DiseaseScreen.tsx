@@ -1,7 +1,7 @@
 // Hastalik tespit ekrani - analiz listesi ve kamera erisimi
 // Props: theme, permission, onRequestPermission, isActive
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { s, vs } from "../../utils/responsive";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import * as imageCache from "../../utils/imageCache";
 
 interface ParentDiseaseScreenProps extends DiseaseScreenProps {
   theme: Theme;
@@ -42,9 +43,21 @@ export const DiseaseScreen = ({
   const [detections, setDetections] = useState<DiseaseDetection[]>([]);
   const [selectedDetection, setSelectedDetection] =
     useState<DiseaseDetection | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+
+  // Cache'deki resimleri hydrate et — network fetch ile paralel, kart goruntuleri
+  // backend cevaplamadan once gozukebilsin
+  useEffect(() => {
+    (async () => {
+      const ids = await imageCache.listCachedIds();
+      if (ids.length === 0) return;
+      const hydrated: Record<string, string> = {};
+      for (const id of ids) hydrated[id] = imageCache.localPath(id);
+      setImageUrls((prev) => ({ ...hydrated, ...prev }));
+    })();
+  }, []);
 
   const fetchDetections = async (isRefresh = false) => {
     if (isRefresh) {
@@ -58,12 +71,25 @@ export const DiseaseScreen = ({
       if (response.success && response.data) {
         setDetections(response.data.detections);
 
-        // URL'ler artik response icinde geliyor (backend paralel olusturuyor)
-        const urls: Record<string, string> = {};
-        for (const d of response.data.detections) {
-          if (d.imageUrl) urls[d.detection_id] = d.imageUrl;
-        }
-        setImageUrls(urls);
+        // Her detection icin yerel cache ya indir ya da mevcut dosyayi kullan
+        const nextUrls: Record<string, string> = {};
+        await Promise.all(
+          response.data.detections.map(async (d) => {
+            const uri = await imageCache.resolveImage(
+              d.detection_id,
+              d.imageUrl ?? null,
+            );
+            if (uri) nextUrls[d.detection_id] = uri;
+          }),
+        );
+        setImageUrls(nextUrls);
+
+        // Cross-device reconciliation — server'da olmayan yerel dosyalari temizle
+        // Sadece basarili fetch sonrasi cagrilir; network hatasinda silme yapma
+        const liveIds = new Set(
+          response.data.detections.map((d) => d.detection_id),
+        );
+        imageCache.reconcile(liveIds).catch(() => {});
       }
     } catch (error) {
       showPopup(t.disease.errorLoadingResults);
@@ -141,6 +167,12 @@ export const DiseaseScreen = ({
               setDetections((prev) =>
                 prev.filter((d) => d.detection_id !== detectionId),
               );
+              imageCache.deleteLocal(detectionId).catch(() => {});
+              setImageUrls((prev) => {
+                const next = { ...prev };
+                delete next[detectionId];
+                return next;
+              });
               showPopup(t.disease.deletedSuccessfully);
             } else {
               showPopup(response.error || t.disease.errorDeleting);
@@ -167,15 +199,6 @@ export const DiseaseScreen = ({
 
   return (
     <View className="screen-bg">
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm }}>
-        <Text className="text-primary text-2xl font-bold mb-1">
-          {t.disease.title}
-        </Text>
-        <Text className="text-secondary text-[13px]">
-          {t.disease.subtitle}
-        </Text>
-      </View>
-
       {loading && !refreshing ? (
         <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
           <ActivityIndicator size="large" color={theme.accent} />
@@ -189,7 +212,9 @@ export const DiseaseScreen = ({
             className="flex-1"
             contentContainerStyle={{
               paddingHorizontal: spacing.md,
+              paddingTop: spacing.md,
               paddingBottom: 100,
+              flexGrow: 1,
             }}
             showsVerticalScrollIndicator={false}
             refreshControl={
@@ -201,7 +226,7 @@ export const DiseaseScreen = ({
             }
           >
             {detections.length === 0 ? (
-              <View className="items-center" style={{ paddingVertical: spacing.xxl }}>
+              <View className="flex-1 center">
                 <Ionicons
                   name="leaf-outline"
                   size={64}
@@ -228,21 +253,38 @@ export const DiseaseScreen = ({
             )}
           </ScrollView>
 
-          <TouchableOpacity
-            onPress={() => setShowCamera(true)}
-            className="absolute center"
+          <View
+            className="absolute"
             style={{
-              right: s(24),
-              bottom: vs(100),
-              width: s(56),
-              height: s(56),
-              borderRadius: 28,
-              backgroundColor: theme.accent,
-              elevation: 6,
+              left: 0,
+              right: 0,
+              bottom: vs(12),
+              alignItems: "center",
             }}
+            pointerEvents="box-none"
           >
-            <Ionicons name="camera" size={28} color={theme.background} />
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowCamera(true)}
+              activeOpacity={0.85}
+              style={{
+                width: s(48),
+                height: s(48),
+                borderRadius: 24,
+                backgroundColor: theme.accent,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 2,
+                borderColor: theme.background,
+                elevation: 10,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 10,
+              }}
+            >
+              <Ionicons name="add" size={32} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </>
       )}
 
@@ -319,38 +361,58 @@ export const DiseaseScreen = ({
                   className="surface-bg rounded-lg"
                   style={{ padding: spacing.sm }}
                 >
-                  <Text
-                    className="text-secondary text-[11px] font-semibold mb-1"
-                  >
+                  <Text className="text-secondary text-[11px] font-semibold mb-2">
                     all_predictions
                   </Text>
                   {selectedDetection.all_predictions &&
                   Object.keys(selectedDetection.all_predictions).length > 0 ? (
                     Object.entries(selectedDetection.all_predictions)
                       .sort(([, a], [, b]) => b - a)
-                      .map(([label, score]) => {
+                      .map(([label, score], idx) => {
                         const pct = score <= 1 ? score * 100 : score;
+                        const isTop = idx === 0;
                         return (
                           <View
                             key={label}
-                            className="flex-row justify-between py-0.5"
-                            style={{
-                              borderBottomWidth: 1,
-                              borderBottomColor: theme.accent + "10",
-                            }}
+                            style={{ marginBottom: spacing.sm }}
                           >
-                            <Text
-                              className="text-primary text-xs flex-1"
-                              numberOfLines={2}
+                            <View className="flex-row items-start mb-1" style={{ gap: spacing.xs }}>
+                              <Text
+                                className="text-primary text-xs flex-1"
+                                style={{ fontWeight: isTop ? "700" : "500" }}
+                                numberOfLines={2}
+                              >
+                                {label}
+                              </Text>
+                              <Text
+                                className="text-xs"
+                                style={{
+                                  color: theme.accent,
+                                  fontWeight: isTop ? "700" : "600",
+                                  minWidth: s(52),
+                                  textAlign: "right",
+                                }}
+                              >
+                                {pct.toFixed(2)}%
+                              </Text>
+                            </View>
+                            <View
+                              style={{
+                                height: 4,
+                                borderRadius: 2,
+                                backgroundColor: theme.accent + "15",
+                                overflow: "hidden",
+                              }}
                             >
-                              {label}
-                            </Text>
-                            <Text
-                              className="text-xs font-semibold ml-2"
-                              style={{ color: theme.accent }}
-                            >
-                              {pct.toFixed(2)}%
-                            </Text>
+                              <View
+                                style={{
+                                  height: "100%",
+                                  width: `${Math.min(100, Math.max(0, pct))}%`,
+                                  backgroundColor: theme.accent,
+                                  borderRadius: 2,
+                                }}
+                              />
+                            </View>
                           </View>
                         );
                       })
