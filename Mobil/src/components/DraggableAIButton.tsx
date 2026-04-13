@@ -1,4 +1,4 @@
-// Suruklenebilir AI butonu — safe spot'lara yayli snap
+// Suruklenebilir AI butonu — safe spot'lara yayli snap, LLM tetiklemeli hareket
 import { useRef, useEffect, useCallback } from "react";
 import {
   Animated,
@@ -19,6 +19,8 @@ interface DraggableAIButtonProps {
   theme: Theme;
   onPress: () => void;
   safeSpots: SafeSpot[];
+  moveToSpot?: number | null;
+  onMoveComplete?: () => void;
   onSpotChanged?: (spotIndex: number) => void;
 }
 
@@ -50,6 +52,8 @@ export const DraggableAIButton = ({
   theme,
   onPress,
   safeSpots,
+  moveToSpot,
+  onMoveComplete,
   onSpotChanged,
 }: DraggableAIButtonProps) => {
   const position = useRef(new Animated.ValueXY({
@@ -84,6 +88,20 @@ export const DraggableAIButton = ({
       onSpotChanged?.(idx);
     });
   }, [safeSpots, position, onSpotChanged]);
+
+  // LLM tetiklemeli hareket
+  useEffect(() => {
+    if (moveToSpot == null || moveToSpot === currentSpot.current) return;
+    if (!safeSpots[moveToSpot]) return;
+
+    // Kisa gecikme — ChatBubble oncelikli
+    const timer = setTimeout(() => {
+      snapToSpot(moveToSpot);
+      onMoveComplete?.();
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [moveToSpot, safeSpots, snapToSpot, onMoveComplete]);
 
   const panResponder = useRef(
     PanResponder.create({

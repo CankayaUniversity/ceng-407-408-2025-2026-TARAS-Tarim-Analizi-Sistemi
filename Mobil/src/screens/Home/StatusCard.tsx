@@ -69,7 +69,7 @@ export const StatusCard = ({
   );
 
   return (
-    <View className="flex-1 px-4 pt-1">
+    <View className="flex-1 px-2 pt-1">
       <View className="flex-row flex-wrap">
         <MetricCard
           theme={theme}

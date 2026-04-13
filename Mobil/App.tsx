@@ -2,6 +2,7 @@
 // LanguageProvider ve PopupMessageProvider ile sarmalanmis
 
 import "./global.css";
+import "react-native-gesture-handler";
 import "react-native-url-polyfill/auto";
 
 // Bilinen kutuphane uyarilari — uygulama islevselligini etkilemez
@@ -30,7 +31,7 @@ if (__DEV__) {
 }
 
 // React
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
 // React Native
 import {
@@ -39,6 +40,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   useColorScheme as useSystemColorScheme,
+  Appearance,
   AppState,
   ScrollView,
   Platform,
@@ -46,11 +48,22 @@ import {
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { SafeAreaView, SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+// React Navigation
+import { NavigationContainer, NavigationContainerRef } from "@react-navigation/native";
+import { createBottomTabNavigator, BottomTabBarProps } from "@react-navigation/bottom-tabs";
 
 // Third-party
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useCameraPermissions } from "expo-camera";
-import { colorScheme as nativeWindColorScheme } from "nativewind";
+// NOT: nativewind'den colorScheme kullanmiyoruz — Appearance.setColorScheme uzerinden
+// RN 0.83 Android'de event listener guvenilir tetiklenmiyor (manifest'te uiMode var,
+// activity recreate etmiyor, AppearanceModule.onConfigurationChanged'in kendi forwarding
+// zincirinin bazi adimlari devre disi kaliyor). Bunun yerine NativeWind'in ic
+// observable'ina dogrudan yaziyoruz — Appearance override'i hic uygulanmiyor.
+import { systemColorScheme as nativeWindSystemScheme } from "react-native-css-interop/dist/runtime/native/appearance-observables";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Screens
 import {
@@ -66,7 +79,7 @@ import { HardwareSetupModal } from "./src/screens/Settings/HardwareSetupModal";
 
 // Components
 import { ChatWindow } from "./src/components/ChatWindow";
-
+import { ChatBubble } from "./src/components/ChatBubble";
 import { DraggableAIButton } from "./src/components/DraggableAIButton";
 import { ProfileButton } from "./src/components/ProfileButton";
 
@@ -82,7 +95,17 @@ import { useKeyboard } from "./src/hooks/useKeyboard";
 import { useChat } from "./src/hooks/useChat";
 
 // Utils & constants
-import { SCREEN_TYPE, NAV_ITEMS, ScreenType } from "./src/constants";
+import { NAV_ITEMS, ScreenType } from "./src/constants";
+
+// Bottom tab navigator (React Navigation v7)
+type TabParamList = {
+  carbon: undefined;
+  timetable: undefined;
+  home: undefined;
+  disease: undefined;
+  settings: undefined;
+};
+const Tab = createBottomTabNavigator<TabParamList>();
 import { appStyles } from "./src/styles";
 import { getTheme } from "./src/utils/theme";
 import {
@@ -118,8 +141,18 @@ function AppContent() {
   const { t } = useLanguage();
 
   // ── State ──────────────────────────────────────────────────────────────
-  const [screen, setScreen] = useState<ScreenType>(SCREEN_TYPE.LOGIN);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const navigationRef = useRef<NavigationContainerRef<TabParamList>>(null);
+
+  // LLM sohbetinden programatik tab navigasyonu
+  const navigateToScreen = (target: ScreenType) => {
+    if (target === "login") {
+      setIsLoggedIn(false);
+      return;
+    }
+    navigationRef.current?.navigate(target as keyof TabParamList);
+  };
   const [themeMode, setThemeMode] = useState<ThemeMode>("system");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
@@ -134,7 +167,18 @@ function AppContent() {
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
   const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
-  const { messages, chatInput, setChatInput, sendMessage, isLoading: chatLoading, startNewChat } = useChat(selectedFieldId);
+  const { messages, chatInput, setChatInput, sendMessage, isLoading: chatLoading, startNewChat, pendingBubble, clearPendingBubble, historySessions, isLoadingHistory, loadHistory, loadSessionById } = useChat(navigateToScreen, selectedFieldId);
+
+  // AI buton konumu ve LLM navigasyon
+  const [aiSpotIndex, setAiSpotIndex] = useState(0);
+  const [aiMoveTarget, setAiMoveTarget] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (pendingBubble) {
+      setShowChat(false);
+      setAiMoveTarget(aiSpotIndex === 0 ? 1 : 0);
+    }
+  }, [pendingBubble]);
 
   // ── Data helpers ───────────────────────────────────────────────────────
   const loadDashboardData = async (fieldId: string, isDemo: boolean) => {
@@ -175,42 +219,81 @@ function AppContent() {
     await loadDashboardData(fieldId, dataSource === "demo");
   };
 
+  // Tema modunu degistir + kalici sakla
+  // systemColorScheme (RN hook) = gercek OS degeri, cunku Appearance'a hic yazmiyoruz
+  const handleThemeModeChange = (mode: ThemeMode) => {
+    const effective: "light" | "dark" =
+      mode === "dark" ? "dark" :
+      mode === "light" ? "light" :
+      (systemColorScheme === "dark" ? "dark" : "light");
+    nativeWindSystemScheme.set(effective);
+    setThemeMode(mode);
+    AsyncStorage.setItem("@taras_theme_mode", mode).catch(() => {});
+  };
+
   // ── Effects ────────────────────────────────────────────────────────────
   useEffect(() => {
     const initialize = async () => {
-      const isAuth = await authAPI.isAuthenticated();
-
-      if (isAuth) {
-        setScreen(SCREEN_TYPE.HOME);
-        const user = await authAPI.getStoredUser();
-        setUsername(user?.username ?? "User");
-        setDataSource("aws");
-
+      try {
+        // Kayitli tema modunu yukle (yoksa "system" varsayilani kalir)
+        // NativeWind'e acik "light"/"dark" set edilir, "system" degil
         try {
-          const fieldsData = await dashboardAPI.getFields();
-          if (fieldsData && fieldsData.length > 0) {
-            setFields(fieldsData);
-            setSelectedFieldId(fieldsData[0].id);
-            await loadDashboardData(fieldsData[0].id, false);
+          const stored = await AsyncStorage.getItem("@taras_theme_mode");
+          const mode: ThemeMode =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : "system";
+          const effective: "light" | "dark" =
+            mode === "dark" ? "dark" :
+            mode === "light" ? "light" :
+            (Appearance.getColorScheme() === "dark" ? "dark" : "light");
+          nativeWindSystemScheme.set(effective);
+          if (mode !== "system") {
+            setThemeMode(mode);
           }
         } catch {
-          // AWS baglantisi basarisiz, demo moduna gec
+          nativeWindSystemScheme.set(
+            Appearance.getColorScheme() === "dark" ? "dark" : "light"
+          );
+        }
+
+        const isAuth = await authAPI.isAuthenticated();
+
+        if (isAuth) {
+          setIsLoggedIn(true);
+          const user = await authAPI.getStoredUser();
+          setUsername(user?.username ?? "User");
+          setDataSource("aws");
+
+          try {
+            const fieldsData = await dashboardAPI.getFields();
+            if (fieldsData && fieldsData.length > 0) {
+              setFields(fieldsData);
+              setSelectedFieldId(fieldsData[0].id);
+              await loadDashboardData(fieldsData[0].id, false);
+            }
+          } catch {
+            // AWS baglantisi basarisiz, demo moduna gec
+            const demoFields = getDemoFields();
+            setFields(demoFields);
+            setSelectedFieldId(demoFields[0].id);
+            setDataSource("demo");
+            await loadDashboardData(demoFields[0].id, true);
+          }
+        } else {
+          setDataSource("demo");
           const demoFields = getDemoFields();
           setFields(demoFields);
-          setSelectedFieldId(demoFields[0].id);
-          setDataSource("demo");
-          await loadDashboardData(demoFields[0].id, true);
+          if (demoFields.length > 0) {
+            setSelectedFieldId(demoFields[0].id);
+            await loadDashboardData(demoFields[0].id, true);
+          }
         }
-      } else {
-        setDataSource("demo");
-        const demoFields = getDemoFields();
-        setFields(demoFields);
-        if (demoFields.length > 0) {
-          setSelectedFieldId(demoFields[0].id);
-          await loadDashboardData(demoFields[0].id, true);
-        }
+      } catch (err) {
+        console.log("[APP] init error:", err);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     initialize();
@@ -228,16 +311,21 @@ function AppContent() {
   // ── Computed values ────────────────────────────────────────────────────
   const isDark =
     themeMode === "dark" ||
-    (themeMode !== "light" && systemColorScheme === "dark");
+    (themeMode === "system" && systemColorScheme === "dark");
   const theme = useMemo(() => getTheme(isDark), [isDark]);
-
-  // NativeWind renk semasi — render sirasinda senkron guncelle
-  nativeWindColorScheme.set(isDark ? "dark" : "light");
 
   // Sistem arka plan rengini tema ile esle
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(theme.background);
   }, [theme.background]);
+
+  // Kullanici "system" modundayken OS temayi degistirirse NativeWind'i de guncelle
+  // Handler zaten mode degisikliklerinde set ediyor; bu effect sadece OS-flip icin
+  useEffect(() => {
+    if (themeMode === "system") {
+      nativeWindSystemScheme.set(systemColorScheme === "dark" ? "dark" : "light");
+    }
+  }, [themeMode, systemColorScheme]);
 
 
   const navBottom = insets.bottom > 20 ? 8 : Math.max(insets.bottom + 4, 8);
@@ -264,7 +352,7 @@ function AppContent() {
   // ── Handlers ───────────────────────────────────────────────────────────
   const handleLogout = async () => {
     await authAPI.logout();
-    setScreen(SCREEN_TYPE.LOGIN);
+    setIsLoggedIn(false);
   };
 
   const handleLoginSuccess = async (name: string) => {
@@ -272,7 +360,7 @@ function AppContent() {
       showPopup(`${t.login.welcomeMessage}, ${name}`);
       setUsername(name);
     }
-    setScreen(SCREEN_TYPE.HOME);
+    setIsLoggedIn(true);
     setDataSource("aws");
     try {
       const fieldsData = await dashboardAPI.getFields();
@@ -292,24 +380,61 @@ function AppContent() {
   };
 
 
-  // ── Local components ───────────────────────────────────────────────────
-  // AnimatedScreen JSX helper — inline component OLMAMALI, remount yapar
-  const renderScreen = (): React.ReactNode => {
-    switch (screen) {
-      case SCREEN_TYPE.CARBON:
-        return <CarbonFootprintScreen theme={theme} />;
-      case SCREEN_TYPE.TIMETABLE:
-        return <TimetableScreen theme={theme} isActive selectedFieldId={selectedFieldId} />;
-      case SCREEN_TYPE.HOME:
-        return <HomeScreen theme={theme} isDark={isDark} dashboardData={dashboardData} isActive refreshing={refreshing} onRefresh={handleRefresh} />;
-      case SCREEN_TYPE.DISEASE:
-        return <DiseaseScreen theme={theme} permission={permission} onRequestPermission={requestPermission} isActive />;
-      case SCREEN_TYPE.SETTINGS:
-        return <SettingsScreen theme={theme} isDark={isDark} themeMode={themeMode} onThemeModeChange={setThemeMode} onLogout={handleLogout} onHardwareSetup={() => setShowHardwareSetup(true)} />;
-      default:
-        return null;
-    }
-  };
+  // ── Tabs — her zaman mount'lu, SlidingTabContainer ile gecis yapiyor ────
+  // SCREEN_TO_INDEX sirasi ile esit: carbon, timetable, home, disease, settings
+  // isActive'i manuel gecme — SlidingTabContainer cloneElement ile enjekte ediyor
+  const tabs = [
+    {
+      id: "carbon",
+      content: <CarbonFootprintScreen theme={theme} />,
+    },
+    {
+      id: "timetable",
+      content: (
+        <TimetableScreen theme={theme} selectedFieldId={selectedFieldId} />
+      ),
+    },
+    {
+      id: "home",
+      content: (
+        <HomeScreen
+          theme={theme}
+          isDark={isDark}
+          dashboardData={dashboardData}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+        />
+      ),
+    },
+    {
+      id: "disease",
+      content: (
+        <DiseaseScreen
+          theme={theme}
+          permission={permission}
+          onRequestPermission={requestPermission}
+        />
+      ),
+    },
+    {
+      id: "settings",
+      content: (
+        <SettingsScreen
+          theme={theme}
+          isDark={isDark}
+          themeMode={themeMode}
+          onThemeModeChange={handleThemeModeChange}
+          onLogout={handleLogout}
+          onHardwareSetup={() => setShowHardwareSetup(true)}
+        />
+      ),
+    },
+  ];
+
+  const activeIndex =
+    screen === SCREEN_TYPE.LOGIN
+      ? 0
+      : SCREEN_TO_INDEX[screen as Exclude<ScreenType, "login">];
 
   // Header ve FieldSelector JSX olarak inline — fonksiyon component olarak
   // tanimlanirsa React her renderda unmount/remount yapar ve 3D flicker olur
@@ -457,7 +582,7 @@ function AppContent() {
               }}
               numberOfLines={1}
             >
-              {item.label}
+              {t.nav[item.id]}
             </Text>
           </TouchableOpacity>
         );
@@ -478,32 +603,66 @@ function AppContent() {
 
         {!isLoggedIn ? (
           <LoginScreen theme={theme} onLoginSuccess={handleLoginSuccess} onSkip={handleSkip} />
-        ) : showChat ? (
-          /* Tam ekran sohbet — header, nav bar ve AI butonu gizli */
-          <ChatWindow
-            messages={messages}
-            chatInput={chatInput}
-            theme={theme}
-            isLoading={chatLoading}
-            onClose={() => setShowChat(false)}
-            onSendMessage={sendMessage}
-            onInputChange={setChatInput}
-            onNewChat={startNewChat}
-          />
         ) : (
           <>
-            {appHeaderJSX}
-            <View className="flex-1 relative">
-              {renderScreen()}
+            {/* Tablar her zaman mount'lu — showChat true iken display:none ile
+                gizli, ama state kayip olmasin diye unmount etmiyor */}
+            <View
+              className="flex-1"
+              style={{ display: showChat ? "none" : "flex" }}
+            >
+              {appHeaderJSX}
+              <View className="flex-1 relative">
+                <SlidingTabContainer activeIndex={activeIndex} tabs={tabs} />
+              </View>
+
+              {bottomNavJSX}
+
+              <ChatBubble
+                message={pendingBubble?.text ?? ""}
+                visible={!!pendingBubble}
+                theme={theme}
+                bottom={windowHeight - insets.top - navBarY + s(8)}
+                onPress={() => { clearPendingBubble(); setShowChat(true); }}
+                onDismiss={clearPendingBubble}
+              />
+              <DraggableAIButton
+                theme={theme}
+                onPress={() => { clearPendingBubble(); setShowChat(true); }}
+                safeSpots={aiSafeSpots}
+                moveToSpot={aiMoveTarget}
+                onMoveComplete={() => setAiMoveTarget(null)}
+                onSpotChanged={setAiSpotIndex}
+              />
             </View>
 
-            {bottomNavJSX}
-
-            <DraggableAIButton
-              theme={theme}
-              onPress={() => setShowChat(true)}
-              safeSpots={aiSafeSpots}
-            />
+            {/* Sohbet overlay — tablar uzerine acilir, tab state korunur */}
+            {showChat && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                }}
+              >
+                <ChatWindow
+                  messages={messages}
+                  chatInput={chatInput}
+                  theme={theme}
+                  isLoading={chatLoading}
+                  onClose={() => setShowChat(false)}
+                  onSendMessage={sendMessage}
+                  onInputChange={setChatInput}
+                  onNewChat={startNewChat}
+                  historySessions={historySessions}
+                  isLoadingHistory={isLoadingHistory}
+                  onLoadHistory={loadHistory}
+                  onSelectSession={loadSessionById}
+                />
+              </View>
+            )}
           </>
         )}
 
