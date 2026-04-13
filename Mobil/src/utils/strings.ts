@@ -156,6 +156,15 @@ export interface StringDictionary {
     rawMoisture: string;
   };
 
+  // Bottom navigation bar
+  nav: {
+    carbon: string;
+    timetable: string;
+    home: string;
+    disease: string;
+    settings: string;
+  };
+
   // Settings Screen
   settings: {
     title: string;
@@ -163,7 +172,6 @@ export interface StringDictionary {
     themeLight: string;
     themeDark: string;
     themeSystem: string;
-    themeWeather: string;
     language: string;
     languageTurkish: string;
     languageEnglish: string;
@@ -467,13 +475,20 @@ const tr: StringDictionary = {
     rawMoisture: "Ham Nem",
   },
 
+  nav: {
+    carbon: "Karbon",
+    timetable: "Çizelge",
+    home: "Ana Sayfa",
+    disease: "Hastalık",
+    settings: "Ayarlar",
+  },
+
   settings: {
     title: "Ayarlar",
     themeMode: "Tema Modu",
     themeLight: "Açık",
     themeDark: "Koyu",
     themeSystem: "Sistem",
-    themeWeather: "Hava Durumu",
     language: "Dil",
     languageTurkish: "Türkçe",
     languageEnglish: "English",
@@ -773,13 +788,20 @@ const en: StringDictionary = {
     rawMoisture: "Raw Moisture",
   },
 
+  nav: {
+    carbon: "Carbon",
+    timetable: "Schedule",
+    home: "Home",
+    disease: "Disease",
+    settings: "Settings",
+  },
+
   settings: {
     title: "Settings",
     themeMode: "Theme Mode",
     themeLight: "Light",
     themeDark: "Dark",
     themeSystem: "System",
-    themeWeather: "Weather",
     language: "Language",
     languageTurkish: "Türkçe",
     languageEnglish: "English",

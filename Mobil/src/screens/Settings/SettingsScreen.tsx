@@ -44,8 +44,7 @@ export const SettingsScreen = ({
       icon: "white-balance-sunny",
     },
     { mode: "dark", label: t.settings.themeDark, icon: "moon-waning-crescent" },
-    { mode: "system", label: t.settings.themeSystem, icon: "cog" },
-    { mode: "weather", label: t.settings.themeWeather, icon: "cloud" },
+    { mode: "system", label: t.settings.themeSystem, icon: "cellphone" },
   ];
 
   const handleRunDiagnostics = async () => {
