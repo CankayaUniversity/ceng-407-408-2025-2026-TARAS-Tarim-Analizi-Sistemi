@@ -158,7 +158,24 @@ static char wifi_pass[64] = {0};
 struct EspNowMessage { uint8_t mac[6]; uint8_t data[250]; int data_len; };
 static QueueHandle_t espNowQueue;
 
-SocketIOclient socketIO;
+// Subclass to expose CA-validated Socket.IO SSL on ESP32.
+// links2004 WebSockets gates SocketIOclient::beginSSLWithCA behind SSL_BARESSL,
+// which is only defined on ESP8266+BearSSL. ESP32 path defines SSL_AXTLS instead,
+// so the public CA method is not compiled. The parent WebSocketsClient::
+// beginSocketIOSSLWithCA IS compiled on ESP32 but hidden by `protected` inheritance.
+// This wrapper re-exposes it via a public method that mirrors what the library's
+// own beginSSL does (call into parent + enable heartbeat + initClient).
+class SocketIOclientCA : public SocketIOclient {
+public:
+  void beginSSLWithCA(const char *host, uint16_t port, const char *url,
+                      const char *CA_cert, const char *protocol = "arduino") {
+    WebSocketsClient::beginSocketIOSSLWithCA(host, port, url, CA_cert, protocol);
+    WebSocketsClient::enableHeartbeat(60 * 1000, 90 * 1000, 5);
+    initClient();
+  }
+};
+
+SocketIOclientCA socketIO;
 static bool socketIO_connected = false;
 static bool socketIO_initialized = false;
 static bool socketIO_authed = false; // true after auth_result received
@@ -1377,7 +1394,7 @@ void setup() {
     Serial.printf("\n[WIFI] Connected IP=%s CH=%d RSSI=%d\n",
       WiFi.localIP().toString().c_str(), WiFi.channel(), WiFi.RSSI());
     esp_wifi_set_ps(WIFI_PS_NONE);  // No power save — Socket.IO needs always-on radio
-    socketIO.beginSslWithCA(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH, ISRG_ROOT_X1_PEM);
+    socketIO.beginSSLWithCA(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH, ISRG_ROOT_X1_PEM);
     socketIO.onEvent(socketIOEventHandler);
     socketIO_initialized = true;
   } else {
@@ -1401,7 +1418,7 @@ void loopWifiReconnect() {
     // WiFi just reconnected — init Socket.IO if not already
     if (WiFi.status() == WL_CONNECTED && !socketIO_connected && millis() - lastWifiCheck > 5000) {
       if (!socketIO_initialized) {
-        socketIO.beginSslWithCA(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH, ISRG_ROOT_X1_PEM);
+        socketIO.beginSSLWithCA(BACKEND_HOST, BACKEND_PORT, SOCKETIO_PATH, ISRG_ROOT_X1_PEM);
         socketIO.onEvent(socketIOEventHandler);
         socketIO_initialized = true;
         Serial.println("[WIFI] Reconnected, starting Socket.IO (SSL)");
