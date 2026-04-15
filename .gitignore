@@ -132,3 +132,16 @@ Mobil/*.tsbuildinfo
 # Hardware local config (contains real backend host)
 Donanim/arduino ide/gateway/gateway_config.h
 Donanim/arduino ide/gateway/isrg_root_x1.h
+
+
+!taras_website/
+!taras_website/**
+!taras_website/**/*.html
+!taras_website/**/*.css
+!taras_website/**/*.js
+!taras_website/**/*.png
+!taras_website/**/*.jpg
+!taras_website/**/*.jpeg
+!taras_website/**/*.webp
+!taras_website/**/*.gif
+!taras_website/**/*.svg
