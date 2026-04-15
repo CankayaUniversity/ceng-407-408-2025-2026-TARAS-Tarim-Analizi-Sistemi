@@ -16,6 +16,7 @@ router.delete("/farm/:farmId/logs/:logId", carbonController.deleteCarbonLog);
 
 // carbon summary
 router.get("/farm/:farmId/summary", carbonController.getFarmSummary);
+router.get("/farm/:farmId/carbon-footprint/yearly", carbonController.getYearlyTotal);
 
 // emission factors
 router.get("/emission-factors", carbonController.getEmissionFactors);

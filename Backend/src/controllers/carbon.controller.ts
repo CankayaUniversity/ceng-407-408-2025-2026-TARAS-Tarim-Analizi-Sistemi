@@ -236,6 +236,54 @@ export async function getFarmSummary(
   }
 }
 
+/** GET /carbon/farm/:farmId/carbon-footprint/yearly — yıllık toplam karbon ayak izi */
+export async function getYearlyTotal(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    const farmId = getStringParam(req.params.farmId);
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Authentication required" });
+      return;
+    }
+
+    if (!farmId) {
+      res.status(400).json({ success: false, error: "Farm ID is required" });
+      return;
+    }
+
+    const hasAccess = await carbonService.checkFarmAccess(userId, farmId);
+    if (!hasAccess) {
+      res.status(403).json({ success: false, error: "You do not have access to this farm" });
+      return;
+    }
+
+    const yearStr = getStringParam(req.query.year);
+    const year = yearStr ? parseInt(yearStr, 10) : NaN;
+
+    if (isNaN(year) || year < 2000 || year > 2100) {
+      res.status(400).json({ success: false, error: "A valid year is required (e.g. ?year=2026)" });
+      return;
+    }
+
+    const result = await carbonService.getYearlyTotal(farmId, year);
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error("Get yearly carbon total error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+}
+
 /** GET /carbon/emission-factors — tüm emission factor listesi */
 export async function getEmissionFactors(
   _req: Request,
@@ -308,6 +356,7 @@ export default {
   createCarbonLog,
   deleteCarbonLog,
   getFarmSummary,
+  getYearlyTotal,
   getEmissionFactors,
   createEmissionFactor,
 };

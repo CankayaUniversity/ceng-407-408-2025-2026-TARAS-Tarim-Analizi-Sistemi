@@ -223,6 +223,34 @@ export async function getFarmSummary(
   };
 }
 
+// farm için belirli bir yılın toplam karbon emisyonunu hesapla
+export async function getYearlyTotal(
+  farmId: string,
+  year: number,
+): Promise<{ farm_id: string; year: number; total_CO2: number }> {
+  const start = new Date(`${year}-01-01T00:00:00.000Z`);
+  const end = new Date(`${year + 1}-01-01T00:00:00.000Z`);
+
+  const result = await prisma.carbonLog.aggregate({
+    where: {
+      farm_id: farmId,
+      activity_date: {
+        gte: start,
+        lt: end,
+      },
+    },
+    _sum: {
+      emission_amount: true,
+    },
+  });
+
+  return {
+    farm_id: farmId,
+    year,
+    total_CO2: Number((result._sum.emission_amount ?? 0).toFixed(4)),
+  };
+}
+
 // tüm emission factor'ları getir
 export async function getEmissionFactors(): Promise<unknown[]> {
   return prisma.emissionFactor.findMany({
@@ -292,6 +320,7 @@ export default {
   getFarmLogs,
   deleteCarbonLog,
   getFarmSummary,
+  getYearlyTotal,
   getEmissionFactors,
   createEmissionFactor,
 };
