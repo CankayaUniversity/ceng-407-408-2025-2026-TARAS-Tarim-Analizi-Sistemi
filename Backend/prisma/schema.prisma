@@ -9,6 +9,65 @@ datasource db {
   extensions = [pgcrypto, postgis(schema: "public")]
 }
 
+// =======================
+// ENUMS
+// =======================
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+
+  @@map("alert_severity")
+}
+
+enum SensorStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  ERROR
+
+  @@map("sensor_status")
+}
+
+enum JobStatus {
+  PENDING
+  EXECUTED
+  SKIPPED
+  ANALYZED
+
+  @@map("job_status")
+}
+
+enum DetectionStatus {
+  NOT_STARTED
+  PROCESSING
+  COMPLETED
+  FAILED
+
+  @@map("detection_status")
+}
+
+enum GatewayStatus {
+  ONLINE
+  OFFLINE
+  PAIRING
+
+  @@map("gateway_status")
+}
+
+enum ActivityTypeCategory {
+  YAKIT
+  GUBRE
+  ELEKTRIK
+
+  @@map("activity_type_category")
+}
+
+// =======================
+// USER MANAGEMENT
+// =======================
+
 model Role {
   role_id     Int     @id @default(autoincrement())
   role_name   String  @unique @db.VarChar(50)
@@ -35,6 +94,10 @@ model User {
 
   @@map("users")
 }
+
+// =======================
+// FARM HIERARCHY
+// =======================
 
 model Farm {
   farm_id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -91,6 +154,10 @@ model Zone {
   @@map("zones")
 }
 
+// =======================
+// ADAPTIVE CONTROL
+// =======================
+
 model ZoneDetail {
   config_id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   zone_id                 String?   @unique @db.Uuid
@@ -120,6 +187,10 @@ model KcCalibrationHistory {
 
   @@map("kc_calibration_history")
 }
+
+// =======================
+// HARDWARE & TELEMETRY
+// =======================
 
 model Gateway {
   gateway_id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -207,6 +278,10 @@ model SensorReading {
   @@map("sensor_readings")
 }
 
+// =======================
+// IRRIGATION LOGIC
+// =======================
+
 model IrrigationJob {
   job_id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   zone_id                     String?        @db.Uuid
@@ -261,6 +336,10 @@ model IrrigationFollowup {
   @@map("irrigation_followups")
 }
 
+// =======================
+// CROPS & ALERTS
+// =======================
+
 model CropDetail {
   crop_id        Int        @id @default(autoincrement())
   name           String     @db.VarChar(100)
@@ -301,6 +380,10 @@ model Alert {
   @@map("alerts")
 }
 
+// =======================
+// CHAT
+// =======================
+
 model ChatSession {
   session_id String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id    String?       @db.Uuid
@@ -326,6 +409,10 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
+// =======================
+// DISEASE DETECTION
+// =======================
+
 model DiseaseDetection {
   detection_id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   user_id               String          @db.Uuid
@@ -349,6 +436,10 @@ model DiseaseDetection {
   @@map("disease_detections")
 }
 
+// =======================
+// FIRMWARE MANAGEMENT
+// =======================
+
 model GatewayFirmware {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   version     String   @unique @db.VarChar(20)
@@ -360,6 +451,10 @@ model GatewayFirmware {
 
   @@map("gateway_firmware")
 }
+
+// =======================
+// CARBON FOOTPRINT
+// =======================
 
 model ActivityType {
   activity_type_id Int                  @id @default(autoincrement())
@@ -402,6 +497,10 @@ model CarbonLog {
   @@map("carbon_logs")
 }
 
+// =======================
+// LLM KNOWLEDGE BASE
+// =======================
+
 model knowledge_chunks {
   chunk_id      Int                      @id @default(autoincrement())
   category      String                   @db.VarChar(50)
@@ -412,64 +511,4 @@ model knowledge_chunks {
   created_at    DateTime                 @default(now()) @db.Timestamptz(6)
 
   @@index([search_vector], type: Gin)
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model spatial_ref_sys {
-  srid      Int     @id
-  auth_name String? @db.VarChar(256)
-  auth_srid Int?
-  srtext    String? @db.VarChar(2048)
-  proj4text String? @db.VarChar(2048)
-}
-
-enum AlertSeverity {
-  INFO
-  WARNING
-  CRITICAL
-
-  @@map("alert_severity")
-}
-
-enum SensorStatus {
-  ACTIVE
-  INACTIVE
-  MAINTENANCE
-  ERROR
-
-  @@map("sensor_status")
-}
-
-enum JobStatus {
-  PENDING
-  EXECUTED
-  SKIPPED
-  ANALYZED
-
-  @@map("job_status")
-}
-
-enum DetectionStatus {
-  NOT_STARTED
-  PROCESSING
-  COMPLETED
-  FAILED
-
-  @@map("detection_status")
-}
-
-enum GatewayStatus {
-  ONLINE
-  OFFLINE
-  PAIRING
-
-  @@map("gateway_status")
-}
-
-enum ActivityTypeCategory {
-  YAKIT
-  GUBRE
-  ELEKTRIK
-
-  @@map("activity_type_category")
 }
