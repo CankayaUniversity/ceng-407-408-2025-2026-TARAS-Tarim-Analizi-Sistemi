@@ -6,11 +6,14 @@ export default defineConfig({
   earlyAccess: true,
   schema: path.join(__dirname, 'prisma', 'schema.prisma'),
 
+  datasource: {
+    url: process.env.DATABASE_URL!,
+  },
+
   migrate: {
     adapter: async () => {
       const { Pool: PgPool } = await import('pg');
       const { PrismaPg } = await import('@prisma/adapter-pg');
-      // use adapter's pg types for compatibility
       const { Pool: AdapterPool } = await import('@prisma/adapter-pg/node_modules/pg');
 
       const pool: AdapterPool = new PgPool({

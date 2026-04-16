@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma";
@@ -12,22 +15,23 @@ declare global {
 function createPrismaClient(): PrismaClient {
   const dbUrl = process.env.DATABASE_URL || "";
 
+  logger.info(`Prisma DB host test: ${dbUrl.replace(/:\/\/.*?:.*?@/, "://***:***@")}`);
+
   const pool = new Pool({
     connectionString: dbUrl,
-    ssl: process.env.DATABASE_SSL === "false"
-      ? undefined
-      : { rejectUnauthorized: false },
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 10000,
   });
 
   const adapter = new PrismaPg(pool);
 
   return new PrismaClient({
     adapter,
-    log: DEBUG_QUERIES
-      ? ["query", "error", "warn"]
-      : ["error", "warn"],
+    log: DEBUG_QUERIES ? ["query", "error", "warn"] : ["error", "warn"],
   });
 }
+
 
 export const prisma = global.prisma ?? createPrismaClient();
 

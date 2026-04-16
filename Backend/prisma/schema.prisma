@@ -6,263 +6,189 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  extensions = [pgcrypto]
+  extensions = [pgcrypto, postgis(schema: "public")]
 }
-// =======================
-// ENUMS
-// =======================
-
-enum AlertSeverity {
-  INFO
-  WARNING
-  CRITICAL
-  @@map("alert_severity")
-}
-
-enum SensorStatus {
-  ACTIVE
-  INACTIVE
-  MAINTENANCE
-  ERROR
-  @@map("sensor_status")
-}
-
-enum JobStatus {
-  PENDING
-  EXECUTED
-  SKIPPED
-  ANALYZED
-  @@map("job_status")
-}
-
-enum DetectionStatus {
-  NOT_STARTED
-  PROCESSING
-  COMPLETED
-  FAILED
-  @@map("detection_status")
-}
-
-enum GatewayStatus {
-  ONLINE
-  OFFLINE
-  PAIRING
-  @@map("gateway_status")
-}
-
-enum ActivityTypeCategory {
-  YAKIT
-  GUBRE
-  ELEKTRIK
-  @@map("activity_type_category")
-}
-
-// =======================
-// USER MANAGEMENT
-// =======================
 
 model Role {
   role_id     Int     @id @default(autoincrement())
   role_name   String  @unique @db.VarChar(50)
-  description String? @db.Text
+  description String?
   users       User[]
 
   @@map("roles")
 }
 
 model User {
-  user_id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username      String    @unique @db.VarChar(100)
-  email         String    @unique @db.VarChar(255)
-  password_hash String    @db.VarChar(255)
-  role_id       Int?
-  is_active     Boolean?  @default(true)
-  last_login    DateTime? @db.Timestamptz
-  created_at    DateTime? @default(now()) @db.Timestamptz
-
-  role               Role?              @relation(fields: [role_id], references: [role_id])
-  farms              Farm[]
+  user_id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username           String             @unique @db.VarChar(100)
+  email              String             @unique @db.VarChar(255)
+  password_hash      String             @db.VarChar(255)
+  role_id            Int?
+  is_active          Boolean?           @default(true)
+  last_login         DateTime?          @db.Timestamptz(6)
+  created_at         DateTime?          @default(now()) @db.Timestamptz(6)
   alerts             Alert[]
   chat_sessions      ChatSession[]
   disease_detections DiseaseDetection[]
+  farms              Farm[]
+  role               Role?              @relation(fields: [role_id], references: [role_id])
 
   @@map("users")
 }
 
-// =======================
-// FARM HIERARCHY
-// =======================
-
 model Farm {
-  farm_id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id       String?   @db.Uuid
-  name          String    @db.VarChar(100)
-  location_text String?   @db.Text
-  created_at    DateTime? @default(now()) @db.Timestamptz
-
-  user        User?       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-  fields      Field[]
-  gateways    Gateway[]
-  carbon_logs CarbonLog[]
+  farm_id       String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String?     @db.Uuid
+  name          String      @db.VarChar(100)
+  location_text String?
+  created_at    DateTime?   @default(now()) @db.Timestamptz(6)
+  carbon_logs   CarbonLog[]
+  user          User?       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  fields        Field[]
+  gateways      Gateway[]
 
   @@map("farms")
 }
 
-
 model Field {
-  field_id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  farm_id                      String?   @db.Uuid
-  name                         String    @db.VarChar(100)
+  field_id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  farm_id                      String?       @db.Uuid
+  name                         String        @db.VarChar(100)
+  created_at                   DateTime?     @default(now()) @db.Timestamptz(6)
   area                         Float?
   polygon                      Json?
-  crop_name                    String?   @db.VarChar(100)
-  environment_type             String?   @db.VarChar(50)
-  irrigation_mode              String?   @db.VarChar(50)
+  crop_name                    String?       @db.VarChar(100)
+  default_check_after_min      Int?          @default(60)
+  environment_type             String?       @db.VarChar(50)
+  irrigation_gain_mm_per_100ml Float?
+  irrigation_mode              String?       @db.VarChar(50)
+  is_active                    Boolean?      @default(true)
   ml_per_sm_percent            Float?
   sm_percent_per_100ml         Float?
-  irrigation_gain_mm_per_100ml Float?
-  default_check_after_min      Int?      @default(60)
-  is_active                    Boolean?  @default(true)
-  created_at                   DateTime? @default(now()) @db.Timestamptz
-
-  farm          Farm?          @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
-  zones         Zone[]
-  chat_sessions ChatSession[]
+  chat_sessions                ChatSession[]
+  farm                         Farm?         @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
+  zones                        Zone[]
 
   @@map("fields")
 }
 
-
-
 model Zone {
-  zone_id    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  field_id   String?   @db.Uuid
-  name       String    @db.VarChar(50)
+  zone_id    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  field_id   String?                @db.Uuid
+  name       String                 @db.VarChar(50)
+  soil_type  String?                @db.VarChar(100)
+  created_at DateTime?              @default(now()) @db.Timestamptz(6)
   polygon    Json?
-  soil_type  String?   @db.VarChar(100)
-  created_at DateTime? @default(now()) @db.Timestamptz
+  jobs       IrrigationJob[]
+  kc_history KcCalibrationHistory[]
+  plantings  Planting[]
 
-  field        Field?                 @relation(fields: [field_id], references: [field_id], onDelete: Cascade)
-  details      ZoneDetail?
+  followups    IrrigationFollowup[]
   sensor_nodes SensorNode[]
-  jobs         IrrigationJob[]
-  kc_history   KcCalibrationHistory[]
-  plantings    Planting[]
+  details      ZoneDetail?
+  field        Field?               @relation(fields: [field_id], references: [field_id], onDelete: Cascade)
 
   @@map("zones")
 }
 
-// =======================
-// ADAPTIVE CONTROL
-// =======================
-
 model ZoneDetail {
   config_id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   zone_id                 String?   @unique @db.Uuid
-  updated_at              DateTime? @default(now()) @db.Timestamptz
+  updated_at              DateTime? @default(now()) @db.Timestamptz(6)
   current_kc              Float?    @default(1.0)
   current_irrigation_gain Float?    @default(0.015)
   target_sm_percent       Float?    @default(60.0)
   critical_sm_percent     Float?    @default(30.0)
-
-  zone Zone? @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
+  zone                    Zone?     @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
 
   @@map("zone_details")
 }
 
 model KcCalibrationHistory {
-  log_id           BigInt    @id @default(autoincrement())
-  zone_id          String?   @db.Uuid
-  created_at       DateTime? @default(now()) @db.Timestamptz
-  window_start     DateTime? @db.Timestamptz
-  window_end       DateTime? @db.Timestamptz
-  et0_sum_12h      Float?
-  sm_loss_12h      Float?
-  calculated_ratio Float?
-  old_kc           Float?
-  new_suggested_kc Float?
-  applied_to_config Boolean? @default(false)
-
-  zone Zone? @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
+  log_id            BigInt    @id @default(autoincrement())
+  zone_id           String?   @db.Uuid
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  window_start      DateTime? @db.Timestamptz(6)
+  window_end        DateTime? @db.Timestamptz(6)
+  et0_sum_12h       Float?
+  sm_loss_12h       Float?
+  calculated_ratio  Float?
+  old_kc            Float?
+  new_suggested_kc  Float?
+  applied_to_config Boolean?  @default(false)
+  zone              Zone?     @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
 
   @@map("kc_calibration_history")
 }
 
-// =======================
-// HARDWARE & TELEMETRY
-// =======================
-
 model Gateway {
-  gateway_id       String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  hardware_serial  String         @unique @db.VarChar(17)
-  api_key          String         @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name             String?        @db.VarChar(100)
-  farm_id          String?        @db.Uuid
-  firmware_version String?        @db.VarChar(20)
-  status           GatewayStatus  @default(OFFLINE)
-  last_heartbeat   DateTime?      @db.Timestamptz
-  last_seen        DateTime?      @db.Timestamptz
-  created_at       DateTime?      @default(now()) @db.Timestamptz
-  updated_at       DateTime?      @updatedAt @db.Timestamptz
-
-  farm         Farm?        @relation(fields: [farm_id], references: [farm_id])
-  sensor_nodes SensorNode[]
+  gateway_id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hardware_serial  String        @unique @db.VarChar(17)
+  farm_id          String?       @db.Uuid
+  last_seen        DateTime?     @db.Timestamptz(6)
+  api_key          String        @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at       DateTime?     @default(now()) @db.Timestamptz(6)
+  firmware_version String?       @db.VarChar(20)
+  last_heartbeat   DateTime?     @db.Timestamptz(6)
+  name             String?       @db.VarChar(100)
+  status           GatewayStatus @default(OFFLINE)
+  updated_at       DateTime?     @updatedAt @db.Timestamptz(6)
+  farm             Farm?         @relation(fields: [farm_id], references: [farm_id])
+  sensor_nodes     SensorNode[]
 
   @@map("gateways")
 }
 
 model SensorNode {
-  node_id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  gateway_id    String?       @db.Uuid
-  zone_id       String?       @db.Uuid
-  hardware_mac  String        @unique @db.VarChar(17)
-  device_key    String?       @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  battery_level      Decimal?      @db.Decimal(5, 2)
-  status             SensorStatus? @default(ACTIVE)
+  node_id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gateway_id         String?            @db.Uuid
+  zone_id            String?            @db.Uuid
+  hardware_mac       String             @unique @db.VarChar(17)
+  battery_level      Decimal?           @db.Decimal(5, 2)
+  status             SensorStatus?      @default(ACTIVE)
+  created_at         DateTime?          @default(now()) @db.Timestamptz(6)
   x                  Float?
   z                  Float?
-  sleep_interval_sec Int?          @default(300)
-  min_buffer_cycles  Int?          @default(2)
-  max_buffer_cycles  Int?          @default(6)
-  temp_threshold     Float?        @default(1.0)
-  hum_threshold      Float?        @default(5.0)
-  soil_threshold     Float?        @default(410)
-  sensor_caps        Int?          @default(0)
-  cal_dry_value      Int?          // Raw ADC in air (per-sensor calibration)
-  cal_wet_value      Int?          // Raw ADC in water (per-sensor calibration)
-  last_data_at       DateTime?     @db.Timestamptz
-  last_reset_reason  Int?          @db.SmallInt
+  device_key         String?            @unique @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  hum_threshold      Float?             @default(5.0)
+  last_data_at       DateTime?          @db.Timestamptz(6)
+  max_buffer_cycles  Int?               @default(6)
+  min_buffer_cycles  Int?               @default(2)
+  sensor_caps        Int?               @default(0)
+  sleep_interval_sec Int?               @default(300)
+  soil_threshold     Float?             @default(410)
+  temp_threshold     Float?             @default(1.0)
+  cal_dry_value      Int?
+  cal_wet_value      Int?
+  last_reset_reason  Int?               @db.SmallInt
   last_boot_count    Int?
-  last_diag_at       DateTime?     @db.Timestamptz
-  created_at         DateTime?     @default(now()) @db.Timestamptz
-
-  gateway     Gateway?            @relation(fields: [gateway_id], references: [gateway_id])
-  zone        Zone?               @relation(fields: [zone_id], references: [zone_id])
-  readings    SensorReading[]
-  diagnostics SensorDiagnostic[]
+  last_diag_at       DateTime?          @db.Timestamptz(6)
+  diagnostics        SensorDiagnostic[]
+  gateway            Gateway?           @relation(fields: [gateway_id], references: [gateway_id])
+  zone               Zone?              @relation(fields: [zone_id], references: [zone_id])
+  readings           SensorReading[]
 
   @@map("sensor_nodes")
 }
 
 model SensorDiagnostic {
-  id             BigInt   @id @default(autoincrement())
-  node_id        String   @db.Uuid
-  created_at     DateTime @default(now()) @db.Timestamptz
-  reset_reason   Int      @db.SmallInt
-  boot_count     Int
-  uptime_cycles  Int
-  failures       Json?    // {"send_fail": 5, "sensor_fail": 2, ...}
-
-  node SensorNode @relation(fields: [node_id], references: [node_id], onDelete: Cascade)
+  id            BigInt     @id @default(autoincrement())
+  node_id       String     @db.Uuid
+  created_at    DateTime   @default(now()) @db.Timestamptz(6)
+  reset_reason  Int        @db.SmallInt
+  boot_count    Int
+  uptime_cycles Int
+  failures      Json?
+  node          SensorNode @relation(fields: [node_id], references: [node_id], onDelete: Cascade)
 
   @@index([node_id, created_at(sort: Desc)])
   @@map("sensor_diagnostics")
 }
 
 model SensorReading {
-  id              BigInt    @id @default(autoincrement())
-  node_id         String?   @db.Uuid
-  created_at      DateTime? @default(now()) @db.Timestamptz
+  id              BigInt          @id @default(autoincrement())
+  node_id         String?         @db.Uuid
+  created_at      DateTime?       @default(now()) @db.Timestamptz(6)
   raw_sm_value    Int?
   sm_percent      Float?
   raw_temperature Float?
@@ -271,101 +197,92 @@ model SensorReading {
   humidity        Float?
   et0_instant     Float?
   battery_voltage Float?
+  result_jobs     IrrigationJob[] @relation("ResultReading")
+  triggered_jobs  IrrigationJob[] @relation("TriggerReading")
+  node            SensorNode?     @relation(fields: [node_id], references: [node_id], onDelete: Cascade)
 
-  node SensorNode? @relation(fields: [node_id], references: [node_id], onDelete: Cascade)
-
-  // Relations for Irrigation Jobs
-  triggered_jobs IrrigationJob[] @relation("TriggerReading")
-  result_jobs    IrrigationJob[] @relation("ResultReading")
-
-  @@index([created_at], name: "idx_readings_time")
-  @@index([node_id], name: "idx_readings_node")
-  @@index([node_id, created_at(sort: Desc)], name: "idx_readings_node_latest")
+  @@index([created_at], map: "idx_readings_time")
+  @@index([node_id], map: "idx_readings_node")
+  @@index([node_id, created_at(sort: Desc)], map: "idx_readings_node_latest")
   @@map("sensor_readings")
 }
 
-// =======================
-// IRRIGATION LOGIC
-// =======================
-
 model IrrigationJob {
-  job_id                    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  zone_id                   String?    @db.Uuid
-  created_at                DateTime?  @default(now()) @db.Timestamptz
+  job_id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  zone_id                     String?        @db.Uuid
+  created_at                  DateTime?      @default(now()) @db.Timestamptz(6)
+  trigger_reading_id          BigInt?
+  reasoning                   String?
+  recommended_duration_min    Int?
+  status                      JobStatus?     @default(PENDING)
+  actual_start_time           DateTime?      @db.Timestamptz(6)
+  actual_duration_min         Int?
+  result_reading_id           BigInt?
+  actual_water_amount_ml      Float?
+  current_sm                  Float?
+  followup_check_time         DateTime?      @db.Timestamptz(6)
+  growth_stage                String?        @db.VarChar(50)
+  predicted_sm_after_check    Float?
+  recommendation_time         DateTime?      @db.Timestamptz(6)
+  recommended_check_after_min Int?
+  should_irrigate             Boolean?
+  sm_deficit                  Float?
+  start_time                  DateTime?      @db.Timestamptz(6)
+  target_sm                   Float?
+  urgency_level               String?        @db.VarChar(30)
+  water_amount_ml             Float?
+  result_reading              SensorReading? @relation("ResultReading", fields: [result_reading_id], references: [id])
+  trigger_reading             SensorReading? @relation("TriggerReading", fields: [trigger_reading_id], references: [id])
+  zone                        Zone?          @relation(fields: [zone_id], references: [zone_id])
 
-  recommendation_time       DateTime? @db.Timestamptz
-  trigger_reading_id        BigInt?
-
-  reasoning                 String?    @db.Text
-
-  should_irrigate           Boolean?
-  start_time                DateTime? @db.Timestamptz
-  growth_stage              String?   @db.VarChar(50)
-  
-  recommended_duration_min  Int?
-  water_amount_ml           Float?
-
-  current_sm                Float?
-  target_sm                 Float?
-  sm_deficit                Float?
-  predicted_sm_after_check  Float?
-
-  urgency_level             String?   @db.VarChar(30)
-  recommended_check_after_min   Int?
-  followup_check_time       DateTime?  @db.Timestamptz
-
-  status                    JobStatus? @default(PENDING)
-
-  actual_start_time         DateTime?  @db.Timestamptz
-  actual_duration_min       Int?
-  actual_water_amount_ml    Float?
-
-  result_reading_id         BigInt?
-
-  zone            Zone?          @relation(fields: [zone_id], references: [zone_id])
-  trigger_reading SensorReading? @relation("TriggerReading", fields: [trigger_reading_id], references: [id])
-  result_reading  SensorReading? @relation("ResultReading", fields: [result_reading_id], references: [id])
+  followups IrrigationFollowup[]
 
   @@index([zone_id, status])
   @@map("irrigation_jobs")
 }
 
+model IrrigationFollowup {
+  followup_id String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job_id      String  @db.Uuid
+  zone_id     String? @db.Uuid
 
+  check_time       DateTime? @db.Timestamptz(6)
+  sm_after_check   Float?
+  sm_gain          Float?
+  prediction_error Float?
 
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
 
+  job  IrrigationJob @relation(fields: [job_id], references: [job_id], onDelete: Cascade)
+  zone Zone?         @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
 
-
-
-
-
-// =======================
-// CROPS & ALERTS
-// =======================
+  @@index([job_id])
+  @@index([zone_id, check_time])
+  @@map("irrigation_followups")
+}
 
 model CropDetail {
-  crop_id        Int     @id @default(autoincrement())
-  name           String  @db.VarChar(100)
-  default_kc     Float?  @default(1.0)
+  crop_id        Int        @id @default(autoincrement())
+  name           String     @db.VarChar(100)
+  default_kc     Float?     @default(1.0)
   growth_days    Int?
   optimal_sm_min Float?
   optimal_sm_max Float?
-
-  plantings Planting[]
+  plantings      Planting[]
 
   @@map("crop_details")
 }
 
 model Planting {
-  planting_id   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  zone_id       String?   @db.Uuid
+  planting_id   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  zone_id       String?     @db.Uuid
   crop_id       Int?
-  planting_date DateTime  @db.Date
-  growth_stage  String?   @db.VarChar(50)
-  is_active     Boolean?  @default(true)
-  created_at    DateTime? @default(now()) @db.Timestamptz
-
-  zone Zone?       @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
-  crop CropDetail? @relation(fields: [crop_id], references: [crop_id])
+  is_active     Boolean?    @default(true)
+  created_at    DateTime?   @default(now()) @db.Timestamptz(6)
+  growth_stage  String?     @db.VarChar(50)
+  planting_date DateTime    @db.Date
+  crop          CropDetail? @relation(fields: [crop_id], references: [crop_id])
+  zone          Zone?       @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
 
   @@map("plantings")
 }
@@ -373,94 +290,76 @@ model Planting {
 model Alert {
   alert_id   BigInt         @id @default(autoincrement())
   user_id    String?        @db.Uuid
-  title      String         @db.Text
-  message    String?        @db.Text
+  title      String
+  message    String?
   severity   AlertSeverity? @default(INFO)
   is_read    Boolean?       @default(false)
-  created_at DateTime?      @default(now()) @db.Timestamptz
-
-  user User? @relation(fields: [user_id], references: [user_id])
+  created_at DateTime?      @default(now()) @db.Timestamptz(6)
+  user       User?          @relation(fields: [user_id], references: [user_id])
 
   @@index([user_id, is_read])
   @@map("alerts")
 }
 
 model ChatSession {
-  session_id String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String?   @db.Uuid
-  field_id   String?   @db.Uuid
-  started_at DateTime? @default(now()) @db.Timestamptz
-
-  user     User?         @relation(fields: [user_id], references: [user_id])
-  field    Field?        @relation(fields: [field_id], references: [field_id])
-  messages ChatMessage[]
+  session_id String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?       @db.Uuid
+  started_at DateTime?     @default(now()) @db.Timestamptz(6)
+  field_id   String?       @db.Uuid
+  messages   ChatMessage[]
+  field      Field?        @relation(fields: [field_id], references: [field_id])
+  user       User?         @relation(fields: [user_id], references: [user_id])
 
   @@index([user_id, field_id])
   @@map("chat_sessions")
 }
 
 model ChatMessage {
-  message_id BigInt    @id @default(autoincrement())
-  session_id String?   @db.Uuid
-  sender     String?   @db.VarChar(10)
-  content    String?   @db.Text
-  created_at DateTime? @default(now()) @db.Timestamptz
-
-  session ChatSession? @relation(fields: [session_id], references: [session_id])
+  message_id BigInt       @id @default(autoincrement())
+  session_id String?      @db.Uuid
+  sender     String?      @db.VarChar(10)
+  content    String?
+  created_at DateTime?    @default(now()) @db.Timestamptz(6)
+  session    ChatSession? @relation(fields: [session_id], references: [session_id])
 
   @@index([session_id])
   @@map("chat_messages")
 }
 
-// =======================
-// DISEASE DETECTION
-// =======================
-
 model DiseaseDetection {
-  detection_id      String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id           String           @db.Uuid
-  image_uuid        String           @unique @db.Uuid
-  image_s3_key      String           @db.VarChar(500)
-  status            DetectionStatus  @default(NOT_STARTED)
-  uploaded_at       DateTime         @default(now()) @db.Timestamptz
-  processing_started_at DateTime?    @db.Timestamptz
-  completed_at      DateTime?        @db.Timestamptz
+  detection_id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String          @db.Uuid
+  image_uuid            String          @unique @db.Uuid
+  image_s3_key          String          @db.VarChar(500)
+  status                DetectionStatus @default(NOT_STARTED)
+  uploaded_at           DateTime        @default(now()) @db.Timestamptz(6)
+  processing_started_at DateTime?       @db.Timestamptz(6)
+  completed_at          DateTime?       @db.Timestamptz(6)
+  detected_disease      String?         @db.VarChar(100)
+  confidence            Float?
+  confidence_score      Float?
+  all_predictions       Json?
+  recommendations       Json?
+  error_message         String?
+  user                  User            @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
-  // Results
-  detected_disease  String?          @db.VarChar(100)
-  confidence        Float?
-  confidence_score  Float?
-  all_predictions   Json?
-  recommendations   Json?
-  error_message     String?          @db.Text
-
-  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
-  @@index([user_id], name: "idx_disease_detection_user")
-  @@index([status], name: "idx_disease_detection_status")
-  @@index([uploaded_at], name: "idx_disease_detection_uploaded")
+  @@index([user_id], map: "idx_disease_detection_user")
+  @@index([status], map: "idx_disease_detection_status")
+  @@index([uploaded_at], map: "idx_disease_detection_uploaded")
   @@map("disease_detections")
 }
-
-// =======================
-// FIRMWARE MANAGEMENT
-// =======================
 
 model GatewayFirmware {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   version     String   @unique @db.VarChar(20)
   s3_key      String   @db.VarChar(200)
   file_size   Int
-  changelog   String?  @db.Text
+  changelog   String?
   uploaded_by String?  @db.Uuid
-  created_at  DateTime @default(now()) @db.Timestamptz
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("gateway_firmware")
 }
-
-// =======================
-// CARBON FOOTPRINT
-// =======================
 
 model ActivityType {
   activity_type_id Int                  @id @default(autoincrement())
@@ -468,7 +367,6 @@ model ActivityType {
   category         ActivityTypeCategory
   unit             String               @db.VarChar(20)
   is_active        Boolean              @default(true)
-
   carbon_logs      CarbonLog[]
   emission_factors EmissionFactor[]
 
@@ -476,32 +374,102 @@ model ActivityType {
 }
 
 model EmissionFactor {
-  emission_factor_id Int       @id @default(autoincrement())
+  emission_factor_id Int          @id @default(autoincrement())
   activity_type_id   Int
   emission_factor    Float
-  source             String?   @db.VarChar(200)
-  used_from          DateTime  @db.Timestamptz
-  used_until         DateTime? @db.Timestamptz
-
-  activity_type ActivityType @relation(fields: [activity_type_id], references: [activity_type_id])
+  source             String?      @db.VarChar(200)
+  used_from          DateTime     @db.Timestamptz(6)
+  used_until         DateTime?    @db.Timestamptz(6)
+  activity_type      ActivityType @relation(fields: [activity_type_id], references: [activity_type_id])
 
   @@index([activity_type_id, used_from])
   @@map("emission_factors")
 }
 
 model CarbonLog {
-  carbon_log_id    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  farm_id          String   @db.Uuid
+  carbon_log_id    String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  farm_id          String       @db.Uuid
   activity_type_id Int
-  activity_date    DateTime @db.Timestamptz
+  activity_date    DateTime     @db.Timestamptz(6)
   activity_amount  Float
   emission_amount  Float
-  notes            String?  @db.Text
-  created_at       DateTime @default(now()) @db.Timestamptz
-
-  farm          Farm         @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
-  activity_type ActivityType @relation(fields: [activity_type_id], references: [activity_type_id])
+  notes            String?
+  created_at       DateTime     @default(now()) @db.Timestamptz(6)
+  activity_type    ActivityType @relation(fields: [activity_type_id], references: [activity_type_id])
+  farm             Farm         @relation(fields: [farm_id], references: [farm_id], onDelete: Cascade)
 
   @@index([farm_id, activity_date])
   @@map("carbon_logs")
+}
+
+model knowledge_chunks {
+  chunk_id      Int                      @id @default(autoincrement())
+  category      String                   @db.VarChar(50)
+  title         String                   @db.VarChar(200)
+  content       String
+  tags          String[]                 @default([])
+  search_vector Unsupported("tsvector")?
+  created_at    DateTime                 @default(now()) @db.Timestamptz(6)
+
+  @@index([search_vector], type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+
+  @@map("alert_severity")
+}
+
+enum SensorStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  ERROR
+
+  @@map("sensor_status")
+}
+
+enum JobStatus {
+  PENDING
+  EXECUTED
+  SKIPPED
+  ANALYZED
+
+  @@map("job_status")
+}
+
+enum DetectionStatus {
+  NOT_STARTED
+  PROCESSING
+  COMPLETED
+  FAILED
+
+  @@map("detection_status")
+}
+
+enum GatewayStatus {
+  ONLINE
+  OFFLINE
+  PAIRING
+
+  @@map("gateway_status")
+}
+
+enum ActivityTypeCategory {
+  YAKIT
+  GUBRE
+  ELEKTRIK
+
+  @@map("activity_type_category")
 }
