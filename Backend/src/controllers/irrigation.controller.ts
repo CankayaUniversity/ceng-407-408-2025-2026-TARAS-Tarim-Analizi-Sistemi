@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from "express";
 import { asyncHandler } from "../middleware/error.middleware";
-import { getIrrigationPreviewInput } from "../services/irrigation.service";
+import {
+  getIrrigationPreviewInput,
+  getIrrigationPythonPayload,
+  generateAndSaveIrrigationJob,
+} from "../services/irrigation.service";
 
 export const previewIrrigationInput = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
@@ -14,11 +18,41 @@ export const previewIrrigationInput = asyncHandler(
       return;
     }
 
-    const data = await getIrrigationPreviewInput(zone_id);
+    const preview = await getIrrigationPreviewInput(zone_id);
+    const pythonPayload = await getIrrigationPythonPayload(zone_id);
 
     res.status(200).json({
       success: true,
-      data,
+      data: {
+        preview,
+        pythonPayload,
+      },
+    });
+  },
+);
+
+
+
+export const runIrrigationJob = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const zone_id = Array.isArray(req.params.zone_id)
+      ? req.params.zone_id[0]
+      : req.params.zone_id;
+
+    if (!zone_id) {
+      res.status(400).json({
+        success: false,
+        error: "Eksik parametre: 'zone_id' zorunludur.",
+      });
+      return;
+    }
+
+    const result = await generateAndSaveIrrigationJob(zone_id);
+
+    res.status(201).json({
+      success: true,
+      message: "Irrigation job created successfully.",
+      data: result,
     });
   },
 );
