@@ -1,30 +1,47 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" data-lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TARAS - Agricultural Analysis System</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <!-- Navigation Bar -->
     <nav class="navbar">
         <div class="navbar-container">
             <div class="navbar-logo">
-                <img src="taras.svg" alt="TARAS Logo" class="logo-image">
+                <img src="images/taras.svg" alt="TARAS Logo" class="logo-image">
                 <span class="logo-text">TARAS</span>
             </div>
             <ul class="navbar-menu">
-                <li><a href="#main">Main Page</a></li>
-                <li><a href="#how-taras-works">How It Works</a></li>
-                <li><a href="#team">Our Team</a></li>
-                <li><a href="#contact">Contact Us</a></li>
+                <li><a href="#main" data-tr="Anasayfa" data-en="Main Page">Anasayfa</a></li>
+                <li><a href="#how-taras-works" data-tr="Nasıl Çalışır" data-en="How It Works">Nasıl Çalışır</a></li>
+                <li><a href="#team" data-tr="Ekibimiz" data-en="Our Team">Ekibimiz</a></li>
+                <li><a href="#contact" data-tr="İletişim" data-en="Contact Us">İletişim</a></li>
                 <li class="search-icon">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="11" cy="11" r="8"></circle>
                         <path d="m21 21-4.35-4.35"></path>
                     </svg>
                 </li>
+                <li><button class="lang-toggle" data-tr="ENG" data-en="TR">ENG</button></li>
+                <li><button class="theme-toggle" id="theme-toggle">
+                    <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button></li>
             </ul>
             <div class="hamburger">
                 <span></span>
@@ -36,45 +53,45 @@
 
     <!-- Hero Section -->
     <section class="hero" id="main">
-        <img src="cover.jpg" alt="Agricultural greenhouse" class="hero-background">
+        <img src="images/cover.jpg" alt="Agricultural greenhouse" class="hero-background">
         <div class="hero-overlay"></div>
         
         <div class="hero-content">
-            <h2 class="hero-subtitle">Agricultural Analysis System</h2>
+            <h2 class="hero-subtitle" data-tr="Tarımsal Analiz Sistemi" data-en="Agricultural Analysis System">Tarımsal Analiz Sistemi</h2>
             <h1 class="hero-title">TARAS</h1>
-            <p class="hero-description">
-                Real-time sensing, irrigation recommendations, disease detection, digital twin monitoring, and sustainability tracking in one platform.
+            <p class="hero-description" data-tr="Gerçek zamanlı algılama, sulama önerileri, hastalık tespiti, dijital ikiz izleme ve sürdürülebilirlik takibi tek bir platformda." data-en="Real-time sensing, irrigation recommendations, disease detection, digital twin monitoring, and sustainability tracking in one platform.">
+                Gerçek zamanlı algılama, sulama önerileri, hastalık tespiti, dijital ikiz izleme ve sürdürülebilirlik takibi tek bir platformda.
             </p>
-            <button class="explore-btn">Explore TARAS</button>
+            <button class="explore-btn" data-tr="TARAS'ı Keşfet" data-en="Explore TARAS">TARAS'ı Keşfet</button>
         </div>
     </section>
 
     <!-- The Problem Section -->
     <section class="problem" id="problem">
         <div class="container">
-            <h2>The Problem</h2>
-            <p class="problem-intro">Many farmers still rely on intuition rather than data when making irrigation and crop management decisions.</p>
+            <h2 data-tr="Sorun" data-en="The Problem">Sorun</h2>
+            <p class="problem-intro" data-tr="Birçok çiftçi hala sulama ve ürün yönetimi kararları verirken sezgiye dayanmaktadırlar." data-en="Many farmers still rely on intuition rather than data when making irrigation and crop management decisions.">Birçok çiftçi hala sulama ve ürün yönetimi kararları verirken sezgiye dayanmaktadırlar.</p>
             
             <div class="problems-grid">
                 <div class="problem-card">
-                    <img src="problem1.png" alt="Water Waste">
-                    <h3>Water Waste</h3>
-                    <p>Irrigation decisions are often made without reliable data.</p>
+                    <img src="images/problem1.png" alt="Water Waste">
+                    <h3 data-tr="Su Israfı" data-en="Water Waste">Su Israfı</h3>
+                    <p data-tr="Sulama kararları genellikle güvenilir veriler olmadan alınır." data-en="Irrigation decisions are often made without reliable data.">Sulama kararları genellikle güvenilir veriler olmadan alınır.</p>
                 </div>
                 <div class="problem-card">
-                    <img src="problem2.png" alt="Climate Risk">
-                    <h3>Climate Risk</h3>
-                    <p>Changing conditions make traditional decisions unreliable.</p>
+                    <img src="images/problem2.png" alt="Climate Risk">
+                    <h3 data-tr="İklim Riski" data-en="Climate Risk">İklim Riski</h3>
+                    <p data-tr="Değişen koşullar geleneksel kararları güvenilir hale getirmez." data-en="Changing conditions make traditional decisions unreliable.">Değişen koşullar geleneksel kararları güvenilir hale getirmez.</p>
                 </div>
                 <div class="problem-card">
-                    <img src="problem3.png" alt="Late Disease Detection">
-                    <h3>Late Disease Detection</h3>
-                    <p>Symptoms are often noticed too late.</p>
+                    <img src="images/problem3.png" alt="Late Disease Detection">
+                    <h3 data-tr="Geç Hastalık Tespiti" data-en="Late Disease Detection">Geç Hastalık Tespiti</h3>
+                    <p data-tr="Belirtiler genellikle çok geç fark edilir." data-en="Symptoms are often noticed too late.">Belirtiler genellikle çok geç fark edilir.</p>
                 </div>
                 <div class="problem-card">
-                    <img src="problem4.png" alt="Limited Field Monitoring">
-                    <h3>Limited Field Monitoring</h3>
-                    <p>Farmers can't continuously monitor crop conditions.</p>
+                    <img src="images/problem4.png" alt="Limited Field Monitoring">
+                    <h3 data-tr="Sınırlı Tarla İzleme" data-en="Limited Field Monitoring">Sınırlı Tarla İzleme</h3>
+                    <p data-tr="Çiftçiler ürün koşullarını sürekli izleyemezler." data-en="Farmers can't continuously monitor crop conditions.">Çiftçiler ürün koşullarını sürekli izleyemezler.</p>
                 </div>
             </div>
         </div>
@@ -83,8 +100,8 @@
     <!-- Our Solution Section -->
     <section class="solution" id="solution">
         <div class="solution-intro">
-            <h2>Our Solution</h2>
-            <p>An integrated AI-powered platform for smarter farming. </p>
+            <h2 data-tr="Çözümümüz" data-en="Our Solution">Çözümümüz</h2>
+            <p data-tr="Daha akıllı çiftçilik için entegre AI destekli bir platform." data-en="An integrated AI-powered platform for smarter farming.">Daha akıllı çiftçilik için entegre AI destekli bir platform.</p>
         </div>
 
         <div class="solution-features">
@@ -92,40 +109,40 @@
                 <div class="solution-item">
                     <div class="solution-number">1</div>
                     <div class="solution-text">
-                        <h3>Smart Monitoring</h3>
-                        <p>Real-time soil and climate sensing with integrated IoT sensors.</p>
+                        <h3 data-tr="Akıllı İzleme" data-en="Smart Monitoring">Akıllı İzleme</h3>
+                        <p data-tr="Entegre IoT sensörleri ile gerçek zamanlı toprak ve iklim algılaması." data-en="Real-time soil and climate sensing with integrated IoT sensors.">Entegre IoT sensörleri ile gerçek zamanlı toprak ve iklim algılaması.</p>
                     </div>
                 </div>
 
                 <div class="solution-item">
                     <div class="solution-number">2</div>
                     <div class="solution-text">
-                        <h3>Irrigation Recommendation</h3>
-                        <p>Predicts optimal watering times and quantities based on field conditions.</p>
+                        <h3 data-tr="Sulama Önerisi" data-en="Irrigation Recommendation">Sulama Önerisi</h3>
+                        <p data-tr="Tarla koşullarına göre optimal sulama zamanlarını ve miktarlarını tahmin eder." data-en="Predicts optimal watering times and quantities based on field conditions.">Tarla koşullarına göre optimal sulama zamanlarını ve miktarlarını tahmin eder.</p>
                     </div>
                 </div>
 
                 <div class="solution-item">
                     <div class="solution-number">3</div>
                     <div class="solution-text">
-                        <h3>Disease Detection</h3>
-                        <p>Instant AI leaf analysis for early disease identification and prevention.</p>
+                        <h3 data-tr="Hastalık Tespiti" data-en="Disease Detection">Hastalık Tespiti</h3>
+                        <p data-tr="Erken hastalık tanısı ve önleme için anında AI yaprak analizi." data-en="Instant AI leaf analysis for early disease identification and prevention.">Erken hastalık tanısı ve önleme için anında AI yaprak analizi.</p>
                     </div>
                 </div>
 
                 <div class="solution-item">
                     <div class="solution-number">4</div>
                     <div class="solution-text">
-                        <h3>Digital Twin</h3>
-                        <p>Visual field moisture maps and 3D digital representations of your farm.</p>
+                        <h3 data-tr="Dijital İkiz" data-en="Digital Twin">Dijital İkiz</h3>
+                        <p data-tr="Görsel tarla nem haritaları ve çiftliğinizin 3D dijital temsilleri." data-en="Visual field moisture maps and 3D digital representations of your farm.">Görsel tarla nem haritaları ve çiftliğinizin 3D dijital temsilleri.</p>
                     </div>
                 </div>
 
                 <div class="solution-item">
                     <div class="solution-number">5</div>
                     <div class="solution-text">
-                        <h3>Sustainability</h3>
-                        <p>Track water usage and carbon footprint to optimize environmental impact.</p>
+                        <h3 data-tr="Sürdürülebilirlik" data-en="Sustainability">Sürdürülebilirlik</h3>
+                        <p data-tr="Su kullanımını ve karbon ayakizini izleyerek çevresel etkiyi optimize edin." data-en="Track water usage and carbon footprint to optimize environmental impact.">Su kullanımını ve karbon ayakizini izleyerek çevresel etkiyi optimize edin.</p>
                     </div>
                 </div>
             </div>
@@ -135,37 +152,37 @@
     <!-- How TARAS Works Section -->
     <section class="how-taras-works" id="how-taras-works">
         <div class="container">
-            <h2>How TARAS Works</h2>
+            <h2 data-tr="TARAS Nasıl Çalışır" data-en="How TARAS Works">TARAS Nasıl Çalışır</h2>
             
             <div class="process-flow">
                 <div class="process-item">
                     <div class="process-number">1</div>
-                    <h3>Sensors</h3>
-                    <p>Monitors soil & climate</p>
+                    <h3 data-tr="Sensörler" data-en="Sensors">Sensörler</h3>
+                    <p data-tr="Toprak ve iklimi izler" data-en="Monitors soil & climate">Toprak ve iklimi izler</p>
                 </div>
 
                 <div class="process-item">
                     <div class="process-number">2</div>
-                    <h3>Gateway</h3>
-                    <p>Collects wireless data</p>
+                    <h3 data-tr="Ağ Geçidi" data-en="Gateway">Ağ Geçidi</h3>
+                    <p data-tr="Kablosuz verileri toplar" data-en="Collects wireless data">Kablosuz verileri toplar</p>
                 </div>
 
                 <div class="process-item">
                     <div class="process-number">3</div>
-                    <h3>Cloud</h3>
-                    <p>Processes in real-time</p>
+                    <h3 data-tr="Bulut" data-en="Cloud">Bulut</h3>
+                    <p data-tr="Gerçek zamanlı işlem yapar" data-en="Processes in real-time">Gerçek zamanlı işlem yapar</p>
                 </div>
 
                 <div class="process-item">
                     <div class="process-number">4</div>
-                    <h3>AI</h3>
-                    <p>Detects disease patterns</p>
+                    <h3 data-tr="AI" data-en="AI">AI</h3>
+                    <p data-tr="Hastalık desenlerini tespit eder" data-en="Detects disease patterns">Hastalık desenlerini tespit eder</p>
                 </div>
 
                 <div class="process-item">
                     <div class="process-number">5</div>
-                    <h3>App</h3>
-                    <p>Delivers actionable insights</p>
+                    <h3 data-tr="Uygulama" data-en="App">Uygulama</h3>
+                    <p data-tr="Eyleme geçirilebilir içgörüler sağlar" data-en="Delivers actionable insights">Eyleme geçirilebilir içgörüler sağlar</p>
                 </div>
             </div>
         </div>
@@ -174,31 +191,31 @@
     <!-- Team Section -->
     <section class="team" id="team">
         <div class="container">
-            <h2>Our Team</h2>
+            <h2 data-tr="Ekibimiz" data-en="Our Team">Ekibimiz</h2>
             <div class="team-grid">
                 <div class="team-member">
                     <div class="member-avatar member-avatar-1">ÖEB</div>
                     <h3>Öykü Eylül BOZDAĞ</h3>
-                    <p class="role-title">Model Lead</p>
-                    <p class="role-description">Develops and improves the irrigation recommendation model used in TARAS.</p>
+                    <p class="role-title" data-tr="Model Lideri" data-en="Model Lead">Model Lideri</p>
+                    <p class="role-description" data-tr="TARAS'ta kullanılan sulama önerisi modelini geliştirir ve iyileştirir." data-en="Develops and improves the irrigation recommendation model used in TARAS.">TARAS'ta kullanılan sulama önerisi modelini geliştirir ve iyileştirir.</p>
                 </div>
                 <div class="team-member">
                     <div class="member-avatar member-avatar-2">AK</div>
                     <h3>Arda KAHRAMAN</h3>
-                    <p class="role-title">Backend Lead</p>
-                    <p class="role-description">Builds the server-side system, APIs, and database integration.</p>
+                    <p class="role-title" data-tr="Arka Uç Lideri" data-en="Backend Lead">Arka Uç Lideri</p>
+                    <p class="role-description" data-tr="Sunucu tarafı sistemi, API'ları ve veritabanı entegrasyonunu oluşturur." data-en="Builds the server-side system, APIs, and database integration.">Sunucu tarafı sistemi, API'ları ve veritabanı entegrasyonunu oluşturur.</p>
                 </div>
                 <div class="team-member">
                     <div class="member-avatar member-avatar-3">HEA</div>
                     <h3>Hatice Elif ARABACI</h3>
-                    <p class="role-title">UI Lead</p>
-                    <p class="role-description">Designs the user interface and improves the user experience.</p>
+                    <p class="role-title" data-tr="UI Lideri" data-en="UI Lead">UI Lideri</p>
+                    <p class="role-description" data-tr="Kullanıcı arayüzünü tasarlar ve kullanıcı deneyimini iyileştirir." data-en="Designs the user interface and improves the user experience.">Kullanıcı arayüzünü tasarlar ve kullanıcı deneyimini iyileştirir.</p>
                 </div>
                 <div class="team-member">
                     <div class="member-avatar member-avatar-4">MBK</div>
                     <h3>Mustafa Berk Keskin</h3>
-                    <p class="role-title">Vision Lead</p>
-                    <p class="role-description">Works on image processing and plant disease detection features.</p>
+                    <p class="role-title" data-tr="Vizyon Lideri" data-en="Vision Lead">Vizyon Lideri</p>
+                    <p class="role-description" data-tr="Görüntü işleme ve bitki hastalığı tespiti özellikleri üzerinde çalışır." data-en="Works on image processing and plant disease detection features.">Görüntü işleme ve bitki hastalığı tespiti özellikleri üzerinde çalışır.</p>
                 </div>
             </div>
         </div>
@@ -207,12 +224,12 @@
     <!-- Contact Section -->
     <section class="contact" id="contact">
         <div class="container">
-            <h2>Contact Us</h2>
+            <h2 data-tr="İletişim" data-en="Contact Us">İletişim</h2>
             <form class="contact-form" id="contact-form">
-                <input type="text" placeholder="İsim" name="name" required>
-                <input type="email" placeholder="E-mail" name="email" required>
-                <textarea placeholder="Mesaj" name="message" rows="5" required></textarea>
-                <button type="submit">Gönder</button>
+                <input type="text" placeholder="İsim" name="name" data-placeholder-tr="İsim" data-placeholder-en="Name" required>
+                <input type="email" placeholder="E-mail" name="email" data-placeholder-tr="E-mail" data-placeholder-en="Email" required>
+                <textarea placeholder="Mesaj" name="message" data-placeholder-tr="Mesaj" data-placeholder-en="Message" rows="5" required></textarea>
+                <button type="submit" data-tr="Gönder" data-en="Send">Gönder</button>
             </form>
         </div>
     </section>
@@ -220,10 +237,10 @@
     <!-- Footer -->
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2026 TARAS - Agricultural Analysis System. Tüm hakları saklıdır.</p>
+            <p data-tr="© 2026 TARAS - Tarımsal Analiz Sistemi. Tüm hakları saklıdır." data-en="© 2026 TARAS - Agricultural Analysis System. All rights reserved.">&copy; 2026 TARAS - Tarımsal Analiz Sistemi. Tüm hakları saklıdır.</p>
         </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script src="js/script.js"></script>
 </body>
 </html>
