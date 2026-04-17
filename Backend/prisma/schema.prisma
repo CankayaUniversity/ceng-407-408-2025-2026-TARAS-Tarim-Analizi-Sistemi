@@ -374,7 +374,7 @@ model Alert {
   severity   AlertSeverity? @default(INFO)
   is_read    Boolean?       @default(false)
   created_at DateTime?      @default(now()) @db.Timestamptz(6)
-  user       User?          @relation(fields: [user_id], references: [user_id])
+  user       User?          @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, is_read])
   @@map("alerts")
@@ -391,7 +391,7 @@ model ChatSession {
   field_id   String?       @db.Uuid
   messages   ChatMessage[]
   field      Field?        @relation(fields: [field_id], references: [field_id])
-  user       User?         @relation(fields: [user_id], references: [user_id])
+  user       User?         @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id, field_id])
   @@map("chat_sessions")
@@ -403,7 +403,7 @@ model ChatMessage {
   sender     String?      @db.VarChar(10)
   content    String?
   created_at DateTime?    @default(now()) @db.Timestamptz(6)
-  session    ChatSession? @relation(fields: [session_id], references: [session_id])
+  session    ChatSession? @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 
   @@index([session_id])
   @@map("chat_messages")
