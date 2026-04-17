@@ -69,7 +69,7 @@ export const StatusCard = ({
   );
 
   return (
-    <View className="flex-1 px-2 pt-1">
+    <View className="flex-1 px-1 pt-1">
       <View className="flex-row flex-wrap">
         <MetricCard
           theme={theme}
@@ -80,7 +80,7 @@ export const StatusCard = ({
             <FontAwesome6
               name="temperature-three-quarters"
               size={22}
-              color={theme.accent}
+              color={theme.primary}
             />
           }
           loading={loading}
@@ -90,7 +90,7 @@ export const StatusCard = ({
           title={t.home.airHumidity}
           value={airHumidity}
           icon={
-            <MaterialIcons name="water-drop" size={22} color={theme.accent} />
+            <MaterialIcons name="water-drop" size={22} color={theme.primary} />
           }
           loading={loading}
         />
@@ -107,14 +107,14 @@ export const StatusCard = ({
             />
           }
           unit={""}
-          icon={<FontAwesome6 name="clock" size={22} color={theme.accent} />}
+          icon={<FontAwesome6 name="clock" size={22} color={theme.primary} />}
           loading={false}
         />
         <MetricCard
           theme={theme}
           title={t.home.soilMoisture}
           value={soilMoisture}
-          icon={<Entypo name="air" size={22} color={theme.accent} />}
+          icon={<Entypo name="air" size={22} color={theme.primary} />}
           loading={loading}
         />
       </View>

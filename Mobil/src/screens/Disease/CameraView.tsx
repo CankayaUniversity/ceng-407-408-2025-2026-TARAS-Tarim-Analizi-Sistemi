@@ -54,9 +54,9 @@ export const CameraView = ({
       className="flex-1 rounded-[20px] overflow-hidden"
       style={{
         borderWidth: 3,
-        borderColor: theme.accent,
+        borderColor: theme.primary,
         elevation: 8,
-        shadowColor: "#000",
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -106,7 +106,7 @@ export const CameraView = ({
               width: frameSize,
               height: frameSize,
               borderWidth: 2,
-              borderColor: theme.accent,
+              borderColor: theme.primary,
               borderRadius: 12,
               backgroundColor: "transparent",
             }}
@@ -141,11 +141,11 @@ export const CameraView = ({
           height: s(56),
           backgroundColor: theme.surface,
           borderWidth: 1,
-          borderColor: theme.accent + "44",
+          borderColor: theme.primary + "44",
         }}
         activeOpacity={0.8}
       >
-        <MaterialCommunityIcons name="image" size={26} color={theme.accent} />
+        <MaterialCommunityIcons name="image" size={26} color={theme.primary} />
       </TouchableOpacity>
 
       {/* Cek butonu */}
@@ -171,7 +171,7 @@ export const CameraView = ({
           }}
         >
           <View
-            className="bg-platinum-50 dark:bg-onyx-950"
+            className="bg-porcelain dark:bg-carbonBlack"
             style={{
               width: s(56),
               height: s(56),
@@ -192,14 +192,14 @@ export const CameraView = ({
           height: s(50),
           backgroundColor: theme.surface,
           borderWidth: 1,
-          borderColor: flashOn ? theme.accent : theme.accent + "44",
+          borderColor: flashOn ? theme.primary : theme.primary + "44",
         }}
         activeOpacity={0.8}
       >
         <MaterialCommunityIcons
           name={flashOn ? "flash" : "flash-off"}
           size={22}
-          color={flashOn ? theme.accent : theme.text}
+          color={flashOn ? theme.primary : theme.textMain}
         />
       </TouchableOpacity>
     </View>

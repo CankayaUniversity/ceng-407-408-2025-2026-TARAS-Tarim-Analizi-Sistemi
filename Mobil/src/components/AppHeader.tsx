@@ -1,11 +1,11 @@
-// Uygulama ust basligi — logo, FieldSelector, veri kaynagi rozeti, profil butonu
+// Uygulama ust basligi — logo, FieldSelector, bildirim butonu
 // Tum state'i context'ten okuyor, prop almiyor
 
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import React from "react";
+import { View, Text, TouchableOpacity, ScrollView, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import { useDashboard } from "../context/DashboardContext";
-import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import {
   spacing,
@@ -18,7 +18,8 @@ import {
 } from "../utils/responsive";
 import LogoLight from "../assets/Taras-logo-light.svg";
 import LogoDark from "../assets/Taras-logo-dark.svg";
-import { ProfileButton } from "./ProfileButton";
+import { NotificationsButton } from "./NotificationsButton";
+import { NotificationsScreen } from "../screens";
 
 export const AppHeader = () => {
   const { theme, isDark } = useTheme();
@@ -29,11 +30,11 @@ export const AppHeader = () => {
     fieldSelectorOpen,
     setFieldSelectorOpen,
   } = useDashboard();
-  const { username, dataSource } = useAuth();
   const { t } = useLanguage();
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
-  const profileButtonSize = getProfileButtonSize(headerDims.logoSize);
+  const notificationsButtonSize = getProfileButtonSize(headerDims.logoSize);
+  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
 
   const fieldSelectorJSX =
     fields.length > 0 ? (
@@ -45,14 +46,14 @@ export const AppHeader = () => {
             paddingVertical: vs(6),
             paddingHorizontal: s(12),
             backgroundColor: theme.surface,
-            borderColor: theme.accent + "30",
+            borderColor: theme.primary + "30",
           }}
         >
           <View className="row flex-1" style={{ gap: s(6) }}>
-            <Ionicons name="leaf" size={ms(14, 0.3)} color={theme.accent} />
+            <Ionicons name="leaf" size={ms(14, 0.3)} color={theme.primary} />
             <Text
               className="font-semibold flex-1"
-              style={{ fontSize: ms(13, 0.3), color: theme.text }}
+              style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
               numberOfLines={1}
             >
               {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
@@ -73,9 +74,9 @@ export const AppHeader = () => {
               top: vs(38),
               maxHeight: vs(200),
               backgroundColor: theme.surface,
-              borderColor: theme.accent + "30",
+              borderColor: theme.primary + "30",
               elevation: 10,
-              shadowColor: "#000",
+              shadowColor: theme.shadowColor,
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.15,
               shadowRadius: 8,
@@ -93,7 +94,7 @@ export const AppHeader = () => {
                       { paddingHorizontal: s(12), paddingVertical: vs(10) },
                       index < arr.length - 1 && {
                         borderBottomWidth: 1,
-                        borderBottomColor: theme.accent + "15",
+                        borderBottomColor: theme.primary + "15",
                       },
                     ]}
                     activeOpacity={0.7}
@@ -106,7 +107,7 @@ export const AppHeader = () => {
                     />
                     <Text
                       className="font-medium"
-                      style={{ fontSize: ms(13, 0.3), color: theme.text }}
+                      style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
                     >
                       {field.name}
                     </Text>
@@ -141,18 +142,21 @@ export const AppHeader = () => {
       </View>
 
       <View className="row gap-2" style={{ marginRight: headerDims.elementGap }}>
-        <View
-          className="px-2 py-1 rounded-md"
-          style={{
-            backgroundColor: dataSource === "aws" ? theme.accent : theme.accentDim,
-          }}
-        >
-          <Text className="text-white text-[10px] font-semibold">
-            {dataSource === "aws" ? t.home.dataSourceAWS : t.home.dataSourceDemo}
-          </Text>
-        </View>
-        <ProfileButton username={username} theme={theme} size={profileButtonSize} />
+        <NotificationsButton
+          theme={theme}
+          size={notificationsButtonSize}
+          onPress={() => setNotificationsOpen(true)}
+        />
       </View>
+
+      <Modal
+        visible={notificationsOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setNotificationsOpen(false)}
+      >
+        <NotificationsScreen onClose={() => setNotificationsOpen(false)} />
+      </Modal>
     </View>
   );
 };

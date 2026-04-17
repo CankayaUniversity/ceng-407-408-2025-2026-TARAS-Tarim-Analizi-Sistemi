@@ -26,6 +26,7 @@ interface DiseaseResultCardProps {
 const getStatusInfo = (
   status: DetectionStatus,
   t: any,
+  theme: Theme,
 ): { text: string; color: string; icon: string } => {
   switch (status) {
     case "NOT_STARTED":
@@ -43,13 +44,13 @@ const getStatusInfo = (
     case "COMPLETED":
       return {
         text: t.disease.statusCompleted,
-        color: "#22c55e",
+        color: theme.success,
         icon: "checkmark-circle-outline",
       };
     case "FAILED":
       return {
         text: t.disease.statusFailed,
-        color: "#ef4444",
+        color: theme.danger,
         icon: "close-circle-outline",
       };
   }
@@ -84,7 +85,7 @@ export const DiseaseResultCard = ({
   onDelete,
 }: DiseaseResultCardProps) => {
   const { t, language } = useLanguage();
-  const statusInfo = getStatusInfo(detection.status, t);
+  const statusInfo = getStatusInfo(detection.status, t, theme);
 
   // Normalize confidence: backend may return 0-1 float or 0-100, and may use
   // either the "confidence" field or the "confidence_score" field.
@@ -103,8 +104,8 @@ export const DiseaseResultCard = ({
       className="surface-bg rounded-2xl p-4 mb-4"
       style={{
         borderWidth: 1,
-        borderColor: theme.accent + "20",
-        shadowColor: "#000",
+        borderColor: theme.primary + "20",
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
@@ -113,7 +114,7 @@ export const DiseaseResultCard = ({
     >
       <View className="flex-row" style={{ gap: spacing.md }}>
         <View
-          className="rounded-lg bg-platinum-50 dark:bg-onyx-950 overflow-hidden center"
+          className="rounded-lg bg-porcelain dark:bg-carbonBlack overflow-hidden center"
           style={{ width: 80, height: 80 }}
         >
           {imageUrl ? (
@@ -156,7 +157,7 @@ export const DiseaseResultCard = ({
               className="row mb-1"
               style={{ gap: spacing.sm }}
             >
-              <ActivityIndicator size="small" color={theme.accent} />
+              <ActivityIndicator size="small" color={theme.primary} />
               <Text className="text-secondary text-xs">
                 {t.disease.analyzingLeaf}
               </Text>
@@ -174,11 +175,11 @@ export const DiseaseResultCard = ({
               >
                 <View
                   className="rounded px-2 py-0.5"
-                  style={{ backgroundColor: theme.accent + "20" }}
+                  style={{ backgroundColor: theme.primary + "20" }}
                 >
                   <Text
                     className="text-[11px] font-semibold"
-                    style={{ color: theme.accent }}
+                    style={{ color: theme.primary }}
                   >
                     {confidencePct != null ? confidencePct.toFixed(1) : "--"}%{" "}
                     {t.disease.confidence}

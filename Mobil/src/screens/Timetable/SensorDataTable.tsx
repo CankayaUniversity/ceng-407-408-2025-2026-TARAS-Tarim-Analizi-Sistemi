@@ -53,13 +53,13 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
         className="row"
         style={{ marginBottom: vs(12) }}
       >
-        <MaterialCommunityIcons name="table" size={20} color={theme.accent} />
+        <MaterialCommunityIcons name="table" size={20} color={theme.primary} />
         <Text
           style={{
             marginLeft: s(8),
             fontSize: ms(13, 0.3),
             fontWeight: "600",
-            color: theme.text,
+            color: theme.textMain,
           }}
         >
           {t.timetable.sensorData} — {t.timetable.total}: {data.length} |{" "}
@@ -83,17 +83,17 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
               borderRadius: 12,
               marginRight: s(6),
               backgroundColor: selectedNodes.has(nodeId)
-                ? theme.accent
+                ? theme.primary
                 : theme.surface,
               borderWidth: 1,
               borderColor: selectedNodes.has(nodeId)
-                ? theme.accent
+                ? theme.primary
                 : theme.textSecondary + "40",
             }}
           >
             <Text
               style={{
-                color: selectedNodes.has(nodeId) ? "#fff" : theme.text,
+                color: selectedNodes.has(nodeId) ? theme.textOnPrimary : theme.textMain,
                 fontSize: ms(10, 0.3),
                 fontWeight: "600",
               }}
@@ -115,22 +115,22 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
             {/* Header */}
             <View className="flex-row">
               <View style={[headerStyle, { flex: 2 }]}>
-                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                <Text style={{ color: theme.textMain, fontWeight: "700" }}>
                   {t.timetable.time}
                 </Text>
               </View>
               <View style={[headerStyle, { flex: 1 }]}>
-                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                <Text style={{ color: theme.textMain, fontWeight: "700" }}>
                   {t.timetable.temperature}
                 </Text>
               </View>
               <View style={[headerStyle, { flex: 1 }]}>
-                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                <Text style={{ color: theme.textMain, fontWeight: "700" }}>
                   {t.timetable.humidity}
                 </Text>
               </View>
               <View style={[headerStyle, { flex: 1 }]}>
-                <Text style={{ color: theme.text, fontWeight: "700" }}>
+                <Text style={{ color: theme.textMain, fontWeight: "700" }}>
                   {t.timetable.soilMoisture}
                 </Text>
               </View>
@@ -155,20 +155,20 @@ export const SensorDataTable = ({ theme, data }: SensorDataTableProps) => {
                   }}
                 >
                   <View style={[cellStyle, { flex: 2 }]}>
-                    <Text style={{ color: theme.text }}>{time}</Text>
+                    <Text style={{ color: theme.textMain }}>{time}</Text>
                   </View>
                   <View style={[cellStyle, { flex: 1 }]}>
-                    <Text style={{ color: theme.text }}>
+                    <Text style={{ color: theme.textMain }}>
                       {r.temperature?.toFixed(2)}
                     </Text>
                   </View>
                   <View style={[cellStyle, { flex: 1 }]}>
-                    <Text style={{ color: theme.text }}>
+                    <Text style={{ color: theme.textMain }}>
                       {r.humidity?.toFixed(2)}
                     </Text>
                   </View>
                   <View style={[cellStyle, { flex: 1 }]}>
-                    <Text style={{ color: theme.text }}>
+                    <Text style={{ color: theme.textMain }}>
                       {r.sm_percent?.toFixed(2)}
                     </Text>
                   </View>

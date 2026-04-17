@@ -113,7 +113,7 @@ export const SensorDataDumpScreen = ({
       <View
         style={[appStyles.placeholder, { backgroundColor: theme.background }]}
       >
-        <ActivityIndicator size="large" color={theme.accent} />
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text
           style={[
             appStyles.placeholderSub,
@@ -141,17 +141,17 @@ export const SensorDataDumpScreen = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.accent]}
+            colors={[theme.primary]}
           />
         }
       >
         <MaterialCommunityIcons
           name="alert-circle"
           size={48}
-          color={theme.accent}
+          color={theme.primary}
           style={{ marginBottom: vs(16) }}
         />
-        <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+        <Text style={[appStyles.placeholderText, { color: theme.textMain }]}>
           {t.timetable.loadFailed}
         </Text>
         <Text
@@ -175,7 +175,7 @@ export const SensorDataDumpScreen = ({
     <View className="flex-1" style={{ backgroundColor: theme.background }}>
       <View style={{ padding: s(16) }}>
         <View className="row-between" style={{ marginBottom: vs(8) }}>
-          <Text style={{ color: theme.text, fontSize: ms(16, 0.3), fontWeight: "700" }}>
+          <Text style={{ color: theme.textMain, fontSize: ms(16, 0.3), fontWeight: "700" }}>
             {t.timetable.sensorDump} (72 {t.timetable.hours})
           </Text>
           <View
@@ -212,17 +212,17 @@ export const SensorDataDumpScreen = ({
                 borderRadius: 12,
                 marginRight: s(6),
                 backgroundColor: selectedNodes.has(nodeId)
-                  ? theme.accent
+                  ? theme.primary
                   : theme.surface,
                 borderWidth: 1,
                 borderColor: selectedNodes.has(nodeId)
-                  ? theme.accent
+                  ? theme.primary
                   : theme.textSecondary + "40",
               }}
             >
               <Text
                 style={{
-                  color: selectedNodes.has(nodeId) ? "#fff" : theme.text,
+                  color: selectedNodes.has(nodeId) ? theme.textOnPrimary : theme.textMain,
                   fontSize: ms(10, 0.3),
                   fontWeight: "600",
                 }}
@@ -280,7 +280,7 @@ export const SensorDataDumpScreen = ({
                     width: h.width,
                   }}
                 >
-                  <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  <Text style={{ color: theme.textMain, fontWeight: "700" }}>
                     {h.label}
                   </Text>
                 </View>
@@ -325,7 +325,7 @@ export const SensorDataDumpScreen = ({
                     width: s(220),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>{time}</Text>
+                  <Text style={{ color: theme.textMain }}>{time}</Text>
                 </View>
                 <View
                   style={{
@@ -334,7 +334,7 @@ export const SensorDataDumpScreen = ({
                     width: s(100),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>{item.node_id}</Text>
+                  <Text style={{ color: theme.textMain }}>{item.node_id}</Text>
                 </View>
                 <View
                   style={{
@@ -343,7 +343,7 @@ export const SensorDataDumpScreen = ({
                     width: s(120),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.temperature?.toFixed(2)}
                   </Text>
                 </View>
@@ -354,7 +354,7 @@ export const SensorDataDumpScreen = ({
                     width: s(120),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.humidity?.toFixed(2)}
                   </Text>
                 </View>
@@ -365,7 +365,7 @@ export const SensorDataDumpScreen = ({
                     width: s(140),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.sm_percent?.toFixed(2)}
                   </Text>
                 </View>
@@ -376,7 +376,7 @@ export const SensorDataDumpScreen = ({
                     width: s(120),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>{item.raw_sm_value}</Text>
+                  <Text style={{ color: theme.textMain }}>{item.raw_sm_value}</Text>
                 </View>
                 <View
                   style={{
@@ -385,7 +385,7 @@ export const SensorDataDumpScreen = ({
                     width: s(100),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.et0_instant ?? ""}
                   </Text>
                 </View>
@@ -405,7 +405,7 @@ export const SensorDataDumpScreen = ({
             right: s(20),
             width: s(56),
             height: s(56),
-            backgroundColor: theme.accent,
+            backgroundColor: theme.primary,
             elevation: 5,
           }}
         >

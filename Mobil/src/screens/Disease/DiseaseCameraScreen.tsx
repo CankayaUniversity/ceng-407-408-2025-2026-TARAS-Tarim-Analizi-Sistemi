@@ -145,14 +145,14 @@ export const DiseaseCameraScreen = ({
 
   if (!permission) {
     return (
-      <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
+      <View className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack">
         <Text className="text-primary font-bold" style={{ fontSize: ms(24, 0.3) }}>
           {t.camera.permissionTitle}
         </Text>
         <TouchableOpacity
           className="rounded-xl mt-6"
           style={{
-            backgroundColor: theme.accent,
+            backgroundColor: theme.primary,
             paddingVertical: vs(14),
             paddingHorizontal: s(24),
           }}
@@ -171,7 +171,7 @@ export const DiseaseCameraScreen = ({
 
   if (!permission.granted) {
     return (
-      <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
+      <View className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack">
         <Text className="text-primary font-bold" style={{ fontSize: ms(24, 0.3) }}>
           {t.camera.permissionDeniedTitle}
         </Text>
@@ -184,7 +184,7 @@ export const DiseaseCameraScreen = ({
         <TouchableOpacity
           className="rounded-xl"
           style={{
-            backgroundColor: theme.accent,
+            backgroundColor: theme.primary,
             paddingVertical: vs(14),
             paddingHorizontal: s(24),
           }}
@@ -221,7 +221,7 @@ export const DiseaseCameraScreen = ({
       {flashOverlayVisible && (
         <View
           className="absolute left-0 right-0 top-0 bottom-0"
-          style={{ backgroundColor: theme.accent + "33" }}
+          style={{ backgroundColor: theme.primary + "33" }}
         />
       )}
 

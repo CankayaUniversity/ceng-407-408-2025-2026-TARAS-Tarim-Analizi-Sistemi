@@ -152,7 +152,7 @@ export const LoginScreen = ({
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950"
+      className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
@@ -188,7 +188,7 @@ export const LoginScreen = ({
             style={{
               paddingVertical: vs(12),
               paddingHorizontal: s(16),
-              borderColor: theme.accentDim,
+              borderColor: theme.border,
               fontSize: ms(16, 0.3),
             }}
             placeholder={t.login.emailPlaceholder}
@@ -206,7 +206,7 @@ export const LoginScreen = ({
           style={{
             paddingVertical: vs(12),
             paddingHorizontal: s(16),
-            borderColor: theme.accentDim,
+            borderColor: theme.border,
             fontSize: ms(16, 0.3),
           }}
           placeholder={t.login.usernamePlaceholder}
@@ -221,7 +221,7 @@ export const LoginScreen = ({
           style={{
             paddingVertical: vs(12),
             paddingHorizontal: s(16),
-            borderColor: theme.accentDim,
+            borderColor: theme.border,
             fontSize: ms(16, 0.3),
           }}
           placeholder={t.login.passwordPlaceholder}
@@ -237,7 +237,7 @@ export const LoginScreen = ({
             style={{
               paddingVertical: vs(12),
               paddingHorizontal: s(16),
-              borderColor: theme.accentDim,
+              borderColor: theme.border,
               fontSize: ms(16, 0.3),
             }}
             placeholder={t.login.confirmPasswordPlaceholder}
@@ -251,7 +251,7 @@ export const LoginScreen = ({
         <TouchableOpacity
           className="w-full rounded-xl center mt-6"
           style={{
-            backgroundColor: theme.accent,
+            backgroundColor: theme.primary,
             paddingVertical: vs(14),
             paddingHorizontal: s(24),
             opacity: isLoading ? 0.6 : 1,
@@ -278,7 +278,7 @@ export const LoginScreen = ({
         >
           <Text
             className="text-center font-semibold"
-            style={{ color: theme.accent, fontSize: ms(14, 0.3) }}
+            style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
           >
             {isRegisterMode ? t.login.switchToLogin : t.login.switchToRegister}
           </Text>
@@ -290,7 +290,7 @@ export const LoginScreen = ({
             style={{
               paddingVertical: 10,
               paddingHorizontal: 16,
-              borderColor: theme.accentDim,
+              borderColor: theme.border,
             }}
             onPress={() => {
               handleSkip();
@@ -300,7 +300,7 @@ export const LoginScreen = ({
           >
             <Text
               className="text-center font-semibold"
-              style={{ color: theme.accentDim, fontSize: ms(14, 0.3) }}
+              style={{ color: theme.border, fontSize: ms(14, 0.3) }}
             >
               {t.login.localDemoButton}
             </Text>
@@ -312,14 +312,14 @@ export const LoginScreen = ({
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 16,
-                borderColor: theme.accentDim,
+                borderColor: theme.border,
               }}
               onPress={handleAwsDemo}
               disabled={isLoading}
             >
               <Text
                 className="text-center font-semibold"
-                style={{ color: theme.accentDim, fontSize: ms(14, 0.3) }}
+                style={{ color: theme.border, fontSize: ms(14, 0.3) }}
               >
                 {t.login.awsDemoButton}
               </Text>

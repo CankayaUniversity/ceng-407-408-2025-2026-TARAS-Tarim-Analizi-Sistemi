@@ -45,7 +45,7 @@ export const MetricCard = ({
         className="border rounded-xl justify-between"
         style={{
           backgroundColor: theme.surface,
-          borderColor: theme.accent + "20",
+          borderColor: theme.primary + "20",
           padding: cardPadding,
           height: cardLayout.cardHeight,
         }}
@@ -66,14 +66,14 @@ export const MetricCard = ({
         {/* Deger */}
         <View className="items-start flex-1" style={{ justifyContent: loading ? "center" : "flex-end" }}>
           {loading ? (
-            <ActivityIndicator size={VALUE_FONT * 0.7} color={theme.accent} />
+            <ActivityIndicator size={VALUE_FONT * 0.7} color={theme.primary} />
           ) : value !== null ? (
             typeof value === "string" ? (
               <View className="flex-row items-baseline">
                 <Text
                   numberOfLines={1}
                   className="font-normal"
-                  style={{ color: theme.text, fontSize: VALUE_FONT, lineHeight: VALUE_FONT * 1.1 }}
+                  style={{ color: theme.textMain, fontSize: VALUE_FONT, lineHeight: VALUE_FONT * 1.1 }}
                 >
                   {value}
                 </Text>

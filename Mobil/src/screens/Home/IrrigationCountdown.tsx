@@ -61,7 +61,7 @@ export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdown
     <View className="row">
       <Text
         className="font-normal"
-        style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.text }}
+        style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.textMain }}
         numberOfLines={1}
       >
         {hours}
@@ -72,14 +72,14 @@ export const IrrigationCountdown = ({ theme, isoTimestamp }: IrrigationCountdown
       >
         <Text
           className="font-normal"
-          style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.text, opacity: colonVisible ? 1 : 0 }}
+          style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.textMain, opacity: colonVisible ? 1 : 0 }}
         >
           :
         </Text>
       </View>
       <Text
         className="font-normal"
-        style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.text }}
+        style={{ fontSize: FONT_SIZE, lineHeight: LINE_HEIGHT, color: theme.textMain }}
         numberOfLines={1}
       >
         {minutes}

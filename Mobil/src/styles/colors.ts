@@ -1,115 +1,110 @@
-// Color palette - single source of truth for app theme
-export const colors = {
-  platinum: {
-    50: '#f0f0f5',
-    100: '#e0e0eb',
-    200: '#c2c2d6',
-    300: '#a3a3c2',
-    400: '#8585ad',
-    500: '#666699',
-    600: '#52527a',
-    700: '#3d3d5c',
-    800: '#29293d',
-    900: '#14141f',
-    950: '#0e0e15',
+// ─── Primitive palette scales ─────────────────────────────────────────────────
+// Change a value here → updates both Tailwind utilities and the JS theme object.
+// These are internal support data; components should use semantic tokens only.
+
+export const palette = {
+  olive: {
+    50:  '#f0f7e6',
+    100: '#dceeca',
+    200: '#b9dd95',
+    300: '#96cc60',
+    400: '#73bb2b',
+    500: '#5a9422',
+    600: '#487519',
+    700: '#3D6B1F', // oliveLeaf2
+    800: '#2D5016', // oliveLeaf — primary brand anchor
+    900: '#1e3710',
+    950: '#0f1b08',
   },
-  dustyTaupe: {
-    50: '#f5f3f0',
-    100: '#eae6e1',
-    200: '#d6cdc2',
-    300: '#c1b4a4',
-    400: '#ac9c86',
-    500: '#988367',
-    600: '#796953',
-    700: '#5b4e3e',
-    800: '#3d3429',
-    900: '#1e1a15',
-    950: '#15120e',
+  gold: {
+    50:  '#fdf8e8',
+    100: '#fbf1d1',
+    200: '#f7e3a3',
+    300: '#f3d575',
+    400: '#efc847',
+    500: '#D4AF37', // metallicGold — accent anchor
+    600: '#a98c2b',
+    700: '#7f6921',
+    800: '#544616',
+    900: '#2a230b',
+    950: '#15110a',
   },
-  slateGrey: {
-    50: '#f0f2f5',
-    100: '#e1e5ea',
-    200: '#c2cbd6',
-    300: '#a4b1c1',
-    400: '#8696ac',
-    500: '#677c98',
-    600: '#536379',
-    700: '#3e4b5b',
-    800: '#29323d',
-    900: '#15191e',
-    950: '#0e1115',
+  // Warm olive-tinted neutral — hue ~96°, low sat. Replaces slateGrey.
+  // Used for secondary text, muted text, borders, dividers.
+  sageGray: {
+    50:  '#f7f8f6',
+    100: '#edefeb',
+    200: '#dbdfd8',
+    300: '#b9c1b3',
+    400: '#97a38f',
+    500: '#78876e',
+    600: '#5c6954',
+    700: '#434d3d',
+    800: '#2d3427',
+    900: '#1b2018',
+    950: '#11150f',
   },
-  goldenBronze: {
-    50: '#f9f5eb',
-    100: '#f3ead8',
-    200: '#e7d6b1',
-    300: '#dbc18a',
-    400: '#cfad63',
-    500: '#c3983c',
-    600: '#9c7a30',
-    700: '#755b24',
-    800: '#4e3d18',
-    900: '#271e0c',
-    950: '#1b1508',
-  },
-  shadowGrey: {
-    50: '#f0f0f5',
-    100: '#e1e2ea',
-    200: '#c3c4d5',
-    300: '#a5a7c0',
-    400: '#8789ab',
-    500: '#696c96',
-    600: '#545678',
-    700: '#3f415a',
-    800: '#2a2b3c',
-    900: '#15161e',
-    950: '#0f0f15',
-  },
-  onyx: {
-    50: '#f0f2f5',
-    100: '#e0e6eb',
-    200: '#c2ccd6',
-    300: '#a3b3c2',
-    400: '#8599ad',
-    500: '#667f99',
-    600: '#52667a',
-    700: '#3d4c5c',
-    800: '#29333d',
-    900: '#14191f',
-    950: '#0e1215',
-  },
-  tropicalTeal: {
-    50: '#e7fefe',
-    100: '#cefdfd',
-    200: '#9dfbfb',
-    300: '#6cf9f9',
-    400: '#3bf7f7',
-    500: '#0af5f5',
-    600: '#08c4c4',
-    700: '#069393',
-    800: '#046262',
-    900: '#023131',
-    950: '#012222',
-  },
-  yaleBlue: {
-    50: '#e8f6fd',
-    100: '#d0edfb',
-    200: '#a1dcf7',
-    300: '#72caf3',
-    400: '#43b8ef',
-    500: '#14a7eb',
-    600: '#1085bc',
-    700: '#0c648d',
-    800: '#08435e',
-    900: '#04212f',
-    950: '#031721',
-  },
+  // Standalone named colors — available as direct Tailwind utility classes
+  // e.g. bg-porcelain, bg-whiteSmoke, bg-carbonBlack
+  porcelain:   '#FFFDF8',
+  whiteSmoke:  '#F5F5F5',
+  carbonBlack: '#1A1A1A',
 };
 
-// Semantic color aliases for common use cases
-export const semanticColors = {
-  shadow: colors.platinum[900],
-  border: colors.slateGrey[300],
-  white: '#fff',
-  black: '#000',
+// ─── Semantic light theme ──────────────────────────────────────────────────────
+// Used by getTheme(false). All values reference palette — change palette → changes here.
+
+export const light = {
+  background:     palette.porcelain,        // #FFFDF8  large page backgrounds
+  surface:        palette.whiteSmoke,       // #F5F5F5  cards, inputs, sections
+  card:           '#FFFFFF',                //          pure white elevated cards
+  border:         '#D5D0C0',               //          warm olive-tinted borders
+  divider:        '#E8E5DC',              //          subtle list dividers
+  overlay:        'rgba(26,26,26,0.50)',  //          modal / sheet backdrop
+  textMain:       palette.carbonBlack,     // #1A1A1A  primary text
+  textSecondary:  palette.sageGray[600], // #5c6954  secondary / helper text
+  textMuted:      palette.sageGray[400], // #97a38f  placeholder / disabled text
+  textOnPrimary:  palette.porcelain,      //          text on olive primary buttons
+  textOnAccent:   palette.carbonBlack,    //          text on gold accent elements
+  primary:        palette.olive[800],     // #2D5016  brand / CTAs / active states
+  primaryPressed: palette.olive[700],     // #3D6B1F  pressed / hover emphasis
+  accent:         palette.gold[500],      // #D4AF37  highlights, badges, small CTAs
+  success:        '#22C55E',
+  successSoft:    '#DCFCE7',
+  warning:        '#F59E0B',
+  warningSoft:    '#FEF9C3',
+  danger:         '#EF4444',
+  dangerSoft:     '#FEE2E2',
+  info:           '#3B82F6',
+  infoSoft:       '#DBEAFE',
+  shadowColor:    palette.carbonBlack,   // #1A1A1A  use with reduced opacity
+};
+
+// ─── Semantic dark theme ───────────────────────────────────────────────────────
+// Used by getTheme(true). Same token names, different values.
+
+export const dark = {
+  background:     palette.carbonBlack,   // #1A1A1A
+  surface:        '#252221',             //          warm dark surface
+  card:           '#2E2B28',             //          slightly elevated dark card
+  border:         'rgba(245,245,245,0.12)',
+  divider:        'rgba(245,245,245,0.06)',
+  overlay:        'rgba(0,0,0,0.70)',
+  textMain:       palette.whiteSmoke,    // #F5F5F5
+  textSecondary:  palette.sageGray[300], // #b9c1b3
+  textMuted:      palette.sageGray[500], // #78876e
+  textOnPrimary:  palette.whiteSmoke,    //          text on olive buttons
+  textOnAccent:   palette.carbonBlack,   //          text on gold elements
+  primary:        palette.olive[700],    // #3D6B1F  brighter olive for dark bg
+  primaryPressed: palette.olive[800],    // #2D5016
+  accent:         palette.gold[500],     // #D4AF37
+  success:        '#4ADE80',
+  successSoft:    '#0D2D18',
+  warning:        '#FCD34D',
+  warningSoft:    '#2D2010',
+  danger:         '#F87171',
+  dangerSoft:     '#2D1212',
+  info:           '#60A5FA',
+  infoSoft:       '#101E3D',
+  shadowColor:    '#000000',
 };

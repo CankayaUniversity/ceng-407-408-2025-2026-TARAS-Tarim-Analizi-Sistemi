@@ -12,7 +12,7 @@ import { s, vs, ms } from "../utils/responsive";
 import type { TabParamList } from "../navigation/navigationRef";
 
 export const AppTabBar = (props: BottomTabBarProps) => {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const navBottom = insets.bottom > 20 ? 8 : Math.max(insets.bottom + 4, 8);
@@ -24,7 +24,7 @@ export const AppTabBar = (props: BottomTabBarProps) => {
         marginHorizontal: s(12),
         marginBottom: navBottom,
         backgroundColor: theme.surface,
-        shadowColor: isDark ? "#000" : "#334155",
+        shadowColor: theme.shadowColor,
         elevation: 10,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.12,
@@ -39,7 +39,7 @@ export const AppTabBar = (props: BottomTabBarProps) => {
             className="flex-1 center rounded-[20px]"
             style={[
               { paddingVertical: vs(12), marginHorizontal: s(2) },
-              isActive && { backgroundColor: theme.accent + "22" },
+              isActive && { backgroundColor: theme.primary + "22" },
             ]}
             onPress={() => props.navigation.navigate(item.id as keyof TabParamList)}
             activeOpacity={0.7}
@@ -47,14 +47,14 @@ export const AppTabBar = (props: BottomTabBarProps) => {
             <MaterialCommunityIcons
               name={item.icon as any}
               size={ms(20, 0.3)}
-              color={isActive ? theme.accent : theme.accentDim}
+              color={isActive ? theme.primary : theme.textSecondary}
             />
             <Text
               className="font-semibold"
               style={{
                 fontSize: ms(10, 0.3),
                 marginTop: vs(3),
-                color: isActive ? theme.accent : theme.accentDim,
+                color: isActive ? theme.primary : theme.textSecondary,
               }}
               numberOfLines={1}
             >

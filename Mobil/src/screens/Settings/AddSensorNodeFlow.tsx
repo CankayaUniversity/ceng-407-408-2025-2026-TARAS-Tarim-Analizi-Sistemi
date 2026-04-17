@@ -397,7 +397,7 @@ export const AddSensorNodeFlow = ({
 
       {isLoadingGateways ? (
         <View className="flex-1 center">
-          <ActivityIndicator size="large" color={theme.accent} />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
         <FlatList
@@ -411,7 +411,7 @@ export const AddSensorNodeFlow = ({
                 padding: 14,
                 opacity: item.is_online ? 1 : 0.5,
                 elevation: 1,
-                shadowColor: "#000",
+                shadowColor: theme.shadowColor,
                 shadowOffset: { width: 0, height: 1 },
                 shadowOpacity: 0.05,
                 shadowRadius: 2,
@@ -423,7 +423,7 @@ export const AddSensorNodeFlow = ({
               <MaterialCommunityIcons
                 name="access-point"
                 size={24}
-                color={item.is_online ? theme.accent : theme.textSecondary}
+                color={item.is_online ? theme.primary : theme.textSecondary}
                 style={{ marginRight: 12 }}
               />
               <View className="flex-1">
@@ -436,7 +436,7 @@ export const AddSensorNodeFlow = ({
                     style={{
                       width: 8,
                       height: 8,
-                      backgroundColor: item.is_online ? "#22c55e" : "#ef4444",
+                      backgroundColor: item.is_online ? "#22c55e" : theme.danger,
                     }}
                   />
                   <Text className="text-secondary text-xs">
@@ -450,11 +450,11 @@ export const AddSensorNodeFlow = ({
               </View>
               {item.is_online && latestFwVersion && item.firmware_version !== latestFwVersion ? (
                 updatingGatewayId === item.gateway_id ? (
-                  <ActivityIndicator size="small" color={theme.accent} />
+                  <ActivityIndicator size="small" color={theme.primary} />
                 ) : (
                   <TouchableOpacity
                     className="rounded-xl"
-                    style={{ backgroundColor: theme.accent, paddingHorizontal: 10, paddingVertical: 4 }}
+                    style={{ backgroundColor: theme.primary, paddingHorizontal: 10, paddingVertical: 4 }}
                     onPress={(e) => { e.stopPropagation(); handleOtaUpdate(item); }}
                   >
                     <Text className="text-white text-[11px] font-semibold">
@@ -503,7 +503,7 @@ export const AddSensorNodeFlow = ({
 
         {isLoadingZones ? (
           <View className="flex-1 center">
-            <ActivityIndicator size="large" color={theme.accent} />
+            <ActivityIndicator size="large" color={theme.primary} />
           </View>
         ) : (
           <FlatList
@@ -522,7 +522,7 @@ export const AddSensorNodeFlow = ({
                     style={{
                       padding: 14,
                       elevation: 1,
-                      shadowColor: "#000",
+                      shadowColor: theme.shadowColor,
                       shadowOffset: { width: 0, height: 1 },
                       shadowOpacity: 0.05,
                       shadowRadius: 2,
@@ -533,7 +533,7 @@ export const AddSensorNodeFlow = ({
                     <MaterialCommunityIcons
                       name="map-marker-radius"
                       size={24}
-                      color={theme.accent}
+                      color={theme.primary}
                       style={{ marginRight: 12 }}
                     />
                     <View className="flex-1">
@@ -569,7 +569,7 @@ export const AddSensorNodeFlow = ({
         <View className="flex-1 center">
           <ActivityIndicator
             size="large"
-            color={theme.accent}
+            color={theme.primary}
             style={{ marginBottom: 24 }}
           />
           <Text className="text-primary text-lg font-bold text-center mb-2">
@@ -580,7 +580,7 @@ export const AddSensorNodeFlow = ({
           </Text>
           <Text
             className="text-3xl font-bold mb-6"
-            style={{ color: theme.accent }}
+            style={{ color: theme.primary }}
           >
             {formatTime(pairingTimeLeft)}
           </Text>
@@ -589,7 +589,7 @@ export const AddSensorNodeFlow = ({
           {pairingTimeLeft === 0 && (
             <TouchableOpacity
               className="rounded-[10px] mt-4"
-              style={{ backgroundColor: theme.accent, paddingVertical: 10, paddingHorizontal: 20 }}
+              style={{ backgroundColor: theme.primary, paddingVertical: 10, paddingHorizontal: 20 }}
               onPress={handleRetryPairing}
             >
               <Text className="text-white text-sm font-semibold">
@@ -606,7 +606,7 @@ export const AddSensorNodeFlow = ({
             style={{
               padding: 24,
               elevation: 2,
-              shadowColor: "#000",
+              shadowColor: theme.shadowColor,
               shadowOffset: { width: 0, height: 2 },
               shadowOpacity: 0.1,
               shadowRadius: 4,
@@ -615,7 +615,7 @@ export const AddSensorNodeFlow = ({
             <MaterialCommunityIcons
               name="thermometer-lines"
               size={40}
-              color={theme.accent}
+              color={theme.primary}
               style={{ marginBottom: 12 }}
             />
             <Text className="text-primary text-lg font-bold mb-2">
@@ -628,7 +628,7 @@ export const AddSensorNodeFlow = ({
             {/* 20s geri sayim */}
             <Text
               className="text-3xl font-bold mt-3"
-              style={{ color: approvalTimeLeft <= 5 ? "#ef4444" : theme.accent }}
+              style={{ color: approvalTimeLeft <= 5 ? theme.danger : theme.primary }}
             >
               {approvalTimeLeft}s
             </Text>
@@ -656,7 +656,7 @@ export const AddSensorNodeFlow = ({
 
             <TouchableOpacity
               className="flex-1 row justify-center rounded-xl mt-4"
-              style={{ backgroundColor: "#ef4444", paddingVertical: 14, paddingHorizontal: 24 }}
+              style={{ backgroundColor: theme.danger, paddingVertical: 14, paddingHorizontal: 24 }}
               onPress={handleDeclineNode}
               activeOpacity={0.7}
             >
@@ -677,13 +677,13 @@ export const AddSensorNodeFlow = ({
         style={{
           width: 100,
           height: 100,
-          backgroundColor: theme.accent + "20",
+          backgroundColor: theme.primary + "20",
         }}
       >
         <MaterialCommunityIcons
           name="check-circle"
           size={64}
-          color={theme.accent}
+          color={theme.primary}
         />
       </View>
       <Text className="text-primary text-xl font-bold mb-2 text-center">
@@ -691,7 +691,7 @@ export const AddSensorNodeFlow = ({
       </Text>
       <TouchableOpacity
         className="row justify-center rounded-xl mt-4"
-        style={{ backgroundColor: theme.accent, paddingVertical: 14, paddingHorizontal: 24 }}
+        style={{ backgroundColor: theme.primary, paddingVertical: 14, paddingHorizontal: 24 }}
         onPress={onComplete}
         activeOpacity={0.7}
       >
@@ -706,15 +706,15 @@ export const AddSensorNodeFlow = ({
       {error && (
         <View
           className="row rounded-lg mx-5 mt-2"
-          style={{ backgroundColor: "#ef4444" + "20", paddingVertical: 10, paddingHorizontal: 16 }}
+          style={{ backgroundColor: theme.danger + "20", paddingVertical: 10, paddingHorizontal: 16 }}
         >
           <MaterialCommunityIcons
             name="alert-circle"
             size={18}
-            color="#ef4444"
+            color={theme.danger}
             style={{ marginRight: 8 }}
           />
-          <Text className="flex-1 text-[13px] font-medium" style={{ color: "#ef4444" }}>
+          <Text className="flex-1 text-[13px] font-medium" style={{ color: theme.danger }}>
             {error}
           </Text>
         </View>

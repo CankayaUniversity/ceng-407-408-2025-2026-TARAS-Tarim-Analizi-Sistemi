@@ -27,7 +27,7 @@ export const NodePopup = ({
     value: number,
     type: "moisture" | "temperature" | "humidity",
   ): { color: string; status: "ideal" | "high" | "low" } => {
-    const accent = theme.accent;
+    const accent = theme.primary;
     const red = "#ef4444";
     const blue = "#2563eb";
 
@@ -111,8 +111,8 @@ export const NodePopup = ({
           className="surface-bg rounded-xl p-3"
           style={{
             borderWidth: 1,
-            borderColor: theme.accent + "30",
-            shadowColor: "#000",
+            borderColor: theme.primary + "30",
+            shadowColor: theme.shadowColor,
             shadowOffset: { width: 0, height: 3 },
             shadowOpacity: 0.2,
             shadowRadius: 6,
@@ -122,7 +122,7 @@ export const NodePopup = ({
           <View className="row-between mb-2">
             <View className="row">
               <View
-                className="w-2 h-2 rounded-full bg-slateGrey-500"
+                className="w-2 h-2 rounded-full bg-olive-800 dark:bg-olive-700"
                 style={{ marginRight: spacing.xs + 2 }}
               />
               <Text className="text-primary text-[15px] font-bold">
@@ -131,7 +131,7 @@ export const NodePopup = ({
             </View>
             <TouchableOpacity
               onPress={onClose}
-              className="p-0.5 rounded-lg bg-platinum-50 dark:bg-onyx-950"
+              className="p-0.5 rounded-lg bg-porcelain dark:bg-carbonBlack"
             >
               <Ionicons name="close" size={18} color={theme.textSecondary} />
             </TouchableOpacity>

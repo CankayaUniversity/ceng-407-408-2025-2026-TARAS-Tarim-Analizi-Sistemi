@@ -9,10 +9,10 @@
 @layer components {
   /* --- Layout --- */
   .screen-bg {
-    @apply flex-1 bg-platinum-50 dark:bg-onyx-950;
+    @apply flex-1 bg-porcelain dark:bg-carbonBlack;
   }
   .surface-bg {
-    @apply bg-platinum-100 dark:bg-slateGrey-900;
+    @apply bg-whiteSmoke dark:bg-[#252221];
   }
   .center {
     @apply items-center justify-center;
@@ -29,13 +29,13 @@
 
   /* --- Typography --- */
   .text-primary {
-    @apply text-platinum-950 dark:text-slateGrey-50;
+    @apply text-carbonBlack dark:text-whiteSmoke;
   }
   .text-secondary {
-    @apply text-slateGrey-600 dark:text-slateGrey-300;
+    @apply text-sageGray-600 dark:text-sageGray-300;
   }
   .text-accent {
-    @apply text-slateGrey-500;
+    @apply text-olive-800 dark:text-olive-700;
   }
 
   /* --- Cards --- */
@@ -51,7 +51,7 @@
 
   /* --- Buttons --- */
   .btn-primary {
-    @apply items-center rounded-xl bg-slateGrey-500;
+    @apply items-center rounded-xl bg-olive-800 dark:bg-olive-700;
   }
   .btn-surface {
     @apply items-center rounded-lg surface-bg border;
@@ -75,3 +75,4 @@
     @apply w-full rounded-xl border mb-3 surface-bg text-primary;
   }
 }
+

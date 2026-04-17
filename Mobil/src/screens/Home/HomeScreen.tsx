@@ -137,7 +137,7 @@ export const HomeScreen = memo(({
           showsVerticalScrollIndicator={true}
           refreshControl={
             onRefresh ? (
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} colors={[theme.accent]} />
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} colors={[theme.primary]} />
             ) : undefined
           }
         >
@@ -163,7 +163,7 @@ export const HomeScreen = memo(({
                 className="flex-1 justify-center items-center"
                 style={{ backgroundColor: theme.background }}
               >
-                <ActivityIndicator size="large" color={theme.accent} />
+                <ActivityIndicator size="large" color={theme.primary} />
               </View>
             }
           >
@@ -172,7 +172,7 @@ export const HomeScreen = memo(({
             <Suspense
               fallback={
                 <View className="flex-1 justify-center items-center">
-                  <ActivityIndicator size="large" color={theme.accent} />
+                  <ActivityIndicator size="large" color={theme.primary} />
                 </View>
               }
             >

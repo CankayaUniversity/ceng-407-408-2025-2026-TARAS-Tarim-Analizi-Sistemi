@@ -101,8 +101,8 @@ export const ChatBubble = ({
         className="w-full rounded-2xl border overflow-hidden"
         style={{
           backgroundColor: theme.background,
-          borderColor: theme.accent + "18",
-          shadowColor: theme.isDark ? "#000" : "#334155",
+          borderColor: theme.primary + "18",
+          shadowColor: theme.shadowColor,
           elevation: 12,
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: 0.2,
@@ -118,10 +118,10 @@ export const ChatBubble = ({
             paddingHorizontal: s(12),
             paddingVertical: vs(8),
             gap: s(6),
-            borderBottomColor: theme.accent + "15",
+            borderBottomColor: theme.primary + "15",
           }}
         >
-          <View className="rounded-full bg-slateGrey-500" style={{ width: s(5), height: s(5) }} />
+          <View className="rounded-full bg-olive-800 dark:bg-olive-700" style={{ width: s(5), height: s(5) }} />
           <Text
             className="flex-1 font-semibold uppercase tracking-wider"
             style={{ fontSize: ms(11, 0.3), color: theme.textSecondary }}
@@ -147,8 +147,8 @@ export const ChatBubble = ({
           bounces={false}
         >
           <Markdown style={{
-            body: { color: theme.text, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
-            strong: { fontWeight: "700", color: theme.text },
+            body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
+            strong: { fontWeight: "700", color: theme.textMain },
             bullet_list: { marginVertical: vs(2) },
             ordered_list: { marginVertical: vs(2) },
             list_item: { marginVertical: vs(1) },

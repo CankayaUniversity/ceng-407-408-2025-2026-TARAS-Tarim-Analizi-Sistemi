@@ -318,6 +318,12 @@ export interface StringDictionary {
     categoryFertilizer: string;
     categoryElectricity: string;
   };
+
+  // Notifications Screen
+  notifications: {
+    title: string;
+    empty: string;
+  };
 }
 
 const tr: StringDictionary = {
@@ -629,6 +635,11 @@ const tr: StringDictionary = {
     categoryFertilizer: "Gübre",
     categoryElectricity: "Elektrik",
   },
+
+  notifications: {
+    title: "Bildirimler",
+    empty: "Henüz bildirim yok",
+  },
 };
 
 const en: StringDictionary = {
@@ -939,6 +950,11 @@ const en: StringDictionary = {
     categoryFuel: "Fuel",
     categoryFertilizer: "Fertilizer",
     categoryElectricity: "Electricity",
+  },
+
+  notifications: {
+    title: "Notifications",
+    empty: "No notifications yet",
   },
 };
 

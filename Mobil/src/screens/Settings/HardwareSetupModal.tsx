@@ -83,7 +83,7 @@ export const HardwareSetupModal = ({
         <View
           className="row-between"
           style={{
-            backgroundColor: theme.accent,
+            backgroundColor: theme.primary,
             paddingHorizontal: s(16),
             paddingVertical: vs(14),
           }}
@@ -133,7 +133,7 @@ export const HardwareSetupModal = ({
                 style={{
                   padding: s(16),
                   elevation: 2,
-                  shadowColor: "#000",
+                  shadowColor: theme.shadowColor,
                   shadowOffset: { width: 0, height: 1 },
                   shadowOpacity: 0.1,
                   shadowRadius: 3,
@@ -146,14 +146,14 @@ export const HardwareSetupModal = ({
                   style={{
                     width: s(56),
                     height: s(56),
-                    backgroundColor: theme.accent + "20",
+                    backgroundColor: theme.primary + "20",
                     marginRight: s(16),
                   }}
                 >
                   <MaterialCommunityIcons
                     name="access-point"
                     size={32}
-                    color={theme.accent}
+                    color={theme.primary}
                   />
                 </View>
                 <View className="flex-1">
@@ -183,7 +183,7 @@ export const HardwareSetupModal = ({
                 style={{
                   padding: s(16),
                   elevation: 2,
-                  shadowColor: "#000",
+                  shadowColor: theme.shadowColor,
                   shadowOffset: { width: 0, height: 1 },
                   shadowOpacity: 0.1,
                   shadowRadius: 3,
@@ -196,14 +196,14 @@ export const HardwareSetupModal = ({
                   style={{
                     width: s(56),
                     height: s(56),
-                    backgroundColor: theme.accent + "20",
+                    backgroundColor: theme.primary + "20",
                     marginRight: s(16),
                   }}
                 >
                   <MaterialCommunityIcons
                     name="thermometer-lines"
                     size={32}
-                    color={theme.accent}
+                    color={theme.primary}
                   />
                 </View>
                 <View className="flex-1">

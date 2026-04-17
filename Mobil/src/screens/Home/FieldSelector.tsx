@@ -29,14 +29,14 @@ export const FieldSelector = ({
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
           borderWidth: 1,
-          borderColor: theme.accent + "30",
+          borderColor: theme.primary + "30",
         }}
       >
         <View className="row flex-1">
           <Ionicons
             name="leaf"
             size={18}
-            color={theme.accent}
+            color={theme.primary}
             style={{ marginRight: spacing.sm }}
           />
           <Text
@@ -67,7 +67,7 @@ export const FieldSelector = ({
             left: spacing.md,
             right: spacing.md,
             borderWidth: 1,
-            borderColor: theme.accent + "30",
+            borderColor: theme.primary + "30",
             maxHeight: 200,
             zIndex: 1000,
             elevation: 10,
@@ -92,7 +92,7 @@ export const FieldSelector = ({
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm + 2,
                     borderBottomWidth: index < arr.length - 1 ? 1 : 0,
-                    borderBottomColor: theme.accent + "15",
+                    borderBottomColor: theme.primary + "15",
                   }}
                   activeOpacity={0.7}
                 >

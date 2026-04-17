@@ -233,8 +233,8 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
       <View className="flex-1">
         {fallback}
         <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
-          <ActivityIndicator size="large" color={theme.accent} />
-          <Text className="mt-3 text-sm" style={{ color: theme.text }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text className="mt-3 text-sm" style={{ color: theme.textMain }}>
             {t.errors.preparing}
           </Text>
         </View>
@@ -255,8 +255,8 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
           />
         </View>
         <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
-          <ActivityIndicator size="large" color={theme.accent} />
-          <Text className="mt-3 text-sm" style={{ color: theme.text }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text className="mt-3 text-sm" style={{ color: theme.textMain }}>
             {t.errors.checking3DModule}
           </Text>
         </View>
@@ -271,9 +271,9 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
         {fallback}
         <View
           className="absolute bottom-4 left-4 right-4 rounded-lg p-3 border"
-          style={{ backgroundColor: theme.surface, borderColor: theme.accentDim, maxHeight: "80%" }}
+          style={{ backgroundColor: theme.surface, borderColor: theme.border, maxHeight: "80%" }}
         >
-          <Text className="text-sm font-semibold mb-2" style={{ color: theme.text }}>
+          <Text className="text-sm font-semibold mb-2" style={{ color: theme.textMain }}>
             {t.errors.cannotLoad3D}
           </Text>
           {errorMessage ? (
@@ -286,7 +286,7 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
             <TouchableOpacity
               onPress={handleRetry}
               className="py-2 px-4 rounded-md"
-              style={{ backgroundColor: theme.accent }}
+              style={{ backgroundColor: theme.primary }}
             >
               <Text className="text-white text-xs font-semibold">{t.common.retry}</Text>
             </TouchableOpacity>
@@ -358,8 +358,8 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
             {children}
           </Canvas>
           <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
-            <ActivityIndicator size="large" color={theme.accent} />
-            <Text className="mt-3 text-sm" style={{ color: theme.text }}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text className="mt-3 text-sm" style={{ color: theme.textMain }}>
               {t.errors.loading3D}
             </Text>
           </View>

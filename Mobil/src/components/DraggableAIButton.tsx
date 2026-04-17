@@ -157,8 +157,8 @@ export const DraggableAIButton = ({
         borderRadius: BUTTON_SIZE / 2,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: theme.accent,
-        shadowColor: theme.isDark ? "#000" : "#334155",
+        backgroundColor: theme.primary,
+        shadowColor: theme.shadowColor,
         elevation: 10,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
@@ -168,7 +168,7 @@ export const DraggableAIButton = ({
       }}
       {...panResponder.panHandlers}
     >
-      <MaterialCommunityIcons name="robot" size={s(22)} color="#fff" />
+      <MaterialCommunityIcons name="robot" size={s(22)} color={theme.textOnPrimary} />
     </Animated.View>
   );
 };

@@ -314,8 +314,8 @@ export const TimetableScreen = ({
 
   if (isLoading) {
     return (
-      <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
-        <ActivityIndicator size="large" color={theme.accent} />
+      <View className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack">
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text
           className="text-secondary"
           style={{ fontSize: ms(14, 0.3), marginTop: vs(16) }}
@@ -340,14 +340,14 @@ export const TimetableScreen = ({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.accent]}
+            colors={[theme.primary]}
           />
         }
       >
         <MaterialCommunityIcons
           name="alert-circle"
           size={48}
-          color={theme.accent}
+          color={theme.primary}
           style={{ marginBottom: vs(16) }}
         />
         <Text
@@ -381,7 +381,7 @@ export const TimetableScreen = ({
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={[theme.accent]}
+          colors={[theme.primary]}
         />
       }
     >
@@ -432,11 +432,11 @@ export const TimetableScreen = ({
                   paddingHorizontal: s(14),
                   paddingVertical: vs(8),
                   backgroundColor:
-                    timeRange === option.hours ? theme.accent : theme.surface,
+                    timeRange === option.hours ? theme.primary : theme.surface,
                   borderWidth: 1,
                   borderColor:
                     timeRange === option.hours
-                      ? theme.accent
+                      ? theme.primary
                       : theme.textSecondary + "30",
                 }}
               >
@@ -444,7 +444,7 @@ export const TimetableScreen = ({
                   style={{
                     fontSize: ms(12, 0.3),
                     fontWeight: "600",
-                    color: timeRange === option.hours ? "#fff" : theme.text,
+                    color: timeRange === option.hours ? theme.textOnPrimary : theme.textMain,
                   }}
                 >
                   {option.label}
@@ -551,7 +551,7 @@ export const TimetableScreen = ({
               <MaterialCommunityIcons
                 name="close"
                 size={22}
-                color={theme.text}
+                color={theme.textMain}
               />
             </TouchableOpacity>
           </View>
@@ -586,7 +586,7 @@ export const TimetableScreen = ({
               style={{
                 paddingHorizontal: s(12),
                 paddingVertical: vs(10),
-                backgroundColor: theme.accent,
+                backgroundColor: theme.primary,
               }}
             >
               <MaterialCommunityIcons

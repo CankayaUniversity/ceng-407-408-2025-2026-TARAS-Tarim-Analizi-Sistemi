@@ -263,7 +263,7 @@ export const AddGatewayFlow = ({
 
       {isLoadingFarms ? (
         <View className="center">
-          <ActivityIndicator size="large" color={theme.accent} />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
         <FlatList
@@ -276,7 +276,7 @@ export const AddGatewayFlow = ({
               style={{
                 padding: 14,
                 elevation: 1,
-                shadowColor: "#000",
+                shadowColor: theme.shadowColor,
                 shadowOffset: { width: 0, height: 1 },
                 shadowOpacity: 0.05,
                 shadowRadius: 2,
@@ -287,7 +287,7 @@ export const AddGatewayFlow = ({
               <MaterialCommunityIcons
                 name="barn"
                 size={24}
-                color={theme.accent}
+                color={theme.primary}
                 style={{ marginRight: 12 }}
               />
               <View className="flex-1">
@@ -324,7 +324,7 @@ export const AddGatewayFlow = ({
 
       {isScanning && (
         <View className="row mb-4">
-          <ActivityIndicator size="small" color={theme.accent} />
+          <ActivityIndicator size="small" color={theme.primary} />
           <Text className="text-secondary text-[13px] ml-2.5">
             {t.hardware.scanningGateways}...
           </Text>
@@ -341,7 +341,7 @@ export const AddGatewayFlow = ({
             style={{
               padding: 14,
               elevation: 1,
-              shadowColor: "#000",
+              shadowColor: theme.shadowColor,
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.05,
               shadowRadius: 2,
@@ -352,7 +352,7 @@ export const AddGatewayFlow = ({
             <MaterialCommunityIcons
               name="access-point"
               size={24}
-              color={theme.accent}
+              color={theme.primary}
               style={{ marginRight: 12 }}
             />
             <View className="flex-1">
@@ -378,7 +378,7 @@ export const AddGatewayFlow = ({
               </Text>
               <TouchableOpacity
                 className="rounded-[10px] mt-4"
-                style={{ backgroundColor: theme.accent, paddingVertical: 10, paddingHorizontal: 20 }}
+                style={{ backgroundColor: theme.primary, paddingVertical: 10, paddingHorizontal: 20 }}
                 onPress={handleStartScan}
               >
                 <Text className="text-white text-sm font-semibold">
@@ -408,7 +408,7 @@ export const AddGatewayFlow = ({
           style={{
             paddingVertical: 12,
             paddingHorizontal: 16,
-            borderColor: theme.accentDim,
+            borderColor: theme.border,
           }}
           placeholder={t.hardware.ssidPlaceholder}
           placeholderTextColor={theme.textSecondary}
@@ -428,7 +428,7 @@ export const AddGatewayFlow = ({
           style={{
             paddingVertical: 12,
             paddingHorizontal: 16,
-            borderColor: theme.accentDim,
+            borderColor: theme.border,
           }}
           placeholder={t.hardware.passwordPlaceholder}
           placeholderTextColor={theme.textSecondary}
@@ -442,14 +442,14 @@ export const AddGatewayFlow = ({
 
       <TouchableOpacity
         className="row justify-center rounded-xl mt-6"
-        style={{ backgroundColor: theme.accent, paddingVertical: 14, paddingHorizontal: 24 }}
+        style={{ backgroundColor: theme.primary, paddingVertical: 14, paddingHorizontal: 24 }}
         onPress={handleConfigure}
         activeOpacity={0.7}
       >
         <MaterialCommunityIcons
           name="wifi-cog"
           size={20}
-          color="#fff"
+          color={theme.textOnPrimary}
           style={{ marginRight: 8 }}
         />
         <Text className="text-white text-base font-bold">
@@ -464,7 +464,7 @@ export const AddGatewayFlow = ({
     <View className="flex-1 p-5 center">
       <ActivityIndicator
         size="large"
-        color={theme.accent}
+        color={theme.primary}
         style={{ marginBottom: 24 }}
       />
       <Text className="text-primary text-base font-semibold text-center">
@@ -481,13 +481,13 @@ export const AddGatewayFlow = ({
         style={{
           width: 100,
           height: 100,
-          backgroundColor: theme.accent + "20",
+          backgroundColor: theme.primary + "20",
         }}
       >
         <MaterialCommunityIcons
           name="check-circle"
           size={64}
-          color={theme.accent}
+          color={theme.primary}
         />
       </View>
       <Text className="text-primary text-xl font-bold mb-2 text-center">
@@ -495,7 +495,7 @@ export const AddGatewayFlow = ({
       </Text>
       <TouchableOpacity
         className="row justify-center rounded-xl mt-4"
-        style={{ backgroundColor: theme.accent, paddingVertical: 14, paddingHorizontal: 24 }}
+        style={{ backgroundColor: theme.primary, paddingVertical: 14, paddingHorizontal: 24 }}
         onPress={onComplete}
         activeOpacity={0.7}
       >

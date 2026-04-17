@@ -34,10 +34,10 @@ export const ProfileButton = ({
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: theme.accent,
+        backgroundColor: theme.primary,
         borderWidth: 2,
-        borderColor: theme.accent + "40",
-        shadowColor: "#000",
+        borderColor: theme.primary + "40",
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 3,
@@ -47,7 +47,7 @@ export const ProfileButton = ({
       <Text
         className="font-bold text-center tracking-wider"
         style={{
-          color: theme.surface,
+          color: theme.textOnPrimary,
           fontSize,
         }}
       >

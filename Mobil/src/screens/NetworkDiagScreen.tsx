@@ -79,7 +79,7 @@ export default function NetworkDiagScreen({
         }}
       >
         <TouchableOpacity onPress={onBack} style={{ marginRight: s(16) }}>
-          <Text style={{ color: theme.accent, fontSize: ms(18, 0.3) }}>
+          <Text style={{ color: theme.primary, fontSize: ms(18, 0.3) }}>
             ← {t.common.back}
           </Text>
         </TouchableOpacity>
@@ -100,7 +100,7 @@ export default function NetworkDiagScreen({
           style={{
             backgroundColor: isRunning
               ? theme.textSecondary + "50"
-              : theme.accent,
+              : theme.primary,
             padding: s(16),
           }}
         >
@@ -128,7 +128,7 @@ export default function NetworkDiagScreen({
               borderColor: theme.textSecondary + "30",
             }}
           >
-            <Text style={{ color: theme.accent, fontSize: ms(16, 0.3), fontWeight: "600" }}>
+            <Text style={{ color: theme.primary, fontSize: ms(16, 0.3), fontWeight: "600" }}>
               {t.networkDiag.shareReport}
             </Text>
           </TouchableOpacity>
@@ -142,7 +142,7 @@ export default function NetworkDiagScreen({
           style={{
             padding: s(12),
             borderLeftWidth: 4,
-            borderLeftColor: theme.accent,
+            borderLeftColor: theme.primary,
           }}
         >
           <Text
@@ -210,7 +210,7 @@ export default function NetworkDiagScreen({
       {/* Ipucu */}
       {!isRunning && (
         <View
-          className="bg-platinum-50 dark:bg-onyx-950"
+          className="bg-porcelain dark:bg-carbonBlack"
           style={{
             padding: s(16),
             borderTopWidth: 1,

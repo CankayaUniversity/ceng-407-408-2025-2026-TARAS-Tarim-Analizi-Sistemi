@@ -241,8 +241,8 @@ export const CarbonFootprintScreen = ({
   // --- LOADING STATE ---
   if (isLoading) {
     return (
-      <View className="flex-1 center bg-platinum-50 dark:bg-onyx-950" style={{ gap: spacing.md }}>
-        <ActivityIndicator size="large" color={theme.accent} />
+      <View className="flex-1 center bg-porcelain dark:bg-carbonBlack" style={{ gap: spacing.md }}>
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text className="text-secondary text-sm" style={{ marginTop: spacing.sm }}>
           {t.carbon.loadingFarms}
         </Text>
@@ -253,7 +253,7 @@ export const CarbonFootprintScreen = ({
   // --- NO FARM STATE ---
   if (!farmId) {
     return (
-      <View className="flex-1 center bg-platinum-50 dark:bg-onyx-950" style={{ gap: spacing.md }}>
+      <View className="flex-1 center bg-porcelain dark:bg-carbonBlack" style={{ gap: spacing.md }}>
         <MaterialCommunityIcons name="barn" size={48} color={theme.textSecondary} />
         <Text className="text-primary text-base font-semibold">{t.carbon.noFarmFound}</Text>
       </View>
@@ -271,7 +271,7 @@ export const CarbonFootprintScreen = ({
       className="screen-bg"
       contentContainerStyle={{ padding: spacing.md, gap: spacing.md }}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={refreshData} tintColor={theme.accent} />
+        <RefreshControl refreshing={refreshing} onRefresh={refreshData} tintColor={theme.primary} />
       }
     >
       {/* --- OZET KARTI --- */}
@@ -288,13 +288,13 @@ export const CarbonFootprintScreen = ({
           {CATEGORIES.map(({ key, icon }) => (
             <View
               key={key}
-              className="flex-1 items-center bg-platinum-50 dark:bg-onyx-950 rounded-lg"
+              className="flex-1 items-center bg-porcelain dark:bg-carbonBlack rounded-lg"
               style={{ padding: spacing.sm, gap: 4 }}
             >
               <MaterialCommunityIcons
                 name={icon as any}
                 size={20}
-                color={theme.accent}
+                color={theme.primary}
               />
               <Text className="text-primary text-base font-semibold">
                 {getCategoryTotal(key).toFixed(1)}
@@ -324,19 +324,19 @@ export const CarbonFootprintScreen = ({
                 style={{
                   gap: 6,
                   paddingVertical: spacing.sm,
-                  backgroundColor: isSelected ? theme.accent : theme.background,
-                  borderColor: theme.accent + "30",
+                  backgroundColor: isSelected ? theme.primary : theme.background,
+                  borderColor: theme.primary + "30",
                 }}
                 onPress={() => handleCategorySelect(key)}
               >
                 <MaterialCommunityIcons
                   name={icon as any}
                   size={16}
-                  color={isSelected ? theme.background : theme.textSecondary}
+                  color={isSelected ? theme.textOnPrimary : theme.textSecondary}
                 />
                 <Text
                   className="text-[13px] font-semibold"
-                  style={{ color: isSelected ? theme.background : theme.text }}
+                  style={{ color: isSelected ? theme.textOnPrimary : theme.textMain }}
                 >
                   {categoryLabel(key, t.carbon)}
                 </Text>
@@ -349,16 +349,16 @@ export const CarbonFootprintScreen = ({
         {selectedCategory && (
           <>
             <TouchableOpacity
-              className="row rounded-lg border bg-platinum-50 dark:bg-onyx-950"
+              className="row rounded-lg border bg-porcelain dark:bg-carbonBlack"
               style={{
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.sm + 2,
-                borderColor: theme.accent + "30",
+                borderColor: theme.primary + "30",
                 marginBottom: spacing.sm,
               }}
               onPress={() => setShowDropdown(!showDropdown)}
             >
-              <Text className="flex-1" style={{ color: selectedType ? theme.text : theme.textSecondary }}>
+              <Text className="flex-1" style={{ color: selectedType ? theme.textMain : theme.textSecondary }}>
                 {selectedType
                   ? `${selectedType.name} (${selectedType.unit})`
                   : t.carbon.selectActivityType}
@@ -372,9 +372,9 @@ export const CarbonFootprintScreen = ({
 
             {showDropdown && (
               <View
-                className="rounded-lg border overflow-hidden bg-platinum-50 dark:bg-onyx-950"
+                className="rounded-lg border overflow-hidden bg-porcelain dark:bg-carbonBlack"
                 style={{
-                  borderColor: theme.accent + "20",
+                  borderColor: theme.primary + "20",
                   marginBottom: spacing.sm,
                 }}
               >
@@ -392,7 +392,7 @@ export const CarbonFootprintScreen = ({
                         paddingVertical: spacing.sm + 2,
                         backgroundColor:
                           selectedType?.activity_type_id === type.activity_type_id
-                            ? theme.accent + "15"
+                            ? theme.primary + "15"
                             : undefined,
                       }}
                       onPress={() => handleTypeSelect(type)}
@@ -416,9 +416,9 @@ export const CarbonFootprintScreen = ({
                   {t.carbon.amount} ({selectedType.unit})
                 </Text>
                 <TextInput
-                  className="border rounded-lg text-sm bg-platinum-50 dark:bg-onyx-950 text-primary"
+                  className="border rounded-lg text-sm bg-porcelain dark:bg-carbonBlack text-primary"
                   style={{
-                    borderColor: theme.accent + "30",
+                    borderColor: theme.primary + "30",
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm,
                     marginBottom: spacing.sm,
@@ -435,9 +435,9 @@ export const CarbonFootprintScreen = ({
                   {t.carbon.date}
                 </Text>
                 <TextInput
-                  className="border rounded-lg text-sm bg-platinum-50 dark:bg-onyx-950 text-primary"
+                  className="border rounded-lg text-sm bg-porcelain dark:bg-carbonBlack text-primary"
                   style={{
-                    borderColor: theme.accent + "30",
+                    borderColor: theme.primary + "30",
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm,
                     marginBottom: spacing.sm,
@@ -452,9 +452,9 @@ export const CarbonFootprintScreen = ({
 
             <Text className="text-secondary text-xs font-medium mb-1">{t.carbon.notes}</Text>
             <TextInput
-              className="border rounded-lg text-sm bg-platinum-50 dark:bg-onyx-950 text-primary"
+              className="border rounded-lg text-sm bg-porcelain dark:bg-carbonBlack text-primary"
               style={{
-                borderColor: theme.accent + "30",
+                borderColor: theme.primary + "30",
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.sm,
                 marginBottom: spacing.sm,
@@ -468,7 +468,7 @@ export const CarbonFootprintScreen = ({
             <TouchableOpacity
               className="rounded-[10px] center"
               style={{
-                backgroundColor: theme.accent,
+                backgroundColor: theme.primary,
                 paddingVertical: spacing.sm + 4,
                 marginTop: spacing.xs,
                 opacity: isSubmitting ? 0.6 : 1,
@@ -510,7 +510,7 @@ export const CarbonFootprintScreen = ({
               style={{
                 paddingVertical: spacing.sm + 2,
                 borderBottomWidth: 1,
-                borderBottomColor: theme.accent + "10",
+                borderBottomColor: theme.primary + "10",
               }}
             >
               <View className="flex-1">

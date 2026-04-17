@@ -101,7 +101,7 @@ export const SettingsScreen = ({
           <MaterialCommunityIcons
             name={isDark ? "moon-waning-crescent" : "white-balance-sunny"}
             size={20}
-            color={theme.accent}
+            color={theme.primary}
             style={{ marginRight: 12 }}
           />
           <Text
@@ -121,23 +121,23 @@ export const SettingsScreen = ({
                 paddingHorizontal: 4,
                 paddingVertical: 8,
                 backgroundColor:
-                  themeMode === opt.mode ? theme.accent : theme.surface,
+                  themeMode === opt.mode ? theme.primary : theme.surface,
                 borderWidth: themeMode === opt.mode ? 2 : 1,
                 borderColor:
-                  themeMode === opt.mode ? theme.accent : theme.accentDim,
+                  themeMode === opt.mode ? theme.primary : theme.border,
               }}
               onPress={() => onThemeModeChange(opt.mode)}
             >
               <MaterialCommunityIcons
                 name={opt.icon as any}
                 size={16}
-                color={themeMode === opt.mode ? "#fff" : theme.accent}
+                color={themeMode === opt.mode ? theme.textOnPrimary : theme.primary}
                 style={{ marginBottom: 2 }}
               />
               <Text
                 className="text-center font-semibold"
                 style={{
-                  color: themeMode === opt.mode ? "#fff" : theme.text,
+                  color: themeMode === opt.mode ? theme.textOnPrimary : theme.textMain,
                   fontSize: 9,
                 }}
               >
@@ -161,7 +161,7 @@ export const SettingsScreen = ({
           <MaterialCommunityIcons
             name="translate"
             size={20}
-            color={theme.accent}
+            color={theme.primary}
             style={{ marginRight: 12 }}
           />
           <Text
@@ -181,17 +181,17 @@ export const SettingsScreen = ({
                 paddingHorizontal: 8,
                 paddingVertical: 12,
                 backgroundColor:
-                  language === opt.code ? theme.accent : theme.surface,
+                  language === opt.code ? theme.primary : theme.surface,
                 borderWidth: language === opt.code ? 2 : 1,
                 borderColor:
-                  language === opt.code ? theme.accent : theme.accentDim,
+                  language === opt.code ? theme.primary : theme.border,
               }}
               onPress={() => setLanguage(opt.code)}
             >
               <Text
                 className="text-center font-semibold text-[13px]"
                 style={{
-                  color: language === opt.code ? "#fff" : theme.text,
+                  color: language === opt.code ? theme.textOnPrimary : theme.textMain,
                 }}
               >
                 {opt.code === "tr"
@@ -213,7 +213,7 @@ export const SettingsScreen = ({
           <MaterialCommunityIcons
             name="network-strength-4"
             size={20}
-            color={theme.accent}
+            color={theme.primary}
             style={{ marginRight: 12 }}
           />
           <Text
@@ -240,7 +240,7 @@ export const SettingsScreen = ({
           <MaterialCommunityIcons
             name="access-point"
             size={20}
-            color={theme.accent}
+            color={theme.primary}
             style={{ marginRight: 12 }}
           />
           <Text

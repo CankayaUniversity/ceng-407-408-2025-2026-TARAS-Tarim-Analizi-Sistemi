@@ -113,7 +113,7 @@ export const ChatWindow = ({
           paddingHorizontal: s(14),
           paddingTop: insets.top + vs(8),
           paddingBottom: vs(10),
-          borderBottomColor: theme.accent + "15",
+          borderBottomColor: theme.primary + "15",
         }}
       >
         <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -121,7 +121,7 @@ export const ChatWindow = ({
         </TouchableOpacity>
 
         <View className="row" style={{ gap: s(6) }}>
-          <View className="rounded-full bg-slateGrey-500" style={{ width: s(6), height: s(6) }} />
+          <View className="rounded-full bg-olive-800 dark:bg-olive-700" style={{ width: s(6), height: s(6) }} />
           <Text
             className="font-semibold uppercase tracking-wider"
             style={{ fontSize: ms(12, 0.3), color: theme.textSecondary }}
@@ -159,7 +159,7 @@ export const ChatWindow = ({
         /* Gecmis panel */
         <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: s(14) }}>
           {isLoadingHistory ? (
-            <ActivityIndicator style={{ marginTop: vs(40) }} color={theme.accent} />
+            <ActivityIndicator style={{ marginTop: vs(40) }} color={theme.primary} />
           ) : historySessions.length === 0 ? (
             <Text
               className="text-center"
@@ -172,14 +172,14 @@ export const ChatWindow = ({
               <TouchableOpacity
                 key={session.session_id}
                 className="border-b"
-                style={{ paddingVertical: vs(12), borderBottomColor: theme.accent + "10" }}
+                style={{ paddingVertical: vs(12), borderBottomColor: theme.primary + "10" }}
                 onPress={() => handleSelectSession(session.session_id)}
                 activeOpacity={0.7}
               >
                 <View className="flex-row justify-between items-center" style={{ marginBottom: vs(4) }}>
                   <Text
                     className="font-semibold flex-1"
-                    style={{ fontSize: ms(14, 0.3), color: theme.text }}
+                    style={{ fontSize: ms(14, 0.3), color: theme.textMain }}
                     numberOfLines={1}
                   >
                     {session.field_name}
@@ -225,25 +225,25 @@ export const ChatWindow = ({
                         paddingVertical: vs(8),
                       },
                       isUser
-                        ? { backgroundColor: theme.accent, borderBottomRightRadius: 4 }
-                        : { backgroundColor: theme.surface, borderColor: theme.accent + "12", borderWidth: 1, borderBottomLeftRadius: 4 },
+                        ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
+                        : { backgroundColor: theme.surface, borderColor: theme.primary + "12", borderWidth: 1, borderBottomLeftRadius: 4 },
                     ]}
                   >
                     {isUser ? (
-                      <Text className="text-white" style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) }}>{msg.text}</Text>
+                      <Text style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3), color: theme.textOnPrimary }}>{msg.text}</Text>
                     ) : (
                       <Markdown style={{
-                        body: { color: theme.text, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
-                        strong: { fontWeight: "700", color: theme.text },
+                        body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
+                        strong: { fontWeight: "700", color: theme.textMain },
                         bullet_list: { marginVertical: vs(4) },
                         ordered_list: { marginVertical: vs(4) },
                         list_item: { marginVertical: vs(1) },
                         paragraph: { marginVertical: vs(2) },
-                        heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.text, marginVertical: vs(4) },
-                        heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.text, marginVertical: vs(3) },
-                        heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.text, marginVertical: vs(2) },
-                        code_inline: { backgroundColor: theme.accent + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
-                        fence: { backgroundColor: theme.accent + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
+                        heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(4) },
+                        heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(3) },
+                        heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, marginVertical: vs(2) },
+                        code_inline: { backgroundColor: theme.primary + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
+                        fence: { backgroundColor: theme.primary + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
                       }}>
                         {msg.text}
                       </Markdown>
@@ -261,7 +261,7 @@ export const ChatWindow = ({
               paddingHorizontal: s(10),
               paddingTop: vs(8),
               paddingBottom: bottomPadding,
-              borderTopColor: theme.accent + "10",
+              borderTopColor: theme.primary + "10",
             }}
           >
             <View
@@ -271,7 +271,7 @@ export const ChatWindow = ({
                 paddingRight: s(4),
                 paddingVertical: vs(4),
                 backgroundColor: theme.surface,
-                borderColor: isInputFocused ? theme.accent + "60" : theme.accent + "20",
+                borderColor: isInputFocused ? theme.primary + "60" : theme.primary + "20",
               }}
             >
               <TextInput
@@ -282,7 +282,7 @@ export const ChatWindow = ({
                   lineHeight: ms(19, 0.3),
                   maxHeight: vs(100),
                   paddingVertical: vs(6),
-                  color: theme.text,
+                  color: theme.textMain,
                 }}
                 placeholder={t.chat.placeholder}
                 placeholderTextColor={theme.textSecondary + "80"}
@@ -302,7 +302,7 @@ export const ChatWindow = ({
                   width: s(28),
                   height: s(28),
                   borderRadius: 14,
-                  backgroundColor: hasInput ? theme.accent : "transparent",
+                  backgroundColor: hasInput ? theme.primary : "transparent",
                   marginBottom: 1,
                 }}
                 onPress={handleSendPress}
@@ -312,7 +312,7 @@ export const ChatWindow = ({
                 <MaterialCommunityIcons
                   name="arrow-up"
                   size={ms(16, 0.3)}
-                  color={hasInput ? "#fff" : theme.accent + "40"}
+                  color={hasInput ? theme.textOnPrimary : theme.primary + "40"}
                 />
               </TouchableOpacity>
             </View>

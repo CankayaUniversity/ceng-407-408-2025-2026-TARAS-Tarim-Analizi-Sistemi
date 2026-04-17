@@ -200,8 +200,8 @@ export const DiseaseScreen = ({
   return (
     <View className="screen-bg">
       {loading && !refreshing ? (
-        <View className="flex-1 center px-6 bg-platinum-50 dark:bg-onyx-950">
-          <ActivityIndicator size="large" color={theme.accent} />
+        <View className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack">
+          <ActivityIndicator size="large" color={theme.primary} />
           <Text className="text-secondary mt-4">
             {t.disease.loadingResults}
           </Text>
@@ -221,7 +221,7 @@ export const DiseaseScreen = ({
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => fetchDetections(true)}
-                tintColor={theme.accent}
+                tintColor={theme.primary}
               />
             }
           >
@@ -270,13 +270,13 @@ export const DiseaseScreen = ({
                 width: s(48),
                 height: s(48),
                 borderRadius: 24,
-                backgroundColor: theme.accent,
+                backgroundColor: theme.primary,
                 alignItems: "center",
                 justifyContent: "center",
                 borderWidth: 2,
                 borderColor: theme.background,
                 elevation: 10,
-                shadowColor: "#000",
+                shadowColor: theme.shadowColor,
                 shadowOffset: { width: 0, height: 4 },
                 shadowOpacity: 0.3,
                 shadowRadius: 10,
@@ -314,7 +314,7 @@ export const DiseaseScreen = ({
               style={{
                 padding: spacing.md,
                 borderBottomWidth: 1,
-                borderBottomColor: theme.accent + "20",
+                borderBottomColor: theme.primary + "20",
               }}
             >
               <Text className="text-primary text-[17px] font-bold">
@@ -387,7 +387,7 @@ export const DiseaseScreen = ({
                               <Text
                                 className="text-xs"
                                 style={{
-                                  color: theme.accent,
+                                  color: theme.primary,
                                   fontWeight: isTop ? "700" : "600",
                                   minWidth: s(52),
                                   textAlign: "right",
@@ -400,7 +400,7 @@ export const DiseaseScreen = ({
                               style={{
                                 height: 4,
                                 borderRadius: 2,
-                                backgroundColor: theme.accent + "15",
+                                backgroundColor: theme.primary + "15",
                                 overflow: "hidden",
                               }}
                             >
@@ -408,7 +408,7 @@ export const DiseaseScreen = ({
                                 style={{
                                   height: "100%",
                                   width: `${Math.min(100, Math.max(0, pct))}%`,
-                                  backgroundColor: theme.accent,
+                                  backgroundColor: theme.primary,
                                   borderRadius: 2,
                                 }}
                               />

@@ -44,7 +44,7 @@ export const PhotoPreview = ({
           onPress={onSend}
           className="rounded-xl"
           style={{
-            backgroundColor: theme.accent,
+            backgroundColor: theme.primary,
             paddingVertical: vs(14),
             paddingHorizontal: s(24),
           }}

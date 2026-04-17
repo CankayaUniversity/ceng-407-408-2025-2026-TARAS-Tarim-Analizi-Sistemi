@@ -201,7 +201,7 @@ export const ChartCard = ({
       <View className="row-between" style={{ marginBottom: vs(8) }}>
         <View className="row">
           <MaterialCommunityIcons name={icon as any} size={20} color={color} />
-          <Text style={{ marginLeft: s(8), fontSize: ms(13, 0.3), fontWeight: "600", color: theme.text }}>
+          <Text style={{ marginLeft: s(8), fontSize: ms(13, 0.3), fontWeight: "600", color: theme.textMain }}>
             {title}
           </Text>
         </View>
