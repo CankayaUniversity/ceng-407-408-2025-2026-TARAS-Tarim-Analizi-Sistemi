@@ -590,6 +590,77 @@ function buildIrrigationJobData(
 }
 
 
+
+
+// get all zones fonksiyonu
+
+export async function getAllZoneIds() {
+  const zones = await prisma.zone.findMany({
+    select: {
+      zone_id: true,
+    },
+    orderBy: {
+      created_at: "asc",
+    },
+  });
+
+  const uniqueZoneIds = Array.from(
+    new Set(
+      zones
+        .map((zone) => zone.zone_id)
+        .filter((zoneId): zoneId is string => zoneId !== null)
+    )
+  );
+
+  return uniqueZoneIds;
+}
+
+
+
+
+// her zone için irrigation recommendation üretir
+
+export async function generateAndSaveIrrigationJobsForAllZones() {
+  const zoneIds = await getAllZoneIds();
+
+  const successful: Array<{
+    zone_id: string;
+    job_id: string;
+  }> = [];
+
+  const failed: Array<{
+    zone_id: string;
+    error: string;
+  }> = [];
+
+  for (const zoneId of zoneIds) {
+    try {
+      const result = await generateAndSaveIrrigationJob(zoneId);
+
+      successful.push({
+        zone_id: zoneId,
+        job_id: result.createdJob.job_id,
+      });
+    } catch (error: any) {
+      failed.push({
+        zone_id: zoneId,
+        error: error?.message || "Unknown error",
+      });
+    }
+  }
+
+  return {
+    total_zones: zoneIds.length,
+    successful_count: successful.length,
+    failed_count: failed.length,
+    successful,
+    failed,
+  };
+}
+
+
+
+
 export async function testDirectPgConnection() {
   const client = new Client({
     connectionString: process.env.DATABASE_URL,

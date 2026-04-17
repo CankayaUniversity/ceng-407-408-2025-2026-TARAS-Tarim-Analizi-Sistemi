@@ -4,6 +4,7 @@ import {
   getIrrigationPreviewInput,
   getIrrigationPythonPayload,
   generateAndSaveIrrigationJob,
+  generateAndSaveIrrigationJobsForAllZones,
 } from "../services/irrigation.service";
 
 export const previewIrrigationInput = asyncHandler(
@@ -52,6 +53,21 @@ export const runIrrigationJob = asyncHandler(
     res.status(201).json({
       success: true,
       message: "Irrigation job created successfully.",
+      data: result,
+    });
+  },
+);
+
+
+
+
+export const runAllIrrigationJobs = asyncHandler(
+  async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const result = await generateAndSaveIrrigationJobsForAllZones();
+
+    res.status(200).json({
+      success: true,
+      message: "All irrigation jobs processed.",
       data: result,
     });
   },

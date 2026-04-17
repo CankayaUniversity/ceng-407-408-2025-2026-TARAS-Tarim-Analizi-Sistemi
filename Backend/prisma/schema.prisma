@@ -34,6 +34,7 @@ enum JobStatus {
   PENDING
   EXECUTED
   SKIPPED
+  FAILED
   ANALYZED
 
   @@map("job_status")
