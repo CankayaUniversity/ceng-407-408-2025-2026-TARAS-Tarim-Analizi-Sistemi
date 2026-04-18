@@ -130,7 +130,7 @@ export const HomeScreen = memo(({
   const handleClosePopup = useCallback(() => handleNodeSelect(null), [handleNodeSelect]);
 
   return (
-    <View className="flex-1 relative">
+    <View className="flex-1 relative" style={{ backgroundColor: theme.background }}>
       <View className="flex-1" style={{ marginHorizontal: spacing.sm }}>
         <ScrollView
           style={{ flexGrow: 0, flexShrink: 0 }}

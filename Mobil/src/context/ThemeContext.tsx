@@ -8,10 +8,10 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { useColorScheme as useSystemColorScheme, Appearance } from "react-native";
+import { useColorScheme as useSystemColorScheme } from "react-native";
 import * as SystemUI from "expo-system-ui";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { systemColorScheme as nativeWindSystemScheme } from "react-native-css-interop/dist/runtime/native/appearance-observables";
+import { colorScheme as nativeWindScheme } from "react-native-css-interop/dist/runtime/native/appearance-observables";
 import { getTheme, Theme } from "../utils/theme";
 import { ThemeMode } from "../screens/Settings/types";
 
@@ -26,18 +26,6 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const STORAGE_KEY = "@taras_theme_mode";
 
-const resolveEffective = (
-  mode: ThemeMode,
-  systemScheme: "light" | "dark" | null | undefined,
-): "light" | "dark" =>
-  mode === "dark"
-    ? "dark"
-    : mode === "light"
-    ? "light"
-    : systemScheme === "dark"
-    ? "dark"
-    : "light";
-
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const systemColorScheme = useSystemColorScheme();
   const [themeMode, setThemeModeState] = useState<ThemeMode>("system");
@@ -51,36 +39,30 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
           stored === "light" || stored === "dark" || stored === "system"
             ? stored
             : "system";
-        const osIsDark = Appearance.getColorScheme() === "dark";
-        const effective = resolveEffective(mode, osIsDark ? "dark" : "light");
-        nativeWindSystemScheme.set(effective);
+        // colorScheme.set() calls Appearance.setColorScheme() natively, so the
+        // choice survives app resume (css-interop reads it back via
+        // appearance.getColorScheme() in its own AppState listener).
+        nativeWindScheme.set(mode);
         if (mode !== "system") {
           setThemeModeState(mode);
         }
       } catch {
-        nativeWindSystemScheme.set(
-          Appearance.getColorScheme() === "dark" ? "dark" : "light",
-        );
+        nativeWindScheme.set("system");
       }
     })();
   }, []);
 
   const setThemeMode = (mode: ThemeMode) => {
-    const effective = resolveEffective(
-      mode,
-      systemColorScheme === "dark" ? "dark" : "light",
-    );
-    nativeWindSystemScheme.set(effective);
+    // "dark"/"light" → Appearance.setColorScheme(mode) persists across resume.
+    // "system"       → Appearance.setColorScheme(null) restores OS control.
+    nativeWindScheme.set(mode);
     setThemeModeState(mode);
     AsyncStorage.setItem(STORAGE_KEY, mode).catch(() => {});
   };
 
-  // system modundayken OS temasi degisirse NativeWind'i guncelle
-  useEffect(() => {
-    if (themeMode === "system") {
-      nativeWindSystemScheme.set(systemColorScheme === "dark" ? "dark" : "light");
-    }
-  }, [themeMode, systemColorScheme]);
+  // system modundayken OS temasi degisirse React-side isDark'i guncelle.
+  // NativeWind tarafini css-interop kendi AppState/Appearance listener'lari ile
+  // otomatik olarak yonetiyor (colorScheme.set("system") cagrisi yapildi).
 
   const isDark =
     themeMode === "dark" ||

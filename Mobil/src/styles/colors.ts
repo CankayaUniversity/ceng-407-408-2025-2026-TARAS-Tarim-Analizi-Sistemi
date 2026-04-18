@@ -57,7 +57,7 @@ export const palette = {
 export const light = {
   background:     palette.porcelain,        // #FFFDF8  large page backgrounds
   surface:        palette.whiteSmoke,       // #F5F5F5  cards, inputs, sections
-  card:           '#FFFFFF',                //          pure white elevated cards
+  card:           palette.porcelain,        // #FFFDF8  elevated cards — warm white, no pure white
   border:         '#D5D0C0',               //          warm olive-tinted borders
   divider:        '#E8E5DC',              //          subtle list dividers
   overlay:        'rgba(26,26,26,0.50)',  //          modal / sheet backdrop
