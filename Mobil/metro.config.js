@@ -27,27 +27,29 @@ config.resolver = {
   sourceExts: [...(config.resolver.sourceExts || []), 'svg'],
   // Exclude build artifacts from resolution
   blockList: [
-    // Android build artifacts
-    /android\/build\/.*/,
-    /android\/\.gradle\/.*/,
-    /android\/app\/build\/.*/,
-    /android\/.*\/intermediates\/.*/,
-    /android\/.*\/merged_res\/.*/,
+    // Android build artifacts — [/\\] matches both Windows backslash and Unix forward slash
+    /[/\\]android[/\\]build[/\\]/,
+    /[/\\]android[/\\]\.gradle[/\\]/,
+    /[/\\]android[/\\]app[/\\]build[/\\]/,
+    /[/\\]android[/\\][^/\\]*[/\\]intermediates[/\\]/,
+    /[/\\]android[/\\][^/\\]*[/\\]merged_res[/\\]/,
+    /[/\\]android[/\\][^/\\]*[/\\]incremental[/\\]/,
+    /node_modules[/\\][^/\\]*[/\\]android[/\\]build[/\\]/,
     // iOS build artifacts
-    /ios\/build\/.*/,
-    /ios\/Pods\/.*/,
-    /ios\/\.xcode\.env\.local/,
-    // Other build outputs
-    /\.expo\/.*/,
-    /dist\/.*/,
-    /node_modules\/.*\/android\/build\/.*/,
+    /[/\\]ios[/\\]build[/\\]/,
+    /[/\\]ios[/\\]Pods[/\\]/,
+    /ios[/\\]\.xcode\.env\.local/,
+    // Expo CLI state (project root only, not node_modules)
+    /[/\\]\.expo[/\\]/,
+    // NOTE: no /dist/ entry — too broad, breaks node_modules that ship compiled code in dist/
+    // (react-native-css-interop, etc.)
   ],
 };
 
 // Configure watch folders (important for Windows)
 config.watchFolders = [projectRoot];
 
-// Reset cache configuration for better reliability
-config.resetCache = true;
+// Cache temizleme — sadece RESET_METRO_CACHE=1 ile zorunlu, yoksa cache korunur
+config.resetCache = process.env.RESET_METRO_CACHE === "1";
 
 module.exports = withNativeWind(config, { input: './global.css' });
