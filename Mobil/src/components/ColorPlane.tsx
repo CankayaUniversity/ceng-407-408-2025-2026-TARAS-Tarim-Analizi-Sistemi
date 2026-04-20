@@ -1,6 +1,6 @@
 // 3D tarla gorsellestirme - nem bazli renk haritalama ve sensor nodelari
 // Props: fieldData, isDark, isActive, onNodeSelect, selectedNodeId, onCameraConfigChange
-import { useRef, useState, useMemo, useEffect, useCallback, memo } from "react";
+import { useRef, useMemo, useEffect, useCallback, memo } from "react";
 import { useFrame, useThree } from "@react-three/fiber/native";
 import {
   FieldData,
@@ -8,24 +8,51 @@ import {
   SensorNode,
   calculatePolygonCentroid,
 } from "../utils/fieldPlaceholder";
+import { palette } from "../styles/colors";
 const THREE: any = require("three");
 
 const LIGHT_COLORS = [
-  "#677c98",
-  "#536379",
-  "#3e4b5b",
-  "#988367",
-  "#5b4e3e",
-  "#ac9c86",
+  palette.olive[700],
+  palette.olive[600],
+  palette.olive[500],
+  palette.olive[400],
+  palette.gold[500],
+  palette.gold[400],
 ];
 const DARK_COLORS = [
-  "#8696ac",
-  "#8599ad",
-  "#667f99",
-  "#c1b4a4",
-  "#dbc18a",
-  "#cfad63",
+  palette.olive[600],
+  palette.olive[500],
+  palette.olive[400],
+  palette.olive[300],
+  palette.gold[500],
+  palette.gold[300],
 ];
+
+// ─── Gorsel ayarlar — buradan kolayca duzenle ────────────────────────────────
+
+// Sinir
+const BORDER_WIDTH = 0.012;
+
+// Nabiz
+const PULSE_RADIUS = 5.5;
+const PULSE_SPEED = 1.5;
+const PULSE_SHARPNESS = 1.0;
+const PULSE_BRIGHTNESS_EDGE = 0.05;
+const PULSE_BRIGHTNESS_CENTER = 0.2;
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+const LUT_SIZE = 128;
+
+// hex -> {r,g,b} donusturucu
+const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+  const c = hex.replace("#", "");
+  return {
+    r: parseInt(c.substring(0, 2), 16),
+    g: parseInt(c.substring(2, 4), 16),
+    b: parseInt(c.substring(4, 6), 16),
+  };
+};
 
 const INITIAL_ROTATION_Y = Math.PI / 4;
 const MIN_TILT = 0;
@@ -42,65 +69,32 @@ const TAP_DISTANCE_THRESHOLD = 10;
 const TAP_TIME_THRESHOLD = 300;
 const PIN_WORLD_SIZE = 0.5;
 
-// Nem degerini renge donustur (mavi gradyan)
+// Nem → renk: kuru toprak (altin/kum) → yasil zeytinlik (olive)
 const moistureToColor = (m: number): string => {
   const clamped = Math.max(0, Math.min(100, m));
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-  const hexToRgb = (hex: string) => {
-    const c = hex.replace("#", "");
-    return {
-      r: parseInt(c.substring(0, 2), 16),
-      g: parseInt(c.substring(2, 4), 16),
-      b: parseInt(c.substring(4, 6), 16),
-    };
-  };
   const rgbToHex = (r: number, g: number, b: number) =>
     "#" +
     [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
 
-  const blue50 = hexToRgb("#e8f6fd");
-  const blue200 = hexToRgb("#a1dcf7");
-  const blue400 = hexToRgb("#43b8ef");
-  const blue700 = hexToRgb("#2b87b8");
-  const blue900 = hexToRgb("#1a5a7a");
+  // Kuru: gold[300] → Hafif: olive[400] → Optimal: olive[700] → Doygun: olive[900]
+  const stops = [
+    hexToRgb(palette.gold[300]), // 0%  — kuru, kum renkli
+    hexToRgb(palette.olive[400]), // 33% — hafif nem, acik yesil
+    hexToRgb(palette.olive[700]), // 67% — optimal nem, koyu zeytin
+    hexToRgb(palette.olive[900]), // 100% — doygun, derin zeytin
+  ];
 
-  if (clamped <= 20) {
-    const t = clamped / 20;
-    return rgbToHex(
-      lerp(blue50.r, blue200.r, t),
-      lerp(blue50.g, blue200.g, t),
-      lerp(blue50.b, blue200.b, t),
-    );
-  } else if (clamped <= 40) {
-    const t = (clamped - 20) / 20;
-    return rgbToHex(
-      lerp(blue200.r, blue400.r, t),
-      lerp(blue200.g, blue400.g, t),
-      lerp(blue400.b, blue400.b, t),
-    );
-  } else if (clamped <= 60) {
-    const t = (clamped - 40) / 20;
-    return rgbToHex(
-      lerp(blue400.r, blue700.r, t),
-      lerp(blue400.g, blue700.g, t),
-      lerp(blue400.b, blue700.b, t),
-    );
-  } else if (clamped <= 80) {
-    const t = (clamped - 60) / 20;
-    return rgbToHex(
-      lerp(blue700.r, blue900.r, t),
-      lerp(blue700.g, blue900.g, t),
-      lerp(blue700.b, blue900.b, t),
-    );
-  } else {
-    const t = (clamped - 80) / 20;
-    const blue950 = hexToRgb("#0d3f5c");
-    return rgbToHex(
-      lerp(blue900.r, blue950.r, t),
-      lerp(blue900.g, blue950.g, t),
-      lerp(blue900.b, blue950.b, t),
-    );
-  }
+  const t = clamped / 100;
+  const seg = Math.min(2, Math.floor(t * 3));
+  const segT = t * 3 - seg;
+  const a = stops[seg];
+  const b = stops[seg + 1];
+  return rgbToHex(
+    lerp(a.r, b.r, segT),
+    lerp(a.g, b.g, segT),
+    lerp(a.b, b.b, segT),
+  );
 };
 
 export type NodeInfo = SensorNode;
@@ -220,8 +214,10 @@ export const ColorPlane = memo(function ColorPlane({
     time: number;
   } | null>(null);
 
-  const [colorIndex] = useState(0);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Secim ref bazli — setState re-render'i bypass edilir, tap spike kaldirilir
+  const selectedNodeIdRef = useRef<string | null>(null);
+  // applySelection fn ref — field/scale'e gore guncellenir, tap handler buradan cagirir
+  const applySelectionRef = useRef<(nodeId: string | null) => void>(() => {});
 
   const { bounds, centeredBounds, scale, centerX, centerZ } = useMemo(() => {
     const bounds = getPolygonBounds(fieldData.polygon.exterior);
@@ -260,6 +256,8 @@ export const ColorPlane = memo(function ColorPlane({
 
   const invalidateRef = useRef(invalidate);
   invalidateRef.current = invalidate;
+
+  const lutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePointerDown = useCallback((e: any) => {
     isDraggingRef.current = true;
@@ -329,11 +327,11 @@ export const ColorPlane = memo(function ColorPlane({
           elapsed <= TAP_TIME_THRESHOLD
         ) {
           const node = pendingNodeRef.current;
-          if (selectedNodeId === node.id) {
-            setSelectedNodeId(null);
+          if (selectedNodeIdRef.current === node.id) {
+            applySelectionRef.current(null);
             onNodeSelect?.(null);
           } else {
-            setSelectedNodeId(node.id);
+            applySelectionRef.current(node.id);
             onNodeSelect?.(node);
           }
         }
@@ -343,7 +341,7 @@ export const ColorPlane = memo(function ColorPlane({
       nodePointerStartRef.current = null;
       invalidateRef.current();
     },
-    [selectedNodeId, onNodeSelect],
+    [onNodeSelect],
   );
 
   const handlePointerLeave = useCallback(() => {
@@ -424,8 +422,27 @@ export const ColorPlane = memo(function ColorPlane({
     );
   };
 
-  const currentColor = COLORS[colorIndex];
+  const currentColor = COLORS[0];
   const shaderRef = useRef<any>(null);
+
+  // Hafif periyodik render — pulse animasyonunu yasatir (~15fps)
+  const idleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (!isActive) {
+      if (idleTimerRef.current) {
+        clearInterval(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+      return;
+    }
+    idleTimerRef.current = setInterval(() => invalidateRef.current(), 67);
+    return () => {
+      if (idleTimerRef.current) {
+        clearInterval(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+    };
+  }, [isActive]);
 
   const normalizeToUV = (x: number, z: number) => ({
     u: (x - bounds.minX) / (bounds.maxX - bounds.minX),
@@ -437,45 +454,38 @@ export const ColorPlane = memo(function ColorPlane({
   const fieldDepth = bounds.maxZ - bounds.minZ;
   const aspectRatio = fieldWidth / Math.max(fieldDepth, 0.001);
 
-  const uniforms = useMemo(() => {
-    // En az 1 node olmali (shader array bos olamaz)
-    const uPos: any[] = [];
-    const uCol: any[] = [];
-    const uMoist: number[] = [];
+  // LUT doku — IDW sonucunu pre-bake eder, shader icinde 1 texture2D sample ile okunur
+  // RGB = blended renk, A = minDist (pulse icin kullanilir)
+  const fieldTexture = useMemo(() => {
+    const data = new Uint8Array(LUT_SIZE * LUT_SIZE * 4);
+    const tex = new THREE.DataTexture(
+      data,
+      LUT_SIZE,
+      LUT_SIZE,
+      THREE.RGBAFormat,
+    );
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+    return tex;
+  }, []);
 
-    if (nodes.length === 0) {
-      // Placeholder - ekran disinda, gorunmez
-      uPos.push(new THREE.Vector2(0.5, 0.5));
-      uCol.push(new THREE.Color("#2b87b8"));
-      uMoist.push(0.5);
-    } else {
-      for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i];
-        const { u, v } = normalizeToUV(n.x, n.z);
-        uPos.push(new THREE.Vector2(u, v));
-        uCol.push(new THREE.Color(moistureToColor(n.moisture)));
-        uMoist.push(n.moisture);
-      }
-    }
-
-    return {
-      uNodePos: { value: uPos },
-      uNodeColor: { value: uCol },
-      uNodeMoisture: { value: uMoist },
+  const uniforms = useMemo(
+    () => ({
+      uFieldTex: { value: fieldTexture },
       uTime: { value: 0.0 },
-      uPulseAmp: { value: 0.6 },
-      uCount: { value: parseFloat(nodes.length.toString()) }, // Float olarak gonder
-      uAspect: { value: aspectRatio },
-      uBounds: {
-        value: new THREE.Vector4(
-          centeredBounds.minX,
-          centeredBounds.maxX,
-          centeredBounds.minZ,
-          centeredBounds.maxZ,
-        ),
+      uPulseCenter: { value: new THREE.Vector2(-1, -1) },
+      uPulseStartTime: { value: 0.0 },
+      uBounds: { value: new THREE.Vector4(0, 1, 0, 1) },
+      uNodeUVs: {
+        value: Array.from({ length: 32 }, () => new THREE.Vector2(-100, -100)),
       },
-    };
-  }, [nodes, bounds, centeredBounds, aspectRatio]);
+      uNodeCount: { value: 0 },
+      uFieldAspect: { value: 1.0 },
+    }),
+    [fieldTexture],
+  );
 
   // Vertex shader - pozisyon ve UV hesaplama
   const vertexShader = `
@@ -500,157 +510,168 @@ export const ColorPlane = memo(function ColorPlane({
     }
   `;
 
-  // Fragment shader - dinamik node sayisi ile IDW interpolasyon
-  // Array boyutu en az 1 olmali (GLSL bos array desteklemiyor)
-  const shaderNodeCount = Math.max(nodes.length, 1);
+  // Fragment shader — Voronoi dongusu tek seferlik; sinir + zone nabzi paylasir
   const fragmentShader = `
     precision highp float;
+    #define MAX_NODES 32
 
     varying vec2 vUv;
     varying vec3 vNormal;
     varying vec3 vViewDir;
-    varying vec3 vLocalNormal;
 
-    uniform vec2 uNodePos[${shaderNodeCount}];
-    uniform vec3 uNodeColor[${shaderNodeCount}];
-    uniform float uNodeMoisture[${shaderNodeCount}];
-    uniform float uCount;
-    uniform float uTime;
-    uniform float uPulseAmp;
-    uniform float uAspect;
-    uniform vec4 uBounds;
+    uniform sampler2D uFieldTex;
+    uniform float     uTime;
+    uniform vec2      uPulseCenter;
+    uniform float     uPulseStartTime;
+    uniform vec2      uNodeUVs[MAX_NODES];
+    uniform int       uNodeCount;
+    uniform float     uFieldAspect;
 
     void main(){
-      vec2 uv = vUv;
-      int nodeCount = int(uCount);
+      vec3 col = texture2D(uFieldTex, vUv).rgb;
 
-      // Sensor yoksa varsayilan renk
-      if (nodeCount <= 0) {
-        gl_FragColor = vec4(0.2, 0.4, 0.5, 1.0);
-        return;
-      }
-
-      // Aspect ratio duzeltmesi icin UV'yi olcekle (dairesel mesafe icin)
-      vec2 uvCorrected = vec2(uv.x * uAspect, uv.y);
-
-      // Tum sensorlerin mesafelerini hesapla ve en kucuk iki mesafeyi bul
-      float minDist = 999999.0;
-      float secondMinDist = 999999.0;
-
-      for (int i = 0; i < ${shaderNodeCount}; i++) {
-        if (i >= nodeCount) break;
-        vec2 nodePosCorrected = vec2(uNodePos[i].x * uAspect, uNodePos[i].y);
-        float d = length(uvCorrected - nodePosCorrected);
-        if (d < minDist) {
-          secondMinDist = minDist;
-          minDist = d;
-        } else if (d < secondMinDist) {
-          secondMinDist = d;
+      // Paylasilan Voronoi dongusu — sinir + nabiz icin tek calisir
+      float minD1 = 1e9, minD2 = 1e9, minD3 = 1e9;
+      vec2 nearUV = vec2(0.0), secUV = vec2(0.0), thrUV = vec2(0.0);
+      if (uNodeCount > 0) {
+        for (int i = 0; i < MAX_NODES; i++) {
+          float du = (vUv.x - uNodeUVs[i].x) * uFieldAspect;
+          float dv = vUv.y - uNodeUVs[i].y;
+          float d  = sqrt(du * du + dv * dv);
+          if (d < minD1) {
+            minD3 = minD2; thrUV = secUV;
+            minD2 = minD1; secUV = nearUV;
+            minD1 = d;     nearUV = uNodeUVs[i];
+          } else if (d < minD2) {
+            minD3 = minD2; thrUV = secUV;
+            minD2 = d;     secUV = uNodeUVs[i];
+          } else if (d < minD3) {
+            minD3 = d;     thrUV = uNodeUVs[i];
+          }
         }
       }
 
-      // Blend radius - renk gecis mesafesi
-      float blendRadius = 0.12;
-
-      // Kesisim bolgesinde miyiz? (iki sensor birbirine cok yakinsa)
-      float edgeProximity = secondMinDist - minDist;
-      bool nearEdge = edgeProximity < blendRadius;
-
-      // Tum sensorlerden agirlikli renk toplama
-      vec3 blendedCol = vec3(0.0);
-      float totalWeight = 0.0;
-      float maxMoist = 0.0;
-
-      for (int i = 0; i < ${shaderNodeCount}; i++) {
-        if (i >= nodeCount) break;
-
-        vec2 nodePosCorrected = vec2(uNodePos[i].x * uAspect, uNodePos[i].y);
-        float nodeDist = length(uvCorrected - nodePosCorrected);
-        float nodeMoist = uNodeMoisture[i];
-
-        // Maksimum nemi takip et
-        if (nodeMoist > maxMoist) {
-          maxMoist = nodeMoist;
+      // Zone nabzi — tiklanma aninden baslayan, zone icinde sinirli radius
+      if (uPulseCenter.x >= 0.0 && uNodeCount > 0) {
+        float pdu = (vUv.x - uPulseCenter.x) * uFieldAspect;
+        float pdv = vUv.y - uPulseCenter.y;
+        float distToPulse = sqrt(pdu * pdu + pdv * pdv);
+        if (distToPulse < minD1 + 0.001 && distToPulse < ${PULSE_RADIUS}) {
+          float centerGlow = smoothstep(${PULSE_RADIUS}, 0.0, distToPulse);
+          float elapsed    = uTime - uPulseStartTime;
+          float raw        = (1.0 - cos(elapsed * ${PULSE_SPEED})) * 0.5;
+          float pulse      = pow(raw, float(${PULSE_SHARPNESS}));
+          float intensity  = pulse * (${PULSE_BRIGHTNESS_EDGE} + centerGlow * ${PULSE_BRIGHTNESS_CENTER});
+          // Screen blend: karanlik zone'larda orantili daha fazla, acik zone'larda daha az parlama
+          col = 1.0 - (1.0 - col) * (1.0 - vec3(intensity));
         }
-
-        // Mesafe bazli agirlik (yakin sensorler daha etkili)
-        float distWeight = 1.0 / (nodeDist * nodeDist + 0.001);
-
-        // Nem bazli agirlik (yuksek nem daha etkili yayilir)
-        float moistWeight = nodeMoist * nodeMoist;
-
-        // Kesisim bolgesinde: mesafe + nem birlikte etkili
-        // Kesisim disinda: sadece en yakin sensor
-        float weight;
-        if (nearEdge) {
-          // Kesisim bolgesinde yumusak gecis
-          weight = distWeight * moistWeight;
-        } else {
-          // Kesisim disinda: sadece cok yakin sensorler etkili
-          float falloff = 1.0 - smoothstep(0.0, minDist + 0.01, nodeDist);
-          weight = falloff * moistWeight;
-        }
-
-        blendedCol = blendedCol + uNodeColor[i] * weight;
-        totalWeight = totalWeight + weight;
       }
 
-      // Final renk hesapla
-      vec3 col = vec3(0.3, 0.5, 0.6);
-      if (totalWeight > 0.001) {
-        col = blendedCol / totalWeight;
+      // Voronoi sinirlari — nabizin uzerine yazilir; sinir hatti her zaman net
+      if (uNodeCount > 1) {
+        const float BORDER_WIDTH = ${BORDER_WIDTH};
+        float dx12 = (nearUV.x - secUV.x) * uFieldAspect;
+        float dy12 = nearUV.y - secUV.y;
+        float nd12 = max(sqrt(dx12*dx12 + dy12*dy12), 0.001);
+        float t12  = (minD2 - minD1) * (minD1 + minD2) / (2.0 * nd12);
+        float dx13 = (nearUV.x - thrUV.x) * uFieldAspect;
+        float dy13 = nearUV.y - thrUV.y;
+        float nd13 = max(sqrt(dx13*dx13 + dy13*dy13), 0.001);
+        float t13  = (minD3 - minD1) * (minD1 + minD3) / (2.0 * nd13);
+        float trueDist = min(t12, t13);
+        float aa = clamp(fwidth(trueDist), 0.0005, BORDER_WIDTH * 0.2);
+        float border = 1.0 - smoothstep(BORDER_WIDTH - aa, BORDER_WIDTH + aa, trueDist);
+        col = mix(col, vec3(0.93, 0.91, 0.84), border);
       }
 
-      // Yavas ve belirgin darbe efekti
-      float pulse = sin(uTime * 0.5 - minDist * 2.5) * 0.5 + 0.5;
-      float fade = exp(-minDist * minDist * 2.0);
-      col = col * (1.0 + pulse * fade * uPulseAmp);
+      // Hafif rim isigi
+      float rim = pow(1.0 - max(0.0, dot(normalize(vNormal), normalize(vViewDir))), 2.5);
+      col = col + vec3(rim) * 0.06;
 
-      // Hafif kenar isigi
-      float rim = pow(1.0 - max(0.0, dot(normalize(vNormal), normalize(vViewDir))), 2.5) * 0.08;
-      col = col + vec3(rim) * 0.15;
-
-      col = clamp(col, 0.0, 1.0);
-
-      gl_FragColor = vec4(col, 1.0);
+      gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
     }
   `;
 
+  // LUT bake — nodes degistiginde 64x64 texture'i CPU'da doldur
+  // Fragment shader eski per-pixel N-node dongusu yerine bu texture'i sample eder
+  // Debounce: cok sık tetiklenmeyi onler (ornegin field secimi sirasinda)
   useEffect(() => {
-    if (!shaderRef.current) return;
+    if (lutDebounceRef.current) clearTimeout(lutDebounceRef.current);
 
-    const nodeCount = nodes.length;
-    if (nodeCount === 0) return;
+    lutDebounceRef.current = setTimeout(() => {
+      lutDebounceRef.current = null;
 
-    const uPos = shaderRef.current.uniforms.uNodePos.value;
-    const uCol = shaderRef.current.uniforms.uNodeColor.value;
-    const uMoist = shaderRef.current.uniforms.uNodeMoisture.value;
+      const data = fieldTexture.image.data as Uint8Array;
+      const N = nodes.length;
 
-    // Sadece gercek sensorleri guncelle
-    for (let i = 0; i < nodeCount; i++) {
-      const n = nodes[i];
-      const { u, v } = normalizeToUV(n.x, n.z);
-      if (uPos[i]) uPos[i].set(u, v);
-      if (uCol[i]) uCol[i].set(moistureToColor(n.moisture));
-      if (uMoist) uMoist[i] = n.moisture;
-    }
+      // Node UV + renk cache — pixel loop disinda hesaplanir
+      const nodeUVs: { u: number; v: number }[] = [];
+      const nodeColors: { r: number; g: number; b: number }[] = [];
+      for (let i = 0; i < N; i++) {
+        const n = nodes[i];
+        nodeUVs.push(normalizeToUV(n.x, n.z));
+        nodeColors.push(
+          N === 0
+            ? { r: 60, g: 110, b: 90 }
+            : hexToRgb(moistureToColor(n.moisture)),
+        );
+      }
 
-    shaderRef.current.uniforms.uCount.value = parseFloat(nodeCount.toString());
-    shaderRef.current.uniforms.uAspect.value = aspectRatio;
-    shaderRef.current.uniforms.uBounds.value.set(
-      centeredBounds.minX,
-      centeredBounds.maxX,
-      centeredBounds.minZ,
-      centeredBounds.maxZ,
-    );
-    invalidate();
-  }, [nodes, bounds, centeredBounds, invalidate, aspectRatio]);
+      // Voronoi zone rengi — her piksel icin en yakin node'un rengi
+      // Sinirlar GPU'da hesaplaniyor, burada sadece renk bake edilir
+      for (let y = 0; y < LUT_SIZE; y++) {
+        const v = y / (LUT_SIZE - 1);
+        for (let x = 0; x < LUT_SIZE; x++) {
+          const u = x / (LUT_SIZE - 1);
+          const uC = u * aspectRatio;
+          let minDist = 1e9;
+          let nearest = 0;
+          for (let i = 0; i < N; i++) {
+            const np = nodeUVs[i];
+            const dx = uC - np.u * aspectRatio;
+            const dy = v - np.v;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < minDist) {
+              minDist = d2;
+              nearest = i;
+            }
+          }
+          const idx = (y * LUT_SIZE + x) * 4;
+          const c = N > 0 ? nodeColors[nearest] : { r: 60, g: 110, b: 90 };
+          data[idx] = c.r | 0;
+          data[idx + 1] = c.g | 0;
+          data[idx + 2] = c.b | 0;
+          data[idx + 3] = 0;
+        }
+      }
 
-  useEffect(() => {
-    if (externalSelectedNodeId !== undefined) {
-      setSelectedNodeId(externalSelectedNodeId);
-    }
-  }, [externalSelectedNodeId]);
+      fieldTexture.needsUpdate = true;
+      if (shaderRef.current) {
+        shaderRef.current.uniforms.uBounds.value.set(
+          centeredBounds.minX,
+          centeredBounds.maxX,
+          centeredBounds.minZ,
+          centeredBounds.maxZ,
+        );
+        // Node UV'lerini shader'a aktar — GPU sinir hesabi icin
+        // Kullanilmayan slot'lar (-100,-100): loop her zaman MAX_NODES iter,
+        // uzak degerler hicbir zaman kazanamaz (GLSL ES break sorunundan kacinis)
+        const uvArr = shaderRef.current.uniforms.uNodeUVs.value;
+        const count = Math.min(N, 32);
+        for (let i = 0; i < 32; i++) {
+          if (i < count) uvArr[i].set(nodeUVs[i].u, nodeUVs[i].v);
+          else uvArr[i].set(-100.0, -100.0);
+        }
+        shaderRef.current.uniforms.uNodeCount.value = count;
+        shaderRef.current.uniforms.uFieldAspect.value = aspectRatio;
+      }
+      invalidate();
+    }, 200);
+
+    return () => {
+      if (lutDebounceRef.current) clearTimeout(lutDebounceRef.current);
+    };
+  }, [nodes, bounds, centeredBounds, aspectRatio, fieldTexture, invalidate]);
 
   const handleNodePointerDown = (node: NodeInfo) => (e: any) => {
     pendingNodeRef.current = node;
@@ -673,15 +694,152 @@ export const ColorPlane = memo(function ColorPlane({
 
   const pinLocalSize = PIN_WORLD_SIZE / scale;
 
+  // InstancedMesh refs — head/body/tip pin parcalari
+  // 22+ ayri mesh yerine 3 draw call'da render edilir
+  const headInstRef = useRef<any>(null);
+  const bodyInstRef = useRef<any>(null);
+  const tipInstRef = useRef<any>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const tmpColor = useMemo(() => new THREE.Color(), []);
+
+  // Node konum/renk degisiminde matrix + instanceColor guncelle
+  useEffect(() => {
+    const head = headInstRef.current;
+    const body = bodyInstRef.current;
+    const tip = tipInstRef.current;
+    if (!head || !body || !tip || nodes.length === 0) return;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      const pos = getNodeLocalPosition(node);
+      tmpColor.set(moistureToColor(node.moisture));
+
+      // Pin basi (sphere, rotasyon yok)
+      dummy.position.set(pos.x, pos.y + pinLocalSize * 1.1, pos.z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      head.setMatrixAt(i, dummy.matrix);
+      head.setColorAt(i, tmpColor);
+
+      // Pin govdesi (cone, ters cevrilmis)
+      dummy.position.set(pos.x, pos.y + pinLocalSize * 0.2, pos.z);
+      dummy.rotation.set(Math.PI, 0, 0);
+      dummy.updateMatrix();
+      body.setMatrixAt(i, dummy.matrix);
+      body.setColorAt(i, tmpColor);
+
+      // Pin ucu (cone, ters cevrilmis)
+      dummy.position.set(pos.x, pos.y - pinLocalSize * 0.7, pos.z);
+      dummy.updateMatrix();
+      tip.setMatrixAt(i, dummy.matrix);
+      tip.setColorAt(i, tmpColor);
+    }
+
+    head.instanceMatrix.needsUpdate = true;
+    body.instanceMatrix.needsUpdate = true;
+    tip.instanceMatrix.needsUpdate = true;
+    if (head.instanceColor) head.instanceColor.needsUpdate = true;
+    if (body.instanceColor) body.instanceColor.needsUpdate = true;
+    if (tip.instanceColor) tip.instanceColor.needsUpdate = true;
+
+    invalidate();
+  }, [
+    nodes,
+    pinLocalSize,
+    centerX,
+    centerZ,
+    scale,
+    dummy,
+    tmpColor,
+    invalidate,
+  ]);
+
+  // applySelectionRef guncelleme + disaridan gelen secim uygulama
+  // field/scale degisince closure'i yeniler; externalSelectedNodeId degisince secimi uygular
+  useEffect(() => {
+    applySelectionRef.current = (nodeId: string | null) => {
+      selectedNodeIdRef.current = nodeId;
+      if (!shaderRef.current) return;
+      if (nodeId == null) {
+        shaderRef.current.uniforms.uPulseCenter.value.set(-1, -1);
+        invalidateRef.current();
+        return;
+      }
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node) {
+        shaderRef.current.uniforms.uPulseCenter.value.set(-1, -1);
+        invalidateRef.current();
+        return;
+      }
+      const { u, v } = normalizeToUV(node.x, node.z);
+      shaderRef.current.uniforms.uPulseCenter.value.set(u, v);
+      // Nabiz fazini tiklanma anine senkronize et — hic kaymasi olmaz
+      shaderRef.current.uniforms.uPulseStartTime.value =
+        shaderRef.current.uniforms.uTime.value;
+      invalidateRef.current();
+    };
+
+    // Disaridan secili id gelirse hemen uygula
+    if (externalSelectedNodeId !== undefined) {
+      applySelectionRef.current(externalSelectedNodeId);
+    } else if (selectedNodeIdRef.current) {
+      // Field/scale degistiyse mevcut secimi yeniden uygula
+      applySelectionRef.current(selectedNodeIdRef.current);
+    }
+  }, [externalSelectedNodeId, nodes, pinLocalSize, centerX, centerZ, scale]);
+
   return (
     <group ref={groupRef} position={[0, 0, 0]} scale={[scale, scale, scale]}>
       <mesh
         key={fieldKey}
         ref={meshRef}
         position={[0, 0, 0]}
-        castShadow
-        receiveShadow
         geometry={geometry}
+        onPointerUp={(e: any) => {
+          e.stopPropagation();
+          // Suruklemeyse zone click degil
+          const totalDrag =
+            dragDistanceRef.current.x + dragDistanceRef.current.y;
+          if (totalDrag > TAP_DISTANCE_THRESHOLD) return;
+          // Sadece ust yuz (normal y > 0.5 grup yerel uzayinda)
+          if (!e.face || e.face.normal.y < 0.5) return;
+          if (nodes.length === 0) return;
+
+          // Dunya uzayindan grup yerel uzayina donusum — rotation'u geri alir
+          // e.point dunya uzayinda, ama grup kullanici tarafindan dondurulebilir.
+          // worldToLocal(), scale + rotation'i otomatik olarak geri alar.
+          const localPoint = e.point.clone();
+          groupRef.current.worldToLocal(localPoint);
+          // Yerel uzayda: x = fieldX - centerX, z = centerZ - fieldZ
+          const fieldX = localPoint.x + centerX;
+          const fieldZ = centerZ - localPoint.z;
+
+          const { u: uClick, v: vClick } = normalizeToUV(fieldX, fieldZ);
+
+          // En yakin node = tiklanilan zone
+          let minDist = 1e9;
+          let nearestNode: NodeInfo | null = null;
+          for (const node of nodes) {
+            const { u, v } = normalizeToUV(node.x, node.z);
+            const du = (uClick - u) * aspectRatio;
+            const dv = vClick - v;
+            const d2 = du * du + dv * dv;
+            if (d2 < minDist) {
+              minDist = d2;
+              nearestNode = node;
+            }
+          }
+          if (!nearestNode) return;
+
+          if (selectedNodeIdRef.current === nearestNode.id) {
+            applySelectionRef.current(null);
+            onNodeSelect?.(null);
+          } else {
+            applySelectionRef.current(nearestNode.id);
+            onNodeSelect?.(nearestNode);
+          }
+        }}
       >
         <shaderMaterial
           ref={shaderRef}
@@ -695,14 +853,6 @@ export const ColorPlane = memo(function ColorPlane({
       <directionalLight
         position={[6 / scale, 8 / scale, 6 / scale]}
         intensity={1.4}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-far={20 / scale}
-        shadow-camera-left={-8 / scale}
-        shadow-camera-right={8 / scale}
-        shadow-camera-top={8 / scale}
-        shadow-camera-bottom={-8 / scale}
       />
       <pointLight
         position={[-4 / scale, 4 / scale, 4 / scale]}
@@ -710,85 +860,64 @@ export const ColorPlane = memo(function ColorPlane({
         color={currentColor}
       />
 
+      {nodes.length > 0 && (
+        <>
+          {/* Pin basi - tum nodelar tek draw call */}
+          <instancedMesh
+            key={`head-${nodes.length}-${pinLocalSize}`}
+            ref={headInstRef}
+            args={[undefined, undefined, nodes.length]}
+          >
+            <sphereGeometry args={[pinLocalSize * 0.36, 8, 6]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              metalness={0.4}
+              roughness={0.3}
+            />
+          </instancedMesh>
+
+          {/* Pin govdesi - tum nodelar tek draw call */}
+          <instancedMesh
+            key={`body-${nodes.length}-${pinLocalSize}`}
+            ref={bodyInstRef}
+            args={[undefined, undefined, nodes.length]}
+          >
+            <coneGeometry args={[pinLocalSize * 0.24, pinLocalSize * 1.4, 8]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              metalness={0.3}
+              roughness={0.4}
+            />
+          </instancedMesh>
+
+          {/* Pin ucu - tum nodelar tek draw call */}
+          <instancedMesh
+            key={`tip-${nodes.length}-${pinLocalSize}`}
+            ref={tipInstRef}
+            args={[undefined, undefined, nodes.length]}
+          >
+            <coneGeometry args={[pinLocalSize * 0.08, pinLocalSize * 0.8, 6]} />
+            <meshStandardMaterial
+              color="#ffffff"
+              metalness={0.5}
+              roughness={0.3}
+            />
+          </instancedMesh>
+        </>
+      )}
+
+      {/* Dokunma alanlari - per-node mesh, neredeyse gorunmez (opacity 0.001) */}
       {nodes.map((node) => {
         const pos = getNodeLocalPosition(node);
-        const nodeColor = moistureToColor(node.moisture);
-        const nodeKey = `${node.id}-${node.moisture}`;
         return (
-          <group key={nodeKey} position={[pos.x, pos.y, pos.z]}>
-            {/* Pin basi */}
-            <mesh position={[0, pinLocalSize * 1.1, 0]}>
-              <sphereGeometry args={[pinLocalSize * 0.36, 16, 12]} />
-              <meshStandardMaterial
-                color={nodeColor}
-                metalness={0.4}
-                roughness={0.3}
-                emissive={nodeColor}
-                emissiveIntensity={selectedNodeId === node.id ? 0.3 : 0.1}
-              />
-            </mesh>
-
-            {/* Pin govdesi */}
-            <mesh
-              position={[0, pinLocalSize * 0.2, 0]}
-              rotation={[Math.PI, 0, 0]}
-            >
-              <coneGeometry
-                args={[pinLocalSize * 0.24, pinLocalSize * 1.4, 12]}
-              />
-              <meshStandardMaterial
-                color={nodeColor}
-                metalness={0.3}
-                roughness={0.4}
-              />
-            </mesh>
-
-            {/* Pin ucu */}
-            <mesh
-              position={[0, pinLocalSize * -0.7, 0]}
-              rotation={[Math.PI, 0, 0]}
-            >
-              <coneGeometry
-                args={[pinLocalSize * 0.08, pinLocalSize * 0.8, 8]}
-              />
-              <meshStandardMaterial
-                color={nodeColor}
-                metalness={0.5}
-                roughness={0.3}
-              />
-            </mesh>
-
-            {/* Dokunma alani */}
-            <mesh
-              position={[0, pinLocalSize * 0.4, 0]}
-              onPointerDown={handleNodePointerDown(node)}
-            >
-              <sphereGeometry args={[pinLocalSize * 1.2, 12, 8]} />
-              <meshBasicMaterial
-                transparent
-                opacity={0.001}
-                depthTest={false}
-              />
-            </mesh>
-
-            {/* Secim halkasi */}
-            {selectedNodeId === node.id && (
-              <mesh
-                position={[0, pinLocalSize * 1.5, 0]}
-                rotation={[-Math.PI / 2, 0, 0]}
-              >
-                <ringGeometry
-                  args={[pinLocalSize * 0.56, pinLocalSize * 0.72, 32]}
-                />
-                <meshBasicMaterial
-                  color={nodeColor}
-                  transparent
-                  opacity={0.9}
-                  depthTest={false}
-                />
-              </mesh>
-            )}
-          </group>
+          <mesh
+            key={`touch-${node.id}`}
+            position={[pos.x, pos.y + pinLocalSize * 0.4, pos.z]}
+            onPointerDown={handleNodePointerDown(node)}
+          >
+            <sphereGeometry args={[pinLocalSize * 1.2, 8, 6]} />
+            <meshBasicMaterial transparent opacity={0.001} depthTest={false} />
+          </mesh>
         );
       })}
     </group>
