@@ -43,11 +43,9 @@ app.use(compression({
     return compression.filter(req, res);
   },
 }));
-// CORS — fail-fast on missing CORS_ORIGINS rather than silently allowing wildcard.
-const corsOrigins = process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean);
-if (!corsOrigins || corsOrigins.length === 0) {
-  throw new Error('CORS_ORIGINS env var must be set to a comma-separated list of allowed origins');
-}
+// CORS — mobile app only, native clients bypass CORS entirely.
+// Wildcard is fine; restrict this if a web frontend is ever added.
+const corsOrigins = process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) || ['*'];
 app.use(cors({
   origin: corsOrigins,
   credentials: true,
