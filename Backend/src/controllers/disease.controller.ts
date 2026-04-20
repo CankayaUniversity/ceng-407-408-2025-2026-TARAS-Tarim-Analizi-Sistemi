@@ -278,7 +278,7 @@ export const healthCheck = asyncHandler(
         service: "disease-detection",
         status: "healthy",
         timestamp: new Date().toISOString(),
-        lambdaFunction: process.env.LAMBDA_DISEASE_DETECTION_FUNCTION || "taras-disease-detection",
+        lambdaFunction: process.env.LAMBDA_DISEASE_DETECTION_FUNCTION,
       },
     });
   }

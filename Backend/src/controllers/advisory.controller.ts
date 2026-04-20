@@ -8,9 +8,9 @@ import logger from "../utils/logger";
 
 // Provider gecisi — LLM_PROVIDER env ile kontrol edilir
 // "groq" (varsayilan) veya baska bir deger (extended modul gerektirir)
-const LLM_MODE = process.env.LLM_PROVIDER || "groq";
+const LLM_MODE = process.env.LLM_PROVIDER;
 let ext: any = null;
-if (LLM_MODE !== "groq") {
+if (LLM_MODE && LLM_MODE !== "groq") {
   try {
     ext = require("../services/llm/llm.extended");
     logger.info(`[LLM] extended provider aktif`);

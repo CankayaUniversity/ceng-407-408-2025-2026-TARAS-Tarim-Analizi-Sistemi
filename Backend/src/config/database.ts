@@ -13,7 +13,8 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
-  const dbUrl = process.env.DATABASE_URL || "";
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error("DATABASE_URL not configured");
 
   logger.info(`Prisma DB host test: ${dbUrl.replace(/:\/\/.*?:.*?@/, "://***:***@")}`);
 
@@ -43,7 +44,7 @@ let isConnected = false;
 
 export async function initializeDatabase(): Promise<void> {
   try {
-    const dbUrl = process.env.DATABASE_URL || "";
+    const dbUrl = process.env.DATABASE_URL;
 
     if (!dbUrl) {
       logger.warn("DATABASE_URL not configured");

@@ -6,11 +6,14 @@ import { uploadToS3, generatePresignedDownloadUrl, deleteFromS3 } from "./s3.ser
 import logger from "../utils/logger";
 
 const lambdaClient = new LambdaClient({
-  region: process.env.AWS_REGION || "eu-north-1",
+  region: process.env.AWS_REGION,
 });
 
-const DISEASE_DETECTION_BUCKET = process.env.AWS_S3_BUCKET || "taras-images";
-const LAMBDA_FUNCTION_NAME = process.env.LAMBDA_DISEASE_DETECTION_FUNCTION || "taras-disease-detection";
+if (!process.env.AWS_S3_BUCKET) throw new Error("AWS_S3_BUCKET not configured");
+if (!process.env.LAMBDA_DISEASE_DETECTION_FUNCTION) throw new Error("LAMBDA_DISEASE_DETECTION_FUNCTION not configured");
+
+const DISEASE_DETECTION_BUCKET: string = process.env.AWS_S3_BUCKET;
+const LAMBDA_FUNCTION_NAME: string = process.env.LAMBDA_DISEASE_DETECTION_FUNCTION;
 
 interface DiseaseDetectionResult {
   disease: string;

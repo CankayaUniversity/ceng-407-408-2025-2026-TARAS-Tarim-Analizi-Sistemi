@@ -8,7 +8,7 @@ let io: SocketIOServer;
 export function initializeSocketIO(httpServer: HTTPServer): SocketIOServer {
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: process.env.SOCKET_CORS_ORIGIN?.split(',') || '*',
+      origin: process.env.SOCKET_CORS_ORIGIN?.split(','),
       methods: ['GET', 'POST'],
       credentials: true,
     },

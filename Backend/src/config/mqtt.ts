@@ -6,9 +6,13 @@ import { processSensorData } from '../services/mqtt.service';
 let mqttClient: MqttClient | null = null;
 
 export async function initializeMQTT(io: SocketIOServer): Promise<void> {
-  const brokerUrl = process.env.MQTT_BROKER_URL || 'mqtt://broker.hivemq.com:1883';
-  const clientId = process.env.MQTT_CLIENT_ID || `taras-backend-${Math.random().toString(16).slice(2, 8)}`;
-  const topicPrefix = process.env.MQTT_TOPIC_PREFIX || 'taras/sensors';
+  const brokerUrl = process.env.MQTT_BROKER_URL;
+  const clientId = process.env.MQTT_CLIENT_ID;
+  const topicPrefix = process.env.MQTT_TOPIC_PREFIX;
+
+  if (!brokerUrl) throw new Error("MQTT_BROKER_URL not configured");
+  if (!clientId) throw new Error("MQTT_CLIENT_ID not configured");
+  if (!topicPrefix) throw new Error("MQTT_TOPIC_PREFIX not configured");
 
   const options: mqtt.IClientOptions = {
     clientId,
@@ -16,11 +20,6 @@ export async function initializeMQTT(io: SocketIOServer): Promise<void> {
     connectTimeout: 4000,
     reconnectPeriod: 1000,
   };
-
-  if (process.env.MQTT_USERNAME && process.env.MQTT_PASSWORD) {
-    options.username = process.env.MQTT_USERNAME;
-    options.password = process.env.MQTT_PASSWORD;
-  }
 
   return new Promise((resolve, reject) => {
     mqttClient = mqtt.connect(brokerUrl, options);

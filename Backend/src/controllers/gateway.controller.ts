@@ -615,7 +615,8 @@ export async function uploadFirmware(req: Request, res: Response): Promise<void>
 
     // S3'e yukle
     const s3Key = `firmware/gateway/${version}.bin`;
-    const bucket = process.env.AWS_S3_BUCKET || "taras-pictures";
+    const bucket = process.env.AWS_S3_BUCKET;
+    if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
 
     await uploadToS3({
       bucket,
@@ -702,7 +703,8 @@ export async function triggerOtaUpdate(req: Request, res: Response): Promise<voi
     }
 
     // Presigned download URL olustur (1 saat gecerli)
-    const bucket = process.env.AWS_S3_BUCKET || "taras-pictures";
+    const bucket = process.env.AWS_S3_BUCKET;
+    if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
     const url = await generatePresignedDownloadUrl(bucket, fw.s3_key, 3600);
 
     // Gateway'e OTA komutu gonder

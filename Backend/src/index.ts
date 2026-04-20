@@ -21,8 +21,10 @@ import routes from './routes';
 import logger from './utils/logger';
 
 const app: Express = express();
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || 'localhost';
+const PORT = process.env.PORT;
+const HOST = process.env.HOST;
+if (!PORT) throw new Error("PORT not configured");
+if (!HOST) throw new Error("HOST not configured");
 const httpServer = createServer(app);
 
 // Reverse proxy (nginx) arkasinda calisirken gercek IP'yi al

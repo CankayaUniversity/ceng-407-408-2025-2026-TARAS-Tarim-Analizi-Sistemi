@@ -8,7 +8,8 @@ if (!_JWT_SECRET_RAW || _JWT_SECRET_RAW === 'change-me-in-production' || _JWT_SE
   throw new Error('JWT_SECRET env var must be set to a strong random value (>=32 chars, not the default placeholder)');
 }
 const JWT_SECRET: string = _JWT_SECRET_RAW;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN;
+if (!JWT_EXPIRES_IN) throw new Error("JWT_EXPIRES_IN not configured");
 
 interface JwtPayload {
   user_id: string;
