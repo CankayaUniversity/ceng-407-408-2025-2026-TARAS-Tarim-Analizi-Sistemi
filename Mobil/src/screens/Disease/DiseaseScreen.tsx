@@ -1,7 +1,7 @@
 // Hastalik tespit ekrani - analiz listesi ve kamera erisimi
 // Props: theme, permission, onRequestPermission, isActive
 
-import { useState, useEffect } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import { s, vs } from "../../utils/responsive";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { FocusableSection } from "../../components/FocusableSection";
 import * as imageCache from "../../utils/imageCache";
 
 interface ParentDiseaseScreenProps extends DiseaseScreenProps {
@@ -31,12 +32,12 @@ interface ParentDiseaseScreenProps extends DiseaseScreenProps {
   isActive?: boolean;
 }
 
-export const DiseaseScreen = ({
+export const DiseaseScreen = memo(function DiseaseScreen({
   theme,
   permission,
   onRequestPermission,
   isActive = true,
-}: ParentDiseaseScreenProps) => {
+}: ParentDiseaseScreenProps) {
   const { showPopup } = usePopupMessage();
   const { t } = useLanguage();
   const [showCamera, setShowCamera] = useState(false);
@@ -46,6 +47,8 @@ export const DiseaseScreen = ({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const scrollViewRef = useRef<ScrollView>(null);
+  const pollCancelledRef = useRef(false);
 
   // Cache'deki resimleri hydrate et — network fetch ile paralel, kart goruntuleri
   // backend cevaplamadan once gozukebilsin
@@ -60,6 +63,7 @@ export const DiseaseScreen = ({
   }, []);
 
   const fetchDetections = async (isRefresh = false) => {
+    if (pollCancelledRef.current) return;
     if (isRefresh) {
       setRefreshing(true);
     } else {
@@ -68,6 +72,7 @@ export const DiseaseScreen = ({
 
     try {
       const response = await diseaseAPI.getAllDetections();
+      if (pollCancelledRef.current) return;
       if (response.success && response.data) {
         setDetections(response.data.detections);
 
@@ -82,6 +87,7 @@ export const DiseaseScreen = ({
             if (uri) nextUrls[d.detection_id] = uri;
           }),
         );
+        if (pollCancelledRef.current) return;
         setImageUrls(nextUrls);
 
         // Cross-device reconciliation — server'da olmayan yerel dosyalari temizle
@@ -92,22 +98,26 @@ export const DiseaseScreen = ({
         imageCache.reconcile(liveIds).catch(() => {});
       }
     } catch (error) {
-      showPopup(t.disease.errorLoadingResults);
+      if (!pollCancelledRef.current) showPopup(t.disease.errorLoadingResults);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (!pollCancelledRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   useScreenReset(isActive, {
     onActivate: () => {
       // Sadece veri yoksa fetch yap - mevcut veri korunur
+      pollCancelledRef.current = false;
       if (!showCamera && detections.length === 0) {
         fetchDetections();
       }
     },
     onDeactivate: () => {
       // Kamera state sifirla, veri korunur
+      pollCancelledRef.current = true;
       setShowCamera(false);
       setLoading(false);
     },
@@ -136,6 +146,7 @@ export const DiseaseScreen = ({
   };
 
   const pollForResults = async (detectionId: string) => {
+    pollCancelledRef.current = false;
     try {
       await diseaseAPI.pollDetectionStatus(
         detectionId,
@@ -209,6 +220,7 @@ export const DiseaseScreen = ({
       ) : (
         <>
           <ScrollView
+            ref={scrollViewRef}
             className="flex-1"
             contentContainerStyle={{
               paddingHorizontal: spacing.md,
@@ -225,32 +237,39 @@ export const DiseaseScreen = ({
               />
             }
           >
-            {detections.length === 0 ? (
-              <View className="flex-1 center">
-                <Ionicons
-                  name="leaf-outline"
-                  size={64}
-                  color={theme.textSecondary}
-                />
-                <Text className="text-primary text-base font-semibold mt-4">
-                  {t.disease.noAnalysisYet}
-                </Text>
-                <Text className="text-secondary text-[13px] mt-1 text-center">
-                  {t.disease.noAnalysisSubtitle}
-                </Text>
-              </View>
-            ) : (
-              detections.map((detection) => (
-                <DiseaseResultCard
-                  key={detection.detection_id}
-                  detection={detection}
-                  theme={theme}
-                  imageUrl={imageUrls[detection.detection_id]}
-                  onPress={() => setSelectedDetection(detection)}
-                  onDelete={() => handleDeleteDetection(detection.detection_id)}
-                />
-              ))
-            )}
+            <FocusableSection
+              id="detectionList"
+              screen="disease"
+              theme={theme}
+              scrollViewRef={scrollViewRef}
+            >
+              {detections.length === 0 ? (
+                <View className="flex-1 center">
+                  <Ionicons
+                    name="leaf-outline"
+                    size={64}
+                    color={theme.textSecondary}
+                  />
+                  <Text className="text-primary text-base font-semibold mt-4">
+                    {t.disease.noAnalysisYet}
+                  </Text>
+                  <Text className="text-secondary text-[13px] mt-1 text-center">
+                    {t.disease.noAnalysisSubtitle}
+                  </Text>
+                </View>
+              ) : (
+                detections.map((detection) => (
+                  <DiseaseResultCard
+                    key={detection.detection_id}
+                    detection={detection}
+                    theme={theme}
+                    imageUrl={imageUrls[detection.detection_id]}
+                    onPress={() => setSelectedDetection(detection)}
+                    onDelete={() => handleDeleteDetection(detection.detection_id)}
+                  />
+                ))
+              )}
+            </FocusableSection>
           </ScrollView>
 
           <View
@@ -263,27 +282,34 @@ export const DiseaseScreen = ({
             }}
             pointerEvents="box-none"
           >
-            <TouchableOpacity
-              onPress={() => setShowCamera(true)}
-              activeOpacity={0.85}
-              style={{
-                width: s(48),
-                height: s(48),
-                borderRadius: 24,
-                backgroundColor: theme.primary,
-                alignItems: "center",
-                justifyContent: "center",
-                borderWidth: 2,
-                borderColor: theme.background,
-                elevation: 10,
-                shadowColor: theme.shadowColor,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 10,
-              }}
+            <FocusableSection
+              id="addButton"
+              screen="disease"
+              theme={theme}
+              scrollMode="pulse-only"
             >
-              <Ionicons name="add" size={32} color="#fff" />
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowCamera(true)}
+                activeOpacity={0.85}
+                style={{
+                  width: s(48),
+                  height: s(48),
+                  borderRadius: 24,
+                  backgroundColor: theme.accent,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 2,
+                  borderColor: theme.background,
+                  elevation: 10,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 10,
+                }}
+              >
+                <Ionicons name="add" size={32} color="#fff" />
+              </TouchableOpacity>
+            </FocusableSection>
           </View>
         </>
       )}
@@ -479,7 +505,7 @@ export const DiseaseScreen = ({
       </Modal>
     </View>
   );
-};
+});
 
 interface DetailRowProps {
   label: string;

@@ -1,5 +1,5 @@
 // Bildirim butonu - zil simgesi, AppHeader'in sag tarafinda yer alir
-import { TouchableOpacity, View } from "react-native";
+import { TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "../utils/theme";
 

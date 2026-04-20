@@ -669,6 +669,12 @@ export interface DiseaseDetection {
   recommendations: string[] | null;
   error_message: string | null;
   imageUrl?: string | null;
+  // Lambda v5 uncertainty signal - optional, backend forwards if present.
+  // Mobile also falls back to detected_disease === "Uncertain" as a hint.
+  confidence_status?: "confident" | "uncertain" | null;
+  top_guess?: string | null;
+  message_tr?: string | null;
+  message_en?: string | null;
 }
 
 export interface SubmitDetectionResponse {

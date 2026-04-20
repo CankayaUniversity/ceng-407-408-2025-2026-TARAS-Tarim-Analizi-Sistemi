@@ -2,7 +2,7 @@
 // Props: theme, isActive
 // Ozet karti, kategori secimi, aktivite logu, son kayitlar
 
-import { useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
+import { FocusableSection } from "../../components/FocusableSection";
 import { carbonAPI, gatewayAPI } from "../../utils/api";
 import { spacing } from "../../utils/responsive";
 import type {
@@ -50,10 +51,10 @@ function categoryLabel(
   return map[key];
 }
 
-export const CarbonFootprintScreen = ({
+export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
   theme,
   isActive: _isActive = false,
-}: CarbonFootprintScreenProps) => {
+}: CarbonFootprintScreenProps) {
   const { t } = useLanguage();
   const { showPopup } = usePopupMessage();
   const scrollRef = useRef<ScrollView>(null);
@@ -275,37 +276,44 @@ export const CarbonFootprintScreen = ({
       }
     >
       {/* --- OZET KARTI --- */}
-      <View className="surface-bg rounded-xl" style={{ padding: spacing.md }}>
-        <Text className="text-secondary text-[13px] font-semibold uppercase tracking-wide" style={{ marginBottom: spacing.sm }}>
-          {t.carbon.summaryTitle}
-        </Text>
-        <Text className="text-primary text-3xl font-bold">
-          {summary?.total_emission?.toFixed(1) ?? "0"}{" "}
-          <Text className="text-secondary text-base font-normal">{t.carbon.kgCO2}</Text>
-        </Text>
+      <FocusableSection
+        id="summaryCard"
+        screen="carbon"
+        theme={theme}
+        scrollViewRef={scrollRef}
+      >
+        <View className="surface-bg rounded-xl" style={{ padding: spacing.md }}>
+          <Text className="text-secondary text-[13px] font-semibold uppercase tracking-wide" style={{ marginBottom: spacing.sm }}>
+            {t.carbon.summaryTitle}
+          </Text>
+          <Text className="text-primary text-3xl font-bold">
+            {summary?.total_emission?.toFixed(1) ?? "0"}{" "}
+            <Text className="text-secondary text-base font-normal">{t.carbon.kgCO2}</Text>
+          </Text>
 
-        <View className="flex-row" style={{ gap: spacing.sm, marginTop: spacing.md }}>
-          {CATEGORIES.map(({ key, icon }) => (
-            <View
-              key={key}
-              className="flex-1 items-center bg-porcelain dark:bg-carbonBlack rounded-lg"
-              style={{ padding: spacing.sm, gap: 4 }}
-            >
-              <MaterialCommunityIcons
-                name={icon as any}
-                size={20}
-                color={theme.primary}
-              />
-              <Text className="text-primary text-base font-semibold">
-                {getCategoryTotal(key).toFixed(1)}
-              </Text>
-              <Text className="text-secondary text-[11px]">
-                {categoryLabel(key, t.carbon)}
-              </Text>
-            </View>
-          ))}
+          <View className="flex-row" style={{ gap: spacing.sm, marginTop: spacing.md }}>
+            {CATEGORIES.map(({ key, icon }) => (
+              <View
+                key={key}
+                className="flex-1 items-center bg-porcelain dark:bg-carbonBlack rounded-lg"
+                style={{ padding: spacing.sm, gap: 4 }}
+              >
+                <MaterialCommunityIcons
+                  name={icon as any}
+                  size={20}
+                  color={theme.primary}
+                />
+                <Text className="text-primary text-base font-semibold">
+                  {getCategoryTotal(key).toFixed(1)}
+                </Text>
+                <Text className="text-secondary text-[11px]">
+                  {categoryLabel(key, t.carbon)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
+      </FocusableSection>
 
       {/* --- KAYIT FORMU --- */}
       <View className="surface-bg rounded-xl" style={{ padding: spacing.md }}>
@@ -314,36 +322,44 @@ export const CarbonFootprintScreen = ({
         </Text>
 
         {/* kategori butonlari */}
-        <View className="flex-row" style={{ gap: spacing.sm, marginBottom: spacing.md }}>
-          {CATEGORIES.map(({ key, icon }) => {
-            const isSelected = selectedCategory === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                className="flex-1 row justify-center rounded-full border"
-                style={{
-                  gap: 6,
-                  paddingVertical: spacing.sm,
-                  backgroundColor: isSelected ? theme.primary : theme.background,
-                  borderColor: theme.primary + "30",
-                }}
-                onPress={() => handleCategorySelect(key)}
-              >
-                <MaterialCommunityIcons
-                  name={icon as any}
-                  size={16}
-                  color={isSelected ? theme.textOnPrimary : theme.textSecondary}
-                />
-                <Text
-                  className="text-[13px] font-semibold"
-                  style={{ color: isSelected ? theme.textOnPrimary : theme.textMain }}
+        <FocusableSection
+          id="categoryButtons"
+          screen="carbon"
+          theme={theme}
+          scrollViewRef={scrollRef}
+          style={{ marginBottom: spacing.md }}
+        >
+          <View className="flex-row" style={{ gap: spacing.sm }}>
+            {CATEGORIES.map(({ key, icon }) => {
+              const isSelected = selectedCategory === key;
+              return (
+                <TouchableOpacity
+                  key={key}
+                  className="flex-1 row justify-center rounded-full border"
+                  style={{
+                    gap: 6,
+                    paddingVertical: spacing.sm,
+                    backgroundColor: isSelected ? theme.primary : theme.background,
+                    borderColor: theme.primary + "30",
+                  }}
+                  onPress={() => handleCategorySelect(key)}
                 >
-                  {categoryLabel(key, t.carbon)}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                  <MaterialCommunityIcons
+                    name={icon as any}
+                    size={16}
+                    color={isSelected ? theme.textOnPrimary : theme.textSecondary}
+                  />
+                  <Text
+                    className="text-[13px] font-semibold"
+                    style={{ color: isSelected ? theme.textOnPrimary : theme.textMain }}
+                  >
+                    {categoryLabel(key, t.carbon)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </FocusableSection>
 
         {/* aktivite tipi dropdown */}
         {selectedCategory && (
@@ -489,6 +505,12 @@ export const CarbonFootprintScreen = ({
       </View>
 
       {/* --- SON KAYITLAR --- */}
+      <FocusableSection
+        id="recentLogsList"
+        screen="carbon"
+        theme={theme}
+        scrollViewRef={scrollRef}
+      >
       <View className="surface-bg rounded-xl" style={{ padding: spacing.md }}>
         <Text className="text-secondary text-[13px] font-semibold uppercase tracking-wide" style={{ marginBottom: spacing.sm }}>
           {t.carbon.recentLogs}
@@ -535,8 +557,9 @@ export const CarbonFootprintScreen = ({
           ))
         )}
       </View>
+      </FocusableSection>
 
       <View style={{ height: spacing.xxl }} />
     </ScrollView>
   );
-};
+});

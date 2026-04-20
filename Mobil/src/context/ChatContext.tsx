@@ -7,11 +7,14 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { InteractionManager } from "react-native";
 import { useChat } from "../hooks/useChat";
 import { useAuth } from "./AuthContext";
 import { useDashboard } from "./DashboardContext";
+import { useSectionFocus } from "./SectionFocusContext";
 import { navigationRef, TabParamList } from "../navigation/navigationRef";
 import { ScreenType } from "../constants";
 
@@ -31,13 +34,23 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   const { handleLogout } = useAuth();
   const { selectedFieldId } = useDashboard();
+  const { requestFocus } = useSectionFocus();
   const [showChat, setShowChat] = useState(false);
   const [aiSpotIndex, setAiSpotIndex] = useState(0);
   const [aiMoveTarget, setAiMoveTarget] = useState<number | null>(null);
+  const focusTaskRef = useRef<{ cancel: () => void } | null>(null);
+
+  // Unmount'ta bekleyen focus gorevini iptal et
+  useEffect(() => {
+    return () => {
+      focusTaskRef.current?.cancel();
+    };
+  }, []);
 
   // LLM'den gelen tab navigasyonu — login → logout, diger → navigationRef
-  const navigateToScreen = useCallback(
-    (target: ScreenType) => {
+  // Section varsa ayrica SectionFocus odak istegi de tetiklenir
+  const handleLLMNavigate = useCallback(
+    (target: string, section: string | null) => {
       if (target === "login") {
         void handleLogout();
         return;
@@ -45,11 +58,18 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       if (navigationRef.isReady()) {
         navigationRef.navigate(target as keyof TabParamList);
       }
+      if (section) {
+        // Tab gecisi tamamlandiktan sonra focus iste
+        focusTaskRef.current?.cancel();
+        focusTaskRef.current = InteractionManager.runAfterInteractions(() => {
+          requestFocus(target as ScreenType, section);
+        });
+      }
     },
-    [handleLogout],
+    [handleLogout, requestFocus],
   );
 
-  const chat = useChat(navigateToScreen, selectedFieldId);
+  const chat = useChat(handleLLMNavigate, selectedFieldId);
 
   // Pending bubble geldiginde chat'i kapat ve AI butonu diger noktaya tasi
   useEffect(() => {

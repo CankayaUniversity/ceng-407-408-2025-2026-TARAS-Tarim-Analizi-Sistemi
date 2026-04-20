@@ -1,16 +1,15 @@
 // LLM navigasyon sonrasi bildirim baloncugu
 // Sohbet penceresiyle ayni estetik: ince cerceve, arka plan rengi, avatar yok
+// Metin 140 karaktere/bir cumleye kisaltilir — tam metin chat penceresinde
 import { useEffect, useRef } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   Animated,
-  useWindowDimensions,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Markdown from "@ronradtke/react-native-markdown-display";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Theme } from "../types";
 import { s, vs, ms } from "../utils/responsive";
 import { useLanguage } from "../context/LanguageContext";
@@ -25,6 +24,18 @@ interface ChatBubbleProps {
 }
 
 const AUTO_DISMISS_MS = 8000;
+const MAX_BUBBLE_CHARS = 140;
+
+// Ilk cumleyi cikar — nokta/soru isareti/unlem sonrasi kesmeyi dener
+const firstSentence = (text: string, max = MAX_BUBBLE_CHARS): string => {
+  const cleaned = text.trim();
+  if (cleaned.length === 0) return cleaned;
+  if (cleaned.length <= max) return cleaned;
+  const match = cleaned.match(/^[^.!?]+[.!?]/);
+  const candidate = match ? match[0].trim() : cleaned;
+  if (candidate.length <= max) return candidate;
+  return candidate.slice(0, max - 1).trimEnd().replace(/\.+$/, "") + "…";
+};
 
 export const ChatBubble = ({
   message,
@@ -34,11 +45,13 @@ export const ChatBubble = ({
   onPress,
   onDismiss,
 }: ChatBubbleProps) => {
-  const { height: windowHeight } = useWindowDimensions();
   const { t } = useLanguage();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const short = firstSentence(message);
+  const hasMore = short.length < message.trim().length;
 
   useEffect(() => {
     if (visible) {
@@ -80,9 +93,6 @@ export const ChatBubble = ({
 
   if (!visible) return null;
 
-  // Maksimum yukseklik: ekranin %40'i
-  const maxBubbleHeight = windowHeight * 0.4;
-
   return (
     <Animated.View
       style={{
@@ -90,7 +100,6 @@ export const ChatBubble = ({
         right: s(12),
         left: s(48),
         bottom,
-        maxHeight: maxBubbleHeight,
         zIndex: 999,
         alignItems: "flex-end" as const,
         opacity,
@@ -140,23 +149,29 @@ export const ChatBubble = ({
           </TouchableOpacity>
         </View>
 
-        {/* Mesaj icerigi — scroll edilebilir */}
-        <ScrollView
-          style={{ paddingHorizontal: s(12), paddingVertical: vs(10) }}
-          showsVerticalScrollIndicator={false}
-          bounces={false}
-        >
+        {/* Mesaj icerigi — tek cumle, <= 140 karakter */}
+        <View style={{ paddingHorizontal: s(12), paddingVertical: vs(10) }}>
           <Markdown style={{
             body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
             strong: { fontWeight: "700", color: theme.textMain },
-            bullet_list: { marginVertical: vs(2) },
-            ordered_list: { marginVertical: vs(2) },
-            list_item: { marginVertical: vs(1) },
-            paragraph: { marginVertical: vs(2) },
+            em: { color: theme.textMain },
+            paragraph: { marginVertical: 0 },
           }}>
-            {message}
+            {short}
           </Markdown>
-        </ScrollView>
+          {hasMore && (
+            <Text
+              style={{
+                marginTop: vs(4),
+                fontSize: ms(12, 0.3),
+                fontWeight: "600",
+                color: theme.primary,
+              }}
+            >
+              {t.chat.readMore}
+            </Text>
+          )}
+        </View>
 
         {/* Alt ipucu */}
         <Text

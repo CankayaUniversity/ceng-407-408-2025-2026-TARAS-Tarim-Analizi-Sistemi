@@ -44,6 +44,7 @@ import { AuthProvider } from "./src/context/AuthContext";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { DashboardProvider } from "./src/context/DashboardContext";
 import { ChatProvider } from "./src/context/ChatContext";
+import { SectionFocusProvider } from "./src/context/SectionFocusContext";
 import { AppRouter } from "./src/navigation/AppRouter";
 
 export default function App() {
@@ -55,9 +56,11 @@ export default function App() {
             <AuthProvider>
               <ThemeProvider>
                 <DashboardProvider>
-                  <ChatProvider>
-                    <AppRouter />
-                  </ChatProvider>
+                  <SectionFocusProvider>
+                    <ChatProvider>
+                      <AppRouter />
+                    </ChatProvider>
+                  </SectionFocusProvider>
                 </DashboardProvider>
               </ThemeProvider>
             </AuthProvider>

@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "../types";
-import { ScreenType } from "../constants";
 import { API_HOST, authAPI } from "../utils/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
@@ -8,7 +7,6 @@ const ADVISORY_STREAM_URL = `${API_HOST}/api/advisory/stream`;
 const SESSION_URL = `${API_HOST}/api/advisory/session`;
 const HISTORY_URL = `${API_HOST}/api/advisory/history`;
 
-// Arac adlari → kullanici dostu Turkce etiketler
 // Arac adlari → kullanici dostu etiketler (noktalar dinamik eklenir)
 const TOOL_LABELS: Record<string, string> = {
   get_field_overview: "📊 Tarla verilerini çekiyor",
@@ -18,8 +16,10 @@ const TOOL_LABELS: Record<string, string> = {
   get_irrigation_history: "💧 Sulama geçmişi kontrol ediliyor",
   get_sensor_diagnostics: "🔧 Sensör sağlığı kontrol ediliyor",
   get_carbon_summary: "🌿 Karbon ayak izi hesaplanıyor",
+  get_disease_history: "🍃 Hastalık geçmişi alınıyor",
+  get_active_alerts: "🚨 Aktif uyarılar kontrol ediliyor",
   search_knowledge: "📚 Bilgi tabanında aranıyor",
-  navigate_to_screen: "🧭 Ekran yönlendiriliyor",
+  navigate_to_section: "🧭 Ekran yönlendiriliyor",
 };
 
 // Yayin hizi sabitleri — karakter/saniye
@@ -36,7 +36,15 @@ const WELCOME: ChatMessage = {
 export interface PendingBubble {
   text: string;
   screen: string;
+  section: string | null;
 }
+
+interface PendingNavigate {
+  screen: string;
+  section: string | null;
+}
+
+export type NavigateHandler = (screen: string, section: string | null) => void;
 
 export interface ChatSessionSummary {
   session_id: string;
@@ -46,7 +54,10 @@ export interface ChatSessionSummary {
   last_message_at: string | null;
 }
 
-export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string | null) => {
+export const useChat = (
+  onNavigate: NavigateHandler,
+  fieldId: string | null,
+) => {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [chatInput, setChatInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -54,7 +65,20 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
   const [pendingBubble, setPendingBubble] = useState<PendingBubble | null>(null);
 
   const fieldIdRef = useRef(fieldId);
-  const pendingNavigateRef = useRef<string | null>(null);
+  const pendingNavigateRef = useRef<PendingNavigate | null>(null);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const toolDotIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const currentToolLabelRef = useRef<string>("");
+
+  // Unmount'ta acik stream ve intervalleri temizle
+  useEffect(() => {
+    return () => {
+      xhrRef.current?.abort();
+      if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
+      if (toolDotIntervalRef.current) clearInterval(toolDotIntervalRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     fieldIdRef.current = fieldId;
@@ -166,13 +190,29 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
     const sessionIdSnapshot = sessionId;
     const token = await authAPI.getToken();
 
+    // Stream temizleme — interval ve xhr referanslarini sifirlar
+    const cleanupStream = () => {
+      if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
+      if (toolDotIntervalRef.current) { clearInterval(toolDotIntervalRef.current); toolDotIntervalRef.current = null; }
+      xhrRef.current = null;
+    };
+
+    // Hata mesajini streaming mesajina yaz ve stream'i temizle
+    const setStreamError = (msg: string) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamingId
+            ? { ...m, text: msg, isStreaming: false }
+            : m,
+        ),
+      );
+      cleanupStream();
+    };
+
     // Typing efekti — accumulated'dan karakter karakter goster
     let displayedLength = 0;
-    // Arac kullanimi nokta animasyonu
-    let toolDotInterval: ReturnType<typeof setInterval> | null = null;
     let toolDotCount = 0;
-    let currentToolLabel = "";
-    const typingInterval = setInterval(() => {
+    typingIntervalRef.current = setInterval(() => {
       if (displayedLength < accumulated.length) {
         displayedLength = Math.min(displayedLength + TYPING_CHARS_PER_TICK, accumulated.length);
         const visible = accumulated.slice(0, displayedLength);
@@ -182,7 +222,10 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
       }
     }, TYPING_TICK_MS);
 
+    // Onceki acik stream varsa iptal et, yeni xhr'i kaydet
+    xhrRef.current?.abort();
     const xhr = new XMLHttpRequest();
+    xhrRef.current = xhr;
     xhr.open("POST", ADVISORY_STREAM_URL);
     xhr.setRequestHeader("Content-Type", "application/json");
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
@@ -194,8 +237,9 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
     // Stream bitince navigasyon ve bubble islemlerini yap
     const finalizeStream = () => {
       // Intervalleri temizle, kalan metni hemen goster
-      clearInterval(typingInterval);
-      if (toolDotInterval) clearInterval(toolDotInterval);
+      if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
+      if (toolDotIntervalRef.current) { clearInterval(toolDotIntervalRef.current); toolDotIntervalRef.current = null; }
+      xhrRef.current = null;
       if (accumulated) {
         setMessages((prev) =>
           prev.map((m) => (m.id === streamingId ? { ...m, text: accumulated } : m)),
@@ -205,12 +249,12 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
       setIsLoading(false);
 
       if (pendingNavigateRef.current) {
-        const screen = pendingNavigateRef.current;
+        const { screen, section } = pendingNavigateRef.current;
         const bubbleText = accumulated || "Ekrana yönlendirildiniz.";
         pendingNavigateRef.current = null;
-        setScreen(screen as ScreenType);
-        setPendingBubble({ text: bubbleText, screen });
-        console.log("[CHAT] navigasyon:", screen);
+        onNavigate(screen, section);
+        setPendingBubble({ text: bubbleText, screen, section });
+        console.log("[CHAT] navigasyon:", screen, section ?? "-");
       }
     };
 
@@ -230,42 +274,49 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
             error?: string;
             status?: string;
             navigate?: string;
+            section?: string | null;
           };
 
           if (parsed.navigate) {
             // Navigasyonu ertele — stream bitince yapilacak
             const validScreens = ["home", "timetable", "disease", "carbon", "settings"];
             if (validScreens.includes(parsed.navigate)) {
-              pendingNavigateRef.current = parsed.navigate;
+              pendingNavigateRef.current = {
+                screen: parsed.navigate,
+                section:
+                  typeof parsed.section === "string" && parsed.section.length > 0
+                    ? parsed.section
+                    : null,
+              };
             }
           }
 
           if (parsed.status) {
             // Onceki nokta animasyonunu temizle
-            if (toolDotInterval) clearInterval(toolDotInterval);
+            if (toolDotIntervalRef.current) { clearInterval(toolDotIntervalRef.current); toolDotIntervalRef.current = null; }
             toolDotCount = 0;
 
             // Arac etiketinden "..." son ekini kaldir (biz ekleyecegiz)
             const rawLabel = TOOL_LABELS[parsed.status] ?? "⏳ Veriler işleniyor";
-            currentToolLabel = rawLabel.replace(/\.+$/, "");
+            currentToolLabelRef.current = rawLabel.replace(/\.+$/, "");
 
             // Hemen goster
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === streamingId && !accumulated
-                  ? { ...m, text: currentToolLabel }
+                  ? { ...m, text: currentToolLabelRef.current }
                   : m,
               ),
             );
 
             // Nokta animasyonu baslat (1.2 saniyede bir nokta ekle, maks 3)
-            toolDotInterval = setInterval(() => {
+            toolDotIntervalRef.current = setInterval(() => {
               toolDotCount = (toolDotCount % 3) + 1;
               const dots = ".".repeat(toolDotCount);
               setMessages((prev) =>
                 prev.map((m) =>
                   m.id === streamingId && !accumulated
-                    ? { ...m, text: currentToolLabel + dots }
+                    ? { ...m, text: currentToolLabelRef.current + dots }
                     : m,
                 ),
               );
@@ -274,9 +325,9 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
 
           if (parsed.chunk) {
             // Ilk chunk gelince nokta animasyonunu durdur
-            if (toolDotInterval) {
-              clearInterval(toolDotInterval);
-              toolDotInterval = null;
+            if (toolDotIntervalRef.current) {
+              clearInterval(toolDotIntervalRef.current);
+              toolDotIntervalRef.current = null;
             }
             accumulated += parsed.chunk;
           }
@@ -286,16 +337,13 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
           }
 
           if (parsed.error) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === streamingId
-                  ? { ...m, text: "Üzgünüm, şu an asistan sunucusuna bağlanamıyorum." }
-                  : m,
-              ),
-            );
+            setStreamError("Üzgünüm, şu an asistan sunucusuna bağlanamıyorum.");
+            setIsLoading(false);
           }
         } catch {
-          // Eksik JSON — sonraki onprogress'te tekrar denenecek
+          if (line.startsWith("data: {")) {
+            console.log("[CHAT] malformed SSE:", line.slice(0, 60));
+          }
         }
       }
     };
@@ -308,38 +356,20 @@ export const useChat = (setScreen: (screen: ScreenType) => void, fieldId: string
       parseNewChunks(xhr.responseText);
 
       if (!accumulated) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === streamingId ? { ...m, text: "Yanıt alınamadı." } : m,
-          ),
-        );
+        setStreamError("Yanıt alınamadı.");
+        setIsLoading(false);
+        return;
       }
       finalizeStream();
     };
 
     xhr.onerror = () => {
-      clearInterval(typingInterval);
-      if (toolDotInterval) clearInterval(toolDotInterval);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === streamingId
-            ? { ...m, text: "Üzgünüm, şu an asistan sunucusuna bağlanamıyorum. Lütfen internet bağlantınızı kontrol edin." }
-            : m,
-        ),
-      );
+      setStreamError("Üzgünüm, şu an asistan sunucusuna bağlanamıyorum. Lütfen internet bağlantınızı kontrol edin.");
       setIsLoading(false);
     };
 
     xhr.ontimeout = () => {
-      clearInterval(typingInterval);
-      if (toolDotInterval) clearInterval(toolDotInterval);
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === streamingId
-            ? { ...m, text: "Üzgünüm, bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin." }
-            : m,
-        ),
-      );
+      setStreamError("Üzgünüm, bağlantı zaman aşımına uğradı. Lütfen tekrar deneyin.");
       setIsLoading(false);
     };
 

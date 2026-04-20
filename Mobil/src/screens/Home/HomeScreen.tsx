@@ -19,6 +19,7 @@ import { NodePopup } from "./NodePopup";
 import { spacing } from "../../utils/responsive";
 import { StatusCard } from "./StatusCard";
 import { Safe3DCanvas } from "../../components/Safe3DCanvas";
+import { FocusableSection } from "../../components/FocusableSection";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { useState } from "react";
 const THREE: any = require("three");
@@ -141,16 +142,30 @@ export const HomeScreen = memo(({
             ) : undefined
           }
         >
-          <StatusCard
+          <FocusableSection
+            id="statusCard"
+            screen="home"
             theme={theme}
-            dashboardData={dashboardData}
-            loading={loading}
-          />
+            scrollMode="pulse-only"
+          >
+            <StatusCard
+              theme={theme}
+              dashboardData={dashboardData}
+              loading={loading}
+            />
+          </FocusableSection>
         </ScrollView>
 
         {/* 3D Canvas */}
+        <FocusableSection
+          id="fieldVisualization"
+          screen="home"
+          theme={theme}
+          scrollMode="pulse-only"
+          style={[appStyles.canvasContainer, { position: "relative", flex: 1 }]}
+        >
         <View
-          style={[appStyles.canvasContainer, { position: "relative" }]}
+          style={{ flex: 1, position: "relative" }}
           collapsable={false}
           removeClippedSubviews={false}
         >
@@ -202,6 +217,7 @@ export const HomeScreen = memo(({
             onClose={handleClosePopup}
           />
         </View>
+        </FocusableSection>
       </View>
     </View>
   );

@@ -339,30 +339,34 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
     );
   }
 
-  // Yukleme durumu
-  if (canvasState === "loading") {
+  // Yukleme + Hazir — Canvas tek tree icinde, overlay yalniz loading'de
+  // Onceki kod loading→ready gecisinde Canvas'i unmount/remount ediyor, GL context yeniden olusuyordu
+  if (canvasState === "loading" || canvasState === "ready") {
     try {
       return (
         <View className="flex-1">
           <Canvas
             frameloop="demand"
+            dpr={[0.75, 1]}
             camera={camera}
             style={style}
             onCreated={handleCanvasCreated}
             gl={{
               powerPreference: "low-power",
-              antialias: true,
+              antialias: false,
               alpha: false,
             }}
           >
             {children}
           </Canvas>
-          <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text className="mt-3 text-sm" style={{ color: theme.textMain }}>
-              {t.errors.loading3D}
-            </Text>
-          </View>
+          {canvasState === "loading" && (
+            <View className="overlay-fill" style={{ backgroundColor: "rgba(0,0,0,0.3)" }}>
+              <ActivityIndicator size="large" color={theme.primary} />
+              <Text className="mt-3 text-sm" style={{ color: theme.textMain }}>
+                {t.errors.loading3D}
+              </Text>
+            </View>
+          )}
         </View>
       );
     } catch (renderError: any) {
@@ -382,24 +386,6 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
     }
   }
 
-  // Hazir durumu
-  try {
-    return (
-      <Canvas
-        camera={camera}
-        style={style}
-        gl={{
-          powerPreference: "high-performance",
-          antialias: true,
-          alpha: false,
-        }}
-      >
-        {children}
-      </Canvas>
-    );
-  } catch (renderError: any) {
-    console.log("[3D] render err:", renderError);
-    return <View className="flex-1">{fallback}</View>;
-  }
+  return <View className="flex-1">{fallback}</View>;
 });
 

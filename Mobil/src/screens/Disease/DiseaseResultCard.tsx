@@ -77,6 +77,110 @@ const formatDate = (isoDate: string, t: any, language: string): string => {
   });
 };
 
+interface DiseaseInfoProps {
+  detection: DiseaseDetection;
+  theme: Theme;
+  t: any;
+  confidencePct: number | null;
+}
+
+// Hastalik bilgisi — belirsiz veya kesin sonuc gosterimi
+const DiseaseInfo = ({ detection, theme, t, confidencePct }: DiseaseInfoProps) => {
+  // Lambda v5 uncertainty signal: explicit field OR fallback string.
+  const isUncertain =
+    detection.confidence_status === "uncertain" ||
+    detection.detected_disease === "Uncertain";
+
+  if (isUncertain) {
+    // Sari uyari banneri - model emin degil
+    const topGuess = detection.top_guess ?? undefined;
+    return (
+      <View
+        className="rounded-lg px-2 py-1"
+        style={{
+          backgroundColor: "#f59e0b20",
+          borderLeftWidth: 3,
+          borderLeftColor: "#f59e0b",
+        }}
+      >
+        <View className="row" style={{ gap: spacing.xs }}>
+          <Ionicons name="warning-outline" size={14} color="#f59e0b" />
+          <Text
+            className="text-[13px] font-bold"
+            style={{ color: "#f59e0b" }}
+          >
+            {t.disease.uncertainTitle}
+          </Text>
+        </View>
+        <Text
+          className="text-secondary text-[11px] mt-0.5"
+          numberOfLines={2}
+        >
+          {detection.message_tr ?? t.disease.uncertainMessage}
+        </Text>
+        {topGuess ? (
+          <Text
+            className="text-secondary text-[11px] mt-0.5 italic"
+          >
+            {t.disease.uncertainPossibleGuess}: {topGuess}
+            {confidencePct != null
+              ? ` (${confidencePct.toFixed(1)}%)`
+              : ""}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <Text className="text-primary text-[15px] font-bold mb-1">
+        {detection.detected_disease}
+      </Text>
+      <View
+        className="row mb-1"
+        style={{ gap: spacing.xs }}
+      >
+        <View
+          className="rounded px-2 py-0.5"
+          style={{ backgroundColor: theme.accent + "20" }}
+        >
+          <Text
+            className="text-[11px] font-semibold"
+            style={{ color: theme.accent }}
+          >
+            {confidencePct != null ? confidencePct.toFixed(1) : "--"}%{" "}
+            {t.disease.confidence}
+          </Text>
+        </View>
+      </View>
+
+      {detection.all_predictions &&
+        Object.keys(detection.all_predictions).length > 1 && (
+          <View className="mt-1">
+            <Text className="text-secondary text-[11px] font-semibold mb-0.5">
+              {t.disease.allPredictions}
+            </Text>
+            {Object.entries(detection.all_predictions)
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 4)
+              .map(([label, score]) => {
+                const scorePct = score <= 1 ? score * 100 : score;
+                return (
+                  <Text
+                    key={label}
+                    className="text-secondary text-[11px]"
+                  >
+                    {label}: {scorePct.toFixed(1)}%
+                  </Text>
+                );
+              })}
+          </View>
+        )}
+    </View>
+  );
+};
+
 export const DiseaseResultCard = ({
   detection,
   theme,
@@ -87,14 +191,13 @@ export const DiseaseResultCard = ({
   const { t, language } = useLanguage();
   const statusInfo = getStatusInfo(detection.status, t, theme);
 
-  // Normalize confidence: backend may return 0-1 float or 0-100, and may use
-  // either the "confidence" field or the "confidence_score" field.
-  const rawConfidence = detection.confidence ?? detection.confidence_score;
+  // confidence_score oncelikli — backend'in otortatif alani; yoksa confidence'a dustur
+  const rawConf = detection.confidence_score ?? detection.confidence;
   const confidencePct =
-    rawConfidence != null
-      ? rawConfidence <= 1
-        ? rawConfidence * 100
-        : rawConfidence
+    rawConf != null
+      ? rawConf <= 1
+        ? rawConf * 100
+        : rawConf
       : null;
 
   return (
@@ -165,51 +268,12 @@ export const DiseaseResultCard = ({
           )}
 
           {detection.status === "COMPLETED" && detection.detected_disease && (
-            <View>
-              <Text className="text-primary text-[15px] font-bold mb-1">
-                {detection.detected_disease}
-              </Text>
-              <View
-                className="row mb-1"
-                style={{ gap: spacing.xs }}
-              >
-                <View
-                  className="rounded px-2 py-0.5"
-                  style={{ backgroundColor: theme.primary + "20" }}
-                >
-                  <Text
-                    className="text-[11px] font-semibold"
-                    style={{ color: theme.primary }}
-                  >
-                    {confidencePct != null ? confidencePct.toFixed(1) : "--"}%{" "}
-                    {t.disease.confidence}
-                  </Text>
-                </View>
-              </View>
-
-              {detection.all_predictions &&
-                Object.keys(detection.all_predictions).length > 1 && (
-                  <View className="mt-1">
-                    <Text className="text-secondary text-[11px] font-semibold mb-0.5">
-                      {t.disease.allPredictions}
-                    </Text>
-                    {Object.entries(detection.all_predictions)
-                      .sort(([, a], [, b]) => b - a)
-                      .slice(0, 4)
-                      .map(([label, score]) => {
-                        const scorePct = score <= 1 ? score * 100 : score;
-                        return (
-                          <Text
-                            key={label}
-                            className="text-secondary text-[11px]"
-                          >
-                            {label}: {scorePct.toFixed(1)}%
-                          </Text>
-                        );
-                      })}
-                  </View>
-                )}
-            </View>
+            <DiseaseInfo
+              detection={detection}
+              theme={theme}
+              t={t}
+              confidencePct={confidencePct}
+            />
           )}
 
           {detection.status === "FAILED" && (

@@ -94,6 +94,9 @@ export interface StringDictionary {
     detailRecommendations: string;
     detailTimestamps: string;
     detailDetectionId: string;
+    uncertainTitle: string;
+    uncertainMessage: string;
+    uncertainPossibleGuess: string;
   };
 
   // Camera Screen
@@ -244,6 +247,7 @@ export interface StringDictionary {
     tapToOpen: string;
     history: string;
     historyEmpty: string;
+    readMore: string;
   };
 
   // Network Diagnostics
@@ -416,6 +420,10 @@ const tr: StringDictionary = {
     detailRecommendations: "Öneriler",
     detailTimestamps: "Zamanlar",
     detailDetectionId: "Tespit ID",
+    uncertainTitle: "Emin Değil",
+    uncertainMessage:
+      "Model bu fotoğraftan emin olamadı. Lütfen yaprağın daha net bir fotoğrafını çekin.",
+    uncertainPossibleGuess: "Olası tahmin",
   },
 
   camera: {
@@ -564,6 +572,7 @@ const tr: StringDictionary = {
     tapToOpen: "Sohbeti açmak için dokunun",
     history: "Geçmiş Sohbetler",
     historyEmpty: "Henüz sohbet geçmişi yok",
+    readMore: "Tümünü gör",
   },
 
   networkDiag: {
@@ -732,6 +741,10 @@ const en: StringDictionary = {
     detailRecommendations: "Recommendations",
     detailTimestamps: "Timestamps",
     detailDetectionId: "Detection ID",
+    uncertainTitle: "Not Confident",
+    uncertainMessage:
+      "The model was not confident about this photo. Please take a clearer shot of the leaf.",
+    uncertainPossibleGuess: "Possible guess",
   },
 
   camera: {
@@ -880,6 +893,7 @@ const en: StringDictionary = {
     tapToOpen: "Tap to open chat",
     history: "Past Conversations",
     historyEmpty: "No conversation history yet",
+    readMore: "Read more",
   },
 
   networkDiag: {

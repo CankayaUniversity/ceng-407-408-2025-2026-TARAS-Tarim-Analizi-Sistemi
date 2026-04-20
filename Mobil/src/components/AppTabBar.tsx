@@ -1,6 +1,8 @@
 // Ozel tabBar — React Navigation bottom-tabs icin renderer
 // state.index ve navigation.navigate uzerinden calisiyor
+// memo ile gereksiz render engellendi
 
+import { memo } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,7 +13,7 @@ import { NAV_ITEMS } from "../constants";
 import { s, vs, ms } from "../utils/responsive";
 import type { TabParamList } from "../navigation/navigationRef";
 
-export const AppTabBar = (props: BottomTabBarProps) => {
+export const AppTabBar = memo(function AppTabBar(props: BottomTabBarProps) {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
@@ -65,4 +67,4 @@ export const AppTabBar = (props: BottomTabBarProps) => {
       })}
     </View>
   );
-};
+});

@@ -4,7 +4,7 @@
 import { View, Text, Dimensions } from "react-native";
 import { LineChart } from "react-native-gifted-charts";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { ChartCardProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
 import { s, vs, ms } from "../../utils/responsive";
@@ -33,7 +33,7 @@ const formatTime = (date: Date): string => {
 // Basliktan birim cikar (°C veya %)
 const extractUnit = (title: string): string => title.match(/°C|%/)?.[0] || "";
 
-export const ChartCard = ({
+export const ChartCard = memo(function ChartCard({
   theme,
   title,
   icon,
@@ -41,7 +41,7 @@ export const ChartCard = ({
   data,
   onTouchStart,
   onTouchEnd,
-}: ChartCardProps) => {
+}: ChartCardProps) {
   const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -60,65 +60,70 @@ export const ChartCard = ({
     };
   }, []);
 
-  // Layout calculations
-  const screenWidth = Dimensions.get("window").width;
-  const chartContainerWidth = screenWidth - s(64);
-  const chartDrawableWidth = chartContainerWidth - Y_AXIS_WIDTH;
+  // Layout calculations — pencere boyutu degismedikce hesaplama yapma
+  const { chartContainerWidth, chartDrawableWidth } = useMemo(() => {
+    const screenWidth = Dimensions.get("window").width;
+    const containerWidth = screenWidth - s(64);
+    return { chartContainerWidth: containerWidth, chartDrawableWidth: containerWidth - Y_AXIS_WIDTH };
+  }, []);
 
-  // Sanitize and prepare data (moved before early return)
-  const safeData =
-    data?.map((point) => ({
-      ...point,
-      value:
-        typeof point.value === "number" && !isNaN(point.value)
-          ? point.value
-          : 0,
-    })) || [];
-
-  const isInterpolated = safeData.length > MAX_DISPLAY_POINTS;
-
-  // Downsample if needed
-  const displayData = isInterpolated
-    ? safeData.filter(
-        (_, i) => i % Math.ceil(safeData.length / MAX_DISPLAY_POINTS) === 0,
-      )
-    : safeData;
+  // Veri hazirlama — sadece data degisince yeniden hesapla
+  const { isInterpolated, displayData } = useMemo(() => {
+    const safe =
+      data?.map((point) => ({
+        ...point,
+        value:
+          typeof point.value === "number" && !isNaN(point.value)
+            ? point.value
+            : 0,
+      })) || [];
+    const interpolated = safe.length > MAX_DISPLAY_POINTS;
+    const display = interpolated
+      ? safe.filter(
+          (_, i) => i % Math.ceil(safe.length / MAX_DISPLAY_POINTS) === 0,
+        )
+      : safe;
+    return { isInterpolated: interpolated, displayData: display };
+  }, [data]);
 
   const numPoints = displayData.length;
-  const spacing =
-    numPoints > 1 ? chartDrawableWidth / (numPoints - 1) : chartDrawableWidth;
+  const spacing = useMemo(
+    () => (numPoints > 1 ? chartDrawableWidth / (numPoints - 1) : chartDrawableWidth),
+    [numPoints, chartDrawableWidth],
+  );
 
-  // Generate labels and track label positions for grid lines
-  const labelIndices: number[] = [];
-  const chartData = displayData.map((point, index) => {
-    let label = "";
+  // Label ve grafik verisi — displayData degisince yeniden hesapla
+  const { chartData, labelIndices } = useMemo(() => {
+    const indices: number[] = [];
+    const mapped = displayData.map((point, index) => {
+      let label = "";
 
-    if (point.ts) {
-      const date = new Date(point.ts);
-      const prevTs = index > 0 ? displayData[index - 1]?.ts : null;
-      const prevDate = prevTs ? new Date(prevTs) : null;
+      if (point.ts) {
+        const date = new Date(point.ts);
+        const prevTs = index > 0 ? displayData[index - 1]?.ts : null;
+        const prevDate = prevTs ? new Date(prevTs) : null;
 
-      if (isInterpolated) {
-        // Show DD/MM when day changes
-        const dayKey = formatDay(date);
-        const prevDayKey = prevDate ? formatDay(prevDate) : null;
-        if (index === 0 || dayKey !== prevDayKey) {
-          label = dayKey;
-          labelIndices.push(index);
-        }
-      } else {
-        // Show hour when it changes
-        const hour = date.getHours();
-        const prevHour = prevDate?.getHours();
-        if (index === 0 || hour !== prevHour) {
-          label = hour.toString().padStart(2, "0");
-          labelIndices.push(index);
+        if (isInterpolated) {
+          const dayKey = formatDay(date);
+          const prevDayKey = prevDate ? formatDay(prevDate) : null;
+          if (index === 0 || dayKey !== prevDayKey) {
+            label = dayKey;
+            indices.push(index);
+          }
+        } else {
+          const hour = date.getHours();
+          const prevHour = prevDate?.getHours();
+          if (index === 0 || hour !== prevHour) {
+            label = hour.toString().padStart(2, "0");
+            indices.push(index);
+          }
         }
       }
-    }
 
-    return { value: point.value, label, ts: point.ts };
-  });
+      return { value: point.value, label, ts: point.ts };
+    });
+    return { chartData: mapped, labelIndices: indices };
+  }, [displayData, isInterpolated]);
 
   const unit = extractUnit(title);
 
@@ -321,6 +326,6 @@ export const ChartCard = ({
       </View>
     </View>
   );
-};
+});
 
 export default ChartCard;
