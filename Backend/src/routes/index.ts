@@ -5,7 +5,7 @@ import sensorRoutes from './sensor.routes';
 import gatewayRoutes from './gateway.routes';
 import dashboardRoutes from './dashboard.routes';
 import diseaseRoutes from './disease.routes';
-// import advisoryRoutes from './advisory.routes';
+import advisoryRoutes from './advisory.routes';
 import carbonRoutes from './carbon.routes';
 import { DEBUG_MODE } from '../config/debug';
 import irrigationRoutes from "./irrigation.routes";
@@ -27,7 +27,7 @@ router.use('/sensors', sensorRoutes);
 router.use('/gateway', gatewayRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/disease', diseaseRoutes);
-// router.use('/advisory', advisoryRoutes);
+router.use('/advisory', advisoryRoutes);
 router.use('/carbon', carbonRoutes);
 router.use("/irrigation", irrigationRoutes);
 
