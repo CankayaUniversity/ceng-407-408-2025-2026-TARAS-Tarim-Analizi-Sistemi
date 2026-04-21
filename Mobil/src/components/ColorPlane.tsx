@@ -1,6 +1,13 @@
 // 3D tarla gorsellestirme - nem bazli renk haritalama ve sensor nodelari
-// Props: fieldData, isDark, isActive, onNodeSelect, selectedNodeId, onCameraConfigChange
-import { useRef, useMemo, useEffect, useCallback, memo } from "react";
+// Props: fieldData, isDark, isActive, onNodeSelect, selectedNodeId, onCameraConfigChange, onPlaneReady
+import {
+  useRef,
+  useMemo,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  memo,
+} from "react";
 import { useFrame, useThree } from "@react-three/fiber/native";
 import {
   FieldData,
@@ -99,6 +106,17 @@ const moistureToColor = (m: number): string => {
 
 export type NodeInfo = SensorNode;
 
+// Field kimlik anahtari — polygon + node topolojisini ozetler.
+// Snapshot staleness kontrolu icin HomeScreen ile ortak kullanilir.
+export const computeFieldKey = (fieldData: FieldData): string => {
+  const nodeIds = fieldData.nodes.map((n) => n.id).join(",");
+  const polygonHash = fieldData.polygon.exterior
+    .slice(0, 3)
+    .flat()
+    .join(",");
+  return `${polygonHash}-${nodeIds}`;
+};
+
 export interface CameraConfig {
   position: [number, number, number];
   fov: number;
@@ -127,6 +145,7 @@ interface ColorPlaneProps {
   onNodeSelect?: (node: NodeInfo | null) => void;
   selectedNodeId?: string | null;
   onCameraConfigChange?: (config: CameraConfig) => void;
+  onPlaneReady?: () => void;
 }
 
 interface Position {
@@ -188,15 +207,15 @@ export const ColorPlane = memo(function ColorPlane({
   onNodeSelect,
   selectedNodeId: externalSelectedNodeId,
   onCameraConfigChange,
+  onPlaneReady,
 }: ColorPlaneProps) {
   const COLORS = isDark ? DARK_COLORS : LIGHT_COLORS;
   const nodes = fieldData.nodes;
 
-  const fieldKey = useMemo(() => {
-    const nodeIds = nodes.map((n) => n.id).join(",");
-    const polygonHash = fieldData.polygon.exterior.slice(0, 3).flat().join(",");
-    return `${polygonHash}-${nodeIds}`;
-  }, [fieldData.polygon.exterior, nodes]);
+  const fieldKey = useMemo(
+    () => computeFieldKey(fieldData),
+    [fieldData],
+  );
 
   const meshRef = useRef<any>(null);
   const groupRef = useRef<any>(null);
@@ -368,9 +387,16 @@ export const ColorPlane = memo(function ColorPlane({
     attachPointerListeners(gl);
   }, [gl, attachPointerListeners]);
 
+  // Plane "hazir" sinyali — isActive regain sonrasi N useFrame ticki gectiginde
+  // tek sefer onPlaneReady fire eder. HomeScreen bu sinyalle warmup fade'i baslatir.
+  const readyFramesRef = useRef(0);
+  const readyFiredRef = useRef(false);
+
   useFrame((_, delta) => {
     if (!isActive) {
       isDraggingRef.current = false;
+      readyFramesRef.current = 0;
+      readyFiredRef.current = false;
       return;
     }
     if (!groupRef.current) return;
@@ -385,6 +411,14 @@ export const ColorPlane = memo(function ColorPlane({
 
     if (needsUpdate || hasMomentum) {
       invalidate();
+    }
+
+    if (!readyFiredRef.current) {
+      readyFramesRef.current += 1;
+      if (readyFramesRef.current >= 3) {
+        readyFiredRef.current = true;
+        onPlaneReady?.();
+      }
     }
   });
 
@@ -486,6 +520,11 @@ export const ColorPlane = memo(function ColorPlane({
     }),
     [fieldTexture],
   );
+
+  // Tab geri geldiginde LUT'u yeniden bake et — mount remount veya GL context
+  // kaybi durumunda texture/uniform'lar sifirlanmis olabilir. Sync re-bake ilk
+  // frame'de siyah yerine dogru renk gorunmesini garanti eder.
+  const wasActiveRef = useRef(isActive);
 
   // Vertex shader - pozisyon ve UV hesaplama
   const vertexShader = `
@@ -592,86 +631,128 @@ export const ColorPlane = memo(function ColorPlane({
     }
   `;
 
-  // LUT bake — nodes degistiginde 64x64 texture'i CPU'da doldur
-  // Fragment shader eski per-pixel N-node dongusu yerine bu texture'i sample eder
-  // Debounce: cok sık tetiklenmeyi onler (ornegin field secimi sirasinda)
+  // LUT bake — CPU'da Voronoi zone rengini doldur, uniformlari guncelle.
+  // Fragment shader per-pixel N-node dongusu yerine bu texture'i sample eder.
+  // uniforms obj'si stable ref (useMemo deps [fieldTexture]), mesh remount'ta
+  // bile degerleri korunur — Vector4/Vector2 identity'si kalici.
+  const bakeLUT = () => {
+    const data = fieldTexture.image.data as Uint8Array;
+    const N = nodes.length;
+
+    // Node UV + renk cache — pixel loop disinda hesaplanir
+    const nodeUVs: { u: number; v: number }[] = [];
+    const nodeColors: { r: number; g: number; b: number }[] = [];
+    for (let i = 0; i < N; i++) {
+      const n = nodes[i];
+      nodeUVs.push(normalizeToUV(n.x, n.z));
+      nodeColors.push(
+        N === 0
+          ? { r: 60, g: 110, b: 90 }
+          : hexToRgb(moistureToColor(n.moisture)),
+      );
+    }
+
+    // Voronoi zone rengi — her piksel icin en yakin node'un rengi
+    // Sinirlar GPU'da hesaplaniyor, burada sadece renk bake edilir
+    for (let y = 0; y < LUT_SIZE; y++) {
+      const v = y / (LUT_SIZE - 1);
+      for (let x = 0; x < LUT_SIZE; x++) {
+        const u = x / (LUT_SIZE - 1);
+        const uC = u * aspectRatio;
+        let minDist = 1e9;
+        let nearest = 0;
+        for (let i = 0; i < N; i++) {
+          const np = nodeUVs[i];
+          const dx = uC - np.u * aspectRatio;
+          const dy = v - np.v;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < minDist) {
+            minDist = d2;
+            nearest = i;
+          }
+        }
+        const idx = (y * LUT_SIZE + x) * 4;
+        const c = N > 0 ? nodeColors[nearest] : { r: 60, g: 110, b: 90 };
+        data[idx] = c.r | 0;
+        data[idx + 1] = c.g | 0;
+        data[idx + 2] = c.b | 0;
+        data[idx + 3] = 0;
+      }
+    }
+
+    fieldTexture.needsUpdate = true;
+    // Uniform'lari direkt mutate et — useMemo stable obj, shaderRef'e gerek yok.
+    // Vector4/Vector2 identity'si kalici, next render fresh degerleri okur.
+    uniforms.uBounds.value.set(
+      centeredBounds.minX,
+      centeredBounds.maxX,
+      centeredBounds.minZ,
+      centeredBounds.maxZ,
+    );
+    const uvArr = uniforms.uNodeUVs.value;
+    const count = Math.min(N, 32);
+    for (let i = 0; i < 32; i++) {
+      if (i < count) uvArr[i].set(nodeUVs[i].u, nodeUVs[i].v);
+      else uvArr[i].set(-100.0, -100.0);
+    }
+    uniforms.uNodeCount.value = count;
+    uniforms.uFieldAspect.value = aspectRatio;
+    invalidate();
+  };
+
+  // Sync bake — mount'ta ve fieldKey degisiminde commit sonrasi, paint oncesi
+  // calisir. Mesh'in ilk gorunur frame'i mutlaka dogru uniform + LUT ile cizilir.
+  // prevFieldKeyRef null baslar, useEffect'teki debounce ile senkron.
+  const prevFieldKeyRef = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    prevFieldKeyRef.current = fieldKey;
+    if (lutDebounceRef.current) {
+      clearTimeout(lutDebounceRef.current);
+      lutDebounceRef.current = null;
+    }
+    bakeLUT();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldKey]);
+
+  // Debounced bake — ayni field icinde node mutasyonlari (moisture) icin
+  // socket spam'ini koalese eder. fieldKey degisince sync layout effect zaten
+  // bake etti, redundant debounce zararsiz.
   useEffect(() => {
     if (lutDebounceRef.current) clearTimeout(lutDebounceRef.current);
-
     lutDebounceRef.current = setTimeout(() => {
       lutDebounceRef.current = null;
-
-      const data = fieldTexture.image.data as Uint8Array;
-      const N = nodes.length;
-
-      // Node UV + renk cache — pixel loop disinda hesaplanir
-      const nodeUVs: { u: number; v: number }[] = [];
-      const nodeColors: { r: number; g: number; b: number }[] = [];
-      for (let i = 0; i < N; i++) {
-        const n = nodes[i];
-        nodeUVs.push(normalizeToUV(n.x, n.z));
-        nodeColors.push(
-          N === 0
-            ? { r: 60, g: 110, b: 90 }
-            : hexToRgb(moistureToColor(n.moisture)),
-        );
-      }
-
-      // Voronoi zone rengi — her piksel icin en yakin node'un rengi
-      // Sinirlar GPU'da hesaplaniyor, burada sadece renk bake edilir
-      for (let y = 0; y < LUT_SIZE; y++) {
-        const v = y / (LUT_SIZE - 1);
-        for (let x = 0; x < LUT_SIZE; x++) {
-          const u = x / (LUT_SIZE - 1);
-          const uC = u * aspectRatio;
-          let minDist = 1e9;
-          let nearest = 0;
-          for (let i = 0; i < N; i++) {
-            const np = nodeUVs[i];
-            const dx = uC - np.u * aspectRatio;
-            const dy = v - np.v;
-            const d2 = dx * dx + dy * dy;
-            if (d2 < minDist) {
-              minDist = d2;
-              nearest = i;
-            }
-          }
-          const idx = (y * LUT_SIZE + x) * 4;
-          const c = N > 0 ? nodeColors[nearest] : { r: 60, g: 110, b: 90 };
-          data[idx] = c.r | 0;
-          data[idx + 1] = c.g | 0;
-          data[idx + 2] = c.b | 0;
-          data[idx + 3] = 0;
-        }
-      }
-
-      fieldTexture.needsUpdate = true;
-      if (shaderRef.current) {
-        shaderRef.current.uniforms.uBounds.value.set(
-          centeredBounds.minX,
-          centeredBounds.maxX,
-          centeredBounds.minZ,
-          centeredBounds.maxZ,
-        );
-        // Node UV'lerini shader'a aktar — GPU sinir hesabi icin
-        // Kullanilmayan slot'lar (-100,-100): loop her zaman MAX_NODES iter,
-        // uzak degerler hicbir zaman kazanamaz (GLSL ES break sorunundan kacinis)
-        const uvArr = shaderRef.current.uniforms.uNodeUVs.value;
-        const count = Math.min(N, 32);
-        for (let i = 0; i < 32; i++) {
-          if (i < count) uvArr[i].set(nodeUVs[i].u, nodeUVs[i].v);
-          else uvArr[i].set(-100.0, -100.0);
-        }
-        shaderRef.current.uniforms.uNodeCount.value = count;
-        shaderRef.current.uniforms.uFieldAspect.value = aspectRatio;
-      }
-      invalidate();
+      bakeLUT();
     }, 200);
-
     return () => {
       if (lutDebounceRef.current) clearTimeout(lutDebounceRef.current);
     };
-  }, [nodes, bounds, centeredBounds, aspectRatio, fieldTexture, invalidate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes]);
+
+  // Tab geri geldiginde sync re-bake — GL context kaybi veya remount'ta
+  // texture/uniform'lar sifirlanmis olabilir. Ayrica Android GLSurfaceView
+  // reattach sonrasi surface warmup gecikmesini dovmek icin ~200ms boyunca
+  // her RAF'ta invalidate et — ilk swap hazir olur olmaz canvas goruntuyu gosterir.
+  useLayoutEffect(() => {
+    const regainedFocus = isActive && !wasActiveRef.current;
+    wasActiveRef.current = isActive;
+    if (!regainedFocus) return;
+    bakeLUT();
+
+    let cancelled = false;
+    const start = Date.now();
+    const tick = () => {
+      if (cancelled || Date.now() - start > 200) return;
+      invalidateRef.current();
+      requestAnimationFrame(tick);
+    };
+    const raf = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
 
   const handleNodePointerDown = (node: NodeInfo) => (e: any) => {
     pendingNodeRef.current = node;
@@ -792,7 +873,6 @@ export const ColorPlane = memo(function ColorPlane({
   return (
     <group ref={groupRef} position={[0, 0, 0]} scale={[scale, scale, scale]}>
       <mesh
-        key={fieldKey}
         ref={meshRef}
         position={[0, 0, 0]}
         geometry={geometry}

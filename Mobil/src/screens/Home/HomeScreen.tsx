@@ -9,7 +9,8 @@ import {
   RefreshControl,
 } from "react-native";
 import { useThree } from "@react-three/fiber/native";
-import { ColorPlane, NodeInfo } from "../../components/ColorPlane";
+import { ColorPlane, NodeInfo, computeFieldKey } from "../../components/ColorPlane";
+import { usePlaneWarmupOverlay } from "../../hooks/usePlaneWarmupOverlay";
 import { appStyles } from "../../styles";
 
 import { Theme } from "../../utils/theme";
@@ -96,6 +97,22 @@ export const HomeScreen = memo(({
   const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const currentFieldKey = useMemo(
+    () => (dashboardData?.field ? computeFieldKey(dashboardData.field) : ""),
+    [dashboardData?.field],
+  );
+
+  const {
+    overlay: warmupOverlay,
+    onGLContextId: handleGLContextId,
+    onPlaneReady: handlePlaneReady,
+  } = usePlaneWarmupOverlay({
+    theme,
+    isActive,
+    isDark,
+    currentFieldKey,
+  });
+
   // 3D Canvas — FOV CameraAutoFit tarafindan sahne icinden ayarlanir
   const cameraConfig = useMemo(() => ({ position: [0, 16, 22.6], fov: 22 }), []);
   const canvasStyle = useMemo(() => ({ flex: 1 }), []);
@@ -156,13 +173,21 @@ export const HomeScreen = memo(({
           </FocusableSection>
         </ScrollView>
 
-        {/* 3D Canvas */}
+        {/* 3D Canvas — yatay margin'lari ekrana kadar uzat (outer wrapper'in spacing.sm'sini ters ceviriyoruz) */}
         <FocusableSection
           id="fieldVisualization"
           screen="home"
           theme={theme}
           scrollMode="pulse-only"
-          style={[appStyles.canvasContainer, { position: "relative", flex: 1 }]}
+          style={[
+            appStyles.canvasContainer,
+            {
+              position: "relative",
+              flex: 1,
+              marginLeft: -spacing.sm,
+              marginRight: -spacing.sm,
+            },
+          ]}
         >
         <View
           style={{ flex: 1, position: "relative" }}
@@ -173,6 +198,7 @@ export const HomeScreen = memo(({
             theme={theme}
             camera={cameraConfig}
             style={canvasStyle}
+            onGLContextId={handleGLContextId}
             fallback={
               <View
                 className="flex-1 justify-center items-center"
@@ -197,9 +223,12 @@ export const HomeScreen = memo(({
                 onNodeSelect={handleNodeSelect}
                 selectedNodeId={selectedNode?.id ?? null}
                 isActive={isActive}
+                onPlaneReady={handlePlaneReady}
               />
             </Suspense>
           </Safe3DCanvas>
+
+          {warmupOverlay}
 
           <NodePopup
             theme={theme}

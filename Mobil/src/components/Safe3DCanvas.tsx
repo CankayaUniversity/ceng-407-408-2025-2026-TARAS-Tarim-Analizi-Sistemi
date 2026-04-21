@@ -27,6 +27,7 @@ try {
 
 // expo-gl getActiveUniform() bazen null donuyor, Three.js WebGLUniforms crash.
 // Bu hatayi yakalayip sessizce atla — 3D sahne calismaya devam eder.
+// (__expoSetLogging race'i patches/expo-gl+55.0.13.patch ile kaynaktan cozuldu.)
 const ErrorUtils = (global as any).ErrorUtils;
 if (ErrorUtils && !ErrorUtils.__gl_patched) {
   const origHandler = ErrorUtils.getGlobalHandler();
@@ -47,6 +48,7 @@ interface Safe3DCanvasProps {
   children: React.ReactNode;
   fallback: React.ReactNode;
   onCreated?: (state: any) => void;
+  onGLContextId?: (id: number) => void;
   camera?: any;
   style?: any;
 }
@@ -65,6 +67,7 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
   children,
   fallback,
   onCreated,
+  onGLContextId,
   camera,
   style,
 }: Safe3DCanvasProps) {
@@ -79,6 +82,10 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
   const mountedRef = useRef(true);
   const renderAttemptRef = useRef(0);
   const glTestRef = useRef<any>(null);
+  // Eski THREE.WebGLRenderer'i context tazelemesinde dispose etmek icin — GL
+  // resource leak'i onler (Android tab gecislerinde GLSurfaceView Surface'i
+  // yok edilip yeniden olusturuldugunda onCreated yeniden fire eder)
+  const prevRendererRef = useRef<any>(null);
 
   const addDebugInfo = (info: Partial<DebugInfo>) => {
     const newInfo: DebugInfo = {
@@ -133,6 +140,16 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
       mountedRef.current = false;
       interactionHandle.cancel();
       if (initTimeoutRef.current) clearTimeout(initTimeoutRef.current);
+      // Unmount cleanup — son renderer'i dispose et
+      const last = prevRendererRef.current;
+      if (last) {
+        try {
+          last.dispose?.();
+        } catch {
+          // ignore
+        }
+        prevRendererRef.current = null;
+      }
     };
   }, []);
 
@@ -183,10 +200,47 @@ export const Safe3DCanvas = memo(function Safe3DCanvas({
     try {
       if (initTimeoutRef.current) clearTimeout(initTimeoutRef.current);
 
+      // Onceki renderer varsa dispose et — GL kaynaklarini (shader, texture,
+      // buffer, render target) serbest birakir. RAF ile defer ediyoruz ki
+      // yeni context tam initialize olmadan eski dispose edilmesin (hizli
+      // tab spam'da expo-gl native state'i bozulup "__expoSetLogging of
+      // undefined" hatasina dusuyordu).
+      const prev = prevRendererRef.current;
+      if (prev && prev !== state.gl) {
+        requestAnimationFrame(() => {
+          try {
+            prev.dispose?.();
+          } catch {
+            // eski context zaten olu olabilir
+          }
+        });
+      }
+      prevRendererRef.current = state.gl;
+
       let glInfo = "GL context created";
       try {
         const gl = state.gl;
         if (gl) {
+          // ClearColor'i tema rengine ayarla — scene.background useEffect'i
+          // fire etmeden once ilk GL render'i varsayilan siyahi kullaniyordu;
+          // bu snapshot'a siyah bg olarak dusuyor (ilk bootup'ta). Theme
+          // degisiminden sonra scene.background zaten set oldugu icin sorun
+          // olmuyor, sadece ilk context creation anında onemli.
+          try {
+            gl.setClearColor?.(theme.background, 1);
+          } catch {
+            // setClearColor eksik/farkli renderer tipi — sessiz gec
+          }
+          // Expo-gl context id'sini disa ver — takeSnapshotAsync icin gerekli
+          try {
+            const rawCtx: any = gl.getContext?.();
+            const ctxId = rawCtx?.contextId;
+            if (typeof ctxId === "number" && onGLContextId) {
+              onGLContextId(ctxId);
+            }
+          } catch {
+            // expo-gl internal shape degisirse sessiz gec
+          }
           const debugInfoExt = gl.getExtension?.("WEBGL_debug_renderer_info");
           if (debugInfoExt) {
             const renderer =

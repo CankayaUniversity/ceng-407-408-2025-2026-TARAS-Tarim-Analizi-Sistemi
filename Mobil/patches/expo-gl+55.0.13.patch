@@ -1,0 +1,39 @@
+diff --git a/node_modules/expo-gl/build/GLUtils.js b/node_modules/expo-gl/build/GLUtils.js
+index 5f9470b..4a07439 100644
+--- a/node_modules/expo-gl/build/GLUtils.js
++++ b/node_modules/expo-gl/build/GLUtils.js
+@@ -8,6 +8,9 @@ const MAX_STRING_LENGTH = 20;
+  * Sets up `__expoSetLogging` method providing some logging options useful when debugging GL calls.
+  */
+ export function configureLogging(gl) {
++    // Guard: context may have been destroyed before the surface_create event
++    // reached JS (rapid mount/unmount race on Android tab switches).
++    if (!gl) return;
+     // Enable/disable logging of all GL function calls
+     let loggingOption = GLLoggingOption.DISABLED;
+     gl.__expoSetLogging = (option) => {
+diff --git a/node_modules/expo-gl/build/GLView.js b/node_modules/expo-gl/build/GLView.js
+index 202661c..c4f1e13 100644
+--- a/node_modules/expo-gl/build/GLView.js
++++ b/node_modules/expo-gl/build/GLView.js
+@@ -81,6 +81,10 @@ export class GLView extends React.Component {
+     };
+     _onSurfaceCreate = ({ nativeEvent: { exglCtxId } }) => {
+         const gl = getGl(exglCtxId);
++        // Stale surface_create event — context was destroyed before JS could
++        // use it (rapid tab switch race). Skip rather than handing undefined
++        // to onContextCreate.
++        if (!gl) return;
+         this.exglCtxId = exglCtxId;
+         if (this.props.onContextCreate) {
+             this.props.onContextCreate(gl);
+@@ -142,6 +146,9 @@ const getGl = (exglCtxId) => {
+         throw new CodedError('ERR_GL_NOT_AVAILABLE', 'GL is currently not available. (Have you enabled remote debugging? GL is not available while debugging remotely.)');
+     }
+     const gl = global.__EXGLContexts[String(exglCtxId)];
++    // Context may have been destroyed before this lookup (tab switch race).
++    // configureLogging() guards against undefined; return undefined so callers
++    // can skip instead of throwing on `.contextId`/`.__expoSetLogging`.
+     configureLogging(gl);
+     return gl;
+ };
