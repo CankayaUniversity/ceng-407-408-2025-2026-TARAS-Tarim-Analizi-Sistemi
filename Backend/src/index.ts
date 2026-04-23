@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
+import { startIrrigationScheduler } from './jobs/irrigation.scheduler';
+
 dotenv.config();
 
 // BigInt JSON serialization fix
@@ -89,6 +91,8 @@ async function startServer(): Promise<void> {
         logger.warn('MQTT connection skipped');
       }
     }
+    
+    startIrrigationScheduler();
 
     httpServer.listen(PORT, () => {
       logger.info(`Server running on http://${HOST}:${PORT}`);

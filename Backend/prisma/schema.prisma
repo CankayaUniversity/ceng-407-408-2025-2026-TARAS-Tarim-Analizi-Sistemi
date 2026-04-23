@@ -32,6 +32,7 @@ enum SensorStatus {
 
 enum JobStatus {
   PENDING
+  NO_ACTION
   EXECUTED
   SKIPPED
   FAILED

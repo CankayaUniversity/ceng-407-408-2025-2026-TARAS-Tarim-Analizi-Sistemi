@@ -294,6 +294,8 @@ export async function generateAndSaveIrrigationJob(zoneId: string) {
     recommendationTime
   );
 
+  await skipOlderPendingJobsForZone(zoneId);
+
   const createdJob = await prisma.irrigationJob.create({
     data: jobData,
   });
@@ -557,38 +559,6 @@ function buildRecommendationFromPreview(
 
 
 
-// db'ye yazmak için
-
-function buildIrrigationJobData(
-  preview: Awaited<ReturnType<typeof getIrrigationPreviewInput>>,
-  output: RecommendationOutput,
-  resolvedGrowthStage: string | null,
-  recommendationTime: Date
-) {
-  const startTimeValue =
-    output.start_time === "now" ? recommendationTime : null;
-
-  return {
-    zone_id: preview.zone_id,
-    trigger_reading_id: BigInt(preview.sensorRow.id),
-    reasoning: output.reason,
-    should_irrigate: output.should_irrigate,
-    start_time: startTimeValue,
-    growth_stage: resolvedGrowthStage,
-    water_amount_ml: output.water_amount_ml,
-    recommended_duration_min: null,
-    current_sm: output.current_sm,
-    target_sm: output.target_sm,
-    sm_deficit: output.sm_deficit,
-    predicted_sm_after_check: output.predicted_sm_after_check,
-    urgency_level: output.urgency_level,
-    recommended_check_after_min: output.recommended_check_after_min,
-    followup_check_time: output.followup_check_time,
-    status: "PENDING" as const,
-    recommendation_time: recommendationTime,
-  };
-}
-
 
 
 
@@ -618,6 +588,42 @@ export async function getAllZoneIds() {
 
 
 
+
+// db'ye yazmak için
+
+function buildIrrigationJobData(
+  preview: Awaited<ReturnType<typeof getIrrigationPreviewInput>>,
+  output: RecommendationOutput,
+  resolvedGrowthStage: string | null,
+  recommendationTime: Date
+) {
+  const startTimeValue =
+    output.start_time === "now" ? recommendationTime : null;
+
+  return {
+    zone_id: preview.zone_id,
+    trigger_reading_id: BigInt(preview.sensorRow.id),
+    reasoning: output.reason,
+    should_irrigate: output.should_irrigate,
+    start_time: startTimeValue,
+    growth_stage: resolvedGrowthStage,
+    water_amount_ml: output.water_amount_ml,
+    recommended_duration_min: null,
+    current_sm: output.current_sm,
+    target_sm: output.target_sm,
+    sm_deficit: output.sm_deficit,
+    predicted_sm_after_check: output.predicted_sm_after_check,
+    urgency_level: output.urgency_level,
+    recommended_check_after_min: output.recommended_check_after_min,
+    followup_check_time: output.followup_check_time,
+    status: resolveJobStatus(output),
+    recommendation_time: recommendationTime,
+  };
+}
+
+
+
+
 // her zone için irrigation recommendation üretir
 
 export async function generateAndSaveIrrigationJobsForAllZones() {
@@ -642,11 +648,15 @@ export async function generateAndSaveIrrigationJobsForAllZones() {
         job_id: result.createdJob.job_id,
       });
     } catch (error: any) {
-      failed.push({
-        zone_id: zoneId,
-        error: error?.message || "Unknown error",
-      });
-    }
+ 	const errorMessage = error?.message || "Unknown error";
+
+  	await createFailedIrrigationJob(zoneId, errorMessage);
+
+  	failed.push({
+   	 zone_id: zoneId,
+   	 error: errorMessage,
+  	});
+	}
   }
 
   return {
@@ -657,6 +667,69 @@ export async function generateAndSaveIrrigationJobsForAllZones() {
     failed,
   };
 }
+
+
+
+// failed olanları db'ye yazar
+
+export async function createFailedIrrigationJob(
+  zoneId: string,
+  errorMessage: string
+) {
+  const now = new Date();
+
+  return prisma.irrigationJob.create({
+    data: {
+      zone_id: zoneId,
+      recommendation_time: now,
+      created_at: now,
+      status: "FAILED",
+      reasoning: errorMessage,
+      should_irrigate: false,
+      start_time: null,
+      growth_stage: null,
+      water_amount_ml: 0,
+      recommended_duration_min: null,
+      current_sm: null,
+      target_sm: null,
+      sm_deficit: 0,
+      predicted_sm_after_check: null,
+      urgency_level: "unknown",
+      recommended_check_after_min: null,
+      followup_check_time: null,
+      trigger_reading_id: null,
+    },
+  });
+}
+
+
+
+
+// pending to skiped
+
+export async function skipOlderPendingJobsForZone(zoneId: string) {
+  return prisma.irrigationJob.updateMany({
+    where: {
+      zone_id: zoneId,
+      status: "PENDING",
+    },
+    data: {
+      status: "SKIPPED",
+      reasoning: "Skipped because a newer recommendation was created.",
+    },
+  });
+}
+
+
+
+function resolveJobStatus(output: RecommendationOutput): "PENDING" | "NO_ACTION" {
+  if (!output.should_irrigate) {
+    return "NO_ACTION";
+  }
+
+  return "PENDING";
+}
+
 
 
 
