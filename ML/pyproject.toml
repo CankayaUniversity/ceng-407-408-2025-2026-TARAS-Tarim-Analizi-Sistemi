@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taras-ml"
+version = "0.1.0"
+description = "TARAS disease detection training pipeline (ConvNeXt-Small, 10 disease-only classes)"
+requires-python = ">=3.10,<3.13"
+readme = "README.md"
+authors = [{ name = "TARAS" }]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["taras*", "configs*"]
+exclude = ["tests*", "scripts*", "data*", "outputs*", "checkpoints*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

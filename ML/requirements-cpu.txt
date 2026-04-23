@@ -1,0 +1,7 @@
+# CPU-only install for scaffold verification (pytest + smoke_test without GPU).
+# For real training use requirements.txt with the CUDA 12.1 index URL.
+#
+# Install with:
+#   pip install -r requirements-cpu.txt
+
+-r requirements.txt

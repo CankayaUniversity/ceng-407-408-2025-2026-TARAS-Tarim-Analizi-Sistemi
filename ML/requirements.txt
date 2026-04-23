@@ -1,0 +1,37 @@
+# TARAS ML training pipeline — pinned per Phase 0 of the training plan.
+#
+# CUDA 12.1 PyTorch wheels (RTX 4060): install with
+#   pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu121
+#
+# CPU-only scaffold verification: install with
+#   pip install -r requirements-cpu.txt
+#
+# See README.md for the full environment setup.
+
+# --- Core ML ---
+torch==2.3.1
+torchvision==0.18.1
+timm==1.0.11
+scikit-learn==1.5.0
+pandas==2.2.2
+numpy==1.26.4
+
+# --- Data pipeline ---
+albumentations==1.4.15
+albucore==0.0.16        # albumentations 1.4.15 imports `preserve_channel_dim` which was removed in albucore 0.0.17+
+opencv-python-headless==4.10.0.84
+pillow==10.4.0
+
+# --- Tracking / UX ---
+tqdm==4.66.4
+matplotlib==3.9.2
+seaborn==0.13.2
+
+# --- Export ---
+onnx==1.16.1
+onnxruntime==1.18.1
+onnxsim==0.4.36
+
+# --- Dev / test ---
+pytest==8.3.2
+python-dotenv==1.0.1
