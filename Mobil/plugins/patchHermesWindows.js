@@ -1,5 +1,19 @@
+// REMOVE-ON-SDK56 — tum dosya. SDK 56'da Hermes v1 default + prebuilt Windows binary shiplenir.
 // Hermes kaynak derlemesi Windows uyumluluk — Gradle dosyasi yamalari
+// Calisma zamani: npm postinstall (patch-package'den sonra). Manuel cagirilmaz.
 const fs = require("fs");
+
+// Sadece Windows + Hermes v1 ON kombinasyonunda calis. Diger her durumda no-op.
+// CI'de (Linux/Mac) postinstall fail etmemeli.
+if (process.platform !== "win32") process.exit(0);
+const useHermesV1 = (() => {
+  try {
+    const env = fs.readFileSync(".env", "utf8");
+    const m = env.match(/^USE_HERMES_V1\s*=\s*(.+)$/m);
+    return !!(m && m[1].trim().toLowerCase() === "true");
+  } catch { return false; }
+})();
+if (!useHermesV1) process.exit(0);
 
 const gradlePath = "node_modules/react-native/ReactAndroid/hermes-engine/build.gradle.kts";
 if (!fs.existsSync(gradlePath)) {

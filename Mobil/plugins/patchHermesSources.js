@@ -1,3 +1,4 @@
+// REMOVE-ON-SDK56 — tum dosya. patchHermesWindows.js'in injekte ettigi Gradle task'i tarafindan cagrilir.
 // Post-unzip patch — MSVC uyumluluk
 const fs = require("fs");
 const dir = process.argv[2];

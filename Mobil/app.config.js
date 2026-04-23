@@ -2,6 +2,7 @@ const useLocal = process.env.USE_LOCAL_API === "true";
 const apiHost = useLocal
   ? process.env.API_HOST_LOCAL
   : process.env.API_HOST_AWS;
+// REMOVE-ON-SDK56 — useHermesV1 const + expo-build-properties.{buildReactNativeFromSource,useHermesV1} entries
 const useHermesV1 = process.env.USE_HERMES_V1 === "true";
 
 const plugins = [
@@ -25,6 +26,9 @@ const plugins = [
       },
     },
   ],
+  // Tum Android build-gradle patches tek umbrella plugin altinda
+  // (ordering + REMOVE-ON-SDK56 gate plugin icinde)
+  ["./plugins/withTarasAndroid.js", { useHermesV1 }],
 ];
 
 // ── App version ──────────────────────────────────────────────────────
