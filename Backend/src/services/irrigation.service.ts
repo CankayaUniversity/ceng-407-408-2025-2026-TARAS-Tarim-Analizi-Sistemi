@@ -46,7 +46,7 @@ const TOMATO_POT_RULES = {
 
 type RecommendationOutput = {
   should_irrigate: boolean;
-  start_time: string | null;
+  start_time: Date | null;
   irrigation_mode: string | null;
   water_amount_ml: number;
   required_water_mm: number;
@@ -60,6 +60,13 @@ type RecommendationOutput = {
   sm_deficit: number;
 };
 
+
+type CalibrationResult = {
+  record_count: number;
+  learned_ml_per_sm_percent: number | null;
+  learned_sm_percent_per_100ml: number | null;
+  median_prediction_error: number;
+};
 
 
 
@@ -139,13 +146,12 @@ function applySafetyLimits(waterAmountMl: number): number {
 }
 
 
-function calculateFollowupCheckTime(
-  recommendationTime: Date,
-  checkAfterMin: number
+function calculateFollowupTimeFromActual(
+  actualStartTime: Date,
+  minutes = 60
 ): Date {
-  return new Date(recommendationTime.getTime() + checkAfterMin * 60 * 1000);
+  return new Date(actualStartTime.getTime() + minutes * 60 * 1000);
 }
-
 
 
 
@@ -282,25 +288,45 @@ export async function getIrrigationPythonPayload(zoneId: string) {
 
 
 export async function generateAndSaveIrrigationJob(zoneId: string) {
+  const waitingJob = await getWaitingExecutedJob(zoneId);
+
+  if (waitingJob) {
+    return {
+      skipped: false,
+      waiting_for_followup: true,
+      reason:
+        "Recommendation blocked because the zone has an executed irrigation job waiting for follow-up.",
+      waitingJob,
+    };
+  }
+
   const preview = await getIrrigationPreviewInput(zoneId);
+  const calibration = await getCalibrationForZone(zoneId);
 
-  const { output, resolvedGrowthStage, recommendationTime } =
-    buildRecommendationFromPreview(preview);
+  const { output, resolvedGrowthStage } =
+    buildRecommendationFromPreview(preview, calibration);
 
-  const jobData = buildIrrigationJobData(
-    preview,
-    output,
-    resolvedGrowthStage,
-    recommendationTime
-  );
+  const jobData = buildIrrigationJobData(preview, output, resolvedGrowthStage);
 
-  await skipOlderPendingJobsForZone(zoneId);
+  const createdJob = await prisma.$transaction(async (tx) => {
+    await tx.irrigationJob.updateMany({
+      where: {
+        zone_id: zoneId,
+        status: "PENDING",
+      },
+      data: {
+        status: "SKIPPED",
+        reasoning: "Skipped because a newer recommendation was created.",
+      },
+    });
 
-  const createdJob = await prisma.irrigationJob.create({
-    data: jobData,
+    return tx.irrigationJob.create({
+      data: jobData,
+    });
   });
 
   return {
+    skipped: false,
     preview,
     recommendation: output,
     jobData,
@@ -309,6 +335,243 @@ export async function generateAndSaveIrrigationJob(zoneId: string) {
 }
 
 
+// actual gelince status = pending -> executed
+
+export async function updatePendingJobWithActuals(
+  zoneId: string,
+  actualStartTime: Date,
+  actualWaterAmountMl: number
+) {
+  const pendingJob = await prisma.irrigationJob.findFirst({
+    where: {
+      zone_id: zoneId,
+      status: "PENDING",
+    },
+    orderBy: {
+      created_at: "desc",
+    },
+  });
+
+  if (!pendingJob) {
+    throw new Error("No pending irrigation job found for this zone");
+  }
+
+  const followupCheckTime = calculateFollowupTimeFromActual(actualStartTime);
+
+  return prisma.irrigationJob.update({
+    where: { job_id: pendingJob.job_id },
+    data: {
+      actual_start_time: actualStartTime,
+      actual_water_amount_ml: actualWaterAmountMl,
+      followup_check_time: followupCheckTime,
+      status: "EXECUTED",
+    },
+  });
+}
+
+
+// exectued olanları + followup check time'ı gelenlere followup kaydı oluşturacak
+
+export async function processDueFollowups() {
+  const now = new Date();
+  let processedCount = 0;
+
+  const dueJobs = await prisma.irrigationJob.findMany({
+    where: {
+      status: "EXECUTED",
+      followup_check_time: {
+        lte: now,
+      },
+    },
+    orderBy: {
+      followup_check_time: "asc",
+    },
+  });
+
+  for (const job of dueJobs) {
+    if (!job.zone_id) continue;
+
+    const existingFollowup = await prisma.irrigationFollowup.findFirst({
+      where: {
+        job_id: job.job_id,
+      },
+    });
+
+    if (existingFollowup) {
+      await prisma.irrigationJob.update({
+        where: {
+          job_id: job.job_id,
+        },
+        data: {
+          status: "ANALYZED",
+        },
+      });
+      continue;
+    }
+
+    const node = await prisma.sensorNode.findFirst({
+      where: {
+        zone_id: job.zone_id,
+      },
+      orderBy: {
+        created_at: "asc",
+      },
+    });
+
+    if (!node) {
+      continue;
+    }
+
+    if (!job.followup_check_time) {
+      continue;
+    }
+
+    const resultReading = await prisma.sensorReading.findFirst({
+      where: {
+        node_id: node.node_id,
+        created_at: {
+          gte: job.followup_check_time,
+        },
+      },
+      orderBy: {
+        created_at: "asc",
+      },
+    });
+
+    if (!resultReading || resultReading.sm_percent == null) {
+      continue;
+    }
+
+    const smAfterCheck = resultReading.sm_percent;
+    const smBefore = job.current_sm ?? 0;
+    const predictedSmAfterCheck = job.predicted_sm_after_check ?? 0;
+
+    const smGain = smAfterCheck - smBefore;
+    const predictionError = smAfterCheck - predictedSmAfterCheck;
+
+    await prisma.irrigationFollowup.create({
+      data: {
+        job_id: job.job_id,
+        zone_id: job.zone_id,
+        result_reading_id: resultReading.id,
+        check_time: resultReading.created_at ?? now,
+        sm_after_check: smAfterCheck,
+        sm_gain: smGain,
+        prediction_error: predictionError,
+      },
+    });
+
+    await prisma.irrigationJob.update({
+      where: {
+        job_id: job.job_id,
+      },
+      data: {
+        status: "ANALYZED",
+      },
+    });
+
+    processedCount++;
+  }
+
+  return {
+    processed_count: processedCount,
+    due_count: dueJobs.length,
+  };
+}
+
+
+
+function getMedian(values: number[]): number {
+  if (values.length === 0) return 0;
+
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+
+  if (sorted.length % 2 === 0) {
+    return (sorted[middle - 1]! + sorted[middle]!) / 2;
+  }
+
+  return sorted[middle]!;
+}
+
+
+
+async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult> {
+  const followups = await prisma.irrigationFollowup.findMany({
+    where: {
+      zone_id: zoneId,
+      sm_after_check: { not: null },
+      job: {
+        status: "ANALYZED",
+        actual_water_amount_ml: { gt: 0 },
+        current_sm: { not: null },
+      },
+    },
+    include: {
+      job: true,
+    },
+    orderBy: {
+      check_time: "desc",
+    },
+    take: 10,
+  });
+
+  const effectValues: number[] = [];
+  const predictionErrors: number[] = [];
+
+  for (const followup of followups) {
+    const smAfter = followup.sm_after_check;
+    const smBefore = followup.job.current_sm;
+    const waterAmount = followup.job.actual_water_amount_ml;
+    const predictionError = followup.prediction_error;
+
+    if (
+      smAfter == null ||
+      smBefore == null ||
+      waterAmount == null ||
+      waterAmount <= 0
+    ) {
+      continue;
+    }
+
+    const smGain = smAfter - smBefore;
+
+    if (smGain <= 0) {
+      continue;
+    }
+
+    const smPercentPer100ml = (smGain / waterAmount) * 100;
+    effectValues.push(smPercentPer100ml);
+
+    if (predictionError != null) {
+      predictionErrors.push(predictionError);
+    }
+  }
+
+  if (effectValues.length < 5) {
+    return {
+      record_count: effectValues.length,
+      learned_ml_per_sm_percent: null,
+      learned_sm_percent_per_100ml: null,
+      median_prediction_error: 0,
+    };
+  }
+
+  const learnedSmPercentPer100ml = getMedian(effectValues);
+
+  const learnedMlPerSmPercent =
+    learnedSmPercentPer100ml != null && learnedSmPercentPer100ml > 0
+      ? 100 / learnedSmPercentPer100ml
+      : null;
+
+  return {
+    record_count: effectValues.length,
+    learned_ml_per_sm_percent: learnedMlPerSmPercent,
+    learned_sm_percent_per_100ml: learnedSmPercentPer100ml,
+    median_prediction_error:
+      predictionErrors.length > 0 ? getMedian(predictionErrors) : 0,
+  };
+}
 
 
 
@@ -316,7 +579,9 @@ export async function generateAndSaveIrrigationJob(zoneId: string) {
 // Esas reccomendation function
 
 function buildRecommendationFromPreview(
-  preview: Awaited<ReturnType<typeof getIrrigationPreviewInput>>
+  preview: Awaited<ReturnType<typeof getIrrigationPreviewInput>>,
+  calibration: CalibrationResult
+
 ): {
   output: RecommendationOutput;
   resolvedGrowthStage: string | null;
@@ -369,49 +634,13 @@ function buildRecommendationFromPreview(
   );
 
   if (!resolvedGrowthStage) {
-    return {
-      resolvedGrowthStage: null,
-      recommendationTime,
-      output: {
-        should_irrigate: false,
-        start_time: null,
-        irrigation_mode: field.irrigation_mode,
-        water_amount_ml: 0,
-        required_water_mm: 0,
-        predicted_sm_after_check: sensor.sm_percent,
-        recommended_check_after_min: null,
-        followup_check_time: null,
-        urgency_level: "unknown",
-        reason: "growth_stage cannot be determined",
-        current_sm: sensor.sm_percent,
-        target_sm: null,
-        sm_deficit: 0,
-      },
-    };
+    throw new Error("growth_stage cannot be determined");
   }
 
   const thresholds = getStageThresholds(resolvedGrowthStage);
 
   if (!thresholds) {
-    return {
-      resolvedGrowthStage,
-      recommendationTime,
-      output: {
-        should_irrigate: false,
-        start_time: null,
-        irrigation_mode: field.irrigation_mode,
-        water_amount_ml: 0,
-        required_water_mm: 0,
-        predicted_sm_after_check: sensor.sm_percent,
-        recommended_check_after_min: null,
-        followup_check_time: null,
-        urgency_level: "unknown",
-        reason: "unsupported growth_stage",
-        current_sm: sensor.sm_percent,
-        target_sm: null,
-        sm_deficit: 0,
-      },
-    };
+    throw new Error(`unsupported growth_stage: ${resolvedGrowthStage}`);
   }
 
   const { rec_sm_min, rec_sm_max, critical_min, target_sm } = thresholds;
@@ -463,59 +692,25 @@ function buildRecommendationFromPreview(
     };
   }
 
-  if (
-    field.ml_per_sm_percent == null ||
-    field.ml_per_sm_percent <= 0
-  ) {
-    return {
-      resolvedGrowthStage,
-      recommendationTime,
-      output: {
-        should_irrigate: false,
-        start_time: null,
-        irrigation_mode: field.irrigation_mode,
-        water_amount_ml: 0,
-        required_water_mm: 0,
-        predicted_sm_after_check: sensor.sm_percent,
-        recommended_check_after_min: null,
-        followup_check_time: null,
-        urgency_level: "unknown",
-        reason: "ml_per_sm_percent missing for manual pot irrigation",
-        current_sm: sensor.sm_percent,
-        target_sm,
-        sm_deficit: 0,
-      },
-    };
+  const effectiveMlPerSmPercent =
+    calibration.learned_ml_per_sm_percent ?? field.ml_per_sm_percent;
+
+  const effectiveSmPercentPer100ml =
+    calibration.learned_sm_percent_per_100ml ?? field.sm_percent_per_100ml;
+
+
+
+  if (effectiveMlPerSmPercent == null || effectiveMlPerSmPercent <= 0) {
+    throw new Error("ml_per_sm_percent missing for manual pot irrigation");
   }
 
-  if (
-    field.sm_percent_per_100ml == null ||
-    field.sm_percent_per_100ml <= 0
-  ) {
-    return {
-      resolvedGrowthStage,
-      recommendationTime,
-      output: {
-        should_irrigate: false,
-        start_time: null,
-        irrigation_mode: field.irrigation_mode,
-        water_amount_ml: 0,
-        required_water_mm: 0,
-        predicted_sm_after_check: sensor.sm_percent,
-        recommended_check_after_min: null,
-        followup_check_time: null,
-        urgency_level: "unknown",
-        reason: "sm_percent_per_100ml missing for manual pot irrigation",
-        current_sm: sensor.sm_percent,
-        target_sm,
-        sm_deficit: 0,
-      },
-    };
+  if (effectiveSmPercentPer100ml == null || effectiveSmPercentPer100ml <= 0) {
+    throw new Error("sm_percent_per_100ml missing for manual pot irrigation");
   }
 
   const smDeficit = Math.max(0, target_sm - sensor.sm_percent);
 
-  let waterAmountMl = smDeficit * field.ml_per_sm_percent;
+  let waterAmountMl = smDeficit * effectiveMlPerSmPercent;
   waterAmountMl = applySafetyLimits(waterAmountMl);
 
   const requiredWaterMm =
@@ -523,30 +718,25 @@ function buildRecommendationFromPreview(
       ? (waterAmountMl / 100) * field.irrigation_gain_mm_per_100ml
       : 0;
 
-  const predictedIncrease =
-    (waterAmountMl / 100) * field.sm_percent_per_100ml;
-
+  const predictedIncrease =(waterAmountMl / 100) * effectiveSmPercentPer100ml;
   let predictedSmAfterCheck = sensor.sm_percent + predictedIncrease;
   if (predictedSmAfterCheck > 100) predictedSmAfterCheck = 100;
 
   const recommendedCheckAfterMin = field.default_check_after_min ?? 60;
-  const followupCheckTime = calculateFollowupCheckTime(
-    recommendationTime,
-    recommendedCheckAfterMin
-  );
+  
 
   return {
     resolvedGrowthStage,
     recommendationTime,
     output: {
       should_irrigate: true,
-      start_time: "now",
+      start_time: recommendationTime,
       irrigation_mode: field.irrigation_mode,
       water_amount_ml: Number(waterAmountMl.toFixed(2)),
       required_water_mm: Number(requiredWaterMm.toFixed(2)),
       predicted_sm_after_check: Number(predictedSmAfterCheck.toFixed(2)),
       recommended_check_after_min: recommendedCheckAfterMin,
-      followup_check_time: followupCheckTime,
+      followup_check_time: null,
       urgency_level: urgency,
       reason:
         "Irrigation is recommended based on soil moisture deficit and pot calibration.",
@@ -594,18 +784,16 @@ export async function getAllZoneIds() {
 function buildIrrigationJobData(
   preview: Awaited<ReturnType<typeof getIrrigationPreviewInput>>,
   output: RecommendationOutput,
-  resolvedGrowthStage: string | null,
-  recommendationTime: Date
+  resolvedGrowthStage: string | null
 ) {
-  const startTimeValue =
-    output.start_time === "now" ? recommendationTime : null;
+
 
   return {
     zone_id: preview.zone_id,
     trigger_reading_id: BigInt(preview.sensorRow.id),
     reasoning: output.reason,
     should_irrigate: output.should_irrigate,
-    start_time: startTimeValue,
+    start_time: output.start_time,
     growth_stage: resolvedGrowthStage,
     water_amount_ml: output.water_amount_ml,
     recommended_duration_min: null,
@@ -617,11 +805,40 @@ function buildIrrigationJobData(
     recommended_check_after_min: output.recommended_check_after_min,
     followup_check_time: output.followup_check_time,
     status: resolveJobStatus(output),
-    recommendation_time: recommendationTime,
   };
 }
 
 
+// status = executed ise, o zonea analyzed olana kadar sulama önerilmez
+
+const FOLLOWUP_WAITING_GRACE_MS = 3 * 60 * 60 * 1000;
+
+async function getWaitingExecutedJob(zoneId: string) {
+  const now = new Date();
+  const graceWindowStart = new Date(now.getTime() - FOLLOWUP_WAITING_GRACE_MS);
+
+  return prisma.irrigationJob.findFirst({
+    where: {
+      zone_id: zoneId,
+      status: "EXECUTED",
+      followup_check_time: {
+        gte: graceWindowStart,
+      },
+      followups: {
+        none: {},
+      },
+    },
+    orderBy: {
+      followup_check_time: "desc",
+    },
+    select: {
+      job_id: true,
+      followup_check_time: true,
+      actual_start_time: true,
+      actual_water_amount_ml: true,
+    },
+  });
+}
 
 
 // her zone için irrigation recommendation üretir
@@ -639,31 +856,63 @@ export async function generateAndSaveIrrigationJobsForAllZones() {
     error: string;
   }> = [];
 
+  const skipped: Array<{
+    zone_id: string;
+    reason: string;
+  }> = [];
+
+  const waitingForFollowup: Array<{
+    zone_id: string;
+    reason: string;
+  }> = [];
+
   for (const zoneId of zoneIds) {
     try {
       const result = await generateAndSaveIrrigationJob(zoneId);
 
-      successful.push({
-        zone_id: zoneId,
-        job_id: result.createdJob.job_id,
-      });
+      if (result.waiting_for_followup) {
+        waitingForFollowup.push({
+          zone_id: zoneId,
+          reason: result.reason ?? "Waiting for follow-up.",
+        });
+        continue;
+      }
+
+      if (result.skipped) {
+        skipped.push({
+          zone_id: zoneId,
+          reason: result.reason ?? "Skipped.",
+        });
+        continue;
+      }
+
+      if (result.createdJob) {
+        successful.push({
+          zone_id: zoneId,
+          job_id: result.createdJob.job_id,
+        });
+      }
     } catch (error: any) {
- 	const errorMessage = error?.message || "Unknown error";
+      const errorMessage = error?.message || "Unknown error";
 
-  	await createFailedIrrigationJob(zoneId, errorMessage);
+      await createFailedIrrigationJob(zoneId, errorMessage);
 
-  	failed.push({
-   	 zone_id: zoneId,
-   	 error: errorMessage,
-  	});
-	}
+      failed.push({
+        zone_id: zoneId,
+        error: errorMessage,
+      });
+    }
   }
 
   return {
     total_zones: zoneIds.length,
     successful_count: successful.length,
+    skipped_count: skipped.length,
+    waiting_for_followup_count: waitingForFollowup.length,
     failed_count: failed.length,
     successful,
+    skipped,
+    waiting_for_followup: waitingForFollowup,
     failed,
   };
 }
@@ -681,7 +930,6 @@ export async function createFailedIrrigationJob(
   return prisma.irrigationJob.create({
     data: {
       zone_id: zoneId,
-      recommendation_time: now,
       created_at: now,
       status: "FAILED",
       reasoning: errorMessage,
@@ -702,23 +950,6 @@ export async function createFailedIrrigationJob(
   });
 }
 
-
-
-
-// pending to skiped
-
-export async function skipOlderPendingJobsForZone(zoneId: string) {
-  return prisma.irrigationJob.updateMany({
-    where: {
-      zone_id: zoneId,
-      status: "PENDING",
-    },
-    data: {
-      status: "SKIPPED",
-      reasoning: "Skipped because a newer recommendation was created.",
-    },
-  });
-}
 
 
 

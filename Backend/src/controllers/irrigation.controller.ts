@@ -50,6 +50,24 @@ export const runIrrigationJob = asyncHandler(
 
     const result = await generateAndSaveIrrigationJob(zone_id);
 
+    if (result.waiting_for_followup) {
+      res.status(200).json({
+        success: true,
+        message: result.reason,
+        data: result,
+      });
+      return;
+    }
+
+    if (result.skipped) {
+      res.status(200).json({
+        success: true,
+        message: result.reason ?? "Irrigation recommendation skipped.",
+        data: result,
+      });
+      return;
+    }
+
     res.status(201).json({
       success: true,
       message: "Irrigation job created successfully.",

@@ -296,7 +296,7 @@ export class ToolExecutor {
       reasoning: j.reasoning,
       created_at: j.created_at,
       trigger_sm: j.trigger_reading?.sm_percent ?? null,
-      result_sm: j.result_reading?.sm_percent ?? null,
+      result_sm: j.followups[0]?.result_reading?.sm_percent ?? null,
     }));
     return { success: true, data: summary };
   }

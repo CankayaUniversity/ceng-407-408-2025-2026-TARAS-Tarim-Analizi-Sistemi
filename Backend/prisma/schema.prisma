@@ -270,9 +270,9 @@ model SensorReading {
   humidity        Float?
   et0_instant     Float?
   battery_voltage Float?
-  result_jobs     IrrigationJob[] @relation("ResultReading")
   triggered_jobs  IrrigationJob[] @relation("TriggerReading")
   node            SensorNode?     @relation(fields: [node_id], references: [node_id], onDelete: Cascade)
+  followup_results IrrigationFollowup[] @relation("FollowupResultReading")
 
   @@index([created_at], map: "idx_readings_time")
   @@index([node_id], map: "idx_readings_node")
@@ -294,13 +294,11 @@ model IrrigationJob {
   status                      JobStatus?     @default(PENDING)
   actual_start_time           DateTime?      @db.Timestamptz(6)
   actual_duration_min         Int?
-  result_reading_id           BigInt?
   actual_water_amount_ml      Float?
   current_sm                  Float?
   followup_check_time         DateTime?      @db.Timestamptz(6)
   growth_stage                String?        @db.VarChar(50)
   predicted_sm_after_check    Float?
-  recommendation_time         DateTime?      @db.Timestamptz(6)
   recommended_check_after_min Int?
   should_irrigate             Boolean?
   sm_deficit                  Float?
@@ -308,7 +306,6 @@ model IrrigationJob {
   target_sm                   Float?
   urgency_level               String?        @db.VarChar(30)
   water_amount_ml             Float?
-  result_reading              SensorReading? @relation("ResultReading", fields: [result_reading_id], references: [id])
   trigger_reading             SensorReading? @relation("TriggerReading", fields: [trigger_reading_id], references: [id])
   zone                        Zone?          @relation(fields: [zone_id], references: [zone_id])
 
@@ -322,6 +319,8 @@ model IrrigationFollowup {
   followup_id String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   job_id      String  @db.Uuid
   zone_id     String? @db.Uuid
+  result_reading_id  BigInt?
+
 
   check_time       DateTime? @db.Timestamptz(6)
   sm_after_check   Float?
@@ -332,7 +331,7 @@ model IrrigationFollowup {
 
   job  IrrigationJob @relation(fields: [job_id], references: [job_id], onDelete: Cascade)
   zone Zone?         @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
-
+  result_reading SensorReading? @relation("FollowupResultReading", fields: [result_reading_id], references: [id])
   @@index([job_id])
   @@index([zone_id, check_time])
   @@map("irrigation_followups")
