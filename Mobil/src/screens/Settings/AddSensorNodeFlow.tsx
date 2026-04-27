@@ -436,7 +436,7 @@ export const AddSensorNodeFlow = ({
                     style={{
                       width: 8,
                       height: 8,
-                      backgroundColor: item.is_online ? "#22c55e" : theme.danger,
+                      backgroundColor: item.is_online ? theme.success : theme.danger,
                     }}
                   />
                   <Text className="text-secondary text-xs">
@@ -641,17 +641,17 @@ export const AddSensorNodeFlow = ({
           <View className="flex-row mt-4" style={{ gap: 12 }}>
             <TouchableOpacity
               className="flex-1 row justify-center rounded-xl mt-4"
-              style={{ backgroundColor: "#22c55e", paddingVertical: 14, paddingHorizontal: 24, opacity: isApproving ? 0.5 : 1 }}
+              style={{ backgroundColor: theme.success, paddingVertical: 14, paddingHorizontal: 24, opacity: isApproving ? 0.5 : 1 }}
               onPress={handleApproveNode}
               activeOpacity={0.7}
               disabled={isApproving}
             >
               {isApproving ? (
-                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 6 }} />
+                <ActivityIndicator size="small" color={theme.textOnPrimary} style={{ marginRight: 6 }} />
               ) : (
-                <MaterialCommunityIcons name="check" size={20} color="#fff" style={{ marginRight: 6 }} />
+                <MaterialCommunityIcons name="check" size={20} color={theme.textOnPrimary} style={{ marginRight: 6 }} />
               )}
-              <Text className="text-white text-base font-bold">{t.hardware.approve}</Text>
+              <Text style={{ color: theme.textOnPrimary }} className="text-base font-bold">{t.hardware.approve}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -660,8 +660,8 @@ export const AddSensorNodeFlow = ({
               onPress={handleDeclineNode}
               activeOpacity={0.7}
             >
-              <MaterialCommunityIcons name="close" size={20} color="#fff" style={{ marginRight: 6 }} />
-              <Text className="text-white text-base font-bold">{t.hardware.decline}</Text>
+              <MaterialCommunityIcons name="close" size={20} color={theme.textOnPrimary} style={{ marginRight: 6 }} />
+              <Text style={{ color: theme.textOnPrimary }} className="text-base font-bold">{t.hardware.decline}</Text>
             </TouchableOpacity>
           </View>
         </View>

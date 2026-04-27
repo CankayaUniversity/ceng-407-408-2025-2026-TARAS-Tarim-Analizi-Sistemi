@@ -510,15 +510,15 @@ export const AddGatewayFlow = ({
       {error && (
         <View
           className="row rounded-lg mx-5 mt-2"
-          style={{ backgroundColor: "#ef4444" + "20", paddingVertical: 10, paddingHorizontal: 16 }}
+          style={{ backgroundColor: theme.danger + "20", paddingVertical: 10, paddingHorizontal: 16 }}
         >
           <MaterialCommunityIcons
             name="alert-circle"
             size={18}
-            color="#ef4444"
+            color={theme.danger}
             style={{ marginRight: 8 }}
           />
-          <Text className="flex-1 text-[13px] font-medium" style={{ color: "#ef4444" }}>
+          <Text className="flex-1 text-[13px] font-medium" style={{ color: theme.danger }}>
             {error}
           </Text>
         </View>

@@ -301,13 +301,13 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                   borderWidth: 2,
                   borderColor: theme.background,
                   elevation: 10,
-                  shadowColor: "#000",
+                  shadowColor: theme.shadowColor,
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.3,
                   shadowRadius: 10,
                 }}
               >
-                <Ionicons name="add" size={32} color="#fff" />
+                <Ionicons name="add" size={32} color={theme.textOnAccent} />
               </TouchableOpacity>
             </FocusableSection>
           </View>

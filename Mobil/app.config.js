@@ -29,6 +29,7 @@ const plugins = [
   // Tum Android build-gradle patches tek umbrella plugin altinda
   // (ordering + REMOVE-ON-SDK56 gate plugin icinde)
   ["./plugins/withTarasAndroid.js", { useHermesV1 }],
+  "@react-native-community/datetimepicker",
 ];
 
 // ── App version ──────────────────────────────────────────────────────

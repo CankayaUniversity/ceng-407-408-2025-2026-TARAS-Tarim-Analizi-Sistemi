@@ -332,11 +332,11 @@ export const SettingsScreen = memo(function SettingsScreen({
           <MaterialCommunityIcons
             name="logout"
             size={20}
-            color="#fff"
+            color={theme.textOnPrimary}
             style={{ marginRight: 8 }}
           />
           <Text
-            style={{ fontSize: ms(16, 0.3), fontWeight: "700", color: "#fff" }}
+            style={{ fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textOnPrimary }}
           >
             {t.settings.logout}
           </Text>

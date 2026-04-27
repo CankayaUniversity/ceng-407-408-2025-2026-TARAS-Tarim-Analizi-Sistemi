@@ -28,8 +28,8 @@ export const NodePopup = ({
     type: "moisture" | "temperature" | "humidity",
   ): { color: string; status: "ideal" | "high" | "low" } => {
     const accent = theme.primary;
-    const red = "#ef4444";
-    const blue = "#2563eb";
+    const red = theme.danger;
+    const blue = theme.info;
 
     switch (type) {
       case "moisture":

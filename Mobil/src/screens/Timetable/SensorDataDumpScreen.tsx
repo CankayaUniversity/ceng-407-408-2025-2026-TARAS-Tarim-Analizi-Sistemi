@@ -183,10 +183,10 @@ export const SensorDataDumpScreen = ({
             style={{
               paddingHorizontal: s(8),
               paddingVertical: vs(4),
-              backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
+              backgroundColor: dataSource === "aws" ? theme.success : theme.warning,
             }}
           >
-            <Text className="text-white font-semibold" style={{ fontSize: ms(10, 0.3) }}>
+            <Text style={{ color: theme.textOnPrimary, fontWeight: "600", fontSize: ms(10, 0.3) }}>
               {dataSource === "aws" ? "AWS" : "DEMO"}
             </Text>
           </View>
@@ -409,7 +409,7 @@ export const SensorDataDumpScreen = ({
             elevation: 5,
           }}
         >
-          <MaterialCommunityIcons name="chevron-down" size={28} color="#fff" />
+          <MaterialCommunityIcons name="chevron-down" size={28} color={theme.textOnPrimary} />
         </TouchableOpacity>
       )}
     </View>

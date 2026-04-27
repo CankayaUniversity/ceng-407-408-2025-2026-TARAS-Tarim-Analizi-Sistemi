@@ -32,13 +32,13 @@ const getStatusInfo = (
     case "NOT_STARTED":
       return {
         text: t.disease.statusPending,
-        color: "#94a3b8",
+        color: theme.textMuted,
         icon: "time-outline",
       };
     case "PROCESSING":
       return {
         text: t.disease.statusProcessing,
-        color: "#3b82f6",
+        color: theme.info,
         icon: "sync-outline",
       };
     case "COMPLETED":
@@ -98,16 +98,16 @@ const DiseaseInfo = ({ detection, theme, t, confidencePct }: DiseaseInfoProps) =
       <View
         className="rounded-lg px-2 py-1"
         style={{
-          backgroundColor: "#f59e0b20",
+          backgroundColor: theme.warning + "20",
           borderLeftWidth: 3,
-          borderLeftColor: "#f59e0b",
+          borderLeftColor: theme.warning,
         }}
       >
         <View className="row" style={{ gap: spacing.xs }}>
-          <Ionicons name="warning-outline" size={14} color="#f59e0b" />
+          <Ionicons name="warning-outline" size={14} color={theme.warning} />
           <Text
             className="text-[13px] font-bold"
-            style={{ color: "#f59e0b" }}
+            style={{ color: theme.warning }}
           >
             {t.disease.uncertainTitle}
           </Text>

@@ -391,6 +391,8 @@ export const ColorPlane = memo(function ColorPlane({
   // tek sefer onPlaneReady fire eder. HomeScreen bu sinyalle warmup fade'i baslatir.
   const readyFramesRef = useRef(0);
   const readyFiredRef = useRef(false);
+  // Shader mount sonrasi bekleyen secimi uygula — auto-select race fix
+  const selectionAppliedRef = useRef(false);
 
   useFrame((_, delta) => {
     if (!isActive) {
@@ -407,6 +409,12 @@ export const ColorPlane = memo(function ColorPlane({
 
     if (shaderRef.current) {
       shaderRef.current.uniforms.uTime.value += delta;
+
+      // Shader ilk mount olunca bekleyen secimi uygula
+      if (!selectionAppliedRef.current && selectedNodeIdRef.current) {
+        selectionAppliedRef.current = true;
+        applySelectionRef.current(selectedNodeIdRef.current);
+      }
     }
 
     if (needsUpdate || hasMomentum) {
@@ -862,11 +870,15 @@ export const ColorPlane = memo(function ColorPlane({
     };
 
     // Disaridan secili id gelirse hemen uygula
+    // Shader henuz mount olmadiysa selectionAppliedRef useFrame'de tekrar dener
+    selectionAppliedRef.current = false;
     if (externalSelectedNodeId !== undefined) {
       applySelectionRef.current(externalSelectedNodeId);
+      if (shaderRef.current) selectionAppliedRef.current = true;
     } else if (selectedNodeIdRef.current) {
       // Field/scale degistiyse mevcut secimi yeniden uygula
       applySelectionRef.current(selectedNodeIdRef.current);
+      if (shaderRef.current) selectionAppliedRef.current = true;
     }
   }, [externalSelectedNodeId, nodes, pinLocalSize, centerX, centerZ, scale]);
 

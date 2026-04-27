@@ -254,11 +254,11 @@ const DEMO_FIELDS_CONFIG: Array<{
   area: number;
   shapeIndex: number;
 }> = [
-  { id: "field-1", name: "Ana Tarla", area: 12.5, shapeIndex: 0 },
-  { id: "field-2", name: "Kuzey Parsel", area: 8.2, shapeIndex: 1 },
-  { id: "field-3", name: "Batı Tarla", area: 15.0, shapeIndex: 3 },
-  { id: "field-4", name: "Test: Küçük Alan", area: 0.025, shapeIndex: 7 },
-  { id: "field-5", name: "Test: Büyük Alan", area: 600, shapeIndex: 8 },
+  { id: "field-1", name: "Ana Tarla",     area: 12.5, shapeIndex: 0 },
+  { id: "field-2", name: "Kuzey Parsel",  area: 8.2,  shapeIndex: 1 },
+  { id: "field-3", name: "Batı Tarla",    area: 15.0, shapeIndex: 3 },
+  { id: "field-4", name: "Güney Parsel",  area: 10.4, shapeIndex: 5 },
+  { id: "field-5", name: "Doğu Tarla",    area: 18.7, shapeIndex: 6 },
 ];
 
 export function getDemoFields(): FieldSummary[] {

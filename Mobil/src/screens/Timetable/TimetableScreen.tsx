@@ -482,10 +482,10 @@ export const TimetableScreen = memo(function TimetableScreen({
             style={{
               paddingHorizontal: s(8),
               paddingVertical: vs(4),
-              backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
+              backgroundColor: dataSource === "aws" ? theme.success : theme.warning,
             }}
           >
-            <Text style={{ color: "#fff", fontSize: ms(10, 0.3), fontWeight: "600" }}>
+            <Text style={{ color: theme.textOnPrimary, fontSize: ms(10, 0.3), fontWeight: "600" }}>
               {dataSource === "aws" ? "AWS" : "DEMO"}
             </Text>
           </View>
@@ -590,7 +590,7 @@ export const TimetableScreen = memo(function TimetableScreen({
           scrollViewRef={scrollViewRef}
           title={t.timetable.temperature}
           icon="thermometer"
-          color="#FF6B6B"
+          color={theme.danger}
           data={temperatureData}
           fallback={renderChartFallback(t.timetable.temperature)}
           onTouchStart={() => setScrollEnabled(false)}
@@ -602,7 +602,7 @@ export const TimetableScreen = memo(function TimetableScreen({
           scrollViewRef={scrollViewRef}
           title={t.timetable.humidity}
           icon="water-percent"
-          color="#4ECDC4"
+          color={theme.info}
           data={humidityData}
           fallback={renderChartFallback(t.timetable.humidity)}
           onTouchStart={() => setScrollEnabled(false)}
@@ -614,7 +614,7 @@ export const TimetableScreen = memo(function TimetableScreen({
           scrollViewRef={scrollViewRef}
           title={t.timetable.soilMoisture}
           icon="flower"
-          color="#95E1D3"
+          color={theme.success}
           data={soilMoistureData}
           fallback={renderChartFallback(t.timetable.soilMoisture)}
           onTouchStart={() => setScrollEnabled(false)}

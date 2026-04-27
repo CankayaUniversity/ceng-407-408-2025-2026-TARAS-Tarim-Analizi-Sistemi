@@ -260,11 +260,11 @@ export const LoginScreen = ({
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={theme.textOnPrimary} />
           ) : (
             <Text
               className="text-center font-bold"
-              style={{ color: "#fff", fontSize: ms(16, 0.3) }}
+              style={{ color: theme.textOnPrimary, fontSize: ms(16, 0.3) }}
             >
               {isRegisterMode ? t.login.registerButton : t.login.loginButton}
             </Text>

@@ -60,6 +60,20 @@ interface Zone {
   farm_name: string;
 }
 
+export interface ZoneDetailsData {
+  zone_id: string;
+  name: string;
+  adaptive_config: {
+    current_kc: number;
+    target_sm_percent: number;
+  } | null;
+  active_plantings: Array<{
+    crop_name: string;
+    growth_stage: string;
+  }>;
+  recent_kc_calibrations: unknown[];
+}
+
 // Token ile header olustur
 async function getAuthHeaders() {
   const token = await secureGet(TOKEN_KEY);
@@ -236,11 +250,17 @@ export const sensorAPI = {
   },
 
   async getZoneHistory(zoneId: string, hours = 24) {
+    const endTime = new Date().toISOString();
+    const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
     return authFetch<{
       zone_id: string;
       zone_name: string;
       readings: SensorReading[];
-    }>(`/sensors/zone/${zoneId}/history?hours=${hours}`);
+    }>(`/sensors/zone/${zoneId}/history?startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}`);
+  },
+
+  async getZoneDetails(zoneId: string): Promise<ApiResponse<ZoneDetailsData>> {
+    return authFetch<ZoneDetailsData>(`/sensors/zone/${zoneId}/details`);
   },
 
   async getFieldHistory(fieldId: string, hours = 72) {
@@ -785,5 +805,122 @@ export const diseaseAPI = {
     }
 
     throw new Error("Timeout waiting for detection results");
+  },
+};
+
+// Sulama is (irrigation) tipleri
+export interface IrrigationJob {
+  job_id: string;
+  zone_id: string | null;
+  status: string;
+  should_irrigate: boolean;
+  water_amount_ml: number | null;
+  start_time: string | null;
+  current_sm: number | null;
+  target_sm: number | null;
+  sm_deficit: number | null;
+  urgency_level: string | null;
+  reasoning: string | null;
+  recommendation_time: string | null;
+  actual_water_amount_ml: number | null;
+  actual_start_time: string | null;
+  actual_duration_min: number | null;
+  created_at: string;
+}
+
+export interface IrrigationZoneRecommendation {
+  zone_id: string;
+  zone_name: string;
+  job: IrrigationJob | null;
+}
+
+function generateDemoIrrigationJobs(zoneIndex: number): IrrigationJob[] {
+  const now = new Date();
+  const jobs: IrrigationJob[] = [];
+  const seededRand = (i: number) => ((zoneIndex * 7 + i * 13 + 37) % 100) / 100;
+
+  for (let i = 0; i < 5; i++) {
+    const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+    const isExecuted = i > 0;
+    const r = seededRand(i);
+    jobs.push({
+      job_id: `demo-job-${zoneIndex}-${i}`,
+      zone_id: `demo-zone-${zoneIndex}`,
+      status: i === 0 ? "PENDING" : "EXECUTED",
+      should_irrigate: true,
+      water_amount_ml: Math.round(150 + r * 150),
+      start_time: date.toISOString(),
+      current_sm: Math.round(30 + r * 25),
+      target_sm: Math.round(55 + r * 15),
+      sm_deficit: Math.round(10 + r * 20),
+      urgency_level: r < 0.33 ? "high" : r < 0.66 ? "medium" : "low",
+      reasoning: "Soil moisture below threshold",
+      recommendation_time: date.toISOString(),
+      actual_water_amount_ml: isExecuted ? Math.round(140 + r * 160) : null,
+      actual_start_time: isExecuted ? date.toISOString() : null,
+      actual_duration_min: isExecuted ? Math.round(5 + r * 15) : null,
+      created_at: date.toISOString(),
+    });
+  }
+  return jobs;
+}
+
+// Sulama API
+// Backend endpointleri:
+//   POST /api/irrigation/run/:zone_id   — Yeni sulama isi olustur (mevcut)
+//   POST /api/irrigation/preview        — On izleme verisi al (mevcut)
+//   GET  /api/irrigation/zone/:zoneId/jobs  — Zone sulama isleri
+//   PATCH /api/irrigation/jobs/:jobId/actual — Gercek degerleri guncelle
+export const irrigationAPI = {
+  // Zone sulama islerini getir
+  async getZoneJobs(
+    zoneId: string,
+    zoneIndex = 0,
+  ): Promise<ApiResponse<IrrigationJob[]>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (!token || token === "DEMO_MODE_TOKEN") {
+      return { success: true, data: generateDemoIrrigationJobs(zoneIndex) };
+    }
+    console.log("[IRRIGATION] getZoneJobs zoneId:", zoneId);
+    const res = await authFetch<IrrigationJob[]>(`/irrigation/zone/${zoneId}/jobs`);
+    // Endpoint henuz yoksa (404) bos liste dondur
+    if (!res.success && res.error?.includes("404")) {
+      return { success: true, data: [] };
+    }
+    return res;
+  },
+
+  // Gercek sulama degerlerini guncelle
+  async updateJobActual(
+    jobId: string,
+    data: { actual_water_amount_ml?: number; actual_start_time?: string },
+  ): Promise<ApiResponse<IrrigationJob>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (!token || token === "DEMO_MODE_TOKEN") {
+      return { success: true, data: { job_id: jobId, ...data } as any };
+    }
+    return authFetch<IrrigationJob>(`/irrigation/jobs/${jobId}/actual`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Tarla bazinda tum zone onerilerini getir
+  async getFieldRecommendations(
+    fieldId: string,
+  ): Promise<ApiResponse<IrrigationZoneRecommendation[]>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (!token || token === "DEMO_MODE_TOKEN") {
+      return { success: true, data: [] };
+    }
+    return authFetch<IrrigationZoneRecommendation[]>(
+      `/irrigation/field/${fieldId}/recommendations`,
+    );
+  },
+
+  // Zone icin sulama isi olustur (mevcut backend endpoint)
+  async runForZone(zoneId: string) {
+    return authFetch(`/irrigation/run/${zoneId}`, { method: "POST" });
   },
 };

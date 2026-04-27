@@ -97,13 +97,13 @@ export const HardwareSetupModal = ({
             <MaterialCommunityIcons
               name={view === "menu" ? "close" : "arrow-left"}
               size={24}
-              color="#fff"
+              color={theme.textOnPrimary}
             />
           </TouchableOpacity>
 
           <Text
-            className="flex-1 text-center font-bold text-white"
-            style={{ fontSize: ms(18, 0.3) }}
+            className="flex-1 text-center font-bold"
+            style={{ fontSize: ms(18, 0.3), color: theme.textOnPrimary }}
             numberOfLines={1}
           >
             {getTitle()}
@@ -116,7 +116,7 @@ export const HardwareSetupModal = ({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             {view !== "menu" ? (
-              <MaterialCommunityIcons name="close" size={24} color="#fff" />
+              <MaterialCommunityIcons name="close" size={24} color={theme.textOnPrimary} />
             ) : (
               <View style={{ width: s(24) }} />
             )}

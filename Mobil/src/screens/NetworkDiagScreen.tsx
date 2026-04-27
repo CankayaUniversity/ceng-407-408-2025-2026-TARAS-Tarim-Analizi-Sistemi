@@ -106,13 +106,13 @@ export default function NetworkDiagScreen({
         >
           {isRunning ? (
             <View className="row" style={{ gap: s(8) }}>
-              <ActivityIndicator color="#fff" />
-              <Text style={{ color: "#fff", fontSize: ms(16, 0.3), fontWeight: "600" }}>
+              <ActivityIndicator color={theme.textOnPrimary} />
+              <Text style={{ color: theme.textOnPrimary, fontSize: ms(16, 0.3), fontWeight: "600" }}>
                 {t.networkDiag.running}
               </Text>
             </View>
           ) : (
-            <Text style={{ color: "#fff", fontSize: ms(16, 0.3), fontWeight: "600" }}>
+            <Text style={{ color: theme.textOnPrimary, fontSize: ms(16, 0.3), fontWeight: "600" }}>
               {t.networkDiag.startButton}
             </Text>
           )}

@@ -2,11 +2,11 @@
 // Props: theme, isDark, dashboardData, isActive
 import { Suspense, useRef, useEffect, useMemo, useCallback, memo } from "react";
 import {
-  Animated,
   View,
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  StyleSheet,
 } from "react-native";
 import { useThree } from "@react-three/fiber/native";
 import { ColorPlane, NodeInfo, computeFieldKey } from "../../components/ColorPlane";
@@ -14,13 +14,14 @@ import { usePlaneWarmupOverlay } from "../../hooks/usePlaneWarmupOverlay";
 import { appStyles } from "../../styles";
 
 import { Theme } from "../../utils/theme";
-import { DashboardData } from "../../utils/api";
-import { NodePopup } from "./NodePopup";
+import { DashboardData, irrigationAPI } from "../../utils/api";
+import { IrrigationSuggestion } from "./types";
 
 import { spacing } from "../../utils/responsive";
-import { StatusCard } from "./StatusCard";
+import { WelcomeHeader } from "./WelcomeHeader";
+import { FeaturedZoneCard } from "./FeaturedZoneCard";
+import { IrrigationDetailScreen } from "../Irrigation/IrrigationDetailScreen";
 import { Safe3DCanvas } from "../../components/Safe3DCanvas";
-import { FocusableSection } from "../../components/FocusableSection";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { useState } from "react";
 const THREE: any = require("three");
@@ -95,7 +96,25 @@ export const HomeScreen = memo(({
   onRefresh,
 }: HomeScreenProps) => {
   const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [showDetail, setShowDetail] = useState(false);
+
+  // Sulama verisi — secili zone icin
+  const [pendingSuggestion, setPendingSuggestion] = useState<IrrigationSuggestion | null>(null);
+  const [lastIrrigationTime, setLastIrrigationTime] = useState<string | null>(null);
+  const [irrigationRefreshKey, setIrrigationRefreshKey] = useState(0);
+
+  // Secili node her zaman mevcut tarlanin node'larindan biri olmali.
+  // isActive degistiginde (ekrana donus) veya dashboardData (tarla degisimi)
+  // degistiginde: node gecerli degilse ilk node'a sifirla.
+  useEffect(() => {
+    if (!isActive) return;
+    const nodes = dashboardData?.field?.nodes ?? [];
+    setSelectedNode((prev) => {
+      if (nodes.length === 0) return null;
+      const isValid = prev !== null && nodes.some((n) => n.id === prev.id);
+      return isValid ? prev : nodes[0];
+    });
+  }, [isActive, dashboardData?.field?.nodes]);
 
   const currentFieldKey = useMemo(
     () => (dashboardData?.field ? computeFieldKey(dashboardData.field) : ""),
@@ -118,67 +137,95 @@ export const HomeScreen = memo(({
   const canvasStyle = useMemo(() => ({ flex: 1 }), []);
 
   useScreenReset(isActive, {
-    onDeactivate: () => setSelectedNode(null),
+    onDeactivate: () => {
+      setShowDetail(false);
+    },
   });
 
   const fieldData = dashboardData?.field ?? {
     polygon: { exterior: [] },
     nodes: [],
   };
-  const loading = !dashboardData;
 
-  // Node sec/kaldir
-  const handleNodeSelect = useCallback((node: NodeInfo | null) => {
-    if (node) {
-      setSelectedNode(node);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }).start(() => setSelectedNode(null));
+  // Secili node'un indeksi — zone adi icin
+  const nodeIndex = useMemo(() => {
+    if (!selectedNode || !fieldData.nodes.length) return 0;
+    const idx = fieldData.nodes.findIndex((n) => n.id === selectedNode.id);
+    return idx >= 0 ? idx : 0;
+  }, [selectedNode, fieldData.nodes]);
+
+  // Secili zone degistiginde veya detay ekranindan donuste sulama verilerini cek
+  useEffect(() => {
+    if (!selectedNode) {
+      setPendingSuggestion(null);
+      setLastIrrigationTime(null);
+      return;
     }
-  }, [fadeAnim]);
 
-  const handleClosePopup = useCallback(() => handleNodeSelect(null), [handleNodeSelect]);
+    irrigationAPI.getZoneJobs(selectedNode.zone_id ?? selectedNode.id, nodeIndex).then((res) => {
+      if (!res.success || !res.data) return;
+
+      const sorted = [...res.data].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+
+      const pending = sorted.find((j) => j.status === "PENDING" && j.should_irrigate);
+      setPendingSuggestion(
+        pending
+          ? {
+              job_id: pending.job_id,
+              status: pending.status,
+              reasoning: pending.reasoning,
+              water_amount_ml: pending.water_amount_ml,
+              start_time: pending.start_time,
+              urgency_level: pending.urgency_level as IrrigationSuggestion["urgency_level"],
+            }
+          : null,
+      );
+
+      const lastExecuted = sorted.find((j) => j.status === "EXECUTED");
+      setLastIrrigationTime(
+        lastExecuted?.actual_start_time ?? lastExecuted?.start_time ?? null,
+      );
+    });
+  }, [selectedNode, nodeIndex, irrigationRefreshKey]);
+
+  // 3D model'den node tiklamasi — secili kalir, bos tiklamada degisim yok
+  const handleNodeSelect = useCallback((node: NodeInfo | null) => {
+    if (node) setSelectedNode(node);
+  }, []);
+
+  // FeaturedZoneCard tiklamasi — detay ekranini ac
+  const handleOpenDetail = useCallback(() => {
+    if (selectedNode && dashboardData) setShowDetail(true);
+  }, [selectedNode, dashboardData]);
 
   return (
     <View className="flex-1 relative" style={{ backgroundColor: theme.background }}>
       <View className="flex-1" style={{ marginHorizontal: spacing.sm }}>
         <ScrollView
           style={{ flexGrow: 0, flexShrink: 0 }}
-          showsVerticalScrollIndicator={true}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             onRefresh ? (
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.primary} colors={[theme.primary]} />
             ) : undefined
           }
         >
-          <FocusableSection
-            id="statusCard"
-            screen="home"
+          <WelcomeHeader theme={theme} dashboardData={dashboardData} />
+          <FeaturedZoneCard
             theme={theme}
-            scrollMode="pulse-only"
-          >
-            <StatusCard
-              theme={theme}
-              dashboardData={dashboardData}
-              loading={loading}
-            />
-          </FocusableSection>
+            node={selectedNode}
+            nodeIndex={nodeIndex}
+            nextIrrigationTime={dashboardData?.irrigation?.nextIrrigationTime ?? null}
+            pendingSuggestion={pendingSuggestion}
+            lastIrrigationTime={lastIrrigationTime}
+            onPress={handleOpenDetail}
+          />
         </ScrollView>
 
         {/* 3D Canvas — yatay margin'lari ekrana kadar uzat (outer wrapper'in spacing.sm'sini ters ceviriyoruz) */}
-        <FocusableSection
-          id="fieldVisualization"
-          screen="home"
-          theme={theme}
-          scrollMode="pulse-only"
+        <View
           style={[
             appStyles.canvasContainer,
             {
@@ -186,6 +233,7 @@ export const HomeScreen = memo(({
               flex: 1,
               marginLeft: -spacing.sm,
               marginRight: -spacing.sm,
+              borderRadius: 14,
             },
           ]}
         >
@@ -229,25 +277,25 @@ export const HomeScreen = memo(({
           </Safe3DCanvas>
 
           {warmupOverlay}
+        </View>
+        </View>
+      </View>
 
-          <NodePopup
+      {/* Sulama detay overlay */}
+      {showDetail && selectedNode && dashboardData && (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.background, zIndex: 200 }]}>
+          <IrrigationDetailScreen
+            node={selectedNode}
+            nodeIndex={nodeIndex}
+            dashboardData={dashboardData}
             theme={theme}
-            selectedNode={
-              selectedNode
-                ? {
-                    id: selectedNode.id,
-                    moisture: selectedNode.moisture,
-                    airTemperature: selectedNode.airTemperature,
-                    airHumidity: selectedNode.airHumidity,
-                  }
-                : null
-            }
-            fadeAnim={fadeAnim}
-            onClose={handleClosePopup}
+            onBack={() => {
+              setShowDetail(false);
+              setIrrigationRefreshKey((k) => k + 1);
+            }}
           />
         </View>
-        </FocusableSection>
-      </View>
+      )}
     </View>
   );
 });

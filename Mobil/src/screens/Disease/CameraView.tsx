@@ -119,7 +119,7 @@ export const CameraView = ({
               paddingVertical: vs(4),
               borderRadius: 8,
               backgroundColor: "rgba(0,0,0,0.5)",
-              color: "#fff",
+              color: theme.textOnPrimary,
               fontSize: ms(12, 0.3),
             }}
           >

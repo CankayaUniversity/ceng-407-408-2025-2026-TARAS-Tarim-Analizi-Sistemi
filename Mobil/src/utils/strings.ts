@@ -328,6 +328,53 @@ export interface StringDictionary {
     title: string;
     empty: string;
   };
+
+  // Irrigation Detail
+  irrigation: {
+    welcome: string;
+    nextIrrigation: string;
+    soilMoisture: string;
+    zone: string;
+    detail: string;
+    recommendedAmount: string;
+    recommendedTime: string;
+    currentMoisture: string;
+    didIrrigateAmount: string;
+    didIrrigateTime: string;
+    actualAmount: string;
+    actualTime: string;
+    enterAmount: string;
+    selectDateTime: string;
+    save: string;
+    saved: string;
+    saveFailed: string;
+    history: string;
+    noHistory: string;
+    noRecommendation: string;
+    ml: string;
+    tapForDetails: string;
+    targetMoisture: string;
+    crop: string;
+    growthStage: string;
+    status: string;
+    urgencyLevel: string;
+    reasoning: string;
+    recommendationTime: string;
+    noActiveRecommendation: string;
+    noActiveRecommendationSub: string;
+    confirmIrrigationQuestion: string;
+    yesFollowedExactly: string;
+    noUsedDifferent: string;
+    enterActualValues: string;
+    amountInvalid: string;
+    // Card-level display strings
+    pendingRecommendation: string;
+    noSuggestion: string;
+    urgencyHigh: string;
+    urgencyMedium: string;
+    urgencyLow: string;
+    lastIrrigation: string;
+  };
 }
 
 const tr: StringDictionary = {
@@ -649,6 +696,51 @@ const tr: StringDictionary = {
     title: "Bildirimler",
     empty: "Henüz bildirim yok",
   },
+
+  irrigation: {
+    welcome: "Merhaba",
+    nextIrrigation: "Sonraki Sulama",
+    soilMoisture: "Toprak Nemi",
+    zone: "Bölge",
+    detail: "Sulama Detayı",
+    recommendedAmount: "Önerilen Miktar",
+    recommendedTime: "Önerilen Zaman",
+    currentMoisture: "Mevcut Nem",
+    didIrrigateAmount: "Önerilen miktarda suladınız mı?",
+    didIrrigateTime: "Önerilen zamanda suladınız mı?",
+    actualAmount: "Gerçek Miktar (ml)",
+    actualTime: "Gerçek Sulama Zamanı",
+    enterAmount: "Miktarı girin",
+    selectDateTime: "Tarih ve saat seçin",
+    save: "Kaydet",
+    saved: "Kaydedildi!",
+    saveFailed: "Kayıt başarısız",
+    history: "Sulama Geçmişi",
+    noHistory: "Henüz sulama kaydı yok",
+    noRecommendation: "Öneri mevcut değil",
+    ml: "ml",
+    tapForDetails: "Detaylar için dokunun",
+    targetMoisture: "Hedef Nem",
+    crop: "Mahsul",
+    growthStage: "Büyüme Aşaması",
+    status: "Durum",
+    urgencyLevel: "Aciliyet Seviyesi",
+    reasoning: "Gerekçe",
+    recommendationTime: "Öneri Zamanı",
+    noActiveRecommendation: "Aktif öneri yok",
+    noActiveRecommendationSub: "Bu bölge için bekleyen sulama önerisi bulunmuyor.",
+    confirmIrrigationQuestion: "Sulama önerisini tam olarak uyguladınız mı?",
+    yesFollowedExactly: "Evet, öneri miktarı ve zamanında suladım",
+    noUsedDifferent: "Hayır, farklı değerler kullandım",
+    enterActualValues: "Gerçek değerleri girin",
+    amountInvalid: "Geçerli bir miktar girin (0'dan büyük)",
+    pendingRecommendation: "Sulama önerisi mevcut",
+    noSuggestion: "Yeni öneri yok",
+    urgencyHigh: "Yüksek",
+    urgencyMedium: "Orta",
+    urgencyLow: "Düşük",
+    lastIrrigation: "Son Sulama",
+  },
 };
 
 const en: StringDictionary = {
@@ -969,6 +1061,51 @@ const en: StringDictionary = {
   notifications: {
     title: "Notifications",
     empty: "No notifications yet",
+  },
+
+  irrigation: {
+    welcome: "Hello",
+    nextIrrigation: "Next Irrigation",
+    soilMoisture: "Soil Moisture",
+    zone: "Zone",
+    detail: "Irrigation Detail",
+    recommendedAmount: "Recommended Amount",
+    recommendedTime: "Recommended Time",
+    currentMoisture: "Current Moisture",
+    didIrrigateAmount: "Did you irrigate with the recommended amount?",
+    didIrrigateTime: "Did you irrigate at the recommended time?",
+    actualAmount: "Actual Amount (ml)",
+    actualTime: "Actual Irrigation Time",
+    enterAmount: "Enter amount",
+    selectDateTime: "Select date and time",
+    save: "Save",
+    saved: "Saved!",
+    saveFailed: "Save failed",
+    history: "Irrigation History",
+    noHistory: "No irrigation history yet",
+    noRecommendation: "No recommendation available",
+    ml: "ml",
+    tapForDetails: "Tap for details",
+    targetMoisture: "Target Moisture",
+    crop: "Crop",
+    growthStage: "Growth Stage",
+    status: "Status",
+    urgencyLevel: "Urgency Level",
+    reasoning: "Reason",
+    recommendationTime: "Recommendation Time",
+    noActiveRecommendation: "No active recommendation",
+    noActiveRecommendationSub: "There is no pending irrigation recommendation for this zone.",
+    confirmIrrigationQuestion: "Did you follow the irrigation recommendation exactly?",
+    yesFollowedExactly: "Yes, I irrigated with the recommended amount and time",
+    noUsedDifferent: "No, I used different values",
+    enterActualValues: "Enter your actual values",
+    amountInvalid: "Enter a valid amount (greater than 0)",
+    pendingRecommendation: "Irrigation recommendation pending",
+    noSuggestion: "No new irrigation suggestion",
+    urgencyHigh: "High",
+    urgencyMedium: "Medium",
+    urgencyLow: "Low",
+    lastIrrigation: "Last Irrigation",
   },
 };
 
