@@ -5,6 +5,11 @@ import {
   getDetectionById,
   getDetectionImageUrl,
   deleteDetection,
+  createDiseaseTrackingFolder,
+  getUserDiseaseTrackingFolders,
+  getDiseaseTrackingFolderById,
+  getDiseaseTrackingFolderHistory,
+  deactivateDiseaseTrackingFolder,
 } from "../services/diseaseDetection.service";
 import { asyncHandler } from "../middleware/error.middleware";
 import logger from "../utils/logger";
@@ -42,7 +47,19 @@ export const submitDetection = asyncHandler(
         size: file.size,
       });
 
-      const result = await submitDetectionRequest(userId, file.buffer, file.originalname);
+     const rawFolderId = (req.body as { folderId?: unknown }).folderId;
+
+      const folderId: string | null =
+        typeof rawFolderId === "string" && rawFolderId.trim().length > 0
+          ? rawFolderId.trim()
+          : null;
+
+    const result = await submitDetectionRequest(
+        userId,
+        file.buffer,
+        file.originalname,
+        folderId
+      );
 
       logger.info(`Detection request submitted successfully`, {
         detectionId: result.detectionId,
@@ -284,6 +301,106 @@ export const healthCheck = asyncHandler(
   }
 );
 
+// =======================
+// TRACKING FOLDER CONTROLLERS
+// =======================
+
+export const createTrackingFolder = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.user_id;
+  const { plantingId, name } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+  }
+
+    if (!plantingId) {
+      return res.status(400).json({ success: false, error: "plantingId is required" });
+    }
+
+    if (!name || typeof name !== "string" || name.trim() === "") {
+      return res.status(400).json({
+        success: false,
+        error: "Folder name is required",
+      });
+}
+  const folder = await createDiseaseTrackingFolder(userId, plantingId, name.trim());
+
+  res.status(201).json({
+    success: true,
+    data: folder,
+  });
+});
+
+export const getTrackingFolders = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.user_id;
+
+  const folders = await getUserDiseaseTrackingFolders(userId);
+
+  res.json({
+    success: true,
+    data: folders,
+  });
+});
+
+export const getTrackingFolderById = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.user_id;
+  const folderId = getStringParam(req.params.folderId);
+
+  if (!folderId) {
+    res.status(400).json({
+      success: false,
+      error: "Folder ID is required",
+    });
+  return;
+}
+
+  const folder = await getDiseaseTrackingFolderById(userId, folderId);
+
+  res.json({
+    success: true,
+    data: folder,
+  });
+});
+
+export const getTrackingFolderHistory = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.user_id;
+  const folderId = getStringParam(req.params.folderId);
+
+  if (!folderId) {
+    res.status(400).json({
+      success: false,
+      error: "Folder ID is required",
+    });
+    return;
+}
+
+  const history = await getDiseaseTrackingFolderHistory(userId, folderId);
+
+  res.json({
+    success: true,
+    data: history,
+  });
+});
+
+export const deactivateTrackingFolder = asyncHandler(async (req: Request, res: Response) => {
+  const userId = (req as any).user?.user_id;
+    const folderId = getStringParam(req.params.folderId);
+
+  if (!folderId) {
+    res.status(400).json({
+     success: false,
+      error: "Folder ID is required",
+    });
+    return;
+}
+
+  await deactivateDiseaseTrackingFolder(userId, folderId);
+
+  res.json({
+    success: true,
+    message: "Folder deactivated",
+  });
+});
 export default {
   submitDetection,
   getUserDetectionRequests,
@@ -291,4 +408,10 @@ export default {
   getDetectionImage,
   deleteDetectionRequest,
   healthCheck,
+
+  createTrackingFolder,
+  getTrackingFolders,
+  getTrackingFolderById,
+  getTrackingFolderHistory,
+  deactivateTrackingFolder,
 };

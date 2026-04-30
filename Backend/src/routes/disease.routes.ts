@@ -46,4 +46,16 @@ router.get('/requests/:detectionId/image', diseaseController.getDetectionImage);
 // DELETE /api/disease/requests/:detectionId
 router.delete('/requests/:detectionId', diseaseController.deleteDetectionRequest);
 
+
+// Disease tracking folders
+router.post('/folders', diseaseController.createTrackingFolder);
+
+router.get('/folders', diseaseController.getTrackingFolders);
+
+router.get('/folders/:folderId/history', diseaseController.getTrackingFolderHistory);
+
+router.patch('/folders/:folderId/deactivate', diseaseController.deactivateTrackingFolder);
+
+router.get('/folders/:folderId', diseaseController.getTrackingFolderById);
+console.log("DISEASE ROUTES LOADED - folders enabled");
 export default router;

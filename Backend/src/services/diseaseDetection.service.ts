@@ -30,7 +30,8 @@ interface DiseaseDetectionResult {
 export async function submitDetectionRequest(
   userId: string,
   imageBuffer: Buffer,
-  originalFilename?: string
+  originalFilename?: string,
+  folderId?: string | null
 ): Promise<{ detectionId: string; imageUuid: string; status: DetectionStatus }> {
   try {
     const imageUuid = randomUUID();
@@ -56,14 +57,39 @@ export async function submitDetectionRequest(
 
     logger.info(`Image uploaded to S3: ${s3Key}`, { imageUuid });
 
-    const detection = await prisma.diseaseDetection.create({
-      data: {
-        user_id: userId,
-        image_uuid: imageUuid,
-        image_s3_key: s3Key,
-        status: DetectionStatus.NOT_STARTED,
-      },
-    });
+    let finalFolderId: string | null = null;
+
+if (folderId) {
+  const folder = await prisma.diseaseTrackingFolder.findFirst({
+    where: {
+      folder_id: folderId,
+      user_id: userId,
+      is_active: true,
+    },
+    include: {
+      planting: true,
+    },
+  });
+
+  if (!folder) {
+    throw new Error("Tracking folder not found or inactive");
+  }
+
+  if (!folder.planting.is_active) {
+    throw new Error("Planting is not active");
+
+  finalFolderId = folderId;
+}
+
+const detection = await prisma.diseaseDetection.create({
+  data: {
+    user_id: userId,
+    folder_id: finalFolderId,
+    image_uuid: imageUuid,
+    image_s3_key: s3Key,
+    status: DetectionStatus.NOT_STARTED,
+  },
+});
 
     logger.info(`Database record created for detection ${detection.detection_id}`, {
       detectionId: detection.detection_id,
@@ -235,10 +261,307 @@ export async function deleteDetection(detectionId: string, userId: string): Prom
   }
 }
 
+export async function createDiseaseTrackingFolder(
+  userId: string,
+  plantingId: string,
+  name?: string
+): Promise<any> {
+  const planting = await prisma.planting.findFirst({
+    where: {
+      planting_id: plantingId,
+      is_active: true,
+      zone: {
+        field: {
+          farm: {
+            user_id: userId,
+          },
+        },
+      },
+    },
+    include: {
+      crop: true,
+      zone: true,
+    },
+  });
+
+  if (!planting) {
+    throw new Error("Active planting not found or access denied");
+  }
+
+  return await prisma.diseaseTrackingFolder.create({
+    data: {
+      user_id: userId,
+      planting_id: plantingId,
+      name: name || `${planting.crop?.name || "Plant"} disease tracking`,
+      is_active: true,
+    },
+  });
+}
+
+export async function getUserDiseaseTrackingFolders(userId: string): Promise<any[]> {
+  const folders = await prisma.diseaseTrackingFolder.findMany({
+    where: {
+      user_id: userId,
+    },
+    orderBy: {
+      created_at: "desc",
+    },
+    include: {
+      planting: {
+        include: {
+          crop: true,
+          zone: true,
+        },
+      },
+      detections: {
+        orderBy: {
+          uploaded_at: "desc",
+        },
+        select: {
+          detection_id: true,
+          image_uuid: true,
+          status: true,
+          uploaded_at: true,
+          completed_at: true,
+          detected_disease: true,
+          confidence: true,
+          confidence_score: true,
+          image_s3_key: true,
+          error_message: true,
+        },
+      },
+    },
+  });
+
+  return await Promise.all(
+    folders.map(async (folder) => {
+      const detections = await Promise.all(
+        folder.detections.map(async (detection) => {
+          let imageUrl: string | null = null;
+
+          try {
+            imageUrl = await generatePresignedDownloadUrl(
+              DISEASE_DETECTION_BUCKET,
+              detection.image_s3_key,
+              3600
+            );
+          } catch {
+            imageUrl = null;
+          }
+
+          const { image_s3_key, ...restDetection } = detection;
+
+          return {
+            ...restDetection,
+            imageUrl,
+          };
+        })
+      );
+
+      return {
+        folderId: folder.folder_id,
+        name: folder.name,
+        isActive: folder.is_active,
+        createdAt: folder.created_at,
+        updatedAt: folder.updated_at,
+        planting: {
+          plantingId: folder.planting.planting_id,
+          isActive: folder.planting.is_active,
+          plantingDate: folder.planting.planting_date,
+          growthStage: folder.planting.growth_stage,
+          cropName: folder.planting.crop?.name || null,
+          zoneId: folder.planting.zone?.zone_id || null,
+          zoneName: folder.planting.zone?.name || null,
+        },
+        detections,
+      };
+    })
+  );
+}
+
+export async function getDiseaseTrackingFolderById(
+  userId: string,
+  folderId: string
+): Promise<any> {
+  const folder = await prisma.diseaseTrackingFolder.findFirst({
+    where: {
+      folder_id: folderId,
+      user_id: userId,
+    },
+    include: {
+      planting: {
+        include: {
+          crop: true,
+          zone: true,
+        },
+      },
+      detections: {
+        orderBy: {
+          uploaded_at: "desc",
+        },
+        select: {
+          detection_id: true,
+          image_uuid: true,
+          status: true,
+          uploaded_at: true,
+          completed_at: true,
+          detected_disease: true,
+          confidence: true,
+          confidence_score: true,
+          all_predictions: true,
+          recommendations: true,
+          image_s3_key: true,
+          error_message: true,
+        },
+      },
+    },
+  });
+
+  if (!folder) {
+    throw new Error("Tracking folder not found or access denied");
+  }
+
+  const detections = await Promise.all(
+    folder.detections.map(async (detection) => {
+      let imageUrl: string | null = null;
+
+      try {
+        imageUrl = await generatePresignedDownloadUrl(
+          DISEASE_DETECTION_BUCKET,
+          detection.image_s3_key,
+          3600
+        );
+      } catch {
+        imageUrl = null;
+      }
+
+      const { image_s3_key, ...restDetection } = detection;
+
+      return {
+        ...restDetection,
+        imageUrl,
+      };
+    })
+  );
+
+  return {
+    folderId: folder.folder_id,
+    name: folder.name,
+    isActive: folder.is_active,
+    createdAt: folder.created_at,
+    updatedAt: folder.updated_at,
+    planting: {
+      plantingId: folder.planting.planting_id,
+      isActive: folder.planting.is_active,
+      plantingDate: folder.planting.planting_date,
+      growthStage: folder.planting.growth_stage,
+      cropName: folder.planting.crop?.name || null,
+      zoneId: folder.planting.zone?.zone_id || null,
+      zoneName: folder.planting.zone?.name || null,
+    },
+    detections,
+  };
+}
+
+export async function getDiseaseTrackingFolderHistory(
+  userId: string,
+  folderId: string
+): Promise<any> {
+  const folder = await prisma.diseaseTrackingFolder.findFirst({
+    where: {
+      folder_id: folderId,
+      user_id: userId,
+    },
+    include: {
+      planting: {
+        include: {
+          crop: true,
+          zone: true,
+        },
+      },
+      detections: {
+        where: {
+          status: DetectionStatus.COMPLETED,
+        },
+        orderBy: {
+          uploaded_at: "asc",
+        },
+        select: {
+          detection_id: true,
+          uploaded_at: true,
+          completed_at: true,
+          detected_disease: true,
+          confidence: true,
+          confidence_score: true,
+          all_predictions: true,
+          recommendations: true,
+        },
+      },
+    },
+  });
+
+  if (!folder) {
+    throw new Error("Tracking folder not found or access denied");
+  }
+
+  return {
+    folderId: folder.folder_id,
+    name: folder.name,
+    isActive: folder.is_active,
+    planting: {
+      plantingId: folder.planting.planting_id,
+      isActive: folder.planting.is_active,
+      cropName: folder.planting.crop?.name || null,
+      zoneId: folder.planting.zone?.zone_id || null,
+      zoneName: folder.planting.zone?.name || null,
+    },
+    history: folder.detections.map((detection) => ({
+      detectionId: detection.detection_id,
+      uploadedAt: detection.uploaded_at,
+      completedAt: detection.completed_at,
+      disease: detection.detected_disease,
+      confidence: detection.confidence,
+      confidenceScore: detection.confidence_score,
+      allPredictions: detection.all_predictions,
+      recommendations: detection.recommendations,
+    })),
+  };
+}
+
+export async function deactivateDiseaseTrackingFolder(
+  userId: string,
+  folderId: string
+): Promise<void> {
+  const folder = await prisma.diseaseTrackingFolder.findFirst({
+    where: {
+      folder_id: folderId,
+      user_id: userId,
+    },
+  });
+
+  if (!folder) {
+    throw new Error("Tracking folder not found or access denied");
+  }
+
+  await prisma.diseaseTrackingFolder.update({
+    where: {
+      folder_id: folderId,
+    },
+    data: {
+      is_active: false,
+    },
+  });
+}
 export default {
   submitDetectionRequest,
   getUserDetections,
   getDetectionById,
   getDetectionImageUrl,
   deleteDetection,
+
+  createDiseaseTrackingFolder,
+  getUserDiseaseTrackingFolders,
+  getDiseaseTrackingFolderById,
+  getDiseaseTrackingFolderHistory,
+  deactivateDiseaseTrackingFolder,
 };
