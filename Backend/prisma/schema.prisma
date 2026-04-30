@@ -50,6 +50,26 @@ enum DetectionStatus {
   @@map("detection_status")
 }
 
+enum DiseaseTarget {
+  UNCERTAIN
+  BACTERIAL_SPOT
+  CORN_COMMON_RUST
+  CORN_GRAY_LEAF_SPOT
+  CORN_NORTHERN_LEAF_BLIGHT
+  EARLY_BLIGHT
+  HEALTHY
+  LATE_BLIGHT
+  LEAF_MOLD
+  MOSAIC_VIRUS
+  POWDERY_MILDEW
+  SEPTORIA_LEAF_SPOT
+  SPIDER_MITES
+  TARGET_SPOT
+  YELLOW_LEAF_CURL_VIRUS
+
+  @@map("disease_target")
+}
+
 enum GatewayStatus {
   ONLINE
   OFFLINE
@@ -356,7 +376,7 @@ model CropDetail {
 
 model Planting {
   planting_id   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  zone_id       String?   @db.Uuid
+  zone_id       String    @db.Uuid
   crop_id       Int?
   is_active     Boolean?  @default(true)
   created_at    DateTime? @default(now()) @db.Timestamptz(6)
@@ -366,7 +386,7 @@ model Planting {
   disease_tracking_folders DiseaseTrackingFolder[]
 
   crop CropDetail? @relation(fields: [crop_id], references: [crop_id])
-  zone Zone?       @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
+  zone Zone        @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
 
   @@map("plantings")
 }
@@ -423,8 +443,10 @@ model DiseaseTrackingFolder {
   user_id     String @db.Uuid
   planting_id String @db.Uuid
 
-  name      String? @db.VarChar(150)
-  is_active Boolean @default(true)
+  name              String        @db.VarChar(150)
+  is_active         Boolean       @default(true)
+  target_disease    DiseaseTarget @default(UNCERTAIN)
+  last_detection_at DateTime?     @db.Timestamptz(6)
 
   created_at DateTime @default(now()) @db.Timestamptz(6)
   updated_at DateTime @updatedAt @db.Timestamptz(6)
@@ -434,10 +456,15 @@ model DiseaseTrackingFolder {
 
   detections DiseaseDetection[]
 
-  @@index([user_id], map: "idx_disease_tracking_folder_user")
-  @@index([planting_id], map: "idx_disease_tracking_folder_planting")
-  @@index([is_active], map: "idx_disease_tracking_folder_active")
+  @@index([user_id, is_active], map: "idx_disease_tracking_folder_user_active")
+  @@index([planting_id],        map: "idx_disease_tracking_folder_planting")
   @@map("disease_tracking_folders")
+
+  // Partial unique — Prisma DSL can't express WHERE on @@unique.
+  // Run once via raw SQL post-"prisma:push":
+  //   CREATE UNIQUE INDEX uq_active_folder_name_per_planting
+  //     ON disease_tracking_folders (planting_id, name)
+  //     WHERE is_active = true;
 }
 
 model DiseaseDetection {
@@ -460,7 +487,7 @@ model DiseaseDetection {
   folder                DiseaseTrackingFolder? @relation(fields: [folder_id], references: [folder_id], onDelete: SetNull)
 
   @@index([user_id], map: "idx_disease_detection_user")
-  @@index([folder_id], map: "idx_disease_detection_folder")
+  @@index([folder_id, uploaded_at(sort: Desc)], map: "idx_disease_detection_folder_recent")
   @@index([status], map: "idx_disease_detection_status")
   @@index([uploaded_at], map: "idx_disease_detection_uploaded")
   @@map("disease_detections")
