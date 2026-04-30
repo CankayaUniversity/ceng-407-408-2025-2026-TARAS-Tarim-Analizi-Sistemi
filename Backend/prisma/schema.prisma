@@ -80,19 +80,20 @@ model Role {
 }
 
 model User {
-  user_id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username           String             @unique @db.VarChar(100)
-  email              String             @unique @db.VarChar(255)
-  password_hash      String             @db.VarChar(255)
-  role_id            Int?
-  is_active          Boolean?           @default(true)
-  last_login         DateTime?          @db.Timestamptz(6)
-  created_at         DateTime?          @default(now()) @db.Timestamptz(6)
-  alerts             Alert[]
-  chat_sessions      ChatSession[]
-  disease_detections DiseaseDetection[]
-  farms              Farm[]
-  role               Role?              @relation(fields: [role_id], references: [role_id])
+  user_id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username                 String                  @unique @db.VarChar(100)
+  email                    String                  @unique @db.VarChar(255)
+  password_hash            String                  @db.VarChar(255)
+  role_id                  Int?
+  is_active                Boolean?                @default(true)
+  last_login               DateTime?               @db.Timestamptz(6)
+  created_at               DateTime?               @default(now()) @db.Timestamptz(6)
+  alerts                   Alert[]
+  chat_sessions            ChatSession[]
+  disease_detections       DiseaseDetection[]
+  disease_tracking_folders DiseaseTrackingFolder[]
+  farms                    Farm[]
+  role                     Role?                   @relation(fields: [role_id], references: [role_id])
 
   @@map("users")
 }
@@ -259,19 +260,19 @@ model SensorDiagnostic {
 }
 
 model SensorReading {
-  id              BigInt          @id @default(autoincrement())
-  node_id         String?         @db.Uuid
-  created_at      DateTime?       @default(now()) @db.Timestamptz(6)
-  raw_sm_value    Int?
-  sm_percent      Float?
-  raw_temperature Float?
-  raw_humidity    Float?
-  temperature     Float?
-  humidity        Float?
-  et0_instant     Float?
-  battery_voltage Float?
-  triggered_jobs  IrrigationJob[] @relation("TriggerReading")
-  node            SensorNode?     @relation(fields: [node_id], references: [node_id], onDelete: Cascade)
+  id               BigInt               @id @default(autoincrement())
+  node_id          String?              @db.Uuid
+  created_at       DateTime?            @default(now()) @db.Timestamptz(6)
+  raw_sm_value     Int?
+  sm_percent       Float?
+  raw_temperature  Float?
+  raw_humidity     Float?
+  temperature      Float?
+  humidity         Float?
+  et0_instant      Float?
+  battery_voltage  Float?
+  triggered_jobs   IrrigationJob[]      @relation("TriggerReading")
+  node             SensorNode?          @relation(fields: [node_id], references: [node_id], onDelete: Cascade)
   followup_results IrrigationFollowup[] @relation("FollowupResultReading")
 
   @@index([created_at], map: "idx_readings_time")
@@ -316,11 +317,10 @@ model IrrigationJob {
 }
 
 model IrrigationFollowup {
-  followup_id String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  job_id      String  @db.Uuid
-  zone_id     String? @db.Uuid
-  result_reading_id  BigInt?
-
+  followup_id       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  job_id            String  @db.Uuid
+  zone_id           String? @db.Uuid
+  result_reading_id BigInt?
 
   check_time       DateTime? @db.Timestamptz(6)
   sm_after_check   Float?
@@ -329,9 +329,10 @@ model IrrigationFollowup {
 
   created_at DateTime? @default(now()) @db.Timestamptz(6)
 
-  job  IrrigationJob @relation(fields: [job_id], references: [job_id], onDelete: Cascade)
-  zone Zone?         @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
+  job            IrrigationJob  @relation(fields: [job_id], references: [job_id], onDelete: Cascade)
+  zone           Zone?          @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
   result_reading SensorReading? @relation("FollowupResultReading", fields: [result_reading_id], references: [id])
+
   @@index([job_id])
   @@index([zone_id, check_time])
   @@map("irrigation_followups")
@@ -354,15 +355,18 @@ model CropDetail {
 }
 
 model Planting {
-  planting_id   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  zone_id       String?     @db.Uuid
+  planting_id   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  zone_id       String?   @db.Uuid
   crop_id       Int?
-  is_active     Boolean?    @default(true)
-  created_at    DateTime?   @default(now()) @db.Timestamptz(6)
-  growth_stage  String?     @db.VarChar(50)
-  planting_date DateTime    @db.Date
-  crop          CropDetail? @relation(fields: [crop_id], references: [crop_id])
-  zone          Zone?       @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
+  is_active     Boolean?  @default(true)
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  growth_stage  String?   @db.VarChar(50)
+  planting_date DateTime  @db.Date
+
+  disease_tracking_folders DiseaseTrackingFolder[]
+
+  crop CropDetail? @relation(fields: [crop_id], references: [crop_id])
+  zone Zone?       @relation(fields: [zone_id], references: [zone_id], onDelete: Cascade)
 
   @@map("plantings")
 }
@@ -414,24 +418,49 @@ model ChatMessage {
 // DISEASE DETECTION
 // =======================
 
+model DiseaseTrackingFolder {
+  folder_id   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String @db.Uuid
+  planting_id String @db.Uuid
+
+  name      String? @db.VarChar(150)
+  is_active Boolean @default(true)
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @updatedAt @db.Timestamptz(6)
+
+  user     User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  planting Planting @relation(fields: [planting_id], references: [planting_id], onDelete: Cascade)
+
+  detections DiseaseDetection[]
+
+  @@index([user_id], map: "idx_disease_tracking_folder_user")
+  @@index([planting_id], map: "idx_disease_tracking_folder_planting")
+  @@index([is_active], map: "idx_disease_tracking_folder_active")
+  @@map("disease_tracking_folders")
+}
+
 model DiseaseDetection {
-  detection_id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id               String          @db.Uuid
-  image_uuid            String          @unique @db.Uuid
-  image_s3_key          String          @db.VarChar(500)
-  status                DetectionStatus @default(NOT_STARTED)
-  uploaded_at           DateTime        @default(now()) @db.Timestamptz(6)
-  processing_started_at DateTime?       @db.Timestamptz(6)
-  completed_at          DateTime?       @db.Timestamptz(6)
-  detected_disease      String?         @db.VarChar(100)
+  detection_id          String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String                 @db.Uuid
+  folder_id             String?                @db.Uuid
+  image_uuid            String                 @unique @db.Uuid
+  image_s3_key          String                 @db.VarChar(500)
+  status                DetectionStatus        @default(NOT_STARTED)
+  uploaded_at           DateTime               @default(now()) @db.Timestamptz(6)
+  processing_started_at DateTime?              @db.Timestamptz(6)
+  completed_at          DateTime?              @db.Timestamptz(6)
+  detected_disease      String?                @db.VarChar(100)
   confidence            Float?
   confidence_score      Float?
   all_predictions       Json?
   recommendations       Json?
   error_message         String?
-  user                  User            @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user                  User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  folder                DiseaseTrackingFolder? @relation(fields: [folder_id], references: [folder_id], onDelete: SetNull)
 
   @@index([user_id], map: "idx_disease_detection_user")
+  @@index([folder_id], map: "idx_disease_detection_folder")
   @@index([status], map: "idx_disease_detection_status")
   @@index([uploaded_at], map: "idx_disease_detection_uploaded")
   @@map("disease_detections")
