@@ -1,4 +1,4 @@
-"""CutMix regularizer (Yun et al. 2019)."""
+"""CutMix (Yun et al. 2019) and Mixup (Zhang et al. 2018) regularizers."""
 from __future__ import annotations
 
 import numpy as np
@@ -24,3 +24,14 @@ def cutmix(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0):
 
     lam = 1.0 - ((x2 - x1) * (y2 - y1) / (W * H))
     return x_mixed, y, y[index], float(lam)
+
+
+def mixup(x: torch.Tensor, y: torch.Tensor, alpha: float = 0.2):
+    """Linear pixel-space interpolation between two random samples in the batch.
+    Returns (mixed_x, y_a, y_b, lam) where loss = lam*CE(logits, y_a) + (1-lam)*CE(logits, y_b).
+    Smoothes decision boundaries; complementary to CutMix's spatial mixing.
+    """
+    lam = float(np.random.beta(alpha, alpha))
+    index = torch.randperm(x.size(0), device=x.device)
+    x_mixed = lam * x + (1.0 - lam) * x[index]
+    return x_mixed, y, y[index], lam

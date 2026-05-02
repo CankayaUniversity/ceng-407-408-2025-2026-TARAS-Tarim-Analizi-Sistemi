@@ -29,9 +29,14 @@ def build_model(
 
 
 def freeze_backbone(model: nn.Module) -> nn.Module:
-    """Freeze every parameter whose name does not contain `head`."""
+    """Freeze every parameter whose name does not identify the classification head.
+
+    Supports timm naming conventions across backbones:
+      - Swin / ConvNeXt / ViT: ``head.fc`` (matches ``head``)
+      - MobileNet / EfficientNet: ``classifier`` (matches ``classifier``)
+    """
     for name, param in model.named_parameters():
-        param.requires_grad = "head" in name
+        param.requires_grad = ("head" in name) or ("classifier" in name)
     return model
 
 

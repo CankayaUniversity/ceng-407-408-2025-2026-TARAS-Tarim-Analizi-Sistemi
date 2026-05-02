@@ -60,7 +60,12 @@ def main(argv: list[str] | None = None) -> int:
         f1, acc, preds, labels = evaluate(model, loaders[split_name], device, return_preds=True)
         print(f"\n=== {title} ===")
         print(f"accuracy={acc:.4f}  macro_f1={f1:.4f}")
-        print(classification_report(labels, preds, target_names=CLASS_NAMES, digits=4, zero_division=0))
+        print(classification_report(
+            labels, preds,
+            labels=list(range(len(CLASS_NAMES))),
+            target_names=CLASS_NAMES,
+            digits=4, zero_division=0,
+        ))
         cm = confusion_matrix(labels, preds, labels=list(range(len(CLASS_NAMES))))
         _plot_confusion(cm, args.out_dir / f"confusion_{split_name}.png", title)
         results[f"{split_name}_acc"] = acc

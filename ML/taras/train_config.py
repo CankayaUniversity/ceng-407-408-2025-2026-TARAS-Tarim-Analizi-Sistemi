@@ -34,10 +34,14 @@ class TrainConfig:
     use_cutmix: bool = True
     cutmix_alpha: float = 1.0
     cutmix_prob: float = 0.5
-    use_mixup: bool = False
+    use_mixup: bool = True            # v7: enabled by default, complements CutMix
+    mixup_alpha: float = 0.2
+    field_domain_rand: bool = True    # v7: heavier aug for lab→field domain shift
+    class_weight_cap: float = 3.0     # v7: cap inverse-freq class weights at 3×
+    ema_decay: float = 0.9999         # v7: EMA model decay (0.0 disables EMA)
 
     # Training control
-    patience: int = 7
+    patience: int = 20                # v7: was 7; longer to absorb field-f1 plateaus
     seed: int = 42
 
     # IO
