@@ -21,7 +21,7 @@ const CLASS_LABELS: Record<string, { tr: string; en: string }> = {
   yellow_leaf_curl_virus:  { tr: "Sarı Kıvrım Virüsü", en: "Yellow Curl Virus" },
 };
 
-export const PhotoPreview = ({ theme, photoUri, onCancel, onSend, localResult }: PhotoPreviewProps) => {
+export const PhotoPreview = ({ theme, photoUri, onCancel, onSend, localResult, leafBox }: PhotoPreviewProps) => {
   const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
   const { width } = Dimensions.get("window");
@@ -35,6 +35,19 @@ export const PhotoPreview = ({ theme, photoUri, onCancel, onSend, localResult }:
   const isHealthy = localResult?.className === "healthy";
   const dotColor = !hasLocalResult ? theme.textSecondary : isHealthy ? (theme.success ?? "#22C55E") : (theme.danger ?? theme.primary);
 
+  // Yaprak tespit kutusu (debug overlay) — normalized [0,1] live frame koordinatlari.
+  // Foto karesi (1:1) ile live frame (16:9 portrait) FOV'lari farkli oldugu icin
+  // bu overlay yaklasik konumdadir; gercek kullanim icin kalibre edilmesi gerekebilir.
+  const leafBoxStyle = leafBox
+    ? {
+        left: leafBox.xmin * imgSize,
+        top: leafBox.ymin * imgSize,
+        width: (leafBox.xmax - leafBox.xmin) * imgSize,
+        height: (leafBox.ymax - leafBox.ymin) * imgSize,
+      }
+    : null;
+  const leafScorePct = leafBox ? Math.round(leafBox.score * 100) : 0;
+
   return (
     <View style={styles.fill}>
       {/* Üst kapat butonu */}
@@ -46,13 +59,42 @@ export const PhotoPreview = ({ theme, photoUri, onCancel, onSend, localResult }:
         <Ionicons name="close" size={26} color="#fff" />
       </TouchableOpacity>
 
-      {/* Merkezde fotoğraf */}
+      {/* Merkezde fotoğraf + opsiyonel yaprak tespiti maskesi */}
       <View style={styles.center}>
-        <Image
-          source={{ uri: photoUri }}
-          style={{ width: imgSize, height: imgSize, borderRadius: 16 }}
-          resizeMode="cover"
-        />
+        <View style={{ width: imgSize, height: imgSize }}>
+          <Image
+            source={{ uri: photoUri }}
+            style={{ width: imgSize, height: imgSize, borderRadius: 16 }}
+            resizeMode="cover"
+          />
+          {leafBoxStyle && (
+            <>
+              {/* Yaprak kutusu — kalin canli yesil cerceve */}
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.leafBox,
+                  leafBoxStyle,
+                  { borderColor: theme.success ?? "#22C55E" },
+                ]}
+              />
+              {/* Skor etiketi — kutunun sol-ust kosesinde */}
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.leafScore,
+                  {
+                    left: leafBoxStyle.left,
+                    top: Math.max(0, leafBoxStyle.top - 22),
+                    backgroundColor: theme.success ?? "#22C55E",
+                  },
+                ]}
+              >
+                <Text style={styles.leafScoreText}>leaf {leafScorePct}%</Text>
+              </View>
+            </>
+          )}
+        </View>
       </View>
 
       {/* Alt aksiyon karti */}
@@ -152,5 +194,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  leafBox: {
+    position: "absolute",
+    borderWidth: 3,
+    borderRadius: 4,
+    backgroundColor: "transparent",
+  },
+  leafScore: {
+    position: "absolute",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  leafScoreText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
 });

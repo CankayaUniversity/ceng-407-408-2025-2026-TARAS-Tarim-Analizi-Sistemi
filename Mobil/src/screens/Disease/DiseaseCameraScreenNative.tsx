@@ -23,6 +23,8 @@ import { useLiveScan } from "../../hooks/useLiveScan";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
+import { loadLeafToggle, saveLeafToggle } from "../../utils/diseaseInference";
+import type { LeafBox } from "../../utils/leafDetection";
 import { vs, ms, s } from "../../utils/responsive";
 
 const HINT_AUTOHIDE_MS = 3000;
@@ -48,13 +50,53 @@ export const DiseaseCameraScreenNative = ({
   const [pendingLocalResult, setPendingLocalResult] = useState<LocalInferenceResult | null>(null);
   const [showHint, setShowHint] = useState(true);
 
+  // Yaprak cascade toggle — DEFAULT OFF (model henuz hazir degil; sema yanlissa
+  // useLiveScan yuklemede null doner ve toggle otomatik OFF'a kayar).
+  // Persist via AsyncStorage; load once on mount.
+  const [useLeafDetection, setUseLeafDetection] = useState(false);
+  const [pendingLeafBox, setPendingLeafBox] = useState<LeafBox | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadLeafToggle().then((on) => {
+      if (!cancelled) setUseLeafDetection(on);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const livePauseRef = useSharedValue(false);
 
   const liveScanActive = isActive && hasCameraPermission && liveMode && !isPreview;
-  const { liveResult, modelLoading, frameProcessor, inferenceMs, currentIntervalMs, waitForInflightDrained } = useLiveScan(
-    liveScanActive,
-    livePauseRef,
-  );
+  const {
+    liveResult,
+    modelLoading,
+    frameProcessor,
+    inferenceMs,
+    currentIntervalMs,
+    waitForInflightDrained,
+    leafCascadeActive,
+  } = useLiveScan(liveScanActive, livePauseRef, useLeafDetection);
+
+  // Yaprak modeli yuklenemediyse toggle JS state'inde de OFF'a doner
+  // (hook AsyncStorage'i guncelledi, biz UI state'ini hizalayalim).
+  useEffect(() => {
+    if (useLeafDetection && !leafCascadeActive && !modelLoading) {
+      // Hook null donduyse useLeafShared.value zaten false; toast goster ve UI'i guncelle
+      const timer = setTimeout(() => {
+        showPopup("Leaf detector unavailable");
+        setUseLeafDetection(false);
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useLeafDetection, leafCascadeActive, modelLoading]);
+
+  const handleToggleLeafDetection = () => {
+    const next = !useLeafDetection;
+    setUseLeafDetection(next);
+    saveLeafToggle(next);
+  };
 
   // Ipucu 3 saniye sonra kaybolsun
   useEffect(() => {
@@ -151,6 +193,12 @@ export const DiseaseCameraScreenNative = ({
     if (liveMode && liveResult?.status === "confident") {
       setPendingLocalResult(liveResult);
     }
+    // Yaprak cascade aktifse ve son live frame'de kutu varsa preview'da maskeyi goster
+    if (liveMode && useLeafDetection && leafCascadeActive && liveResult?.leafBox) {
+      setPendingLeafBox(liveResult.leafBox);
+    } else {
+      setPendingLeafBox(null);
+    }
     setIsPreview(true);
     setFlashOn(false);
     setIsPreparingImage(false);
@@ -183,6 +231,7 @@ export const DiseaseCameraScreenNative = ({
     setPhotoUri(null);
     setIsPreview(false);
     setPendingLocalResult(null);
+    setPendingLeafBox(null);
   };
 
   // ── Permission ekrani ────────────────────────────────────────────────
@@ -223,6 +272,7 @@ export const DiseaseCameraScreenNative = ({
         onCancel={handleCancelPreview}
         onSend={handleSend}
         localResult={pendingLocalResult}
+        leafBox={pendingLeafBox}
       />
     );
   }
@@ -242,9 +292,32 @@ export const DiseaseCameraScreenNative = ({
 
       {/* Üst bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + vs(8), paddingBottom: vs(10) }]}>
-        <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.iconBtn}>
-          <Ionicons name="close" size={26} color="#fff" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.iconBtn}>
+            <Ionicons name="close" size={26} color="#fff" />
+          </TouchableOpacity>
+          {/* Yaprak cascade toggle (debug) — default OFF, model hazirlandiginda aktif olur */}
+          <TouchableOpacity
+            onPress={handleToggleLeafDetection}
+            hitSlop={10}
+            style={[
+              styles.iconBtn,
+              useLeafDetection && leafCascadeActive && { backgroundColor: theme.primary + "40" },
+            ]}
+          >
+            <Ionicons
+              name={useLeafDetection ? "leaf" : "leaf-outline"}
+              size={20}
+              color={
+                useLeafDetection
+                  ? leafCascadeActive
+                    ? theme.primary ?? "#22C55E"
+                    : "#F59E0B"
+                  : "#fff"
+              }
+            />
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.segmented}>
           <Pressable

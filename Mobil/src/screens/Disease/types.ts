@@ -1,6 +1,7 @@
 import { Theme } from "../../types";
 import type { LocalInferenceResult } from "../../utils/diseaseInference";
-export type { LocalInferenceResult };
+import type { LeafBox } from "../../utils/leafDetection";
+export type { LocalInferenceResult, LeafBox };
 
 export interface DiseaseScreenProps {
   theme: Theme;
@@ -17,4 +18,6 @@ export interface PhotoPreviewProps {
   onCancel: () => void;
   onSend: () => void;
   localResult?: LocalInferenceResult | null;
+  /** Yaprak cascade aktifken son live frame'de tespit edilen kutu (debug overlay) */
+  leafBox?: LeafBox | null;
 }
