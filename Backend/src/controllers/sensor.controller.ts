@@ -50,10 +50,12 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
       farm.fields.flatMap((field) =>
         field.zones.map((zone) => ({
           zone_id: zone.zone_id,
-          name: zone.name,
-          soil_type: zone.soil_type,
+          zone_name: zone.name,
+          field_id: field.field_id,
           field_name: field.name,
+          farm_id: farm.farm_id,
           farm_name: farm.name,
+          soil_type: zone.soil_type,
           sensor_count: zone.sensor_nodes.length,
           active_sensors: zone.sensor_nodes.filter((s) => s.status === 'ACTIVE').length,
           sensors: zone.sensor_nodes,
