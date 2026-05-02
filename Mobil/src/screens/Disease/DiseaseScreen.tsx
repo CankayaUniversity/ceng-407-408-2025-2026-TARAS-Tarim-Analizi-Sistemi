@@ -16,10 +16,13 @@ import { BlurView } from "expo-blur";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Theme } from "../../utils/theme";
-import { diseaseAPI, DiseaseDetection } from "../../utils/api";
+import { diseaseAPI, DiseaseDetection, type DiseaseTrackingFolder } from "../../utils/api";
 import { IS_EXPO_GO } from "../../utils/runtimeEnv";
 import { DiseaseResultCard } from "./DiseaseResultCard";
 import { DiseaseCameraScreen } from "./DiseaseCameraScreen";
+import { FolderCard } from "./FolderCard";
+import { CreateFolderModal } from "./CreateFolderModal";
+import { FolderDetailScreen } from "./FolderDetailScreen";
 import { DiseaseScreenProps } from "./types";
 import { spacing } from "../../utils/responsive";
 import { s, vs } from "../../utils/responsive";
@@ -50,6 +53,16 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   const [refreshing, setRefreshing] = useState(false);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
 
+  // ── Folder state ─────────────────────────────────────────────────────────
+  const [folders, setFolders] = useState<DiseaseTrackingFolder[]>([]);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+  const [showCreateFolder, setShowCreateFolder] = useState(false);
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null);
+  const [generalExpanded, setGeneralExpanded] = useState(true);
+  // Kamera acildiginda (folder detail FAB'den) hangi folder'a baglanmali
+  const [cameraFolderContext, setCameraFolderContext] =
+    useState<{ folderId: string; folderName: string } | null>(null);
+
   // Modeli arka planda yukle — kullanici Live mode'a gectiginde hazir olur
   // Singleton oldugu icin useLiveScan ikinci yukleme baslatmaz
   // Expo Go: fast-tflite native modulu yok — diseaseInference.ts'i hic load etme,
@@ -77,6 +90,23 @@ export const DiseaseScreen = memo(function DiseaseScreen({
     })();
   }, []);
 
+  const fetchFolders = async () => {
+    if (pollCancelledRef.current) return;
+    setLoadingFolders(true);
+    try {
+      const res = await diseaseAPI.getFolders();
+      if (pollCancelledRef.current) return;
+      if (res.success && res.data) {
+        setFolders(res.data);
+      }
+    } catch {
+      // Sessiz — folders yoksa screen yine kullanilabilir; sadece loglayalim
+      console.log("[DISEASE] folders fetch failed");
+    } finally {
+      if (!pollCancelledRef.current) setLoadingFolders(false);
+    }
+  };
+
   const fetchDetections = async (isRefresh = false) => {
     if (pollCancelledRef.current) return;
     if (isRefresh) {
@@ -84,6 +114,9 @@ export const DiseaseScreen = memo(function DiseaseScreen({
     } else {
       setLoading(true);
     }
+
+    // Folders'i paralel cek — bekleme zinciri yok
+    fetchFolders();
 
     try {
       const response = await diseaseAPI.getAllDetections();
@@ -122,6 +155,11 @@ export const DiseaseScreen = memo(function DiseaseScreen({
     }
   };
 
+  // Sadece folder list'i yenile (folder olusturulduktan/pasiflestirildikten sonra)
+  const refreshFoldersOnly = () => {
+    fetchFolders();
+  };
+
   useScreenReset(isActive, {
     onActivate: () => {
       // Sadece veri yoksa fetch yap - mevcut veri korunur
@@ -138,10 +176,10 @@ export const DiseaseScreen = memo(function DiseaseScreen({
     },
   });
 
-  const handleSendForAnalysis = async (imageUri: string) => {
+  const handleSendForAnalysis = async (imageUri: string, folderId?: string | null) => {
     try {
-      // Submit the image
-      const response = await diseaseAPI.submitDetection(imageUri);
+      // Submit the image — folderId set ise klasore baglanir, yoksa general detection
+      const response = await diseaseAPI.submitDetection(imageUri, folderId ?? null);
       if (!response.success || !response.data) {
         showPopup(response.error || t.disease.errorSendingImage);
         return;
@@ -152,12 +190,45 @@ export const DiseaseScreen = memo(function DiseaseScreen({
       // Show success message and close camera
       showPopup(t.disease.sentForAnalysis);
       setShowCamera(false);
+      // Folder context'i temizle — bir sonraki kamera "general" baslar
+      setCameraFolderContext(null);
 
       // Start polling for results in the background
       pollForResults(detectionId);
     } catch (error) {
       showPopup(t.disease.errorGeneric);
     }
+  };
+
+  // ── Folder handlers ──────────────────────────────────────────────────────
+  const handleOpenFolder = (folderId: string) => {
+    setOpenFolderId(folderId);
+  };
+
+  const handleCloseFolder = () => {
+    setOpenFolderId(null);
+  };
+
+  const handleFolderCreated = (folder: DiseaseTrackingFolder) => {
+    setFolders((prev) => [folder, ...prev]);
+    // Yeni klasore otomatik gir — kullanici hemen foto cekebilsin
+    setOpenFolderId(folder.folderId);
+  };
+
+  const handleFolderDeactivated = (folderId: string) => {
+    // is_active=true filter backend'de — listeyi yeniden cek
+    setFolders((prev) => prev.filter((f) => f.folderId !== folderId));
+  };
+
+  const handleAddPhotoFromFolder = (folderId: string, folderName: string) => {
+    setCameraFolderContext({ folderId, folderName });
+    setOpenFolderId(null); // detail'i kapat
+    setShowCamera(true);
+  };
+
+  const handleOpenGeneralCamera = () => {
+    setCameraFolderContext(null);
+    setShowCamera(true);
   };
 
   const pollForResults = async (detectionId: string) => {
@@ -240,13 +311,118 @@ export const DiseaseScreen = memo(function DiseaseScreen({
               />
             }
           >
+            {/* ── FOLDERS SECTION ───────────────────────────────── */}
+            <View style={{ marginBottom: spacing.md }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: vs(8),
+                }}
+              >
+                <Text
+                  style={{
+                    color: theme.textSecondary,
+                    fontSize: 11,
+                    fontWeight: "700",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {t.disease.foldersSectionTitle} {folders.length > 0 ? `(${folders.length})` : ""}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowCreateFolder(true)}
+                  hitSlop={8}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    backgroundColor: theme.primary + "15",
+                    borderWidth: 1,
+                    borderColor: theme.primary + "35",
+                  }}
+                >
+                  <Ionicons name="add" size={14} color={theme.primary} />
+                  <Text style={{ color: theme.primary, fontSize: 12, fontWeight: "700" }}>
+                    {t.disease.folderCreateButton}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {loadingFolders && folders.length === 0 ? (
+                <View style={{ paddingVertical: vs(16), alignItems: "center" }}>
+                  <ActivityIndicator size="small" color={theme.primary} />
+                </View>
+              ) : folders.length === 0 ? (
+                <View
+                  style={{
+                    padding: spacing.md,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: theme.primary + "20",
+                    backgroundColor: theme.surface,
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Ionicons name="folder-open-outline" size={28} color={theme.textSecondary} />
+                  <Text style={{ color: theme.textSecondary, fontSize: 13, textAlign: "center" }}>
+                    {t.disease.foldersEmpty}
+                  </Text>
+                </View>
+              ) : (
+                folders.map((f) => (
+                  <FolderCard
+                    key={f.folderId}
+                    folder={f}
+                    theme={theme}
+                    onPress={() => handleOpenFolder(f.folderId)}
+                  />
+                ))
+              )}
+            </View>
+
+            {/* ── GENERAL DETECTIONS SECTION ────────────────────── */}
+            <TouchableOpacity
+              onPress={() => setGeneralExpanded((v) => !v)}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: vs(8),
+              }}
+            >
+              <Text
+                style={{
+                  color: theme.textSecondary,
+                  fontSize: 11,
+                  fontWeight: "700",
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                {t.disease.generalSectionTitle} {detections.length > 0 ? `(${detections.length})` : ""}
+              </Text>
+              <Ionicons
+                name={generalExpanded ? "chevron-up" : "chevron-down"}
+                size={18}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
+
             <FocusableSection
               id="detectionList"
               screen="disease"
               theme={theme}
               scrollViewRef={scrollViewRef}
             >
-              {detections.length === 0 ? (
+              {!generalExpanded ? null : detections.length === 0 ? (
                 <View className="flex-1 center">
                   <Ionicons
                     name="leaf-outline"
@@ -292,7 +468,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
               scrollMode="pulse-only"
             >
               <TouchableOpacity
-                onPress={() => setShowCamera(true)}
+                onPress={handleOpenGeneralCamera}
                 activeOpacity={0.85}
                 style={{
                   width: s(48),
@@ -507,11 +683,14 @@ export const DiseaseScreen = memo(function DiseaseScreen({
         </BlurView>
       </Modal>
 
-      {/* Kamera — fullscreen takeover modal */}
+      {/* Kamera — fullscreen takeover modal (folder context opsiyonel) */}
       <Modal
         visible={showCamera}
         animationType="slide"
-        onRequestClose={() => setShowCamera(false)}
+        onRequestClose={() => {
+          setShowCamera(false);
+          setCameraFolderContext(null);
+        }}
         statusBarTranslucent
         presentationStyle="fullScreen"
         transparent={false}
@@ -523,9 +702,53 @@ export const DiseaseScreen = memo(function DiseaseScreen({
             onRequestPermission={onRequestPermission}
             onSendForAnalysis={handleSendForAnalysis}
             isActive={showCamera && isActive}
-            onClose={() => setShowCamera(false)}
+            onClose={() => {
+              setShowCamera(false);
+              setCameraFolderContext(null);
+            }}
+            folderContext={cameraFolderContext}
           />
         </SafeAreaProvider>
+      </Modal>
+
+      {/* Folder olusturma modali */}
+      <CreateFolderModal
+        visible={showCreateFolder}
+        theme={theme}
+        onClose={() => setShowCreateFolder(false)}
+        onCreated={(folder) => {
+          handleFolderCreated(folder);
+          // Folders endpoint'i fresh state ile cek (lastDetectionAt vs)
+          refreshFoldersOnly();
+        }}
+      />
+
+      {/* Folder detay ekrani — fullscreen modal */}
+      <Modal
+        visible={openFolderId !== null}
+        animationType="slide"
+        onRequestClose={handleCloseFolder}
+        presentationStyle="fullScreen"
+      >
+        {openFolderId && (
+          <SafeAreaProvider>
+            <FolderDetailScreen
+              folderId={openFolderId}
+              theme={theme}
+              onClose={handleCloseFolder}
+              onDeactivated={(id) => {
+                handleFolderDeactivated(id);
+                refreshFoldersOnly();
+              }}
+              onAddPhoto={handleAddPhotoFromFolder}
+              onDetectionPress={(d) => {
+                // Folder detection -> normal detail modal'a goster
+                // FolderDetectionDetail seti subset of DiseaseDetection — cast guvenli
+                setSelectedDetection(d as unknown as DiseaseDetection);
+              }}
+            />
+          </SafeAreaProvider>
+        )}
       </Modal>
     </View>
   );

@@ -36,10 +36,18 @@ export const DiseaseCameraScreenNative = ({
   onSendForAnalysis,
   isActive = true,
   onClose,
+  folderContext,
 }: DiseaseScreenProps) => {
   const { showPopup } = usePopupMessage();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+
+  // folderContext set ise photo submit'i bu folder'a baglar
+  // Kullanici banner'daki X ile mid-capture detach edebilir
+  const [activeFolderContext, setActiveFolderContext] = useState(folderContext ?? null);
+  useEffect(() => {
+    setActiveFolderContext(folderContext ?? null);
+  }, [folderContext]);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isPreview, setIsPreview] = useState(false);
@@ -217,7 +225,8 @@ export const DiseaseCameraScreenNative = ({
       {
         text: t.common.yes,
         onPress: () => {
-          if (onSendForAnalysis) onSendForAnalysis(photoUri);
+          // folderId varsa parent submit'i bu klasore baglar; yoksa general
+          if (onSendForAnalysis) onSendForAnalysis(photoUri, activeFolderContext?.folderId ?? null);
           else showPopup(t.camera.sentSuccess);
           setPhotoUri(null);
           setIsPreview(false);
@@ -290,8 +299,31 @@ export const DiseaseCameraScreenNative = ({
         showHint={showHint}
       />
 
+      {/* Folder context banner — kullanici hangi klasore foto cektiklerini hep gorsun */}
+      {activeFolderContext && (
+        <View
+          style={[
+            styles.folderBanner,
+            { paddingTop: insets.top + vs(8), backgroundColor: theme.primary + "E0" },
+          ]}
+        >
+          <Ionicons name="folder" size={16} color="#fff" />
+          <Text style={styles.folderBannerLabel}>{t.disease.folderCameraAddingTo}</Text>
+          <Text style={styles.folderBannerName} numberOfLines={1}>
+            {activeFolderContext.folderName}
+          </Text>
+          <TouchableOpacity
+            onPress={() => setActiveFolderContext(null)}
+            hitSlop={10}
+            style={styles.folderBannerClose}
+          >
+            <Ionicons name="close" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Üst bar */}
-      <View style={[styles.topBar, { paddingTop: insets.top + vs(8), paddingBottom: vs(10) }]}>
+      <View style={[styles.topBar, activeFolderContext ? { paddingTop: vs(8), paddingBottom: vs(10) } : { paddingTop: insets.top + vs(8), paddingBottom: vs(10) }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.iconBtn}>
             <Ionicons name="close" size={26} color="#fff" />
@@ -488,5 +520,31 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: "#fff",
+  },
+  folderBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  folderBannerLabel: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  folderBannerName: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+  folderBannerClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
   },
 });

@@ -53,10 +53,12 @@ interface SensorReading {
   et0_instant: number | null;
 }
 
-interface Zone {
+export interface Zone {
   zone_id: string;
   zone_name: string;
+  field_id: string;
   field_name: string;
+  farm_id?: string;
   farm_name: string;
 }
 
@@ -762,10 +764,90 @@ export interface ImageUrlResponse {
   expiresAt: string;
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// Hastalik takip klasorleri
+// ───────────────────────────────────────────────────────────────────────────
+
+/** DiseaseTarget enum (schema: ML/configs/label_map.py + UNCERTAIN + OTHER). */
+export type DiseaseTarget = DiseaseCorrection;
+
+/** Klasor icindeki bir tespit (full/list shape — backend service response). */
+export interface FolderDetectionSummary {
+  detection_id: string;
+  image_uuid: string;
+  status: DetectionStatus;
+  uploaded_at: string;
+  completed_at: string | null;
+  detected_disease: string | null;
+  confidence: number | null;
+  confidence_score: number | null;
+  error_message: string | null;
+  imageUrl: string | null;
+}
+
+/** Detail varyantta ek alanlar (allPredictions + recommendations). */
+export interface FolderDetectionDetail extends FolderDetectionSummary {
+  all_predictions?: Record<string, number> | null;
+  recommendations?: string[] | null;
+}
+
+/** Klasore bagli planting bilgisi (response icinde nested). */
+export interface FolderPlantingInfo {
+  plantingId: string;
+  isActive: boolean;
+  plantingDate: string;
+  growthStage: string | null;
+  cropName: string | null;
+  zoneId: string | null;
+  zoneName: string | null;
+}
+
+/** Klasor list/detail response shape — backend service'den gelir. */
+export interface DiseaseTrackingFolder {
+  folderId: string;
+  name: string;
+  isActive: boolean;
+  targetDisease: DiseaseTarget;
+  lastDetectionAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  planting: FolderPlantingInfo;
+  detections: FolderDetectionSummary[];
+}
+
+/** Detail endpoint detail-shape detections donsun diye ayri tip. */
+export interface DiseaseTrackingFolderDetail
+  extends Omit<DiseaseTrackingFolder, "detections"> {
+  detections: FolderDetectionDetail[];
+}
+
+/** /folders/:id/history slim response. */
+export interface DiseaseTrackingFolderHistory {
+  folderId: string;
+  name: string;
+  isActive: boolean;
+  targetDisease: DiseaseTarget;
+  planting: Pick<
+    FolderPlantingInfo,
+    "plantingId" | "isActive" | "cropName" | "zoneId" | "zoneName"
+  >;
+  history: Array<{
+    detectionId: string;
+    uploadedAt: string;
+    completedAt: string | null;
+    disease: string | null;
+    confidence: number | null;
+    confidenceScore: number | null;
+    allPredictions: Record<string, number> | null;
+    recommendations: string[] | null;
+  }>;
+}
+
 // Hastalik tespit API
 export const diseaseAPI = {
   async submitDetection(
     imageUri: string,
+    folderId?: string | null,
   ): Promise<ApiResponse<SubmitDetectionResponse>> {
     const token = await secureGet(TOKEN_KEY);
     if (!token) return { success: false, error: "Oturum bulunamadı" };
@@ -777,8 +859,12 @@ export const diseaseAPI = {
         type: "image/jpeg",
         name: "leaf.jpg",
       } as any);
+      // Folder context (opsiyonel) — set edilirse detection bu klasore baglanir
+      if (folderId) {
+        formData.append("folderId", folderId);
+      }
 
-      console.log("[DISEASE] submit");
+      console.log("[DISEASE] submit", folderId ? `folder=${folderId.slice(0, 8)}` : "(general)");
       const res = await fetchWithTimeout(
         `${API_BASE_URL}/disease/submit`,
         {
@@ -801,6 +887,43 @@ export const diseaseAPI = {
       console.log("[DISEASE] submit err:", error);
       return { success: false, error: "Görsel gönderilemedi" };
     }
+  },
+
+  // ── Klasor (folder) endpoints ──────────────────────────────────────────
+
+  async createFolder(
+    zoneId: string,
+    name: string,
+  ): Promise<ApiResponse<DiseaseTrackingFolder>> {
+    return authFetch("/disease/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ zoneId, name }),
+    });
+  },
+
+  async getFolders(): Promise<ApiResponse<DiseaseTrackingFolder[]>> {
+    return authFetch("/disease/folders");
+  },
+
+  async getFolderDetail(
+    folderId: string,
+  ): Promise<ApiResponse<DiseaseTrackingFolderDetail>> {
+    return authFetch(`/disease/folders/${folderId}`);
+  },
+
+  async getFolderHistory(
+    folderId: string,
+  ): Promise<ApiResponse<DiseaseTrackingFolderHistory>> {
+    return authFetch(`/disease/folders/${folderId}/history`);
+  },
+
+  async deactivateFolder(
+    folderId: string,
+  ): Promise<ApiResponse<{ message: string }>> {
+    return authFetch(`/disease/folders/${folderId}/deactivate`, {
+      method: "PATCH",
+    });
   },
 
   async getDetectionStatus(

@@ -25,6 +25,7 @@ export const DiseaseCameraScreenExpoGo = ({
   theme,
   onSendForAnalysis,
   onClose,
+  folderContext,
 }: DiseaseScreenProps) => {
   const { showPopup } = usePopupMessage();
   const { t, language } = useLanguage();
@@ -105,7 +106,7 @@ export const DiseaseCameraScreenExpoGo = ({
       {
         text: t.common.yes,
         onPress: () => {
-          if (onSendForAnalysis) onSendForAnalysis(photoUri);
+          if (onSendForAnalysis) onSendForAnalysis(photoUri, folderContext?.folderId ?? null);
           else showPopup(t.camera.sentSuccess);
           setPhotoUri(null);
           setIsPreview(false);

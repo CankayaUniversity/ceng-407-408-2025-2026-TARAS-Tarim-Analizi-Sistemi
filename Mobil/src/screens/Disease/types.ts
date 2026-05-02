@@ -7,9 +7,11 @@ export interface DiseaseScreenProps {
   theme: Theme;
   hasCameraPermission: boolean;
   onRequestPermission: () => Promise<boolean>;
-  onSendForAnalysis?: (uri: string) => void;
+  onSendForAnalysis?: (uri: string, folderId?: string | null) => void;
   isActive?: boolean;
   onClose?: () => void;
+  /** Kamera folder modunda acildiysa; null = general detection */
+  folderContext?: { folderId: string; folderName: string } | null;
 }
 
 export interface PhotoPreviewProps {

@@ -125,6 +125,40 @@ export interface StringDictionary {
     correctionSpiderMites: string;
     correctionTargetSpot: string;
     correctionYellowLeafCurlVirus: string;
+    // ── Klasor (folder) ekranlari ──
+    foldersSectionTitle: string;
+    foldersEmpty: string;
+    generalSectionTitle: string;
+    folderCreateButton: string;
+    folderCreateTitle: string;
+    folderCreateHelper: string;
+    folderCreateZoneLabel: string;
+    folderCreateZoneLoadError: string;
+    folderCreateNoZones: string;
+    folderCreateNameLabel: string;
+    folderCreateNamePlaceholder: string;
+    folderCreateNamePlaceholderEmpty: string;
+    folderCreateConfirm: string;
+    folderCreatePickZone: string;
+    folderCreateNameRequired: string;
+    folderCreateSuccess: string;
+    folderCreateDuplicateName: string;
+    folderCreateNoActivePlanting: string;
+    folderCreateGenericError: string;
+    folderPhotoSingular: string;
+    folderPhotoPlural: string;
+    folderDetailLoadError: string;
+    folderDetailTarget: string;
+    folderDetailStarted: string;
+    folderDetailTimeline: string;
+    folderDetailEmpty: string;
+    folderDeactivateTitle: string;
+    folderDeactivateConfirmation: string;
+    folderDeactivateConfirm: string;
+    folderDeactivateSuccess: string;
+    folderDeactivateError: string;
+    folderAddPhotoTo: string;
+    folderCameraAddingTo: string;
   };
 
   // Camera Screen
@@ -535,6 +569,39 @@ const tr: StringDictionary = {
     correctionSpiderMites: "Kırmızı örümcek",
     correctionTargetSpot: "Hedef leke",
     correctionYellowLeafCurlVirus: "Sarı yaprak kıvırcık virüsü",
+    foldersSectionTitle: "Takip Klasörleri",
+    foldersEmpty: "Henüz aktif klasör yok. Bir hastalığı zamanla takip etmek için klasör oluşturun.",
+    generalSectionTitle: "Genel Tespitler",
+    folderCreateButton: "Yeni",
+    folderCreateTitle: "Takip Klasörü Oluştur",
+    folderCreateHelper: "Bir bölge seçin — sistem o bölgenin aktif ekimini bulup klasör oluşturur.",
+    folderCreateZoneLabel: "Bölge",
+    folderCreateZoneLoadError: "Bölgeler yüklenemedi.",
+    folderCreateNoZones: "Hiç bölge bulunamadı. Önce çiftlik / tarla / bölge yapınızı kurun.",
+    folderCreateNameLabel: "Klasör Adı",
+    folderCreateNamePlaceholder: "örn. Domates erken yanıklık takibi",
+    folderCreateNamePlaceholderEmpty: "Önce bir bölge seçin",
+    folderCreateConfirm: "Klasörü Oluştur",
+    folderCreatePickZone: "Lütfen önce bir bölge seçin.",
+    folderCreateNameRequired: "Klasör adı zorunlu.",
+    folderCreateSuccess: "Klasör oluşturuldu.",
+    folderCreateDuplicateName: "Bu bölgenin aktif ekiminde aynı isimli bir klasör zaten var.",
+    folderCreateNoActivePlanting: "Bu bölgede aktif bir ekim yok.",
+    folderCreateGenericError: "Klasör oluşturulamadı.",
+    folderPhotoSingular: "fotoğraf",
+    folderPhotoPlural: "fotoğraf",
+    folderDetailLoadError: "Klasör yüklenemedi.",
+    folderDetailTarget: "Hedef",
+    folderDetailStarted: "Başlangıç:",
+    folderDetailTimeline: "Zaman Çizelgesi",
+    folderDetailEmpty: "Henüz fotoğraf yok.",
+    folderDeactivateTitle: "Klasörü Arşivle?",
+    folderDeactivateConfirmation: "{name} arşivlenecek. Fotoğraflar ve tespitler korunur.",
+    folderDeactivateConfirm: "Arşivle",
+    folderDeactivateSuccess: "Klasör arşivlendi.",
+    folderDeactivateError: "Klasör arşivlenemedi.",
+    folderAddPhotoTo: "Klasöre fotoğraf ekle:",
+    folderCameraAddingTo: "Eklenecek klasör:",
   },
 
   camera: {
@@ -937,6 +1004,39 @@ const en: StringDictionary = {
     correctionSpiderMites: "Spider mites",
     correctionTargetSpot: "Target spot",
     correctionYellowLeafCurlVirus: "Yellow leaf curl virus",
+    foldersSectionTitle: "Tracking Folders",
+    foldersEmpty: "No active folders yet. Create one to track a disease over time.",
+    generalSectionTitle: "General Detections",
+    folderCreateButton: "New",
+    folderCreateTitle: "Create Tracking Folder",
+    folderCreateHelper: "Pick a zone — we'll find its active planting and create a folder to track a disease over time.",
+    folderCreateZoneLabel: "Zone",
+    folderCreateZoneLoadError: "Failed to load zones.",
+    folderCreateNoZones: "No zones found. Set up your farm / field / zone structure first.",
+    folderCreateNameLabel: "Folder Name",
+    folderCreateNamePlaceholder: "e.g. Tomato early blight watch",
+    folderCreateNamePlaceholderEmpty: "Pick a zone first",
+    folderCreateConfirm: "Create Folder",
+    folderCreatePickZone: "Please pick a zone first.",
+    folderCreateNameRequired: "Folder name is required.",
+    folderCreateSuccess: "Folder created.",
+    folderCreateDuplicateName: "A folder with this name already exists for this zone's planting.",
+    folderCreateNoActivePlanting: "This zone has no active planting.",
+    folderCreateGenericError: "Could not create folder.",
+    folderPhotoSingular: "photo",
+    folderPhotoPlural: "photos",
+    folderDetailLoadError: "Could not load folder.",
+    folderDetailTarget: "Target",
+    folderDetailStarted: "Started",
+    folderDetailTimeline: "Timeline",
+    folderDetailEmpty: "No photos yet.",
+    folderDeactivateTitle: "Archive Folder?",
+    folderDeactivateConfirmation: "{name} will be archived. Photos and detections are preserved.",
+    folderDeactivateConfirm: "Archive",
+    folderDeactivateSuccess: "Folder archived.",
+    folderDeactivateError: "Could not archive folder.",
+    folderAddPhotoTo: "Add photo to",
+    folderCameraAddingTo: "Adding to:",
   },
 
   camera: {
