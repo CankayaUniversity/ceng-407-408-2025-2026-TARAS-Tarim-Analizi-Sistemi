@@ -10,7 +10,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { BleManager, Device } from "react-native-ble-plx";
 import { Theme } from "../../types";
 import { useLanguage } from "../../context/LanguageContext";

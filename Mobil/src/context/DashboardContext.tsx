@@ -14,6 +14,8 @@ import {
   dashboardAPI,
   DashboardData,
   FieldSummary,
+  ERR_AUTH_EXPIRED,
+  ERR_UNAUTHENTICATED,
 } from "../utils/api";
 import { getDemoFields, generateDemoDashboardData } from "../utils/demoData";
 import { useAuth } from "./AuthContext";
@@ -32,57 +34,106 @@ interface DashboardContextValue {
 const DashboardContext = createContext<DashboardContextValue | null>(null);
 
 export const DashboardProvider = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthReady, isLoggedIn, dataSource } = useAuth();
+  const { isAuthReady, isLoggedIn, dataSource, handleLogout } = useAuth();
   const [fields, setFields] = useState<FieldSummary[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [fieldSelectorOpen, setFieldSelectorOpen] = useState(false);
 
+  // Auth hatalarini logout'a cevirir. Diger hatalarda mevcut datayi BOZMAZ —
+  // bir refresh basarisiz olursa user son bilinen iyi datayi gormeye devam eder
+  // (eskiden silently demo'ya dusuyordu, real ve demo veri karisiyordu).
   const loadDashboardForField = useCallback(
     async (fieldId: string, isDemo: boolean) => {
-      try {
-        if (isDemo) {
-          setDashboardData(generateDemoDashboardData(fieldId));
-        } else {
-          const data = await dashboardAPI.getFieldDashboard(fieldId);
-          setDashboardData(data);
-        }
-      } catch {
+      if (isDemo) {
         setDashboardData(generateDemoDashboardData(fieldId));
+        return;
+      }
+      try {
+        const data = await dashboardAPI.getFieldDashboard(fieldId);
+        setDashboardData(data);
+      } catch (err: any) {
+        const msg = err?.message ?? "";
+        if (msg === ERR_AUTH_EXPIRED || msg === ERR_UNAUTHENTICATED) {
+          console.log("[DASHBOARD] auth expired, logout");
+          await handleLogout();
+          return;
+        }
+        console.log("[DASHBOARD] load fail:", msg);
+        // Network hatasi: stale datayi koru. Initial load'sa zaten null kalir,
+        // UI spinner gosterir. Mid-session hatasi olursa son data kalir.
       }
     },
-    [],
+    [handleLogout],
   );
 
-  // isLoggedIn / dataSource degisince veri yukle
+  // isLoggedIn / dataSource degisince veri yukle. Mode gecisinde stale datayi
+  // (eski user'in datasi, demo'dan kalan, vb.) anlik olarak temizleriz —
+  // boylece HomeScreen UI bir an icin yanlis polygon goremez.
   useEffect(() => {
     if (!isAuthReady) return;
+
+    let cancelled = false;
     (async () => {
+      if (dataSource === "demo") {
+        // Demo modu: explicit demo (skip-login veya demo user). Demo data dogru.
+        const demoFields = getDemoFields();
+        if (cancelled) return;
+        setFields(demoFields);
+        if (demoFields.length > 0) {
+          setSelectedFieldId(demoFields[0].id);
+          await loadDashboardForField(demoFields[0].id, true);
+        } else {
+          setSelectedFieldId(null);
+          setDashboardData(null);
+        }
+        return;
+      }
+
       if (isLoggedIn && dataSource === "aws") {
+        // Gercek user: ASLA demo'ya dusme. Yeni state'i fetch'ten once
+        // temizle ki "demo polygon → real polygon" gecisi olmasin.
+        setFields([]);
+        setSelectedFieldId(null);
+        setDashboardData(null);
         try {
           const fieldsData = await dashboardAPI.getFields();
+          if (cancelled) return;
           if (fieldsData && fieldsData.length > 0) {
             setFields(fieldsData);
             setSelectedFieldId(fieldsData[0].id);
             await loadDashboardForField(fieldsData[0].id, false);
+          }
+          // 0 field: kullanicinin tarlasi yok — fields=[], data=null. UI spinner.
+        } catch (err: any) {
+          if (cancelled) return;
+          const msg = err?.message ?? "";
+          if (msg === ERR_AUTH_EXPIRED || msg === ERR_UNAUTHENTICATED) {
+            console.log("[DASHBOARD] init auth expired, logout");
+            await handleLogout();
             return;
           }
-        } catch {
-          // AWS basarisiz, demo'ya dus
+          console.log("[DASHBOARD] init fail:", msg);
+          // Network hatasi: state bos kalir, UI spinner gosterir, user
+          // pull-to-refresh ile yeniden deneyebilir.
         }
+        return;
       }
-      // Demo fallback (veya logged out)
-      const demoFields = getDemoFields();
-      setFields(demoFields);
-      if (demoFields.length > 0) {
-        setSelectedFieldId(demoFields[0].id);
-        await loadDashboardForField(demoFields[0].id, true);
-      }
-    })();
-  }, [isAuthReady, isLoggedIn, dataSource, loadDashboardForField]);
 
-  // AppState: foreground'a gelince AWS verilerini refresh et
+      // Logged out: state'i temizle (defensive)
+      setFields([]);
+      setSelectedFieldId(null);
+      setDashboardData(null);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthReady, isLoggedIn, dataSource, loadDashboardForField, handleLogout]);
+
+  // AppState: foreground'a gelince AWS verilerini refresh et. Hata olursa
+  // mevcut data korunur (loadDashboardForField icindeki defansif catch).
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active" && selectedFieldId && dataSource === "aws") {

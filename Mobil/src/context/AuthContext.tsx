@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { authAPI } from "../utils/api";
+import { authAPI, dashboardAPI } from "../utils/api";
 
 type DataSource = "aws" | "demo";
 
@@ -68,6 +68,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const handleLogout = useCallback(async () => {
     await authAPI.logout();
+    // Cache temizligi — sonraki user'in eski user'in dashboard verisini
+    // onbellekten gormesini onler
+    await dashboardAPI.clearCaches();
     setIsLoggedIn(false);
     setDataSource("demo");
     setUsername("");

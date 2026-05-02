@@ -2,7 +2,7 @@
 // Props: theme, data (sensor okumalari)
 
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SensorReading, TimetableScreenProps } from "./types";
 import { useState } from "react";
 import { useLanguage } from "../../context/LanguageContext";

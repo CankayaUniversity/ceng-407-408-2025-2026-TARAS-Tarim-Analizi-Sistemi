@@ -12,7 +12,7 @@ import {
   InteractionManager,
   Share,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { sensorAPI } from "../../utils/api";
 import { secureGet } from "../../utils/secureStorage";
 import { ErrorBoundary } from "../../components/ErrorBoundary";

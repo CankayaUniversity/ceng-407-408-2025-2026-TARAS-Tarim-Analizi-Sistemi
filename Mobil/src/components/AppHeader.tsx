@@ -3,7 +3,7 @@
 
 import React from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../context/ThemeContext";
 import { useDashboard } from "../context/DashboardContext";
 import { useLanguage } from "../context/LanguageContext";

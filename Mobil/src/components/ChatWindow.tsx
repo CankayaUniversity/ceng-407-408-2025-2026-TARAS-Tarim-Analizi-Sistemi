@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Markdown from "@ronradtke/react-native-markdown-display";
 import { ChatMessage, Theme } from "../types";
 import { ChatSessionSummary } from "../hooks/useChat";

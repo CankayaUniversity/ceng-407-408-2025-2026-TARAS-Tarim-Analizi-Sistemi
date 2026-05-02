@@ -142,17 +142,18 @@ export const HomeScreen = memo(({
     },
   });
 
-  const fieldData = dashboardData?.field ?? {
-    polygon: { exterior: [] },
-    nodes: [],
-  };
+  // Real field data only — placeholder yok. ColorPlane sadece valid polygon ile
+  // mount edilir ki snapshot bos/transient state'i yakalamasin (logged-in user
+  // briefly demo data goruyordu, snapshot demo polygonu yakaliyor ve sonsuza
+  // kadar yanlis poz kaliyordu).
+  const fieldData = dashboardData?.field;
 
   // Secili node'un indeksi — zone adi icin
   const nodeIndex = useMemo(() => {
-    if (!selectedNode || !fieldData.nodes.length) return 0;
+    if (!selectedNode || !fieldData?.nodes?.length) return 0;
     const idx = fieldData.nodes.findIndex((n) => n.id === selectedNode.id);
     return idx >= 0 ? idx : 0;
-  }, [selectedNode, fieldData.nodes]);
+  }, [selectedNode, fieldData?.nodes]);
 
   // Secili zone degistiginde veya detay ekranindan donuste sulama verilerini cek
   useEffect(() => {
@@ -242,41 +243,51 @@ export const HomeScreen = memo(({
           collapsable={false}
           removeClippedSubviews={false}
         >
-          <Safe3DCanvas
-            theme={theme}
-            camera={cameraConfig}
-            style={canvasStyle}
-            onGLContextId={handleGLContextId}
-            fallback={
-              <View
-                className="flex-1 justify-center items-center"
-                style={{ backgroundColor: theme.background }}
+          {fieldData && fieldData.polygon.exterior.length >= 3 ? (
+            <>
+              <Safe3DCanvas
+                theme={theme}
+                camera={cameraConfig}
+                style={canvasStyle}
+                onGLContextId={handleGLContextId}
+                fallback={
+                  <View
+                    className="flex-1 justify-center items-center"
+                    style={{ backgroundColor: theme.background }}
+                  >
+                    <ActivityIndicator size="large" color={theme.primary} />
+                  </View>
+                }
               >
-                <ActivityIndicator size="large" color={theme.primary} />
-              </View>
-            }
-          >
-            <SceneBackground color={theme.background} />
-            <CameraAutoFit />
-            <Suspense
-              fallback={
-                <View className="flex-1 justify-center items-center">
-                  <ActivityIndicator size="large" color={theme.primary} />
-                </View>
-              }
+                <SceneBackground color={theme.background} />
+                <CameraAutoFit />
+                <Suspense
+                  fallback={
+                    <View className="flex-1 justify-center items-center">
+                      <ActivityIndicator size="large" color={theme.primary} />
+                    </View>
+                  }
+                >
+                  <ColorPlane
+                    fieldData={fieldData}
+                    isDark={isDark}
+                    onNodeSelect={handleNodeSelect}
+                    selectedNodeId={selectedNode?.id ?? null}
+                    isActive={isActive}
+                    onPlaneReady={handlePlaneReady}
+                  />
+                </Suspense>
+              </Safe3DCanvas>
+              {warmupOverlay}
+            </>
+          ) : (
+            <View
+              className="flex-1 justify-center items-center"
+              style={{ backgroundColor: theme.background }}
             >
-              <ColorPlane
-                fieldData={fieldData}
-                isDark={isDark}
-                onNodeSelect={handleNodeSelect}
-                selectedNodeId={selectedNode?.id ?? null}
-                isActive={isActive}
-                onPlaneReady={handlePlaneReady}
-              />
-            </Suspense>
-          </Safe3DCanvas>
-
-          {warmupOverlay}
+              <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+          )}
         </View>
         </View>
       </View>

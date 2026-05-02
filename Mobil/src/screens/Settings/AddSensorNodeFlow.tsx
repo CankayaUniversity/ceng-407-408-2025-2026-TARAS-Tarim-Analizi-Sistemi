@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Theme } from "../../types";
 import { useLanguage } from "../../context/LanguageContext";
 import { gatewayAPI, sensorAPI, socketAPI } from "../../utils/api";

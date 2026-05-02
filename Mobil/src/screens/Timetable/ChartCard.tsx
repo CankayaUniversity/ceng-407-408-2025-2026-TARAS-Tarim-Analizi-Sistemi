@@ -3,7 +3,7 @@
 
 import { View, Text, Dimensions } from "react-native";
 import { LineChart } from "react-native-gifted-charts";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { ChartCardProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";

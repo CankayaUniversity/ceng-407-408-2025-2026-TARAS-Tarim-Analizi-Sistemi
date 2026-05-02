@@ -2,7 +2,9 @@
 // Props: theme, dashboardData (API verisi), loading
 
 import { View, Text } from "react-native";
-import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import Entypo from "@expo/vector-icons/Entypo";
 import { MetricCard } from "./MetricCard";
 import { IrrigationCountdown } from "./IrrigationCountdown";
 import { StatusCardProps } from "./types";

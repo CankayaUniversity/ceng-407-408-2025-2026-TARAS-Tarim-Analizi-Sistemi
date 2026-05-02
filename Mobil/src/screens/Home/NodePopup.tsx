@@ -2,12 +2,10 @@
 // Props: theme, selectedNode, fadeAnim, onClose
 
 import { View, Text, TouchableOpacity, Animated } from "react-native";
-import {
-  Ionicons,
-  FontAwesome6,
-  MaterialIcons,
-  Entypo,
-} from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import Entypo from "@expo/vector-icons/Entypo";
 import { NodePopupProps } from "./types";
 import { spacing } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";

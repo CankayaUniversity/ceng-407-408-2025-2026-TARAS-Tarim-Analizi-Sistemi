@@ -1,6 +1,6 @@
 // Bildirim butonu - zil simgesi, AppHeader'in sag tarafinda yer alir
 import { TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Theme } from "../utils/theme";
 
 export interface NotificationsButtonProps {

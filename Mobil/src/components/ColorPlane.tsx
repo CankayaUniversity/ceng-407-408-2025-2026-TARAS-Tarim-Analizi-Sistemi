@@ -745,6 +745,23 @@ export const ColorPlane = memo(function ColorPlane({
     const regainedFocus = isActive && !wasActiveRef.current;
     wasActiveRef.current = isActive;
     if (!regainedFocus) return;
+
+    // Rotation reset — tab donusunde plane default poz'a animate olsun. target'i
+    // sifirla, velocity'yi sifirla, groupRef.rotation.y'yi en kisa acisal yola
+    // sabitle (cok tur spin yerine). updateRotation lerp'i warmup overlay altinda
+    // ~130ms'de geri kalani halleder.
+    if (groupRef.current) {
+      const TWO_PI = Math.PI * 2;
+      let y = groupRef.current.rotation.y - INITIAL_ROTATION_Y;
+      y = ((y % TWO_PI) + TWO_PI) % TWO_PI;
+      if (y > Math.PI) y -= TWO_PI;
+      groupRef.current.rotation.y = INITIAL_ROTATION_Y + y;
+      targetRotationRef.current.x = 0;
+      targetRotationRef.current.y = INITIAL_ROTATION_Y;
+      rotationVelocityRef.current.x = 0;
+      rotationVelocityRef.current.y = 0;
+    }
+
     bakeLUT();
 
     let cancelled = false;

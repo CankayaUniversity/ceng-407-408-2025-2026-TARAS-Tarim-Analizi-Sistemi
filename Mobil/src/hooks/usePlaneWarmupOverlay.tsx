@@ -36,7 +36,6 @@ interface Result {
 
 const FADE_DURATION_MS = 220;
 const SAFETY_TIMEOUT_MS = 2000;
-const CAPTURE_DELAY_MS = 400;
 const BLUR_RADIUS = 6;
 
 export function usePlaneWarmupOverlay({
@@ -106,55 +105,58 @@ export function usePlaneWarmupOverlay({
     };
   }, [isActive, warmupOpacity, startFade]);
 
-  // Snapshot — her field+mode icin ILK render'da bir kez yakalanir
-  // (rotate'dan once, offset olmasin). fieldKey/isDark degistigde yenilenir.
-  useEffect(() => {
-    if (!isActive) return;
-    if (!currentFieldKey) return;
+  // Snapshot — onPlaneReady'den await ediliyor. takeSnapshotAsync JS'den
+  // cagrildiginda native taraf glReadPixels'i GL thread queue'suna kuyruga
+  // atar (mEventQueue.add). Pixel okuma Runnable drain edildiginde gerceklesir
+  // — call site'tan saatler sonra olabilir. Eger fade onPlaneReady'de hemen
+  // baslarsa, overlay fadeout sirasinda user plane'i dragleyebilir; queue
+  // drain o anda olursa snapshot rotate edilmis poz'u yakalar. Cozum: Promise
+  // resolve olana kadar (= bitmap dosyaya yazilana kadar = pixel okuma bitmis)
+  // fade'i geciktir. Overlay opaque kaldigi sure boyunca pointerEvents="auto"
+  // user'i blokluyor, tum render'lar default poz'da.
+  const tryCaptureSnapshot = useCallback((): Promise<void> => {
+    if (!currentFieldKey) return Promise.resolve();
     if (
       snapshot &&
       snapshot.fieldKey === currentFieldKey &&
       snapshot.isDark === isDark
     )
-      return;
-    if (glContextId == null) return;
+      return Promise.resolve();
+    if (glContextId == null) return Promise.resolve();
 
     const capturedFieldKey = currentFieldKey;
     const capturedIsDark = isDark;
     const ctxId = glContextId;
-    const timer = setTimeout(() => {
-      GLView.takeSnapshotAsync(ctxId, {
-        format: "jpeg",
-        compress: 0.6,
-        flip: false,
-      })
-        .then(async (snap: any) => {
-          try {
-            await Image.prefetch(snap.localUri);
-          } catch {
-            // prefetch basarisizsa Image mount'ta decode edecek
-          }
-          const prev = snapshotFileRef.current;
-          snapshotFileRef.current = snap.localUri;
-          setSnapshot({
-            localUri: snap.localUri,
-            fieldKey: capturedFieldKey,
-            isDark: capturedIsDark,
-          });
-          if (prev) {
-            try {
-              new File(prev).delete();
-            } catch {
-              // ignore
-            }
-          }
-        })
-        .catch(() => {
-          // basarisiz — overlay tema mask'a duser
+    return GLView.takeSnapshotAsync(ctxId, {
+      format: "jpeg",
+      compress: 0.6,
+      flip: false,
+    })
+      .then(async (snap: any) => {
+        try {
+          await Image.prefetch(snap.localUri);
+        } catch {
+          // prefetch basarisizsa Image mount'ta decode edecek
+        }
+        const prev = snapshotFileRef.current;
+        snapshotFileRef.current = snap.localUri;
+        setSnapshot({
+          localUri: snap.localUri,
+          fieldKey: capturedFieldKey,
+          isDark: capturedIsDark,
         });
-    }, CAPTURE_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [isActive, currentFieldKey, isDark, snapshot, glContextId]);
+        if (prev) {
+          try {
+            new File(prev).delete();
+          } catch {
+            // ignore
+          }
+        }
+      })
+      .catch(() => {
+        // basarisiz — overlay tema mask'a duser
+      });
+  }, [currentFieldKey, isDark, glContextId, snapshot]);
 
   // Unmount: son snapshot dosyasini sil
   useEffect(() => {
@@ -171,7 +173,15 @@ export function usePlaneWarmupOverlay({
   }, []);
 
   const onGLContextId = useCallback((id: number) => setGlContextId(id), []);
-  const onPlaneReady = useCallback(() => startFade(), [startFade]);
+  const onPlaneReady = useCallback(async () => {
+    // Once snapshot Promise'ini bekle (= pixel okuma bitti), sonra fade
+    // basla. Boylece fade sirasinda user etkilesim yapamadi, tum
+    // render'lar default poz'da, snapshot da default poz'da. Subsequent
+    // tab regain'lerde valid snapshot oldugu icin tryCaptureSnapshot
+    // hemen Promise.resolve() doner — fade gecikmez.
+    await tryCaptureSnapshot();
+    startFade();
+  }, [tryCaptureSnapshot, startFade]);
 
   const hasValidSnapshot =
     !!snapshot &&

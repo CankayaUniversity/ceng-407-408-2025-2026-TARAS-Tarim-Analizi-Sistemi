@@ -443,62 +443,73 @@ export interface DashboardData {
   field: FieldData;
 }
 
+// Auth/dashboard hatalarini caller'a sinyallemek icin sentinel error mesajlari.
+// DashboardContext bunlara bakip handleLogout tetikliyor (AUTH_EXPIRED) veya
+// stale data koruyor (network hatasi).
+export const ERR_AUTH_EXPIRED = "AUTH_EXPIRED";
+export const ERR_UNAUTHENTICATED = "UNAUTHENTICATED";
+
 // Dashboard verileri
 export const dashboardAPI = {
   getFields: async (): Promise<FieldSummary[]> => {
     const token = await secureGet(TOKEN_KEY);
 
-    if (!token || token === "DEMO_MODE_TOKEN") {
+    // Demo modu: explicit demo token (login ekranindan "skip" veya demo user ile)
+    if (token === "DEMO_MODE_TOKEN") {
       const { getDemoFields } = await import("./demoData");
       return getDemoFields();
     }
 
-    try {
-      const res = await authFetch<FieldSummary[]>("/dashboard/fields");
-      if (res.success && res.data) {
-        console.log("[DASHBOARD] fields:", res.data.length);
-        return res.data;
-      }
-      throw new Error(res.error || "Failed to fetch fields");
-    } catch (error) {
-      console.log("[DASHBOARD] err, demo fallback:", error);
-      const { getDemoFields } = await import("./demoData");
-      return getDemoFields();
+    // Token yok: caller logout'a yonlendirsin (gercek user olmali ama token gitti)
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
     }
+
+    const res = await authFetch<FieldSummary[]>("/dashboard/fields");
+    if (res.success && res.data) {
+      console.log("[DASHBOARD] fields:", res.data.length);
+      return res.data;
+    }
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to fetch fields");
   },
 
   getFieldDashboard: async (fieldId: string): Promise<DashboardData> => {
     const token = await secureGet(TOKEN_KEY);
 
-    if (!token || token === "DEMO_MODE_TOKEN") {
+    if (token === "DEMO_MODE_TOKEN") {
       const { generateDemoDashboardData } = await import("./demoData");
       return generateDemoDashboardData(fieldId);
     }
 
-    try {
-      const res = await authFetch<DashboardData>(
-        `/dashboard/fields/${fieldId}`,
-      );
-      if (res.success && res.data) {
-        // Basarili veriyi onbellekle
-        AsyncStorage.setItem(
-          `dashboard_cache_${fieldId}`,
-          JSON.stringify({ data: res.data, cachedAt: new Date().toISOString() }),
-        ).catch(() => {});
-        return res.data;
-      }
-      throw new Error(res.error || "Failed to fetch dashboard data");
-    } catch (error) {
-      console.log("[DASHBOARD] err:", fieldId.slice(0, 8), error);
-      // Onbellekten yukle
-      const cached = await dashboardAPI.getCachedDashboard(fieldId);
-      if (cached) {
-        console.log("[DASHBOARD] onbellekten yuklendi:", fieldId.slice(0, 8));
-        return cached.data;
-      }
-      const { generateDemoDashboardData } = await import("./demoData");
-      return generateDemoDashboardData(fieldId);
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
     }
+
+    const res = await authFetch<DashboardData>(
+      `/dashboard/fields/${fieldId}`,
+    );
+    if (res.success && res.data) {
+      // Basarili veriyi onbellekle (gercek live data, stale fallback olarak kullanilabilir)
+      AsyncStorage.setItem(
+        `dashboard_cache_${fieldId}`,
+        JSON.stringify({ data: res.data, cachedAt: new Date().toISOString() }),
+      ).catch(() => {});
+      return res.data;
+    }
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    // Network hatasi: cache fallback (gercek live data, sadece eski). Demo'ya
+    // dusmuyoruz cunku user gercek hesapla giris yapmis.
+    const cached = await dashboardAPI.getCachedDashboard(fieldId);
+    if (cached) {
+      console.log("[DASHBOARD] onbellekten yuklendi:", fieldId.slice(0, 8));
+      return cached.data;
+    }
+    throw new Error(res.error || "Failed to fetch dashboard data");
   },
 
   getCachedDashboard: async (fieldId: string): Promise<{ data: DashboardData; cachedAt: string } | null> => {
@@ -507,6 +518,19 @@ export const dashboardAPI = {
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
+    }
+  },
+
+  // Logout sirasinda cagrilir — userlar arasi cache leak'ini onler
+  clearCaches: async (): Promise<void> => {
+    try {
+      const keys = await AsyncStorage.getAllKeys();
+      const cacheKeys = keys.filter((k: string) => k.startsWith("dashboard_cache_"));
+      if (cacheKeys.length > 0) {
+        await AsyncStorage.multiRemove(cacheKeys);
+      }
+    } catch {
+      // best-effort — sessiz gec
     }
   },
 };
@@ -673,6 +697,31 @@ export type DetectionStatus =
   | "COMPLETED"
   | "FAILED";
 
+export type UserFeedback =
+  | "DEFINITELY_WRONG"
+  | "LIKELY_WRONG"
+  | "UNSURE"
+  | "LIKELY_CORRECT"
+  | "DEFINITELY_CORRECT";
+
+export type DiseaseCorrection =
+  | "UNCERTAIN"
+  | "BACTERIAL_SPOT"
+  | "CORN_COMMON_RUST"
+  | "CORN_GRAY_LEAF_SPOT"
+  | "CORN_NORTHERN_LEAF_BLIGHT"
+  | "EARLY_BLIGHT"
+  | "HEALTHY"
+  | "LATE_BLIGHT"
+  | "LEAF_MOLD"
+  | "MOSAIC_VIRUS"
+  | "POWDERY_MILDEW"
+  | "SEPTORIA_LEAF_SPOT"
+  | "SPIDER_MITES"
+  | "TARGET_SPOT"
+  | "YELLOW_LEAF_CURL_VIRUS"
+  | "OTHER";
+
 export interface DiseaseDetection {
   detection_id: string;
   user_id: string;
@@ -689,6 +738,9 @@ export interface DiseaseDetection {
   recommendations: string[] | null;
   error_message: string | null;
   imageUrl?: string | null;
+  user_feedback?: UserFeedback | null;
+  feedback_at?: string | null;
+  user_correction?: DiseaseCorrection | null;
   // Lambda v5 uncertainty signal - optional, backend forwards if present.
   // Mobile also falls back to detected_disease === "Uncertain" as a hint.
   confidence_status?: "confident" | "uncertain" | null;
@@ -773,6 +825,27 @@ export const diseaseAPI = {
     detectionId: string,
   ): Promise<ApiResponse<{ message: string }>> {
     return authFetch(`/disease/requests/${detectionId}`, { method: "DELETE" });
+  },
+
+  async submitFeedback(
+    detectionId: string,
+    feedback: UserFeedback,
+    correction?: DiseaseCorrection | null,
+  ): Promise<
+    ApiResponse<{
+      detectionId: string;
+      feedback: UserFeedback;
+      correction: DiseaseCorrection | null;
+    }>
+  > {
+    return authFetch(`/disease/requests/${detectionId}/feedback`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        feedback,
+        ...(correction ? { correction } : {}),
+      }),
+    });
   },
 
   async pollDetectionStatus(

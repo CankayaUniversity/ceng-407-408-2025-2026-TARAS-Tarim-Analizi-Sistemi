@@ -3,7 +3,7 @@
 
 import { memo, useRef } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Constants from "expo-constants";
 import { SettingsScreenProps, ThemeOption } from "./types";
 import { runNetworkDiagnostics } from "../../utils/networkDiagnostics";

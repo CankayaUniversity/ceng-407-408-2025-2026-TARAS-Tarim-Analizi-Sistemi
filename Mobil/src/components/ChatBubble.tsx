@@ -9,7 +9,7 @@ import {
   Animated,
 } from "react-native";
 import Markdown from "@ronradtke/react-native-markdown-display";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Theme } from "../types";
 import { s, vs, ms } from "../utils/responsive";
 import { useLanguage } from "../context/LanguageContext";

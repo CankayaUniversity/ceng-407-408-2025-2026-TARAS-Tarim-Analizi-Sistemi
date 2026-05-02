@@ -10,7 +10,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { appStyles } from "../../styles";
 import { sensorAPI } from "../../utils/api";
 import { TimetableScreenProps, SensorReading } from "./types";

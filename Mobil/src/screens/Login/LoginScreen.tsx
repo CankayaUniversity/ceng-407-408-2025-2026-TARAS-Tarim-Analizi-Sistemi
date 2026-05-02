@@ -14,7 +14,7 @@ import {
   ScrollView,
   Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { authAPI, healthAPI } from "../../utils/api";
 import { LoginScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";

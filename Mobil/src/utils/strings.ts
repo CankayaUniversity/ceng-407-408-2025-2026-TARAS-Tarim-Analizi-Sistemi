@@ -97,6 +97,34 @@ export interface StringDictionary {
     uncertainTitle: string;
     uncertainMessage: string;
     uncertainPossibleGuess: string;
+    feedbackPrompt: string;
+    feedbackThanks: string;
+    feedbackError: string;
+    feedbackDefinitelyWrong: string;
+    feedbackLikelyWrong: string;
+    feedbackUnsure: string;
+    feedbackLikelyCorrect: string;
+    feedbackDefinitelyCorrect: string;
+    correctionPrompt: string;
+    correctionPickerTitle: string;
+    correctionCancel: string;
+    correctionConfirm: string;
+    correctionDontKnow: string;
+    correctionOther: string;
+    correctionBacterialSpot: string;
+    correctionCornCommonRust: string;
+    correctionCornGrayLeafSpot: string;
+    correctionCornNorthernLeafBlight: string;
+    correctionEarlyBlight: string;
+    correctionHealthy: string;
+    correctionLateBlight: string;
+    correctionLeafMold: string;
+    correctionMosaicVirus: string;
+    correctionPowderyMildew: string;
+    correctionSeptoriaLeafSpot: string;
+    correctionSpiderMites: string;
+    correctionTargetSpot: string;
+    correctionYellowLeafCurlVirus: string;
   };
 
   // Camera Screen
@@ -117,6 +145,14 @@ export interface StringDictionary {
     systemPermissionDescription: string;
     cancelButton: string;
     sendButton: string;
+    liveMode: string;
+    photoMode: string;
+    liveScanLoading: string;
+    liveScanUncertain: string;
+    liveScanAdjustLight: string;
+    localResultBanner: string;
+    retakeButton: string;
+    closeButton: string;
   };
 
   // Timetable Screen
@@ -471,6 +507,34 @@ const tr: StringDictionary = {
     uncertainMessage:
       "Model bu fotoğraftan emin olamadı. Lütfen yaprağın daha net bir fotoğrafını çekin.",
     uncertainPossibleGuess: "Olası tahmin",
+    feedbackPrompt: "Bu sonuç sizce ne kadar doğru?",
+    feedbackThanks: "Teşekkürler — geri bildiriminiz kaydedildi",
+    feedbackError: "Geri bildirim gönderilemedi",
+    feedbackDefinitelyWrong: "Kesinlikle yanlış",
+    feedbackLikelyWrong: "Sanırım yanlış",
+    feedbackUnsure: "Bilmiyorum",
+    feedbackLikelyCorrect: "Sanırım doğru",
+    feedbackDefinitelyCorrect: "Kesinlikle doğru",
+    correctionPrompt: "Sizce gerçek hastalık nedir?",
+    correctionPickerTitle: "Gerçek hastalığı seçin",
+    correctionCancel: "İptal",
+    correctionConfirm: "Onayla",
+    correctionDontKnow: "Bilmiyorum",
+    correctionOther: "Diğer",
+    correctionBacterialSpot: "Bakteriyel leke",
+    correctionCornCommonRust: "Mısır pas hastalığı",
+    correctionCornGrayLeafSpot: "Mısır gri yaprak lekesi",
+    correctionCornNorthernLeafBlight: "Mısır kuzey yaprak yanıklığı",
+    correctionEarlyBlight: "Erken yanıklık",
+    correctionHealthy: "Sağlıklı",
+    correctionLateBlight: "Geç yanıklık",
+    correctionLeafMold: "Yaprak küfü",
+    correctionMosaicVirus: "Mozaik virüsü",
+    correctionPowderyMildew: "Külleme",
+    correctionSeptoriaLeafSpot: "Septoria yaprak lekesi",
+    correctionSpiderMites: "Kırmızı örümcek",
+    correctionTargetSpot: "Hedef leke",
+    correctionYellowLeafCurlVirus: "Sarı yaprak kıvırcık virüsü",
   },
 
   camera: {
@@ -493,6 +557,14 @@ const tr: StringDictionary = {
       "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
     cancelButton: "İptal",
     sendButton: "Gönder",
+    liveMode: "Canlı Tarama",
+    photoMode: "Fotoğraf",
+    liveScanLoading: "Model yükleniyor...",
+    liveScanUncertain: "Belirsiz — net fotoğraf çekin",
+    liveScanAdjustLight: "Işığı ayarlayın",
+    localResultBanner: "Cihaz sonucu: {class} (%{conf})",
+    retakeButton: "Tekrar Çek",
+    closeButton: "Kapat",
   },
 
   timetable: {
@@ -837,6 +909,34 @@ const en: StringDictionary = {
     uncertainMessage:
       "The model was not confident about this photo. Please take a clearer shot of the leaf.",
     uncertainPossibleGuess: "Possible guess",
+    feedbackPrompt: "How accurate was this result?",
+    feedbackThanks: "Thanks — your feedback was recorded",
+    feedbackError: "Could not submit feedback",
+    feedbackDefinitelyWrong: "Definitely wrong",
+    feedbackLikelyWrong: "I think wrong",
+    feedbackUnsure: "Don't know",
+    feedbackLikelyCorrect: "I think true",
+    feedbackDefinitelyCorrect: "Definitely true",
+    correctionPrompt: "What do you think it actually is?",
+    correctionPickerTitle: "Pick the actual disease",
+    correctionCancel: "Cancel",
+    correctionConfirm: "Confirm",
+    correctionDontKnow: "Don't know",
+    correctionOther: "Other",
+    correctionBacterialSpot: "Bacterial spot",
+    correctionCornCommonRust: "Corn common rust",
+    correctionCornGrayLeafSpot: "Corn gray leaf spot",
+    correctionCornNorthernLeafBlight: "Corn northern leaf blight",
+    correctionEarlyBlight: "Early blight",
+    correctionHealthy: "Healthy",
+    correctionLateBlight: "Late blight",
+    correctionLeafMold: "Leaf mold",
+    correctionMosaicVirus: "Mosaic virus",
+    correctionPowderyMildew: "Powdery mildew",
+    correctionSeptoriaLeafSpot: "Septoria leaf spot",
+    correctionSpiderMites: "Spider mites",
+    correctionTargetSpot: "Target spot",
+    correctionYellowLeafCurlVirus: "Yellow leaf curl virus",
   },
 
   camera: {
@@ -859,6 +959,14 @@ const en: StringDictionary = {
       "Camera access is required for plant disease detection.",
     cancelButton: "Cancel",
     sendButton: "Send",
+    liveMode: "Live Scan",
+    photoMode: "Photo",
+    liveScanLoading: "Loading model...",
+    liveScanUncertain: "Uncertain — hold steady or reframe",
+    liveScanAdjustLight: "Adjust lighting",
+    localResultBanner: "On-device: {class} ({conf}%)",
+    retakeButton: "Retake",
+    closeButton: "Close",
   },
 
   timetable: {
