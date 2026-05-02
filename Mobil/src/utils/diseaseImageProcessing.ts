@@ -1,4 +1,7 @@
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+// Cekilen fotografi modele/sunucuya gondermek icin hazirlar
+// SDK 55: ImageManipulator.manipulate() builder API (manipulateAsync deprecated)
+
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 
 const DEFAULT_EXPORT_SIZE = 256;
 const DEFAULT_QUALITY = 0.92;
@@ -26,24 +29,20 @@ export async function prepareDiseaseImageForUpload(
   const cropOriginX = Math.max(0, Math.floor((safeWidth - cropSize) / 2));
   const cropOriginY = Math.max(0, Math.floor((safeHeight - cropSize) / 2));
 
-  const result = await manipulateAsync(
-    imageUri,
-    [
-      {
-        crop: {
-          originX: cropOriginX,
-          originY: cropOriginY,
-          width: cropSize,
-          height: cropSize,
-        },
-      },
-      { resize: { width: exportSize, height: exportSize } },
-    ],
-    {
-      compress: quality,
-      format: SaveFormat.JPEG,
-    },
-  );
+  const ref = await ImageManipulator.manipulate(imageUri)
+    .crop({
+      originX: cropOriginX,
+      originY: cropOriginY,
+      width: cropSize,
+      height: cropSize,
+    })
+    .resize({ width: exportSize, height: exportSize })
+    .renderAsync();
+
+  const result = await ref.saveAsync({
+    compress: quality,
+    format: SaveFormat.JPEG,
+  });
 
   return result.uri;
 }

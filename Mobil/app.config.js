@@ -7,10 +7,10 @@ const useHermesV1 = process.env.USE_HERMES_V1 === "true";
 
 const plugins = [
   [
-    "expo-camera",
+    "react-native-vision-camera",
     {
-      cameraPermission: "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
-      enableBarcodeScanner: false,
+      cameraPermissionText: "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
+      enableMicrophonePermission: false,
     },
   ],
   "./plugins/withNetworkSecurityConfig.js",

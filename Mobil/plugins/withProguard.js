@@ -16,6 +16,10 @@ const block = `
 -keep class kotlin.Metadata { *; }
 -keepattributes RuntimeVisible*Annotations,Signature,InnerClasses,EnclosingMethod,*Annotation*
 -dontwarn expo.modules.**
+
+# react-native-fast-tflite — GPU delegate classes are optional; we ship NNAPI only
+-dontwarn org.tensorflow.lite.gpu.**
+-keep class org.tensorflow.lite.** { *; }
 `;
 
 module.exports = (config) => {

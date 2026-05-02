@@ -1,22 +1,14 @@
-import { PermissionResponse } from "expo-camera";
 import { Theme } from "../../types";
+import type { LocalInferenceResult } from "../../utils/diseaseInference";
+export type { LocalInferenceResult };
 
 export interface DiseaseScreenProps {
   theme: Theme;
-  permission: PermissionResponse | null;
-  onRequestPermission: () => void;
+  hasCameraPermission: boolean;
+  onRequestPermission: () => Promise<boolean>;
   onSendForAnalysis?: (uri: string) => void;
   isActive?: boolean;
-}
-
-export interface CameraViewProps {
-  theme: Theme;
-  cameraRef: React.MutableRefObject<any>;
-  flashOn: boolean;
-  isActive: boolean;
-  onPickFromGallery: () => void;
-  onTakePicture: () => void;
-  onToggleFlash: () => void;
+  onClose?: () => void;
 }
 
 export interface PhotoPreviewProps {
@@ -24,4 +16,5 @@ export interface PhotoPreviewProps {
   photoUri: string;
   onCancel: () => void;
   onSend: () => void;
+  localResult?: LocalInferenceResult | null;
 }

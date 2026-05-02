@@ -13,9 +13,11 @@ import {
   Modal,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Theme } from "../../utils/theme";
 import { diseaseAPI, DiseaseDetection } from "../../utils/api";
+import { IS_EXPO_GO } from "../../utils/runtimeEnv";
 import { DiseaseResultCard } from "./DiseaseResultCard";
 import { DiseaseCameraScreen } from "./DiseaseCameraScreen";
 import { DiseaseScreenProps } from "./types";
@@ -34,7 +36,7 @@ interface ParentDiseaseScreenProps extends DiseaseScreenProps {
 
 export const DiseaseScreen = memo(function DiseaseScreen({
   theme,
-  permission,
+  hasCameraPermission,
   onRequestPermission,
   isActive = true,
 }: ParentDiseaseScreenProps) {
@@ -47,6 +49,19 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+
+  // Modeli arka planda yukle — kullanici Live mode'a gectiginde hazir olur
+  // Singleton oldugu icin useLiveScan ikinci yukleme baslatmaz
+  // Expo Go: fast-tflite native modulu yok — diseaseInference.ts'i hic load etme,
+  // aksi halde TensorflowModule.install() Expo Go'da TypeError firlatir
+  useEffect(() => {
+    if (IS_EXPO_GO) return;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const { loadDiseaseModel } = require("../../utils/diseaseInference");
+    loadDiseaseModel().catch(() => {
+      // Sessizce yut — gercek hata gostermesi useLiveScan'e birakilir
+    });
+  }, []);
   const scrollViewRef = useRef<ScrollView>(null);
   const pollCancelledRef = useRef(false);
 
@@ -195,18 +210,6 @@ export const DiseaseScreen = memo(function DiseaseScreen({
       },
     ]);
   };
-
-  if (showCamera) {
-    return (
-      <DiseaseCameraScreen
-        theme={theme}
-        permission={permission}
-        onRequestPermission={onRequestPermission}
-        onSendForAnalysis={handleSendForAnalysis}
-        isActive={isActive}
-      />
-    );
-  }
 
   return (
     <View className="screen-bg">
@@ -502,6 +505,27 @@ export const DiseaseScreen = memo(function DiseaseScreen({
             )}
           </View>
         </BlurView>
+      </Modal>
+
+      {/* Kamera — fullscreen takeover modal */}
+      <Modal
+        visible={showCamera}
+        animationType="slide"
+        onRequestClose={() => setShowCamera(false)}
+        statusBarTranslucent
+        presentationStyle="fullScreen"
+        transparent={false}
+      >
+        <SafeAreaProvider>
+          <DiseaseCameraScreen
+            theme={theme}
+            hasCameraPermission={hasCameraPermission}
+            onRequestPermission={onRequestPermission}
+            onSendForAnalysis={handleSendForAnalysis}
+            isActive={showCamera && isActive}
+            onClose={() => setShowCamera(false)}
+          />
+        </SafeAreaProvider>
       </Modal>
     </View>
   );

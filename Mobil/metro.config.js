@@ -23,7 +23,7 @@ config.transformer = {
 // Configure asset and source extensions
 config.resolver = {
   ...config.resolver,
-  assetExts: (config.resolver.assetExts || []).filter(ext => ext !== 'svg'),
+  assetExts: [...(config.resolver.assetExts || []).filter(ext => ext !== 'svg'), 'tflite'],
   sourceExts: [...(config.resolver.sourceExts || []), 'svg'],
   // Exclude build artifacts from resolution
   blockList: [

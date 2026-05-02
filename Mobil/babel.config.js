@@ -5,5 +5,9 @@ module.exports = function (api) {
       ["babel-preset-expo", { jsxImportSource: "nativewind" }],
       "nativewind/babel",
     ],
+    plugins: [
+      // vision-camera'nin frame processor worklet'leri icin
+      "react-native-worklets-core/plugin",
+    ],
   };
 };
