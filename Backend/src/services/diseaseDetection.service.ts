@@ -278,15 +278,18 @@ export async function deleteDetection(detectionId: string, userId: string): Prom
 
 export async function createDiseaseTrackingFolder(
   userId: string,
-  plantingId: string,
+  zoneId: string,
   name: string
 ): Promise<any> {
   if (!name || name.trim() === "") {
     throw new Error("Folder name is required");
   }
+  // Zone'un kullanicidaki farm/field zincirine ait oldugunu dogrula + en yeni
+  // aktif planting'i bul (irrigation.service.ts:174-182 ile ayni yaklasim).
+  // Zone'da aktif planting yoksa hata don.
   const planting = await prisma.planting.findFirst({
     where: {
-      planting_id: plantingId,
+      zone_id: zoneId,
       is_active: true,
       zone: {
         field: {
@@ -295,6 +298,9 @@ export async function createDiseaseTrackingFolder(
           },
         },
       },
+    },
+    orderBy: {
+      created_at: "desc",
     },
     include: {
       crop: true,
@@ -310,7 +316,7 @@ export async function createDiseaseTrackingFolder(
     return await prisma.diseaseTrackingFolder.create({
       data: {
         user_id: userId,
-        planting_id: plantingId,
+        planting_id: planting.planting_id,
         name: name.trim(),
         is_active: true,
       },

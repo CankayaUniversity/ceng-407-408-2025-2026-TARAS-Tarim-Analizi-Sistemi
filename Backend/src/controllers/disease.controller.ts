@@ -413,15 +413,15 @@ export const healthCheck = asyncHandler(
 
 export const createTrackingFolder = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user?.user_id;
-  const { plantingId, name } = req.body;
+  const { zoneId, name } = req.body;
 
   if (!userId) {
-    res.status(401).json({ success: false, error: "Unauthorized" });
+    res.status(401).json({ success: false, error: "User not authenticated" });
     return;
   }
 
-  if (!plantingId) {
-    res.status(400).json({ success: false, error: "plantingId is required" });
+  if (!zoneId || typeof zoneId !== "string") {
+    res.status(400).json({ success: false, error: "zoneId is required" });
     return;
   }
 
@@ -434,14 +434,14 @@ export const createTrackingFolder = asyncHandler(async (req: Request, res: Respo
   }
 
   try {
-    const folder = await createDiseaseTrackingFolder(userId, plantingId, name.trim());
+    const folder = await createDiseaseTrackingFolder(userId, zoneId, name.trim());
     res.status(201).json({ success: true, data: folder });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     if (msg.includes("Duplicate folder name")) {
       res.status(409).json({ success: false, error: "A folder with this name already exists for this active planting" });
     } else if (msg.includes("not found") || msg.includes("access denied")) {
-      res.status(404).json({ success: false, error: "Active planting not found or access denied" });
+      res.status(404).json({ success: false, error: "No active planting found in this zone, or access denied" });
     } else {
       logger.error(`Failed to create tracking folder for user ${userId}:`, error);
       res.status(500).json({ success: false, error: "Failed to create tracking folder", message: msg });
