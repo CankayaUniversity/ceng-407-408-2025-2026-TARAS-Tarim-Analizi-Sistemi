@@ -965,6 +965,123 @@ function resolveJobStatus(output: RecommendationOutput): "PENDING" | "NO_ACTION"
 
 
 
+// =======================
+// FIELD JOBS LISTING / ACTUAL OUTCOME SUBMISSION
+// =======================
+
+export type FieldZoneLatestJob = {
+  zone_id: string;
+  zone_name: string;
+  job: {
+    job_id: string;
+    status: string | null;
+    reasoning: string | null;
+    water_amount_ml: number | null;
+    start_time: Date | null;
+    urgency_level: string | null;
+  } | null;
+};
+
+export async function getLatestIrrigationJobsByField(
+  fieldId: string,
+  userId: string
+): Promise<FieldZoneLatestJob[]> {
+  const field = await prisma.field.findUnique({
+    where: { field_id: fieldId },
+    include: { farm: true },
+  });
+
+  if (!field || field.farm?.user_id !== userId) {
+    const err = new Error("FIELD_NOT_FOUND_OR_FORBIDDEN");
+    (err as any).status = 404;
+    throw err;
+  }
+
+  const zones = await prisma.zone.findMany({
+    where: { field_id: fieldId },
+    orderBy: { created_at: "asc" },
+    include: {
+      jobs: {
+        where: { status: { not: "FAILED" } },
+        orderBy: { created_at: "desc" },
+        take: 1,
+        select: {
+          job_id: true,
+          status: true,
+          reasoning: true,
+          water_amount_ml: true,
+          start_time: true,
+          urgency_level: true,
+        },
+      },
+    },
+  });
+
+  return zones.map((z) => ({
+    zone_id: z.zone_id,
+    zone_name: z.name,
+    job: z.jobs[0] ?? null,
+  }));
+}
+
+export type SubmitActualInput = {
+  actual_water_amount_ml: number;
+  actual_start_time: Date;
+  actual_duration_min: number;
+};
+
+export async function submitIrrigationJobActual(
+  jobId: string,
+  userId: string,
+  input: SubmitActualInput
+) {
+  const job = await prisma.irrigationJob.findUnique({
+    where: { job_id: jobId },
+    include: {
+      zone: {
+        include: {
+          field: {
+            include: { farm: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!job || job.zone?.field?.farm?.user_id !== userId) {
+    const err = new Error("JOB_NOT_FOUND_OR_FORBIDDEN");
+    (err as any).status = 404;
+    throw err;
+  }
+
+  if (job.status !== "PENDING") {
+    const err = new Error(
+      `Bu sulama isi artik guncellenemez. Mevcut durum: ${job.status}`
+    );
+    (err as any).status = 409;
+    throw err;
+  }
+
+  const updated = await prisma.irrigationJob.update({
+    where: { job_id: jobId },
+    data: {
+      actual_water_amount_ml: input.actual_water_amount_ml,
+      actual_start_time: input.actual_start_time,
+      actual_duration_min: input.actual_duration_min,
+      status: "EXECUTED",
+    },
+    select: {
+      job_id: true,
+      status: true,
+      actual_water_amount_ml: true,
+      actual_start_time: true,
+      actual_duration_min: true,
+    },
+  });
+
+  return updated;
+}
+
 export async function testDirectPgConnection() {
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
