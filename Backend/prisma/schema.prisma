@@ -66,8 +66,19 @@ enum DiseaseTarget {
   SPIDER_MITES
   TARGET_SPOT
   YELLOW_LEAF_CURL_VIRUS
+  OTHER
 
   @@map("disease_target")
+}
+
+enum UserFeedback {
+  DEFINITELY_WRONG
+  LIKELY_WRONG
+  UNSURE
+  LIKELY_CORRECT
+  DEFINITELY_CORRECT
+
+  @@map("user_feedback")
 }
 
 enum GatewayStatus {
@@ -483,6 +494,10 @@ model DiseaseDetection {
   all_predictions       Json?
   recommendations       Json?
   error_message         String?
+  user_feedback         UserFeedback?
+  feedback_at           DateTime?              @db.Timestamptz(6)
+  user_correction       DiseaseTarget?
+  is_deleted            Boolean                @default(false)
   user                  User                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   folder                DiseaseTrackingFolder? @relation(fields: [folder_id], references: [folder_id], onDelete: SetNull)
 
@@ -490,6 +505,7 @@ model DiseaseDetection {
   @@index([folder_id, uploaded_at(sort: Desc)], map: "idx_disease_detection_folder_recent")
   @@index([status], map: "idx_disease_detection_status")
   @@index([uploaded_at], map: "idx_disease_detection_uploaded")
+  @@index([user_feedback], map: "idx_disease_detection_feedback")
   @@map("disease_detections")
 }
 

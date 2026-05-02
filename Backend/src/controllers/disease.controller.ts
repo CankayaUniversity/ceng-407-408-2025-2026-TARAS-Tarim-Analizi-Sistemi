@@ -10,7 +10,9 @@ import {
   getDiseaseTrackingFolderById,
   getDiseaseTrackingFolderHistory,
   deactivateDiseaseTrackingFolder,
+  recordUserFeedback,
 } from "../services/diseaseDetection.service";
+import { UserFeedback, DiseaseTarget } from "../generated/prisma";
 import { asyncHandler } from "../middleware/error.middleware";
 import logger from "../utils/logger";
 import { getStringParam } from "../utils/requestHelpers";
@@ -47,18 +49,17 @@ export const submitDetection = asyncHandler(
         size: file.size,
       });
 
-     const rawFolderId = (req.body as { folderId?: unknown }).folderId;
-
+      const rawFolderId = (req.body as { folderId?: unknown }).folderId;
       const folderId: string | null =
         typeof rawFolderId === "string" && rawFolderId.trim().length > 0
           ? rawFolderId.trim()
           : null;
 
-    const result = await submitDetectionRequest(
+      const result = await submitDetectionRequest(
         userId,
         file.buffer,
         file.originalname,
-        folderId
+        folderId,
       );
 
       logger.info(`Detection request submitted successfully`, {
@@ -283,6 +284,111 @@ export const deleteDetectionRequest = asyncHandler(
   }
 );
 
+const ALLOWED_FEEDBACK_VALUES: UserFeedback[] = [
+  "DEFINITELY_WRONG",
+  "LIKELY_WRONG",
+  "UNSURE",
+  "LIKELY_CORRECT",
+  "DEFINITELY_CORRECT",
+] as UserFeedback[];
+
+const ALLOWED_CORRECTION_VALUES: DiseaseTarget[] = [
+  "UNCERTAIN",
+  "BACTERIAL_SPOT",
+  "CORN_COMMON_RUST",
+  "CORN_GRAY_LEAF_SPOT",
+  "CORN_NORTHERN_LEAF_BLIGHT",
+  "EARLY_BLIGHT",
+  "HEALTHY",
+  "LATE_BLIGHT",
+  "LEAF_MOLD",
+  "MOSAIC_VIRUS",
+  "POWDERY_MILDEW",
+  "SEPTORIA_LEAF_SPOT",
+  "SPIDER_MITES",
+  "TARGET_SPOT",
+  "YELLOW_LEAF_CURL_VIRUS",
+  "OTHER",
+] as DiseaseTarget[];
+
+/**
+ * Record user feedback on a completed detection.
+ * PUT /api/disease/requests/:detectionId/feedback
+ * Body: {
+ *   feedback: "DEFINITELY_WRONG" | "LIKELY_WRONG" | "UNSURE" | "LIKELY_CORRECT" | "DEFINITELY_CORRECT",
+ *   correction?: DiseaseTarget   // sadece DEFINITELY_WRONG durumunda anlamli
+ * }
+ * Idempotent overwrite — latest feedback wins.
+ */
+export const recordFeedback = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    const detectionId = getStringParam(req.params.detectionId);
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "User not authenticated" });
+      return;
+    }
+
+    if (!detectionId) {
+      res.status(400).json({ success: false, error: "Detection ID is required" });
+      return;
+    }
+
+    const feedback = req.body?.feedback;
+    if (!ALLOWED_FEEDBACK_VALUES.includes(feedback)) {
+      res.status(400).json({
+        success: false,
+        error: `feedback must be one of: ${ALLOWED_FEEDBACK_VALUES.join(", ")}`,
+      });
+      return;
+    }
+
+    const correction = req.body?.correction;
+    if (correction != null && !ALLOWED_CORRECTION_VALUES.includes(correction)) {
+      res.status(400).json({
+        success: false,
+        error: `correction must be one of: ${ALLOWED_CORRECTION_VALUES.join(", ")}`,
+      });
+      return;
+    }
+
+    try {
+      await recordUserFeedback(
+        detectionId,
+        userId,
+        feedback as UserFeedback,
+        correction as DiseaseTarget | undefined,
+      );
+      res.status(200).json({
+        success: true,
+        message: "Feedback recorded",
+        data: { detectionId, feedback, correction: correction ?? null },
+      });
+    } catch (error) {
+      logger.error(`Failed to record feedback for detection ${detectionId}:`, error);
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      if (msg.includes("not found") || msg.includes("access denied")) {
+        res.status(404).json({
+          success: false,
+          error: "Detection request not found or access denied",
+        });
+      } else if (msg.includes("incomplete")) {
+        res.status(409).json({
+          success: false,
+          error: "Cannot record feedback on incomplete detection",
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: "Failed to record feedback",
+          message: msg,
+        });
+      }
+    }
+  }
+);
+
 /**
  * Health check endpoint for disease detection service
  * GET /api/disease/health
@@ -305,34 +411,51 @@ export const healthCheck = asyncHandler(
 // TRACKING FOLDER CONTROLLERS
 // =======================
 
-export const createTrackingFolder = asyncHandler(async (req: Request, res: Response) => {
+export const createTrackingFolder = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user?.user_id;
   const { plantingId, name } = req.body;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, error: "Unauthorized" });
+  if (!userId) {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+    return;
   }
 
-    if (!plantingId) {
-      return res.status(400).json({ success: false, error: "plantingId is required" });
+  if (!plantingId) {
+    res.status(400).json({ success: false, error: "plantingId is required" });
+    return;
+  }
+
+  if (!name || typeof name !== "string" || name.trim() === "") {
+    res.status(400).json({
+      success: false,
+      error: "Folder name is required",
+    });
+    return;
+  }
+
+  try {
+    const folder = await createDiseaseTrackingFolder(userId, plantingId, name.trim());
+    res.status(201).json({ success: true, data: folder });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    if (msg.includes("Duplicate folder name")) {
+      res.status(409).json({ success: false, error: "A folder with this name already exists for this active planting" });
+    } else if (msg.includes("not found") || msg.includes("access denied")) {
+      res.status(404).json({ success: false, error: "Active planting not found or access denied" });
+    } else {
+      logger.error(`Failed to create tracking folder for user ${userId}:`, error);
+      res.status(500).json({ success: false, error: "Failed to create tracking folder", message: msg });
     }
-
-    if (!name || typeof name !== "string" || name.trim() === "") {
-      return res.status(400).json({
-        success: false,
-        error: "Folder name is required",
-      });
-}
-  const folder = await createDiseaseTrackingFolder(userId, plantingId, name.trim());
-
-  res.status(201).json({
-    success: true,
-    data: folder,
-  });
+  }
 });
 
-export const getTrackingFolders = asyncHandler(async (req: Request, res: Response) => {
+export const getTrackingFolders = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user?.user_id;
+
+  if (!userId) {
+    res.status(401).json({ success: false, error: "User not authenticated" });
+    return;
+  }
 
   const folders = await getUserDiseaseTrackingFolders(userId);
 
@@ -342,17 +465,22 @@ export const getTrackingFolders = asyncHandler(async (req: Request, res: Respons
   });
 });
 
-export const getTrackingFolderById = asyncHandler(async (req: Request, res: Response) => {
+export const getTrackingFolderById = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user?.user_id;
   const folderId = getStringParam(req.params.folderId);
+
+  if (!userId) {
+    res.status(401).json({ success: false, error: "User not authenticated" });
+    return;
+  }
 
   if (!folderId) {
     res.status(400).json({
       success: false,
       error: "Folder ID is required",
     });
-  return;
-}
+    return;
+  }
 
   const folder = await getDiseaseTrackingFolderById(userId, folderId);
 
@@ -362,9 +490,14 @@ export const getTrackingFolderById = asyncHandler(async (req: Request, res: Resp
   });
 });
 
-export const getTrackingFolderHistory = asyncHandler(async (req: Request, res: Response) => {
+export const getTrackingFolderHistory = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user?.user_id;
   const folderId = getStringParam(req.params.folderId);
+
+  if (!userId) {
+    res.status(401).json({ success: false, error: "User not authenticated" });
+    return;
+  }
 
   if (!folderId) {
     res.status(400).json({
@@ -372,7 +505,7 @@ export const getTrackingFolderHistory = asyncHandler(async (req: Request, res: R
       error: "Folder ID is required",
     });
     return;
-}
+  }
 
   const history = await getDiseaseTrackingFolderHistory(userId, folderId);
 
@@ -382,17 +515,22 @@ export const getTrackingFolderHistory = asyncHandler(async (req: Request, res: R
   });
 });
 
-export const deactivateTrackingFolder = asyncHandler(async (req: Request, res: Response) => {
+export const deactivateTrackingFolder = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const userId = (req as any).user?.user_id;
-    const folderId = getStringParam(req.params.folderId);
+  const folderId = getStringParam(req.params.folderId);
+
+  if (!userId) {
+    res.status(401).json({ success: false, error: "User not authenticated" });
+    return;
+  }
 
   if (!folderId) {
     res.status(400).json({
-     success: false,
+      success: false,
       error: "Folder ID is required",
     });
     return;
-}
+  }
 
   await deactivateDiseaseTrackingFolder(userId, folderId);
 
@@ -407,6 +545,7 @@ export default {
   getDetectionRequest,
   getDetectionImage,
   deleteDetectionRequest,
+  recordFeedback,
   healthCheck,
 
   createTrackingFolder,

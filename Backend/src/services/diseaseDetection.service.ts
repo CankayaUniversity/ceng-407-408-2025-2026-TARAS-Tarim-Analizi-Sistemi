@@ -1,8 +1,8 @@
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { randomUUID } from "crypto";
-import { DetectionStatus } from "../generated/prisma";
+import { DetectionStatus, UserFeedback, DiseaseTarget, Prisma } from "../generated/prisma";
 import { prisma } from "../config/database";
-import { uploadToS3, generatePresignedDownloadUrl, deleteFromS3 } from "./s3.service";
+import { uploadToS3, generatePresignedDownloadUrl } from "./s3.service";
 import logger from "../utils/logger";
 
 const lambdaClient = new LambdaClient({
@@ -59,37 +59,46 @@ export async function submitDetectionRequest(
 
     let finalFolderId: string | null = null;
 
-if (folderId) {
-  const folder = await prisma.diseaseTrackingFolder.findFirst({
-    where: {
-      folder_id: folderId,
-      user_id: userId,
-      is_active: true,
-    },
-    include: {
-      planting: true,
-    },
-  });
+    if (folderId) {
+      const folder = await prisma.diseaseTrackingFolder.findFirst({
+        where: {
+          folder_id: folderId,
+          user_id: userId,
+          is_active: true,
+        },
+        include: {
+          planting: true,
+        },
+      });
 
-  if (!folder) {
-    throw new Error("Tracking folder not found or inactive");
-  }
+      if (!folder) {
+        throw new Error("Tracking folder not found or inactive");
+      }
 
-  if (!folder.planting.is_active) {
-    throw new Error("Planting is not active");
+      if (!folder.planting.is_active) {
+        throw new Error("Planting is not active");
+      }
 
-  finalFolderId = folderId;
-}
+      finalFolderId = folderId;
+    }
 
-const detection = await prisma.diseaseDetection.create({
-  data: {
-    user_id: userId,
-    folder_id: finalFolderId,
-    image_uuid: imageUuid,
-    image_s3_key: s3Key,
-    status: DetectionStatus.NOT_STARTED,
-  },
-});
+    const detection = await prisma.diseaseDetection.create({
+      data: {
+        user_id: userId,
+        folder_id: finalFolderId,
+        image_uuid: imageUuid,
+        image_s3_key: s3Key,
+        status: DetectionStatus.NOT_STARTED,
+      },
+    });
+
+    // Klasore eklendiyse, son aktivite zamanini guncelle (sort by recency icin)
+    if (finalFolderId) {
+      await prisma.diseaseTrackingFolder.update({
+        where: { folder_id: finalFolderId },
+        data: { last_detection_at: detection.uploaded_at },
+      });
+    }
 
     logger.info(`Database record created for detection ${detection.detection_id}`, {
       detectionId: detection.detection_id,
@@ -179,7 +188,7 @@ async function invokeLambdaAsync(detectionId: string, s3Key: string): Promise<vo
 export async function getUserDetections(userId: string): Promise<any[]> {
   try {
     const detections = await prisma.diseaseDetection.findMany({
-      where: { user_id: userId },
+      where: { user_id: userId, is_deleted: false },
       orderBy: { uploaded_at: "desc" },
       select: {
         detection_id: true,
@@ -195,6 +204,8 @@ export async function getUserDetections(userId: string): Promise<any[]> {
         all_predictions: true,
         recommendations: true,
         error_message: true,
+        user_feedback: true,
+        feedback_at: true,
       },
     });
 
@@ -222,7 +233,7 @@ export async function getUserDetections(userId: string): Promise<any[]> {
 export async function getDetectionById(detectionId: string, userId: string): Promise<any> {
   try {
     const detection = await prisma.diseaseDetection.findFirst({
-      where: { detection_id: detectionId, user_id: userId },
+      where: { detection_id: detectionId, user_id: userId, is_deleted: false },
     });
     if (!detection) throw new Error("Detection not found or access denied");
     return detection;
@@ -235,7 +246,7 @@ export async function getDetectionById(detectionId: string, userId: string): Pro
 export async function getDetectionImageUrl(detectionId: string, userId: string, expiresIn: number = 3600): Promise<string> {
   try {
     const detection = await prisma.diseaseDetection.findFirst({
-      where: { detection_id: detectionId, user_id: userId },
+      where: { detection_id: detectionId, user_id: userId, is_deleted: false },
       select: { image_s3_key: true },
     });
     if (!detection) throw new Error("Detection not found or access denied");
@@ -248,13 +259,17 @@ export async function getDetectionImageUrl(detectionId: string, userId: string, 
 
 export async function deleteDetection(detectionId: string, userId: string): Promise<void> {
   try {
+    // Soft delete — image + row preserved for ML training; hidden from user-facing GETs
     const detection = await prisma.diseaseDetection.findFirst({
-      where: { detection_id: detectionId, user_id: userId },
+      where: { detection_id: detectionId, user_id: userId, is_deleted: false },
+      select: { detection_id: true },
     });
     if (!detection) throw new Error("Detection not found or access denied");
-    await deleteFromS3(DISEASE_DETECTION_BUCKET, detection.image_s3_key);
-    await prisma.diseaseDetection.delete({ where: { detection_id: detectionId } });
-    logger.info(`Detection ${detectionId} deleted successfully`);
+    await prisma.diseaseDetection.update({
+      where: { detection_id: detectionId },
+      data: { is_deleted: true },
+    });
+    logger.info(`Detection ${detectionId} soft-deleted (image preserved for ML training)`);
   } catch (error) {
     logger.error(`Failed to delete detection ${detectionId}:`, error);
     throw new Error(`Failed to delete detection: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -264,8 +279,11 @@ export async function deleteDetection(detectionId: string, userId: string): Prom
 export async function createDiseaseTrackingFolder(
   userId: string,
   plantingId: string,
-  name?: string
+  name: string
 ): Promise<any> {
+  if (!name || name.trim() === "") {
+    throw new Error("Folder name is required");
+  }
   const planting = await prisma.planting.findFirst({
     where: {
       planting_id: plantingId,
@@ -288,20 +306,29 @@ export async function createDiseaseTrackingFolder(
     throw new Error("Active planting not found or access denied");
   }
 
-  return await prisma.diseaseTrackingFolder.create({
-    data: {
-      user_id: userId,
-      planting_id: plantingId,
-      name: name || `${planting.crop?.name || "Plant"} disease tracking`,
-      is_active: true,
-    },
-  });
+  try {
+    return await prisma.diseaseTrackingFolder.create({
+      data: {
+        user_id: userId,
+        planting_id: plantingId,
+        name: name.trim(),
+        is_active: true,
+      },
+    });
+  } catch (error) {
+    // Partial unique uq_active_folder_name_per_planting (planting_id, name) WHERE is_active=true
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new Error("Duplicate folder name for this active planting");
+    }
+    throw error;
+  }
 }
 
 export async function getUserDiseaseTrackingFolders(userId: string): Promise<any[]> {
   const folders = await prisma.diseaseTrackingFolder.findMany({
     where: {
       user_id: userId,
+      is_active: true,
     },
     orderBy: {
       created_at: "desc",
@@ -314,6 +341,7 @@ export async function getUserDiseaseTrackingFolders(userId: string): Promise<any
         },
       },
       detections: {
+        where: { is_deleted: false },
         orderBy: {
           uploaded_at: "desc",
         },
@@ -362,6 +390,8 @@ export async function getUserDiseaseTrackingFolders(userId: string): Promise<any
         folderId: folder.folder_id,
         name: folder.name,
         isActive: folder.is_active,
+        targetDisease: folder.target_disease,
+        lastDetectionAt: folder.last_detection_at,
         createdAt: folder.created_at,
         updatedAt: folder.updated_at,
         planting: {
@@ -396,6 +426,7 @@ export async function getDiseaseTrackingFolderById(
         },
       },
       detections: {
+        where: { is_deleted: false },
         orderBy: {
           uploaded_at: "desc",
         },
@@ -448,6 +479,8 @@ export async function getDiseaseTrackingFolderById(
     folderId: folder.folder_id,
     name: folder.name,
     isActive: folder.is_active,
+    targetDisease: folder.target_disease,
+    lastDetectionAt: folder.last_detection_at,
     createdAt: folder.created_at,
     updatedAt: folder.updated_at,
     planting: {
@@ -482,6 +515,7 @@ export async function getDiseaseTrackingFolderHistory(
       detections: {
         where: {
           status: DetectionStatus.COMPLETED,
+          is_deleted: false,
         },
         orderBy: {
           uploaded_at: "asc",
@@ -508,6 +542,7 @@ export async function getDiseaseTrackingFolderHistory(
     folderId: folder.folder_id,
     name: folder.name,
     isActive: folder.is_active,
+    targetDisease: folder.target_disease,
     planting: {
       plantingId: folder.planting.planting_id,
       isActive: folder.planting.is_active,
@@ -552,16 +587,116 @@ export async function deactivateDiseaseTrackingFolder(
     },
   });
 }
+
+// Lambda detected_disease string (lowercase snake) → DiseaseTarget enum.
+// Mirrors ML/configs/label_map.py::CLASS_NAMES exactly. If the Lambda ever
+// returns "Uncertain" or any string outside this map, the lookup returns
+// undefined and recordUserFeedback throws (per design 2026-04-30).
+const DETECTED_DISEASE_TO_TARGET: Record<string, DiseaseTarget> = {
+  bacterial_spot: "BACTERIAL_SPOT",
+  corn_common_rust: "CORN_COMMON_RUST",
+  corn_gray_leaf_spot: "CORN_GRAY_LEAF_SPOT",
+  corn_northern_leaf_blight: "CORN_NORTHERN_LEAF_BLIGHT",
+  early_blight: "EARLY_BLIGHT",
+  healthy: "HEALTHY",
+  late_blight: "LATE_BLIGHT",
+  leaf_mold: "LEAF_MOLD",
+  mosaic_virus: "MOSAIC_VIRUS",
+  powdery_mildew: "POWDERY_MILDEW",
+  septoria_leaf_spot: "SEPTORIA_LEAF_SPOT",
+  spider_mites: "SPIDER_MITES",
+  target_spot: "TARGET_SPOT",
+  yellow_leaf_curl_virus: "YELLOW_LEAF_CURL_VIRUS",
+};
+
+export async function recordUserFeedback(
+  detectionId: string,
+  userId: string,
+  feedback: UserFeedback,
+  correction?: DiseaseTarget | null,
+): Promise<void> {
+  const detection = await prisma.diseaseDetection.findFirst({
+    where: { detection_id: detectionId, user_id: userId, is_deleted: false },
+    select: {
+      detection_id: true,
+      status: true,
+      folder_id: true,
+      detected_disease: true,
+    },
+  });
+  if (!detection) {
+    throw new Error("Detection not found or access denied");
+  }
+  if (detection.status !== DetectionStatus.COMPLETED) {
+    throw new Error("Cannot record feedback on incomplete detection");
+  }
+  // Correction her feedback degerinde saklanir (varsa); ML training icin tum sinyaller degerli
+  const correctionValue = correction ?? null;
+
+  // Klasor target_disease auto-update: kullanici onayli son feedback kazanir
+  // - DEFINITELY_CORRECT veya LIKELY_CORRECT → folder.target_disease = enum(detected_disease)
+  // - DEFINITELY_WRONG + correction → folder.target_disease = correction
+  // - Diger feedback degerleri → folder degismez
+  let folderTargetUpdate: DiseaseTarget | null = null;
+  if (
+    detection.folder_id &&
+    (feedback === "DEFINITELY_CORRECT" || feedback === "LIKELY_CORRECT") &&
+    detection.detected_disease
+  ) {
+    const mapped = DETECTED_DISEASE_TO_TARGET[detection.detected_disease];
+    if (!mapped) {
+      throw new Error(
+        `Cannot record feedback: detected disease "${detection.detected_disease}" does not map to a known DiseaseTarget`,
+      );
+    }
+    folderTargetUpdate = mapped;
+  } else if (
+    detection.folder_id &&
+    feedback === "DEFINITELY_WRONG" &&
+    correctionValue !== null
+  ) {
+    folderTargetUpdate = correctionValue;
+  }
+
+  // Detection feedback + opsiyonel folder.target_disease update'i atomic
+  const ops: Prisma.PrismaPromise<unknown>[] = [
+    prisma.diseaseDetection.update({
+      where: { detection_id: detectionId },
+      data: {
+        user_feedback: feedback,
+        feedback_at: new Date(),
+        user_correction: correctionValue,
+      },
+    }),
+  ];
+  if (folderTargetUpdate !== null && detection.folder_id) {
+    ops.push(
+      prisma.diseaseTrackingFolder.update({
+        where: { folder_id: detection.folder_id },
+        data: { target_disease: folderTargetUpdate },
+      }),
+    );
+  }
+  await prisma.$transaction(ops);
+
+  logger.info(
+    `[FEEDBACK] ${detectionId}: ${feedback}${correctionValue ? ` (correction: ${correctionValue})` : ""}` +
+      (folderTargetUpdate !== null && detection.folder_id
+        ? ` → folder ${detection.folder_id} target=${folderTargetUpdate}`
+        : ""),
+  );
+}
+
 export default {
   submitDetectionRequest,
   getUserDetections,
   getDetectionById,
   getDetectionImageUrl,
   deleteDetection,
-
   createDiseaseTrackingFolder,
   getUserDiseaseTrackingFolders,
   getDiseaseTrackingFolderById,
   getDiseaseTrackingFolderHistory,
   deactivateDiseaseTrackingFolder,
+  recordUserFeedback,
 };

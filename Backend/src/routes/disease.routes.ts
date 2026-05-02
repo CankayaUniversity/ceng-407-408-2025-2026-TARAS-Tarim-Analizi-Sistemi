@@ -46,6 +46,10 @@ router.get('/requests/:detectionId/image', diseaseController.getDetectionImage);
 // DELETE /api/disease/requests/:detectionId
 router.delete('/requests/:detectionId', diseaseController.deleteDetectionRequest);
 
+// Record user feedback on a completed detection
+// PUT /api/disease/requests/:detectionId/feedback
+// Body: { feedback: "DEFINITELY_WRONG" | "LIKELY_WRONG" | "UNSURE" | "LIKELY_CORRECT" | "DEFINITELY_CORRECT", correction?: DiseaseTarget }
+router.put('/requests/:detectionId/feedback', diseaseController.recordFeedback);
 
 // Disease tracking folders
 router.post('/folders', diseaseController.createTrackingFolder);
@@ -57,5 +61,5 @@ router.get('/folders/:folderId/history', diseaseController.getTrackingFolderHist
 router.patch('/folders/:folderId/deactivate', diseaseController.deactivateTrackingFolder);
 
 router.get('/folders/:folderId', diseaseController.getTrackingFolderById);
-console.log("DISEASE ROUTES LOADED - folders enabled");
+
 export default router;
