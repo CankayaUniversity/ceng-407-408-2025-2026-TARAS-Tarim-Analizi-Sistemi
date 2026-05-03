@@ -2,7 +2,8 @@
 // vision-camera, react-native-fast-tflite gibi native modulleri kullanan kod
 // Expo Go'da crash eder; once bu sabiti kontrol et, gerekiyorsa fallback render et
 
-import Constants from "expo-constants";
+import { NativeModules } from "react-native";
 
-// appOwnership === "expo" yalnizca Expo Go icin true; dev-client/standalone "guest"
-export const IS_EXPO_GO = Constants.appOwnership === "expo";
+// Expo Go'da VisionCamera'nin native modulu yoktur; dogrudan NativeModules uzerinden kontrol et.
+// Constants.executionEnvironment / appOwnership SDK versiyonuna gore tutarsiz davranabiliyor.
+export const IS_EXPO_GO = !NativeModules.CameraView;
