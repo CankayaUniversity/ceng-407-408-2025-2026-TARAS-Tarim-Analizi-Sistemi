@@ -46,7 +46,7 @@ export async function uploadToS3(options: S3UploadOptions): Promise<S3UploadResp
     const response = await s3Client.send(command);
 
     const getCommand = new GetObjectCommand({ Bucket: bucket, Key: key });
-    const s3Url = await getSignedUrl(s3Client, getCommand, { expiresIn: 60 * 60 * 24 * 365 });
+    const s3Url = await getSignedUrl(s3Client, getCommand, { expiresIn: 60 * 60 * 24 * 7 });
 
     logger.info(`File uploaded to S3: s3://${bucket}/${key}`, {
       etag: response.ETag,

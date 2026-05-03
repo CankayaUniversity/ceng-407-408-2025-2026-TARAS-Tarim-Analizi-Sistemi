@@ -313,7 +313,7 @@ export async function createDiseaseTrackingFolder(
   }
 
   try {
-    return await prisma.diseaseTrackingFolder.create({
+    const folder = await prisma.diseaseTrackingFolder.create({
       data: {
         user_id: userId,
         planting_id: planting.planting_id,
@@ -321,6 +321,26 @@ export async function createDiseaseTrackingFolder(
         is_active: true,
       },
     });
+    // Mobile DiseaseTrackingFolder ile ayni sekil — getUserDiseaseTrackingFolders ile esles
+    return {
+      folderId: folder.folder_id,
+      name: folder.name,
+      isActive: folder.is_active,
+      targetDisease: folder.target_disease,
+      lastDetectionAt: folder.last_detection_at,
+      createdAt: folder.created_at,
+      updatedAt: folder.updated_at,
+      planting: {
+        plantingId: planting.planting_id,
+        isActive: planting.is_active,
+        plantingDate: planting.planting_date,
+        growthStage: planting.growth_stage,
+        cropName: planting.crop?.name || null,
+        zoneId: planting.zone?.zone_id || null,
+        zoneName: planting.zone?.name || null,
+      },
+      detections: [],
+    };
   } catch (error) {
     // Partial unique uq_active_folder_name_per_planting (planting_id, name) WHERE is_active=true
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

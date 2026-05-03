@@ -2,9 +2,12 @@
 // Bu dosya native modulleri DOGRUDAN import eder; Expo Go'da yuklenirse crash olur.
 // DiseaseCameraScreen.tsx (router) tarafindan SADECE non-Expo-Go ortamlarda require edilir.
 //
-// Üst bar: [× Kapat] [Fotoğraf | Canlı] [⚡/Tarama Halkasi]
-// Orta: Kamera + köse brackets + opsiyonel canli tarama pili
+// Üst bar: [× Kapat]                         [🍃 Yaprak] [📷 Canli toggle]
+// Orta: Kamera + köse brackets + opsiyonel canli tarama pili (toggle ON iken)
 // Alt bar: [Galeri] [Büyük shutter] [⚡ Flaş]
+//
+// Canli tarama tek kamera modunun ustunde toggleable bir overlay'dir — mod degistirme yok,
+// boylece preview hep ayni boyutta kalir ve safezone tutarli olur.
 
 import { useState, useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, Alert } from "react-native";
@@ -80,7 +83,6 @@ export const DiseaseCameraScreenNative = ({
     liveResult,
     modelLoading,
     frameProcessor,
-    inferenceMs,
     currentIntervalMs,
     waitForInflightDrained,
     leafCascadeActive,
@@ -213,9 +215,8 @@ export const DiseaseCameraScreenNative = ({
     livePauseRef.value = false;
   };
 
-  const handleToggleLiveMode = (next: boolean) => {
-    if (next === liveMode) return;
-    setLiveMode(next);
+  const handleToggleLiveScan = () => {
+    setLiveMode((prev) => !prev);
   };
 
   const handleSend = () => {
@@ -299,94 +300,93 @@ export const DiseaseCameraScreenNative = ({
         showHint={showHint}
       />
 
-      {/* Folder context banner — kullanici hangi klasore foto cektiklerini hep gorsun */}
-      {activeFolderContext && (
+      {/* Top stack — folder banner + topBar tek absolute container icinde,
+          ki banner safezone'unu kapsasin ama topBar buton satiri ustune binmesin. */}
+      <View style={styles.topStack}>
+        {activeFolderContext && (
+          <View
+            style={[
+              styles.folderBanner,
+              { paddingTop: insets.top + vs(8), backgroundColor: theme.primary + "E0" },
+            ]}
+          >
+            <Ionicons name="folder" size={16} color="#fff" />
+            <Text style={styles.folderBannerLabel}>{t.disease.folderCameraAddingTo}</Text>
+            <Text style={styles.folderBannerName} numberOfLines={1}>
+              {activeFolderContext.folderName}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setActiveFolderContext(null)}
+              hitSlop={10}
+              style={styles.folderBannerClose}
+            >
+              <Ionicons name="close" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Üst bar — sol: kapat, sag: yaprak + canli toggle. Banner yoksa kendi safezone'u. */}
         <View
           style={[
-            styles.folderBanner,
-            { paddingTop: insets.top + vs(8), backgroundColor: theme.primary + "E0" },
+            styles.topBar,
+            { paddingTop: activeFolderContext ? vs(8) : insets.top + vs(8) },
           ]}
         >
-          <Ionicons name="folder" size={16} color="#fff" />
-          <Text style={styles.folderBannerLabel}>{t.disease.folderCameraAddingTo}</Text>
-          <Text style={styles.folderBannerName} numberOfLines={1}>
-            {activeFolderContext.folderName}
-          </Text>
-          <TouchableOpacity
-            onPress={() => setActiveFolderContext(null)}
-            hitSlop={10}
-            style={styles.folderBannerClose}
-          >
-            <Ionicons name="close" size={16} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Üst bar */}
-      <View style={[styles.topBar, activeFolderContext ? { paddingTop: vs(8), paddingBottom: vs(10) } : { paddingTop: insets.top + vs(8), paddingBottom: vs(10) }]}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.iconBtn}>
             <Ionicons name="close" size={26} color="#fff" />
           </TouchableOpacity>
-          {/* Yaprak cascade toggle (debug) — default OFF, model hazirlandiginda aktif olur */}
-          <TouchableOpacity
-            onPress={handleToggleLeafDetection}
-            hitSlop={10}
-            style={[
-              styles.iconBtn,
-              useLeafDetection && leafCascadeActive && { backgroundColor: theme.primary + "40" },
-            ]}
-          >
-            <Ionicons
-              name={useLeafDetection ? "leaf" : "leaf-outline"}
-              size={20}
-              color={
-                useLeafDetection
-                  ? leafCascadeActive
-                    ? theme.primary ?? "#22C55E"
-                    : "#F59E0B"
-                  : "#fff"
-              }
-            />
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.segmented}>
-          <Pressable
-            onPress={() => handleToggleLiveMode(false)}
-            style={[styles.segment, !liveMode && { backgroundColor: theme.primary }]}
-          >
-            <Text style={[styles.segmentText, { color: !liveMode ? "#fff" : "rgba(255,255,255,0.7)" }]}>
-              {t.camera.photoMode}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleToggleLiveMode(true)}
-            style={[styles.segment, liveMode && { backgroundColor: theme.primary }]}
-          >
-            <Text style={[styles.segmentText, { color: liveMode ? "#fff" : "rgba(255,255,255,0.7)" }]}>
-              {t.camera.liveMode}
-            </Text>
-          </Pressable>
-        </View>
+          <View style={styles.topBarRight}>
+            {/* Yaprak cascade toggle — sadece live tarama aciksa anlam tasir, gorsel olarak yine de durur */}
+            <TouchableOpacity
+              onPress={handleToggleLeafDetection}
+              hitSlop={10}
+              style={[
+                styles.iconBtn,
+                useLeafDetection && leafCascadeActive && { backgroundColor: theme.primary + "40" },
+              ]}
+            >
+              <Ionicons
+                name={useLeafDetection ? "leaf" : "leaf-outline"}
+                size={20}
+                color={
+                  useLeafDetection
+                    ? leafCascadeActive
+                      ? theme.primary ?? "#22C55E"
+                      : "#F59E0B"
+                    : "#fff"
+                }
+              />
+            </TouchableOpacity>
 
-        {liveMode && inferenceMs != null ? (
-          <ScanIntervalRing
-            intervalMs={currentIntervalMs}
-            size={52}
-            strokeWidth={3}
-            trackColor="rgba(255,255,255,0.18)"
-            progressColor={theme.primary}
-            active={liveScanActive}
-          >
-            <View style={styles.timerInner}>
-              <Text style={styles.timerText}>{inferenceMs}</Text>
-              <Text style={styles.timerUnit}>ms</Text>
-            </View>
-          </ScanIntervalRing>
-        ) : (
-          <View style={styles.iconBtn} />
-        )}
+            {/* Canli tarama toggle — 40x40 sabit. ON ise etrafinda scan-interval halkasi doner. */}
+            <Pressable onPress={handleToggleLiveScan} hitSlop={10} style={styles.liveToggleWrap}>
+              {liveMode ? (
+                <ScanIntervalRing
+                  intervalMs={currentIntervalMs}
+                  size={40}
+                  strokeWidth={2.5}
+                  trackColor="rgba(255,255,255,0.18)"
+                  progressColor={theme.primary}
+                  active={liveScanActive}
+                >
+                  <View
+                    style={[
+                      styles.liveToggleInner,
+                      { backgroundColor: theme.primary + "30" },
+                    ]}
+                  >
+                    <Ionicons name="scan" size={18} color={theme.primary ?? "#fff"} />
+                  </View>
+                </ScanIntervalRing>
+              ) : (
+                <View style={styles.iconBtn}>
+                  <Ionicons name="scan-outline" size={20} color="#fff" />
+                </View>
+              )}
+            </Pressable>
+          </View>
+        </View>
       </View>
 
       {/* Canli tarama katmani — alt bar'in hemen üzerinde */}
@@ -432,16 +432,24 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: "#000" },
   center: { alignItems: "center", justifyContent: "center" },
 
-  topBar: {
+  topStack: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
+  },
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
+    paddingBottom: 10,
     backgroundColor: "rgba(0,0,0,0.35)",
+  },
+  topBarRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   iconBtn: {
     width: 40,
@@ -451,38 +459,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.25)",
   },
-  timerInner: {
+  liveToggleWrap: {
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
   },
-  timerText: {
-    color: "rgba(255,255,255,0.95)",
-    fontSize: 13,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    lineHeight: 14,
-  },
-  timerUnit: {
-    color: "rgba(255,255,255,0.6)",
-    fontSize: 8,
-    fontWeight: "600",
-    lineHeight: 9,
-    marginTop: 1,
-  },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderRadius: 999,
-    padding: 3,
-  },
-  segment: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  segmentText: {
-    fontSize: 13,
-    fontWeight: "600",
+  liveToggleInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   bottomBar: {

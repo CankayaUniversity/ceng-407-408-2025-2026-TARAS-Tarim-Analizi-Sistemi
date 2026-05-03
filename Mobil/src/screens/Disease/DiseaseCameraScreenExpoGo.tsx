@@ -1,14 +1,14 @@
 // Expo Go fallback — vision-camera + react-native-fast-tflite native modulleri yok
 // AMA fotograf cekme ve galeri secimi yine de calismali (sistem kamera + ImagePicker)
 //
-// Gorunum: Native ekranla ayni kabuk (top bar segment + alt bar shutter/gallery/flash)
+// Gorunum: Native ekranla ayni kabuk (top bar [× kapat] + alt bar shutter/gallery/flash)
 // Farklar:
-//   - Canli mod toggle disable, hint gosterir
+//   - Canli tarama yok (toggle de yok) — ExpoGo'da native modul mevcut degil
 //   - Kamera preview yerine "shutter'a bas" yer tutucusu
 //   - Shutter: ImagePicker.launchCameraAsync (sistem kamerasi acilir)
 //   - Local inference yok — backend'e gonderilince sunucu tarafinda analiz edilir
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, Alert } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -30,6 +30,12 @@ export const DiseaseCameraScreenExpoGo = ({
   const { showPopup } = usePopupMessage();
   const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
+
+  // Native ile ayni — banner'in X'i mid-capture detach icin
+  const [activeFolderContext, setActiveFolderContext] = useState(folderContext ?? null);
+  useEffect(() => {
+    setActiveFolderContext(folderContext ?? null);
+  }, [folderContext]);
 
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isPreview, setIsPreview] = useState(false);
@@ -106,7 +112,7 @@ export const DiseaseCameraScreenExpoGo = ({
       {
         text: t.common.yes,
         onPress: () => {
-          if (onSendForAnalysis) onSendForAnalysis(photoUri, folderContext?.folderId ?? null);
+          if (onSendForAnalysis) onSendForAnalysis(photoUri, activeFolderContext?.folderId ?? null);
           else showPopup(t.camera.sentSuccess);
           setPhotoUri(null);
           setIsPreview(false);
@@ -118,14 +124,6 @@ export const DiseaseCameraScreenExpoGo = ({
   const handleCancelPreview = () => {
     setPhotoUri(null);
     setIsPreview(false);
-  };
-
-  const onLiveTogglePressed = () => {
-    showPopup(
-      language === "tr"
-        ? "Canli analiz EAS / dev build gerektirir (vision-camera native)"
-        : "Live analysis requires EAS / dev build (vision-camera native)",
-    );
   };
 
   // ── Preview ────────────────────────────────────────────────────────
@@ -159,33 +157,41 @@ export const DiseaseCameraScreenExpoGo = ({
         </Text>
       </View>
 
-      {/* Top bar — segmented Live toggle disabled */}
-      <View style={[styles.topBar, { paddingTop: insets.top + vs(8), paddingBottom: vs(10) }]}>
-        <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.iconBtn}>
-          <Ionicons name="close" size={26} color="#fff" />
-        </TouchableOpacity>
-
-        <View style={styles.segmented}>
-          <Pressable style={[styles.segment, { backgroundColor: theme.primary }]}>
-            <Text style={[styles.segmentText, { color: "#fff" }]}>{t.camera.photoMode}</Text>
-          </Pressable>
-          <Pressable
-            onPress={onLiveTogglePressed}
-            style={[styles.segment, styles.segmentDisabled]}
+      {/* Top stack — folder banner (varsa) + topBar tek absolute container icinde */}
+      <View style={styles.topStack}>
+        {activeFolderContext && (
+          <View
+            style={[
+              styles.folderBanner,
+              { paddingTop: insets.top + vs(8), backgroundColor: theme.primary + "E0" },
+            ]}
           >
-            <Text style={[styles.segmentText, { color: "rgba(255,255,255,0.45)" }]}>
-              {t.camera.liveMode}
+            <Ionicons name="folder" size={16} color="#fff" />
+            <Text style={styles.folderBannerLabel}>{t.disease.folderCameraAddingTo}</Text>
+            <Text style={styles.folderBannerName} numberOfLines={1}>
+              {activeFolderContext.folderName}
             </Text>
-            <Ionicons
-              name="lock-closed"
-              size={10}
-              color="rgba(255,255,255,0.55)"
-              style={{ marginLeft: 4 }}
-            />
-          </Pressable>
-        </View>
+            <TouchableOpacity
+              onPress={() => setActiveFolderContext(null)}
+              hitSlop={10}
+              style={styles.folderBannerClose}
+            >
+              <Ionicons name="close" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        )}
 
-        <View style={styles.iconBtn} />
+        <View
+          style={[
+            styles.topBar,
+            { paddingTop: activeFolderContext ? vs(8) : insets.top + vs(8) },
+          ]}
+        >
+          <TouchableOpacity onPress={onClose} hitSlop={10} style={styles.iconBtn}>
+            <Ionicons name="close" size={26} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.iconBtn} />
+        </View>
       </View>
 
       {/* Bottom bar — galeri / shutter / flash */}
@@ -237,15 +243,18 @@ const styles = StyleSheet.create({
     lineHeight: ms(19, 0.3),
   },
 
-  topBar: {
+  topStack: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
+  },
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
+    paddingBottom: 10,
     backgroundColor: "rgba(0,0,0,0.35)",
   },
   iconBtn: {
@@ -256,25 +265,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.25)",
   },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: "rgba(0,0,0,0.35)",
-    borderRadius: 999,
-    padding: 3,
-  },
-  segment: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
+  folderBanner: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+    gap: 8,
   },
-  segmentDisabled: {
-    backgroundColor: "transparent",
-  },
-  segmentText: {
-    fontSize: 13,
+  folderBannerLabel: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
     fontWeight: "600",
+  },
+  folderBannerName: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    flex: 1,
+  },
+  folderBannerClose: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.25)",
   },
 
   bottomBar: {
