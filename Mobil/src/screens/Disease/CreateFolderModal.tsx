@@ -31,13 +31,15 @@ const NAME_MAX_LENGTH = 150;
 interface CreateFolderModalProps {
   visible: boolean;
   theme: Theme;
+  /** Mevcut folder listesi — ayni zone icin kac tane var bilmek + crop adini cekmek icin. */
+  existingFolders: DiseaseTrackingFolder[];
   onClose: () => void;
   /** Basariyla olusturulduktan sonra parent'a yeni folder'i bildirir */
   onCreated: (folder: DiseaseTrackingFolder) => void;
 }
 
-export const CreateFolderModal = ({ visible, theme, onClose, onCreated }: CreateFolderModalProps) => {
-  const { t } = useLanguage();
+export const CreateFolderModal = ({ visible, theme, existingFolders, onClose, onCreated }: CreateFolderModalProps) => {
+  const { t, language } = useLanguage();
   const { showPopup } = usePopupMessage();
   const { selectedFieldId } = useDashboard();
 
@@ -90,6 +92,17 @@ export const CreateFolderModal = ({ visible, theme, onClose, onCreated }: Create
     () => zones?.find((z) => z.zone_id === selectedZoneId) ?? null,
     [zones, selectedZoneId],
   );
+
+  useEffect(() => {
+    if (!selectedZoneId) return;
+    const sameZoneFolders = existingFolders.filter(
+      (f) => f.planting.zoneId === selectedZoneId,
+    );
+    const cropName = sameZoneFolders[0]?.planting.cropName ?? null;
+    const count = sameZoneFolders.length + 1;
+    const baseName = language === "tr" ? "Hastalık takibi" : "Disease tracking";
+    setName(`${cropName ? `${cropName} ` : ""}${baseName} #${count}`);
+  }, [selectedZoneId, existingFolders, language]);
 
   const canSubmit = !!selectedZoneId && name.trim().length > 0 && !submitting;
 
@@ -179,10 +192,6 @@ export const CreateFolderModal = ({ visible, theme, onClose, onCreated }: Create
             {t.disease.folderCreateHelper}
           </Text>
 
-          {/* Zone picker */}
-          <Text style={[styles.sectionLabel, { color: theme.textSecondary }]}>
-            {t.disease.folderCreateZoneLabel}
-          </Text>
           {loadingZones ? (
             <View style={styles.loadingZones}>
               <ActivityIndicator size="small" color={theme.primary} />

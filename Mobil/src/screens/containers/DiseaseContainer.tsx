@@ -1,6 +1,6 @@
-// Context → DiseaseScreen prop bridge
-// Expo Go'da vision-camera native modulu yok — useCameraPermission cagrilmaz, statik degerler kullanilir
-import { useCameraPermission } from "react-native-vision-camera";
+// Context → DiseaseScreen prop bridge.
+// vision-camera staticly import EDILMEZ — Expo Go'da CameraModule yok, modul
+// yuklenirken crash eder. Native dali require() ile lazy yuklenir (router pattern).
 import { DiseaseScreen } from "../";
 import { useTheme } from "../../context/ThemeContext";
 import { IS_EXPO_GO } from "../../utils/runtimeEnv";
@@ -16,16 +16,20 @@ const DiseaseContainerExpoGo = () => {
   );
 };
 
-const DiseaseContainerNative = () => {
-  const { theme } = useTheme();
-  const { hasPermission, requestPermission } = useCameraPermission();
-  return (
-    <DiseaseScreen
-      theme={theme}
-      hasCameraPermission={hasPermission}
-      onRequestPermission={requestPermission}
-    />
-  );
-};
-
-export const DiseaseContainer = IS_EXPO_GO ? DiseaseContainerExpoGo : DiseaseContainerNative;
+export const DiseaseContainer = IS_EXPO_GO
+  ? DiseaseContainerExpoGo
+  : (() => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+      const { useCameraPermission } = require("react-native-vision-camera");
+      return () => {
+        const { theme } = useTheme();
+        const { hasPermission, requestPermission } = useCameraPermission();
+        return (
+          <DiseaseScreen
+            theme={theme}
+            hasCameraPermission={hasPermission}
+            onRequestPermission={requestPermission}
+          />
+        );
+      };
+    })();

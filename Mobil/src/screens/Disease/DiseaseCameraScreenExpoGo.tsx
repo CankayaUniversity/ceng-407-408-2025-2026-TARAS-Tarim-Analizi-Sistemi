@@ -1,25 +1,31 @@
-// Expo Go fallback — vision-camera + react-native-fast-tflite native modulleri yok
-// AMA fotograf cekme ve galeri secimi yine de calismali (sistem kamera + ImagePicker)
-//
-// Gorunum: Native ekranla ayni kabuk (top bar [× kapat] + alt bar shutter/gallery/flash)
-// Farklar:
-//   - Canli tarama yok (toggle de yok) — ExpoGo'da native modul mevcut degil
-//   - Kamera preview yerine "shutter'a bas" yer tutucusu
-//   - Shutter: ImagePicker.launchCameraAsync (sistem kamerasi acilir)
-//   - Local inference yok — backend'e gonderilince sunucu tarafinda analiz edilir
+// Expo Go fallback — vision-camera native modulu yok ama expo-camera Expo Go'da
+// calisir. Native ile ayni kabuk: top stack (folder banner + ×) + canli on-app
+// preview (CameraView) + alt bar (galeri / shutter / flash). Live tarama yok.
 
-import { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, Alert } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, Alert, ActivityIndicator, Dimensions } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { PhotoPreview } from "./PhotoPreview";
 import { DiseaseScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
 import { vs, ms, s } from "../../utils/responsive";
+
+// Native variant'taki CameraView crop overlay'i ile birebir ayni — kullanici
+// hangi alanin 1:1 kirpilip backend'e gonderilecegini gorsun. expo-camera
+// "cover" preview yapiyor, biz overlay'i ekran orta-karesine baglayinca
+// kullanicinin gordugu kirpma alani prepareDiseaseImageForUpload'in cikartacagi
+// merkez kareyle ayni hizada kalir.
+const VIGNETTE_COLOR = "rgba(0,0,0,0.42)";
+const BRACKET_COLOR = "rgba(255,255,255,0.85)";
+const BRACKET_LEN = 18;
+const BRACKET_WIDTH = 2;
+const HINT_AUTOHIDE_MS = 3000;
 
 export const DiseaseCameraScreenExpoGo = ({
   theme,
@@ -31,15 +37,24 @@ export const DiseaseCameraScreenExpoGo = ({
   const { t, language } = useLanguage();
   const insets = useSafeAreaInsets();
 
-  // Native ile ayni — banner'in X'i mid-capture detach icin
   const [activeFolderContext, setActiveFolderContext] = useState(folderContext ?? null);
   useEffect(() => {
     setActiveFolderContext(folderContext ?? null);
   }, [folderContext]);
 
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView | null>(null);
+
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isPreview, setIsPreview] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
+  const [flashOn, setFlashOn] = useState(false);
+  const [showHint, setShowHint] = useState(true);
+
+  useEffect(() => {
+    const handle = setTimeout(() => setShowHint(false), HINT_AUTOHIDE_MS);
+    return () => clearTimeout(handle);
+  }, []);
 
   const prepareImage = async (uri: string, width?: number, height?: number): Promise<string> => {
     const w = width ?? 0;
@@ -53,26 +68,21 @@ export const DiseaseCameraScreenExpoGo = ({
     });
   };
 
-  const launchCamera = async () => {
+  const takePicture = async () => {
+    if (!cameraRef.current) {
+      showPopup(t.camera.cameraNotReady);
+      return;
+    }
+    setIsPreparing(true);
     try {
-      setIsPreparing(true);
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-        base64: false,
-      });
-      if (!result.canceled) {
-        const asset = result.assets?.[0];
-        if (asset?.uri) {
-          const prepared = await prepareImage(asset.uri, asset.width, asset.height);
-          setPhotoUri(prepared);
-          setIsPreview(true);
-        }
+      const photo = await cameraRef.current.takePictureAsync({ quality: 1, exif: false });
+      if (photo?.uri) {
+        const prepared = await prepareImage(photo.uri, photo.width, photo.height);
+        setPhotoUri(prepared);
+        setIsPreview(true);
       }
     } catch (err) {
-      console.log("[ERR] launchCamera:", (err as { message?: string })?.message);
+      console.log("[ERR] takePicture:", (err as { message?: string })?.message);
       showPopup(t.camera.photoError);
     } finally {
       setIsPreparing(false);
@@ -126,7 +136,6 @@ export const DiseaseCameraScreenExpoGo = ({
     setIsPreview(false);
   };
 
-  // ── Preview ────────────────────────────────────────────────────────
   if (isPreview && photoUri) {
     return (
       <PhotoPreview
@@ -139,25 +148,95 @@ export const DiseaseCameraScreenExpoGo = ({
     );
   }
 
-  // ── Kamera kabuğu (preview yerine yer tutucu) ──────────────────────
+  // Permission gate — useCameraPermissions hook null donuyorsa loading; granted false
+  // ise izin ekrani goster (Native variant ile ayni patern).
+  if (!permission) {
+    return (
+      <View style={[styles.fill, styles.center]}>
+        <ActivityIndicator color={theme.primary} />
+      </View>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <View style={[styles.fill, styles.center, { backgroundColor: theme.background, padding: s(24) }]}>
+        <Ionicons name="camera-outline" size={64} color={theme.primary} />
+        <Text style={{ color: theme.textMain, fontSize: ms(20, 0.3), fontWeight: "700", marginTop: vs(16) }}>
+          {t.camera.permissionTitle}
+        </Text>
+        <Text style={{ color: theme.textSecondary, fontSize: ms(14, 0.3), marginTop: vs(8), textAlign: "center" }}>
+          {t.camera.systemPermissionDescription}
+        </Text>
+        <View style={{ flexDirection: "row", gap: s(12), marginTop: vs(24) }}>
+          <TouchableOpacity
+            onPress={onClose}
+            style={{ backgroundColor: theme.surface, paddingVertical: vs(12), paddingHorizontal: s(20), borderRadius: 10, borderWidth: 1, borderColor: theme.textSecondary + "40" }}
+          >
+            <Text style={{ color: theme.textMain, fontWeight: "600" }}>{t.camera.closeButton}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => { requestPermission(); }}
+            style={{ backgroundColor: theme.primary, paddingVertical: vs(12), paddingHorizontal: s(20), borderRadius: 10 }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "700" }}>{t.camera.permissionButton}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const { width: screenW, height: screenH } = Dimensions.get("window");
+  const cropSize = Math.min(screenW, screenH);
+  const cropLeft = (screenW - cropSize) / 2;
+  const cropTop = (screenH - cropSize) / 2;
+  const cropRight = cropLeft + cropSize;
+  const cropBottom = cropTop + cropSize;
+
   return (
     <View style={styles.fill}>
       <StatusBar hidden />
 
-      {/* Yer tutucu — gercek kamera onizlemesi yerine */}
-      <View style={styles.placeholder}>
-        <Ionicons name="camera-outline" size={64} color="rgba(255,255,255,0.45)" />
-        <Text style={styles.placeholderTitle}>
-          {language === "tr" ? "Sistem Kamerasi" : "System Camera"}
-        </Text>
-        <Text style={styles.placeholderHint}>
-          {language === "tr"
-            ? "Shutter'a basarak fotograf cek\nveya galeriden sec"
-            : "Tap shutter to capture\nor pick from gallery"}
-        </Text>
+      <CameraView
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        facing="back"
+        flash={flashOn ? "on" : "off"}
+      />
+
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View style={{ position: "absolute", left: 0, top: 0, width: screenW, height: cropTop, backgroundColor: VIGNETTE_COLOR }} />
+        <View style={{ position: "absolute", left: 0, top: cropBottom, width: screenW, height: screenH - cropBottom, backgroundColor: VIGNETTE_COLOR }} />
+        <View style={{ position: "absolute", left: 0, top: cropTop, width: cropLeft, height: cropSize, backgroundColor: VIGNETTE_COLOR }} />
+        <View style={{ position: "absolute", left: cropRight, top: cropTop, width: screenW - cropRight, height: cropSize, backgroundColor: VIGNETTE_COLOR }} />
       </View>
 
-      {/* Top stack — folder banner (varsa) + topBar tek absolute container icinde */}
+      <View pointerEvents="none" style={[styles.cropGuide, { left: cropLeft, top: cropTop, width: cropSize, height: cropSize }]}>
+        <View style={[styles.bracket, styles.bracketTL]} />
+        <View style={[styles.bracket, styles.bracketTR]} />
+        <View style={[styles.bracket, styles.bracketBL]} />
+        <View style={[styles.bracket, styles.bracketBR]} />
+      </View>
+
+      {showHint && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: cropBottom + vs(14),
+            alignSelf: "center",
+            backgroundColor: "rgba(0,0,0,0.55)",
+            paddingHorizontal: s(12),
+            paddingVertical: vs(5),
+            borderRadius: 999,
+          }}
+        >
+          <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: ms(12, 0.3), fontWeight: "500" }}>
+            {language === "tr" ? "Yaprağı çerçeveye ortalayın" : "Center the leaf in the frame"}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.topStack}>
         {activeFolderContext && (
           <View
@@ -194,14 +273,13 @@ export const DiseaseCameraScreenExpoGo = ({
         </View>
       </View>
 
-      {/* Bottom bar — galeri / shutter / flash */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + vs(16) }]}>
         <TouchableOpacity onPress={pickFromGallery} disabled={isPreparing} style={styles.sideBtn}>
           <MaterialCommunityIcons name="image-outline" size={22} color="#fff" />
         </TouchableOpacity>
 
         <Pressable
-          onPress={launchCamera}
+          onPress={takePicture}
           disabled={isPreparing}
           style={({ pressed }) => [
             styles.shutterOuter,
@@ -211,37 +289,21 @@ export const DiseaseCameraScreenExpoGo = ({
           <View style={styles.shutterInner} />
         </Pressable>
 
-        {/* Flash sistem kameranin kendi UI'sinda — burada disable */}
-        <View style={[styles.sideBtn, { opacity: 0.3 }]}>
-          <Ionicons name="flash-outline" size={22} color="#fff" />
-        </View>
+        <TouchableOpacity onPress={() => setFlashOn((v) => !v)} style={styles.sideBtn}>
+          <Ionicons
+            name={flashOn ? "flash" : "flash-outline"}
+            size={22}
+            color={flashOn ? "#F59E0B" : "#fff"}
+          />
+        </TouchableOpacity>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: "#0a0a0a" },
-
-  placeholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: s(32),
-  },
-  placeholderTitle: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: ms(18, 0.3),
-    fontWeight: "700",
-    marginTop: vs(14),
-  },
-  placeholderHint: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: ms(13, 0.3),
-    marginTop: vs(6),
-    textAlign: "center",
-    lineHeight: ms(19, 0.3),
-  },
+  fill: { flex: 1, backgroundColor: "#000" },
+  center: { alignItems: "center", justifyContent: "center" },
 
   topStack: {
     position: "absolute",
@@ -328,4 +390,17 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: "#fff",
   },
+  cropGuide: {
+    position: "absolute",
+  },
+  bracket: {
+    position: "absolute",
+    width: BRACKET_LEN,
+    height: BRACKET_LEN,
+    borderColor: BRACKET_COLOR,
+  },
+  bracketTL: { top: 0, left: 0, borderTopWidth: BRACKET_WIDTH, borderLeftWidth: BRACKET_WIDTH },
+  bracketTR: { top: 0, right: 0, borderTopWidth: BRACKET_WIDTH, borderRightWidth: BRACKET_WIDTH },
+  bracketBL: { bottom: 0, left: 0, borderBottomWidth: BRACKET_WIDTH, borderLeftWidth: BRACKET_WIDTH },
+  bracketBR: { bottom: 0, right: 0, borderBottomWidth: BRACKET_WIDTH, borderRightWidth: BRACKET_WIDTH },
 });

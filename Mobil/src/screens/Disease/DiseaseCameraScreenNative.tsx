@@ -1,13 +1,6 @@
-// Hastalik kamera ekrani — fullscreen modal, vision-camera + react-native-fast-tflite tabanli
+// Hastalik kamera ekrani — fullscreen modal, vision-camera + react-native-fast-tflite tabanli.
 // Bu dosya native modulleri DOGRUDAN import eder; Expo Go'da yuklenirse crash olur.
 // DiseaseCameraScreen.tsx (router) tarafindan SADECE non-Expo-Go ortamlarda require edilir.
-//
-// Üst bar: [× Kapat]                         [🍃 Yaprak] [📷 Canli toggle]
-// Orta: Kamera + köse brackets + opsiyonel canli tarama pili (toggle ON iken)
-// Alt bar: [Galeri] [Büyük shutter] [⚡ Flaş]
-//
-// Canli tarama tek kamera modunun ustunde toggleable bir overlay'dir — mod degistirme yok,
-// boylece preview hep ayni boyutta kalir ve safezone tutarli olur.
 
 import { useState, useRef, useEffect } from "react";
 import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, Alert } from "react-native";
@@ -300,8 +293,8 @@ export const DiseaseCameraScreenNative = ({
         showHint={showHint}
       />
 
-      {/* Top stack — folder banner + topBar tek absolute container icinde,
-          ki banner safezone'unu kapsasin ama topBar buton satiri ustune binmesin. */}
+      {/* topStack: banner + topBar'i tek absolute container'da tutuyor — folder
+          modunda topBar'in status bar notch'i altina kacmasini onler. */}
       <View style={styles.topStack}>
         {activeFolderContext && (
           <View
@@ -325,7 +318,6 @@ export const DiseaseCameraScreenNative = ({
           </View>
         )}
 
-        {/* Üst bar — sol: kapat, sag: yaprak + canli toggle. Banner yoksa kendi safezone'u. */}
         <View
           style={[
             styles.topBar,
@@ -337,7 +329,6 @@ export const DiseaseCameraScreenNative = ({
           </TouchableOpacity>
 
           <View style={styles.topBarRight}>
-            {/* Yaprak cascade toggle — sadece live tarama aciksa anlam tasir, gorsel olarak yine de durur */}
             <TouchableOpacity
               onPress={handleToggleLeafDetection}
               hitSlop={10}
@@ -359,7 +350,6 @@ export const DiseaseCameraScreenNative = ({
               />
             </TouchableOpacity>
 
-            {/* Canli tarama toggle — 40x40 sabit. ON ise etrafinda scan-interval halkasi doner. */}
             <Pressable onPress={handleToggleLiveScan} hitSlop={10} style={styles.liveToggleWrap}>
               {liveMode ? (
                 <ScanIntervalRing

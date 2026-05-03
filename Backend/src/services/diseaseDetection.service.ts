@@ -105,7 +105,7 @@ export async function submitDetectionRequest(
       imageUuid,
     });
 
-    invokeLambdaAsync(detection.detection_id, s3Key).catch((error) => {
+    invokeLambdaAsync(detection.detection_id, s3Key, finalFolderId).catch((error) => {
       logger.error(`Async Lambda invocation failed for detection ${detection.detection_id}:`, error);
       // Update status to FAILED
       prisma.diseaseDetection
@@ -134,7 +134,11 @@ export async function submitDetectionRequest(
   }
 }
 
-async function invokeLambdaAsync(detectionId: string, s3Key: string): Promise<void> {
+async function invokeLambdaAsync(
+  detectionId: string,
+  s3Key: string,
+  folderId: string | null,
+): Promise<void> {
   try {
     await prisma.diseaseDetection.update({
       where: { detection_id: detectionId },
@@ -171,6 +175,31 @@ async function invokeLambdaAsync(detectionId: string, s3Key: string): Promise<vo
         },
       });
       logger.info(`[DISEASE] ${result.disease} %${result.confidence} (${duration}ms)`);
+
+      // Folder auto-tag (best-effort) — folder hala UNCERTAIN'se ilk emin tespit
+      // disease'i belirler. recordUserFeedback() sonradan override edebilir.
+      if (folderId && result.disease !== "Uncertain") {
+        const mapped = DETECTED_DISEASE_TO_TARGET[result.disease];
+        if (mapped) {
+          const folder = await prisma.diseaseTrackingFolder.findUnique({
+            where: { folder_id: folderId },
+            select: { target_disease: true },
+          });
+          if (folder?.target_disease === "UNCERTAIN") {
+            await prisma.diseaseTrackingFolder.update({
+              where: { folder_id: folderId },
+              data: { target_disease: mapped },
+            });
+            logger.info(
+              `[FOLDER] ${folderId} target=${mapped} (auto from detection ${detectionId})`,
+            );
+          }
+        } else {
+          logger.warn(
+            `[FOLDER] ${folderId} auto-tag skipped: detected_disease "${result.disease}" not in map`,
+          );
+        }
+      }
     } else {
       const errorBody = JSON.parse(responsePayload.body);
       await prisma.diseaseDetection.update({
@@ -321,7 +350,6 @@ export async function createDiseaseTrackingFolder(
         is_active: true,
       },
     });
-    // Mobile DiseaseTrackingFolder ile ayni sekil — getUserDiseaseTrackingFolders ile esles
     return {
       folderId: folder.folder_id,
       name: folder.name,
@@ -614,11 +642,10 @@ export async function deactivateDiseaseTrackingFolder(
   });
 }
 
-// Lambda detected_disease string (lowercase snake) → DiseaseTarget enum.
-// Mirrors ML/configs/label_map.py::CLASS_NAMES exactly. If the Lambda ever
-// returns "Uncertain" or any string outside this map, the lookup returns
-// undefined and recordUserFeedback throws (per design 2026-04-30).
+// Lambda v4 (display strings) ve v5 (lowercase snake) ciktilarini ayni map'te
+// tutuyoruz; eslenmeyen string -> folder auto-update atlanir, feedback yine kaydolur.
 const DETECTED_DISEASE_TO_TARGET: Record<string, DiseaseTarget> = {
+  // Lambda v5 (lowercase snake)
   bacterial_spot: "BACTERIAL_SPOT",
   corn_common_rust: "CORN_COMMON_RUST",
   corn_gray_leaf_spot: "CORN_GRAY_LEAF_SPOT",
@@ -633,6 +660,14 @@ const DETECTED_DISEASE_TO_TARGET: Record<string, DiseaseTarget> = {
   spider_mites: "SPIDER_MITES",
   target_spot: "TARGET_SPOT",
   yellow_leaf_curl_virus: "YELLOW_LEAF_CURL_VIRUS",
+  // Lambda v4 display strings (production today)
+  "Tomato - Late Blight": "LATE_BLIGHT",
+  "Tomato - Leaf Mold": "LEAF_MOLD",
+  "Tomato - Septoria Leaf Spot": "SEPTORIA_LEAF_SPOT",
+  "Tomato - Spider Mites (Two-Spotted)": "SPIDER_MITES",
+  "Tomato - Healthy": "HEALTHY",
+  // "Tomato - Leaf Blight" → ambigu (Early/Late ayrimi yok), eslemiyoruz; folder
+  // hedef hastaligi sessizce guncellenmez ama feedback yine de kaydolur.
 };
 
 export async function recordUserFeedback(
@@ -670,12 +705,13 @@ export async function recordUserFeedback(
     detection.detected_disease
   ) {
     const mapped = DETECTED_DISEASE_TO_TARGET[detection.detected_disease];
-    if (!mapped) {
-      throw new Error(
-        `Cannot record feedback: detected disease "${detection.detected_disease}" does not map to a known DiseaseTarget`,
+    if (mapped) {
+      folderTargetUpdate = mapped;
+    } else {
+      logger.warn(
+        `[FEEDBACK] cannot map detected_disease "${detection.detected_disease}" to DiseaseTarget — folder ${detection.folder_id} target_disease unchanged`,
       );
     }
-    folderTargetUpdate = mapped;
   } else if (
     detection.folder_id &&
     feedback === "DEFINITELY_WRONG" &&

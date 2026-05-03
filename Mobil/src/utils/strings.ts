@@ -94,6 +94,7 @@ export interface StringDictionary {
     detailRecommendations: string;
     detailTimestamps: string;
     detailDetectionId: string;
+    detailCapturedAt: string;
     uncertainTitle: string;
     uncertainMessage: string;
     uncertainPossibleGuess: string;
@@ -537,6 +538,7 @@ const tr: StringDictionary = {
     detailRecommendations: "Öneriler",
     detailTimestamps: "Zamanlar",
     detailDetectionId: "Tespit ID",
+    detailCapturedAt: "Tarih",
     uncertainTitle: "Emin Değil",
     uncertainMessage:
       "Model bu fotoğraftan emin olamadı. Lütfen yaprağın daha net bir fotoğrafını çekin.",
@@ -574,7 +576,7 @@ const tr: StringDictionary = {
     generalSectionTitle: "Genel Tespitler",
     folderCreateButton: "Yeni",
     folderCreateTitle: "Takip Klasörü Oluştur",
-    folderCreateHelper: "Bir bölge seçin — sistem o bölgenin aktif ekimini bulup klasör oluşturur.",
+    folderCreateHelper: "Bölge seçin",
     folderCreateZoneLabel: "Bölge",
     folderCreateZoneLoadError: "Bölgeler yüklenemedi.",
     folderCreateNoZones: "Hiç bölge bulunamadı. Önce çiftlik / tarla / bölge yapınızı kurun.",
@@ -972,6 +974,7 @@ const en: StringDictionary = {
     detailRecommendations: "Recommendations",
     detailTimestamps: "Timestamps",
     detailDetectionId: "Detection ID",
+    detailCapturedAt: "Captured",
     uncertainTitle: "Not Confident",
     uncertainMessage:
       "The model was not confident about this photo. Please take a clearer shot of the leaf.",
@@ -1009,7 +1012,7 @@ const en: StringDictionary = {
     generalSectionTitle: "General Detections",
     folderCreateButton: "New",
     folderCreateTitle: "Create Tracking Folder",
-    folderCreateHelper: "Pick a zone — we'll find its active planting and create a folder to track a disease over time.",
+    folderCreateHelper: "Select a zone",
     folderCreateZoneLabel: "Zone",
     folderCreateZoneLoadError: "Failed to load zones.",
     folderCreateNoZones: "No zones found. Set up your farm / field / zone structure first.",

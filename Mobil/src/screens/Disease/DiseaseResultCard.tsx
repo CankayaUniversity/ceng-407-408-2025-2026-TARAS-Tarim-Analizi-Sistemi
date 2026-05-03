@@ -1,5 +1,4 @@
 // Hastalik sonuc karti - tespit durumu ve onerileri gosterir
-// Props: detection (tespit verisi), theme, imageUrl, onPress, onDelete
 
 import { useState } from "react";
 import {
@@ -119,6 +118,18 @@ const CORRECTION_OPTIONS: ReadonlyArray<{
   { value: "OTHER", labelKey: "OTHER" },
 ];
 
+export type ConfidenceTone = "high" | "moderate" | "low";
+export interface ConfidenceTier {
+  tone: ConfidenceTone;
+  color: string;
+  soft: string;
+}
+export const getConfidenceTier = (pct: number, theme: Theme): ConfidenceTier => {
+  if (pct >= 85) return { tone: "high", color: theme.success, soft: theme.success + "20" };
+  if (pct >= 70) return { tone: "moderate", color: theme.warning, soft: theme.warning + "20" };
+  return { tone: "low", color: theme.textSecondary, soft: theme.textSecondary + "15" };
+};
+
 interface FeedbackRatingProps {
   detectionId: string;
   initialFeedback: UserFeedback | null | undefined;
@@ -127,7 +138,7 @@ interface FeedbackRatingProps {
   t: any;
 }
 
-const FeedbackRating = ({
+export const FeedbackRating = ({
   detectionId,
   initialFeedback,
   initialCorrection,
@@ -213,7 +224,7 @@ const FeedbackRating = ({
     : null;
 
   return (
-    <View style={{ marginTop: spacing.sm }}>
+    <View>
       <Text
         className="text-secondary text-[11px]"
         style={{ marginBottom: spacing.xs }}
@@ -449,7 +460,7 @@ const getStatusInfo = (
 };
 
 // Tarih formatla - ne kadar once oldugunu gosterir
-const formatDate = (isoDate: string, t: any, language: string): string => {
+export const formatDate = (isoDate: string, t: any, language: string): string => {
   const date = new Date(isoDate);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -467,110 +478,6 @@ const formatDate = (isoDate: string, t: any, language: string): string => {
     day: "numeric",
     month: "short",
   });
-};
-
-interface DiseaseInfoProps {
-  detection: DiseaseDetection;
-  theme: Theme;
-  t: any;
-  confidencePct: number | null;
-}
-
-// Hastalik bilgisi — belirsiz veya kesin sonuc gosterimi
-const DiseaseInfo = ({ detection, theme, t, confidencePct }: DiseaseInfoProps) => {
-  // Lambda v5 uncertainty signal: explicit field OR fallback string.
-  const isUncertain =
-    detection.confidence_status === "uncertain" ||
-    detection.detected_disease === "Uncertain";
-
-  if (isUncertain) {
-    // Sari uyari banneri - model emin degil
-    const topGuess = detection.top_guess ?? undefined;
-    return (
-      <View
-        className="rounded-lg px-2 py-1"
-        style={{
-          backgroundColor: theme.warning + "20",
-          borderLeftWidth: 3,
-          borderLeftColor: theme.warning,
-        }}
-      >
-        <View className="row" style={{ gap: spacing.xs }}>
-          <Ionicons name="warning-outline" size={14} color={theme.warning} />
-          <Text
-            className="text-[13px] font-bold"
-            style={{ color: theme.warning }}
-          >
-            {t.disease.uncertainTitle}
-          </Text>
-        </View>
-        <Text
-          className="text-secondary text-[11px] mt-0.5"
-          numberOfLines={2}
-        >
-          {detection.message_tr ?? t.disease.uncertainMessage}
-        </Text>
-        {topGuess ? (
-          <Text
-            className="text-secondary text-[11px] mt-0.5 italic"
-          >
-            {t.disease.uncertainPossibleGuess}: {topGuess}
-            {confidencePct != null
-              ? ` (${confidencePct.toFixed(1)}%)`
-              : ""}
-          </Text>
-        ) : null}
-      </View>
-    );
-  }
-
-  return (
-    <View>
-      <Text className="text-primary text-[15px] font-bold mb-1">
-        {detection.detected_disease}
-      </Text>
-      <View
-        className="row mb-1"
-        style={{ gap: spacing.xs }}
-      >
-        <View
-          className="rounded px-2 py-0.5"
-          style={{ backgroundColor: theme.accent + "20" }}
-        >
-          <Text
-            className="text-[11px] font-semibold"
-            style={{ color: theme.accent }}
-          >
-            {confidencePct != null ? confidencePct.toFixed(1) : "--"}%{" "}
-            {t.disease.confidence}
-          </Text>
-        </View>
-      </View>
-
-      {detection.all_predictions &&
-        Object.keys(detection.all_predictions).length > 1 && (
-          <View className="mt-1">
-            <Text className="text-secondary text-[11px] font-semibold mb-0.5">
-              {t.disease.allPredictions}
-            </Text>
-            {Object.entries(detection.all_predictions)
-              .sort(([, a], [, b]) => b - a)
-              .slice(0, 4)
-              .map(([label, score]) => {
-                const scorePct = score <= 1 ? score * 100 : score;
-                return (
-                  <Text
-                    key={label}
-                    className="text-secondary text-[11px]"
-                  >
-                    {label}: {scorePct.toFixed(1)}%
-                  </Text>
-                );
-              })}
-          </View>
-        )}
-    </View>
-  );
 };
 
 export const DiseaseResultCard = ({
@@ -592,25 +499,107 @@ export const DiseaseResultCard = ({
         : rawConf
       : null;
 
+  const isUncertain =
+    detection.detected_disease != null &&
+    (detection.confidence_status === "uncertain" ||
+      detection.detected_disease === "Uncertain");
+
+  const topTier =
+    !isUncertain && confidencePct != null
+      ? getConfidenceTier(confidencePct, theme)
+      : null;
+
+  let headline: React.ReactNode;
+  if (detection.status === "COMPLETED" && detection.detected_disease) {
+    headline = isUncertain ? (
+      <View className="flex-row items-center" style={{ gap: 6 }}>
+        <Ionicons name="warning-outline" size={15} color={theme.warning} />
+        <Text
+          className="font-bold"
+          style={{ color: theme.warning, fontSize: 15, flex: 1 }}
+          numberOfLines={1}
+        >
+          {t.disease.uncertainTitle}
+        </Text>
+      </View>
+    ) : (
+      <View>
+        <Text
+          className="text-primary font-bold"
+          style={{ fontSize: 15 }}
+          numberOfLines={1}
+        >
+          {detection.detected_disease}
+        </Text>
+        {topTier && confidencePct != null && (
+          <View
+            className="rounded self-start"
+            style={{
+              backgroundColor: topTier.soft,
+              paddingHorizontal: 6,
+              paddingVertical: 2,
+              marginTop: 3,
+            }}
+          >
+            <Text
+              className="font-bold"
+              style={{ color: topTier.color, fontSize: 12 }}
+            >
+              {confidencePct.toFixed(1)}%
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  } else {
+    const headlineText =
+      detection.status === "PROCESSING"
+        ? t.disease.analyzingLeaf
+        : detection.status === "FAILED"
+          ? t.disease.statusFailed
+          : t.disease.waitingInQueue;
+    headline = (
+      <View className="flex-row items-center" style={{ gap: 6 }}>
+        <Ionicons
+          name={statusInfo.icon as any}
+          size={15}
+          color={statusInfo.color}
+        />
+        <Text
+          className="font-semibold"
+          style={{ color: statusInfo.color, fontSize: 15, flex: 1 }}
+          numberOfLines={1}
+        >
+          {headlineText}
+        </Text>
+        {detection.status === "PROCESSING" && (
+          <ActivityIndicator size="small" color={theme.primary} />
+        )}
+      </View>
+    );
+  }
+
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      className="surface-bg rounded-2xl p-4 mb-4"
+      className="surface-bg rounded-xl"
       style={{
+        padding: 10,
+        marginBottom: 6,
         borderWidth: 1,
         borderColor: theme.primary + "20",
         shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.06,
+        shadowRadius: 3,
+        elevation: 2,
       }}
     >
-      <View className="flex-row" style={{ gap: spacing.md }}>
+      <View className="flex-row" style={{ gap: 10 }}>
         <View
           className="rounded-lg bg-porcelain dark:bg-carbonBlack overflow-hidden center"
-          style={{ width: 80, height: 80 }}
+          style={{ width: 56, height: 56 }}
         >
           {imageUrl ? (
             <Image
@@ -621,89 +610,37 @@ export const DiseaseResultCard = ({
           ) : (
             <Ionicons
               name="leaf-outline"
-              size={32}
+              size={22}
               color={theme.textSecondary}
             />
           )}
         </View>
 
-        <View className="flex-1">
-          <View className="flex-row justify-between items-center mb-1">
-            <View className="row" style={{ gap: spacing.xs }}>
-              <Ionicons
-                name={statusInfo.icon as any}
-                size={16}
-                color={statusInfo.color}
-              />
-              <Text
-                style={{ color: statusInfo.color }}
-                className="text-xs font-semibold"
-              >
-                {statusInfo.text}
-              </Text>
-            </View>
-            <Text className="text-secondary text-[11px]">
-              {formatDate(detection.uploaded_at, t, language)}
-            </Text>
+        <View
+          className="flex-1"
+          style={{ minHeight: 56, justifyContent: "space-between" }}
+        >
+          {/* Top: headline + chip-below on left; trash floating top-right */}
+          <View className="flex-row items-start" style={{ gap: 8 }}>
+            <View className="flex-1">{headline}</View>
+            {onDelete && (
+              <TouchableOpacity onPress={onDelete} hitSlop={10} style={{ padding: 2 }}>
+                <Ionicons name="trash-outline" size={14} color={theme.textSecondary} />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {detection.status === "PROCESSING" && (
-            <View
-              className="row mb-1"
-              style={{ gap: spacing.sm }}
-            >
-              <ActivityIndicator size="small" color={theme.primary} />
-              <Text className="text-secondary text-xs">
-                {t.disease.analyzingLeaf}
-              </Text>
-            </View>
-          )}
-
-          {detection.status === "COMPLETED" && detection.detected_disease && (
-            <DiseaseInfo
-              detection={detection}
-              theme={theme}
-              t={t}
-              confidencePct={confidencePct}
-            />
-          )}
-
-          {detection.status === "COMPLETED" && (
-            <FeedbackRating
-              detectionId={detection.detection_id}
-              initialFeedback={detection.user_feedback}
-              initialCorrection={detection.user_correction}
-              theme={theme}
-              t={t}
-            />
-          )}
-
-          {detection.status === "FAILED" && (
-            <Text className="text-secondary text-xs">
-              {detection.error_message || t.disease.analysisFailed}
-            </Text>
-          )}
-
-          {detection.status === "NOT_STARTED" && (
-            <Text className="text-secondary text-xs">
-              {t.disease.waitingInQueue}
-            </Text>
-          )}
-        </View>
-
-        {onDelete && (
-          <TouchableOpacity
-            onPress={onDelete}
-            className="self-start"
-            style={{ padding: spacing.xs }}
+          {/* Bottom: relative date pinned bottom-right */}
+          <Text
+            style={{
+              alignSelf: "flex-end",
+              color: theme.textSecondary,
+              fontSize: 11,
+            }}
           >
-            <Ionicons
-              name="trash-outline"
-              size={18}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
-        )}
+            {formatDate(detection.uploaded_at, t, language)}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );

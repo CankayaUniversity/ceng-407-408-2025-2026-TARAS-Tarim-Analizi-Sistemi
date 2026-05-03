@@ -5,6 +5,7 @@ import { memo, useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
+  Image,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
@@ -12,13 +13,12 @@ import {
   ActivityIndicator,
   Modal,
 } from "react-native";
-import { BlurView } from "expo-blur";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { Theme } from "../../utils/theme";
 import { diseaseAPI, DiseaseDetection, type DiseaseTrackingFolder } from "../../utils/api";
 import { IS_EXPO_GO } from "../../utils/runtimeEnv";
-import { DiseaseResultCard } from "./DiseaseResultCard";
+import { DiseaseResultCard, getConfidenceTier, FeedbackRating } from "./DiseaseResultCard";
 import { DiseaseCameraScreen } from "./DiseaseCameraScreen";
 import { FolderCard } from "./FolderCard";
 import { CreateFolderModal } from "./CreateFolderModal";
@@ -44,7 +44,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   isActive = true,
 }: ParentDiseaseScreenProps) {
   const { showPopup } = usePopupMessage();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [showCamera, setShowCamera] = useState(false);
   const [detections, setDetections] = useState<DiseaseDetection[]>([]);
   const [selectedDetection, setSelectedDetection] =
@@ -270,6 +270,9 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                 delete next[detectionId];
                 return next;
               });
+              setSelectedDetection((cur) =>
+                cur?.detection_id === detectionId ? null : cur,
+              );
               showPopup(t.disease.deletedSuccessfully);
             } else {
               showPopup(response.error || t.disease.errorDeleting);
@@ -388,67 +391,79 @@ export const DiseaseScreen = memo(function DiseaseScreen({
             </View>
 
             {/* ── GENERAL DETECTIONS SECTION ────────────────────── */}
-            <TouchableOpacity
-              onPress={() => setGeneralExpanded((v) => !v)}
-              activeOpacity={0.8}
+            <View
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
+                backgroundColor: theme.primary + "08",
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: theme.primary + "20",
+                padding: 10,
                 marginBottom: vs(8),
               }}
             >
-              <Text
+              <TouchableOpacity
+                onPress={() => setGeneralExpanded((v) => !v)}
+                activeOpacity={0.8}
                 style={{
-                  color: theme.textSecondary,
-                  fontSize: 11,
-                  fontWeight: "700",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: generalExpanded ? vs(8) : 0,
+                  paddingHorizontal: 2,
                 }}
               >
-                {t.disease.generalSectionTitle} {detections.length > 0 ? `(${detections.length})` : ""}
-              </Text>
-              <Ionicons
-                name={generalExpanded ? "chevron-up" : "chevron-down"}
-                size={18}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
+                <Text
+                  style={{
+                    color: theme.textSecondary,
+                    fontSize: 11,
+                    fontWeight: "700",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  {t.disease.generalSectionTitle} {detections.length > 0 ? `(${detections.length})` : ""}
+                </Text>
+                <Ionicons
+                  name={generalExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
 
-            <FocusableSection
-              id="detectionList"
-              screen="disease"
-              theme={theme}
-              scrollViewRef={scrollViewRef}
-            >
-              {!generalExpanded ? null : detections.length === 0 ? (
-                <View className="flex-1 center">
-                  <Ionicons
-                    name="leaf-outline"
-                    size={64}
-                    color={theme.textSecondary}
-                  />
-                  <Text className="text-primary text-base font-semibold mt-4">
-                    {t.disease.noAnalysisYet}
-                  </Text>
-                  <Text className="text-secondary text-[13px] mt-1 text-center">
-                    {t.disease.noAnalysisSubtitle}
-                  </Text>
-                </View>
-              ) : (
-                detections.map((detection) => (
-                  <DiseaseResultCard
-                    key={detection.detection_id}
-                    detection={detection}
-                    theme={theme}
-                    imageUrl={imageUrls[detection.detection_id]}
-                    onPress={() => setSelectedDetection(detection)}
-                    onDelete={() => handleDeleteDetection(detection.detection_id)}
-                  />
-                ))
-              )}
-            </FocusableSection>
+              <FocusableSection
+                id="detectionList"
+                screen="disease"
+                theme={theme}
+                scrollViewRef={scrollViewRef}
+              >
+                {!generalExpanded ? null : detections.length === 0 ? (
+                  <View className="flex-1 center" style={{ paddingVertical: vs(16) }}>
+                    <Ionicons
+                      name="leaf-outline"
+                      size={48}
+                      color={theme.textSecondary}
+                    />
+                    <Text className="text-primary text-base font-semibold mt-3">
+                      {t.disease.noAnalysisYet}
+                    </Text>
+                    <Text className="text-secondary text-[13px] mt-1 text-center">
+                      {t.disease.noAnalysisSubtitle}
+                    </Text>
+                  </View>
+                ) : (
+                  detections.map((detection) => (
+                    <DiseaseResultCard
+                      key={detection.detection_id}
+                      detection={detection}
+                      theme={theme}
+                      imageUrl={imageUrls[detection.detection_id]}
+                      onPress={() => setSelectedDetection(detection)}
+                      onDelete={() => handleDeleteDetection(detection.detection_id)}
+                    />
+                  ))
+                )}
+              </FocusableSection>
+            </View>
           </ScrollView>
 
           <View
@@ -493,194 +508,62 @@ export const DiseaseScreen = memo(function DiseaseScreen({
         </>
       )}
 
-      {/* Detail modal - tap any card to inspect all returned fields */}
+      {/* Detail modal — tam ekran, alttan slide. Onceki "tepe boslugu" altta
+          bekleyen ekranin (folder vs) back arrow'unu gosteriyordu, kafa karistirici. */}
       <Modal
         visible={selectedDetection !== null}
         animationType="slide"
-        transparent
         onRequestClose={() => setSelectedDetection(null)}
       >
-        <BlurView
-          intensity={40}
-          tint={theme.isDark ? "dark" : "light"}
-          style={{ flex: 1 }}
-        >
+        <SafeAreaView className="screen-bg" style={{ flex: 1 }} edges={["top", "left", "right"]}>
           <View
-            className="screen-bg"
+            className="flex-row items-center"
             style={{
-              marginTop: 60,
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
+              paddingHorizontal: spacing.md,
+              paddingVertical: 10,
+              gap: 10,
+              borderBottomWidth: 1,
+              borderBottomColor: theme.primary + "20",
             }}
           >
-            {/* Header */}
-            <View
-              className="flex-row justify-between items-center"
-              style={{
-                padding: spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.primary + "20",
-              }}
+            <TouchableOpacity
+              onPress={() => setSelectedDetection(null)}
+              hitSlop={10}
             >
-              <Text className="text-primary text-[17px] font-bold">
-                {t.disease.detailTitle}
-              </Text>
-              <TouchableOpacity onPress={() => setSelectedDetection(null)}>
-                <Ionicons name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {selectedDetection && (
-              <ScrollView
-                contentContainerStyle={{ padding: spacing.md, gap: spacing.sm }}
-                showsVerticalScrollIndicator={false}
-              >
-                <DetailRow label="status" value={selectedDetection.status} theme={theme} />
-                <DetailRow
-                  label="detected_disease"
-                  value={selectedDetection.detected_disease ?? t.disease.detailNoData}
-                  theme={theme}
-                  bold
-                />
-                <DetailRow
-                  label={t.disease.detailConfidenceRaw}
-                  value={
-                    selectedDetection.confidence != null
-                      ? String(selectedDetection.confidence)
-                      : t.disease.detailNoData
-                  }
-                  theme={theme}
-                />
-                <DetailRow
-                  label={t.disease.detailConfidenceScore}
-                  value={
-                    selectedDetection.confidence_score != null
-                      ? String(selectedDetection.confidence_score)
-                      : t.disease.detailNoData
-                  }
-                  theme={theme}
-                />
-
-                {/* All predictions */}
-                <View
-                  className="surface-bg rounded-lg"
-                  style={{ padding: spacing.sm }}
-                >
-                  <Text className="text-secondary text-[11px] font-semibold mb-2">
-                    all_predictions
-                  </Text>
-                  {selectedDetection.all_predictions &&
-                  Object.keys(selectedDetection.all_predictions).length > 0 ? (
-                    Object.entries(selectedDetection.all_predictions)
-                      .sort(([, a], [, b]) => b - a)
-                      .map(([label, score], idx) => {
-                        const pct = score <= 1 ? score * 100 : score;
-                        const isTop = idx === 0;
-                        return (
-                          <View
-                            key={label}
-                            style={{ marginBottom: spacing.sm }}
-                          >
-                            <View className="flex-row items-start mb-1" style={{ gap: spacing.xs }}>
-                              <Text
-                                className="text-primary text-xs flex-1"
-                                style={{ fontWeight: isTop ? "700" : "500" }}
-                                numberOfLines={2}
-                              >
-                                {label}
-                              </Text>
-                              <Text
-                                className="text-xs"
-                                style={{
-                                  color: theme.primary,
-                                  fontWeight: isTop ? "700" : "600",
-                                  minWidth: s(52),
-                                  textAlign: "right",
-                                }}
-                              >
-                                {pct.toFixed(2)}%
-                              </Text>
-                            </View>
-                            <View
-                              style={{
-                                height: 4,
-                                borderRadius: 2,
-                                backgroundColor: theme.primary + "15",
-                                overflow: "hidden",
-                              }}
-                            >
-                              <View
-                                style={{
-                                  height: "100%",
-                                  width: `${Math.min(100, Math.max(0, pct))}%`,
-                                  backgroundColor: theme.primary,
-                                  borderRadius: 2,
-                                }}
-                              />
-                            </View>
-                          </View>
-                        );
-                      })
-                  ) : (
-                    <Text className="text-secondary text-xs">
-                      {t.disease.detailNoData}
-                    </Text>
-                  )}
-                </View>
-
-                {/* Recommendations */}
-                {selectedDetection.recommendations &&
-                  selectedDetection.recommendations.length > 0 && (
-                    <View
-                      className="surface-bg rounded-lg"
-                      style={{ padding: spacing.sm }}
-                    >
-                      <Text className="text-secondary text-[11px] font-semibold mb-1">
-                        {t.disease.detailRecommendations}
-                      </Text>
-                      {selectedDetection.recommendations.map((rec, i) => (
-                        <Text
-                          key={i}
-                          className="text-primary text-xs mb-0.5"
-                        >
-                          • {rec}
-                        </Text>
-                      ))}
-                    </View>
-                  )}
-
-                <DetailRow
-                  label={t.disease.detailDetectionId}
-                  value={selectedDetection.detection_id}
-                  theme={theme}
-                  mono
-                />
-                <DetailRow
-                  label="uploaded_at"
-                  value={selectedDetection.uploaded_at}
-                  theme={theme}
-                />
-                <DetailRow
-                  label="processing_started_at"
-                  value={selectedDetection.processing_started_at ?? t.disease.detailNoData}
-                  theme={theme}
-                />
-                <DetailRow
-                  label="completed_at"
-                  value={selectedDetection.completed_at ?? t.disease.detailNoData}
-                  theme={theme}
-                />
-                {selectedDetection.error_message && (
-                  <DetailRow
-                    label="error_message"
-                    value={selectedDetection.error_message}
-                    theme={theme}
-                  />
-                )}
-              </ScrollView>
-            )}
+              <Ionicons name="arrow-back" size={22} color={theme.textMain} />
+            </TouchableOpacity>
+            <Text
+              className="text-primary text-[16px] font-bold"
+              style={{ flex: 1 }}
+              numberOfLines={1}
+            >
+              {t.disease.detailTitle}
+            </Text>
+            <TouchableOpacity
+              onPress={() =>
+                selectedDetection &&
+                handleDeleteDetection(selectedDetection.detection_id)
+              }
+              hitSlop={10}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={20}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
           </View>
-        </BlurView>
+
+          {selectedDetection && (
+            <DetailModalBody
+              detection={selectedDetection}
+              theme={theme}
+              t={t}
+              language={language}
+              imageUrl={imageUrls[selectedDetection.detection_id]}
+            />
+          )}
+        </SafeAreaView>
       </Modal>
 
       {/* Kamera — fullscreen takeover modal (folder context opsiyonel) */}
@@ -715,6 +598,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
       <CreateFolderModal
         visible={showCreateFolder}
         theme={theme}
+        existingFolders={folders}
         onClose={() => setShowCreateFolder(false)}
         onCreated={(folder) => {
           handleFolderCreated(folder);
@@ -754,32 +638,250 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   );
 });
 
-interface DetailRowProps {
-  label: string;
-  value: string;
+const formatAbsoluteDate = (iso: string, language: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+interface DetailModalBodyProps {
+  detection: DiseaseDetection;
   theme: Theme;
-  bold?: boolean;
-  mono?: boolean;
+  t: any;
+  language: string;
+  imageUrl?: string;
 }
 
-const DetailRow = ({ label, value, theme: _theme, bold, mono }: DetailRowProps) => (
-  <View
-    className="surface-bg rounded-lg"
-    style={{ padding: spacing.sm }}
-  >
-    <Text className="text-secondary text-[11px] font-semibold mb-0.5">
-      {label}
-    </Text>
-    <Text
-      className="text-primary"
-      style={{
-        fontSize: bold ? 15 : 13,
-        fontWeight: bold ? "700" : "400",
-        fontFamily: mono ? "monospace" : undefined,
+const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModalBodyProps) => {
+  const rawConf = detection.confidence_score ?? detection.confidence;
+  const confidencePct =
+    rawConf != null ? (rawConf <= 1 ? rawConf * 100 : rawConf) : null;
+
+  const isUncertain =
+    detection.confidence_status === "uncertain" ||
+    detection.detected_disease === "Uncertain";
+
+  const topTier = confidencePct != null ? getConfidenceTier(confidencePct, theme) : null;
+
+  return (
+    <ScrollView
+      contentContainerStyle={{
+        padding: spacing.md,
+        gap: spacing.sm,
+        paddingBottom: spacing.sm,
+        flexGrow: 1,
       }}
-      selectable
+      showsVerticalScrollIndicator={false}
     >
-      {value}
-    </Text>
-  </View>
-);
+      {/* Hero — flexGrow + flex:1 + minHeight: dolu icerikte 213px tabaninda kalir,
+          bos kalan dikey alanda buyur. Feedback scrollsuz gorunsun diye. */}
+      <View
+        style={{
+          flex: 1,
+          minHeight: 213,
+          aspectRatio: 1,
+          alignSelf: "center",
+          maxWidth: "100%",
+          borderRadius: 14,
+          overflow: "hidden",
+          backgroundColor: theme.border + "30",
+        }}
+      >
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="leaf-outline" size={40} color={theme.textSecondary} />
+          </View>
+        )}
+      </View>
+
+      {detection.status === "PROCESSING" && (
+        <View className="row" style={{ gap: spacing.sm, justifyContent: "center" }}>
+          <ActivityIndicator size="small" color={theme.primary} />
+          <Text className="text-secondary text-sm">{t.disease.analyzingLeaf}</Text>
+        </View>
+      )}
+
+      {detection.status === "NOT_STARTED" && (
+        <Text className="text-secondary text-sm text-center">
+          {t.disease.waitingInQueue}
+        </Text>
+      )}
+
+      {detection.status === "FAILED" && (
+        <View
+          className="rounded-lg"
+          style={{
+            padding: spacing.sm,
+            backgroundColor: theme.danger + "20",
+            borderLeftWidth: 3,
+            borderLeftColor: theme.danger,
+          }}
+        >
+          <Text style={{ color: theme.danger, fontWeight: "700" }}>
+            {t.disease.statusFailed}
+          </Text>
+          <Text className="text-secondary text-xs mt-0.5">
+            {detection.error_message || t.disease.analysisFailed}
+          </Text>
+        </View>
+      )}
+
+      {detection.status === "COMPLETED" && (
+        isUncertain ? (
+          <View
+            className="rounded-lg"
+            style={{
+              padding: spacing.sm,
+              backgroundColor: theme.warning + "20",
+              borderLeftWidth: 3,
+              borderLeftColor: theme.warning,
+            }}
+          >
+            <View className="row" style={{ gap: spacing.xs }}>
+              <Ionicons name="warning-outline" size={16} color={theme.warning} />
+              <Text style={{ color: theme.warning, fontWeight: "700", fontSize: 14 }}>
+                {t.disease.uncertainTitle}
+              </Text>
+            </View>
+            <Text className="text-secondary text-xs mt-0.5">
+              {detection.message_tr ?? t.disease.uncertainMessage}
+            </Text>
+            {detection.top_guess ? (
+              <Text className="text-secondary text-xs mt-0.5 italic">
+                {t.disease.uncertainPossibleGuess}: {detection.top_guess}
+                {confidencePct != null ? ` (${confidencePct.toFixed(1)}%)` : ""}
+              </Text>
+            ) : null}
+          </View>
+        ) : (
+          <View
+            className="flex-row items-center"
+            style={{ gap: spacing.sm }}
+          >
+            <Text
+              className="text-primary"
+              style={{ flex: 1, fontSize: 22, fontWeight: "700" }}
+            >
+              {detection.detected_disease}
+            </Text>
+            {confidencePct != null && topTier && (
+              <View
+                className="rounded px-2 py-1"
+                style={{ backgroundColor: topTier.soft }}
+              >
+                <Text style={{ color: topTier.color, fontSize: 13, fontWeight: "700" }}>
+                  {confidencePct.toFixed(1)}%
+                </Text>
+              </View>
+            )}
+          </View>
+        )
+      )}
+
+      {detection.status === "COMPLETED" &&
+        detection.all_predictions &&
+        Object.keys(detection.all_predictions).length > 0 && (
+          <View
+            className="surface-bg rounded-lg"
+            style={{ padding: spacing.sm }}
+          >
+            {Object.entries(detection.all_predictions)
+              .sort(([, a], [, b]) => b - a)
+              .slice(0, 5)
+              .map(([label, score], idx) => {
+                const pct = score <= 1 ? score * 100 : score;
+                const rowTier = getConfidenceTier(pct, theme);
+                const isTop = idx === 0;
+                return (
+                  <View key={label} style={{ marginBottom: idx === 4 ? 0 : 4 }}>
+                    <View className="flex-row items-center" style={{ gap: spacing.xs, marginBottom: 1 }}>
+                      <Text
+                        className="text-primary text-[11px] flex-1"
+                        style={{ fontWeight: isTop ? "700" : "500" }}
+                        numberOfLines={1}
+                      >
+                        {label}
+                      </Text>
+                      <Text
+                        className="text-[11px]"
+                        style={{
+                          color: rowTier.color,
+                          fontWeight: isTop ? "700" : "600",
+                          minWidth: s(46),
+                          textAlign: "right",
+                        }}
+                      >
+                        {pct.toFixed(1)}%
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        height: 2,
+                        borderRadius: 1,
+                        backgroundColor: rowTier.soft,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <View
+                        style={{
+                          height: "100%",
+                          width: `${Math.min(100, Math.max(0, pct))}%`,
+                          backgroundColor: rowTier.color,
+                          borderRadius: 1,
+                        }}
+                      />
+                    </View>
+                  </View>
+                );
+              })}
+          </View>
+        )}
+
+      {detection.status === "COMPLETED" &&
+        detection.recommendations &&
+        detection.recommendations.length > 0 && (
+          <View
+            className="surface-bg rounded-lg"
+            style={{ padding: spacing.sm }}
+          >
+            <Text className="text-secondary text-[11px] font-semibold mb-1">
+              {t.disease.detailRecommendations}
+            </Text>
+            {detection.recommendations.map((rec, i) => (
+              <Text key={i} className="text-primary text-xs mb-0.5">
+                • {rec}
+              </Text>
+            ))}
+          </View>
+        )}
+
+      {detection.status === "COMPLETED" && (
+        <View className="surface-bg rounded-lg" style={{ padding: spacing.sm }}>
+          <FeedbackRating
+            detectionId={detection.detection_id}
+            initialFeedback={detection.user_feedback}
+            initialCorrection={detection.user_correction}
+            theme={theme}
+            t={t}
+          />
+        </View>
+      )}
+
+      <Text className="text-secondary text-[11px] text-center" style={{ marginTop: spacing.xs }}>
+        {t.disease.detailCapturedAt}: {formatAbsoluteDate(detection.uploaded_at, language)}
+      </Text>
+    </ScrollView>
+  );
+};
