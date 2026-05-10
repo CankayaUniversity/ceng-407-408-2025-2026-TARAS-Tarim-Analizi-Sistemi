@@ -25,7 +25,12 @@ import { getStringParam } from "../utils/requestHelpers";
 export const submitDetection = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.user_id;
-    const file = (req as any).file;
+    // multer.fields(): req.files = { image: [File], thumbnail: [File] }
+    const files = (req as any).files as
+      | Record<string, Express.Multer.File[] | undefined>
+      | undefined;
+    const file = files?.image?.[0];
+    const thumbFile = files?.thumbnail?.[0];
 
     if (!userId) {
       res.status(401).json({
@@ -43,10 +48,21 @@ export const submitDetection = asyncHandler(
       return;
     }
 
+    if (!thumbFile) {
+      // Mobile contract: client must always send thumbnail alongside original.
+      // No server-side fallback (sharp removed) to keep RAM footprint small.
+      res.status(400).json({
+        success: false,
+        error: "No thumbnail file provided",
+      });
+      return;
+    }
+
     try {
       logger.info(`Submitting disease detection request for user ${userId}`, {
         filename: file.originalname,
         size: file.size,
+        thumbSize: thumbFile.size,
       });
 
       const rawFolderId = (req.body as { folderId?: unknown }).folderId;
@@ -55,11 +71,29 @@ export const submitDetection = asyncHandler(
           ? rawFolderId.trim()
           : null;
 
+      // Capture metadata sidecar (device info, EXIF highlights, lighting,
+      // live-scan prediction at capture time, dataset consent flag). Optional.
+      const rawMeta = (req.body as { metadata?: unknown }).metadata;
+      let captureMetadata: Record<string, unknown> | null = null;
+      if (typeof rawMeta === "string" && rawMeta.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(rawMeta);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            captureMetadata = parsed as Record<string, unknown>;
+          }
+        } catch {
+          // Sessizce yut — metadata bozuksa detection submit'i hata vermesin
+          logger.warn(`Invalid capture metadata JSON from user ${userId}; ignoring`);
+        }
+      }
+
       const result = await submitDetectionRequest(
         userId,
         file.buffer,
+        thumbFile.buffer,
         file.originalname,
         folderId,
+        captureMetadata,
       );
 
       logger.info(`Detection request submitted successfully`, {

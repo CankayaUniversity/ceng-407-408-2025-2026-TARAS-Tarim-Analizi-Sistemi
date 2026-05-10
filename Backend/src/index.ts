@@ -7,6 +7,8 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
 import { startIrrigationScheduler } from './jobs/irrigation.scheduler';
+import { startDiseaseRetryScheduler } from './jobs/disease.retry.scheduler';
+import { startDiseaseCleanupScheduler } from './jobs/disease.cleanup.scheduler';
 
 dotenv.config();
 
@@ -93,6 +95,8 @@ async function startServer(): Promise<void> {
     }
     
     startIrrigationScheduler();
+    startDiseaseRetryScheduler();
+    startDiseaseCleanupScheduler();
 
     httpServer.listen(PORT, () => {
       logger.info(`Server running on http://${HOST}:${PORT}`);
