@@ -165,6 +165,7 @@ export interface DashboardSensors {
 
 export interface DashboardNode {
   id: string;
+  zone_id: string;
   x: number;
   z: number;
   moisture: number;

@@ -7,17 +7,21 @@ import prisma from "../config/database";
 import logger from "../utils/logger";
 
 // Provider gecisi — LLM_PROVIDER env ile kontrol edilir
-// "groq" (varsayilan) veya baska bir deger (extended modul gerektirir)
-const LLM_MODE = process.env.LLM_PROVIDER;
+//   "anthropic" → ext.generateAdvisory (Haiku 4.5 agentic)
+//   "groq"      → ext.generateAdvisoryGroq (Llama 4 Scout agentic, ayni tool loop)
+//   ext yoksa   → committed llm.service.ts (non-agentic Groq, takim uyelikleri icin fallback)
+const LLM_MODE = process.env.LLM_PROVIDER || "groq";
 let ext: any = null;
-if (LLM_MODE && LLM_MODE !== "groq") {
-  try {
-    ext = require("../services/llm/llm.extended");
-    logger.info(`[LLM] extended provider aktif`);
-  } catch { logger.info("[LLM] groq provider aktif"); }
+try {
+  ext = require("../services/llm/llm.extended");
+  logger.info(`[LLM] extended aktif (mode=${LLM_MODE})`);
+} catch {
+  logger.info(`[LLM] extended bulunamadi, committed groq (non-agentic) kullaniliyor`);
 }
 
-// Session olustur veya mevcut olanini kullan
+const useAgenticGroq = ext && LLM_MODE === "groq";
+const useAgenticAnthropic = ext && LLM_MODE !== "groq";
+
 async function resolveSession(
   sessionId: string | undefined,
   userId: string | undefined,
@@ -52,8 +56,10 @@ export const getTarasAdvice = asyncHandler(
 
     let llmResponse: string;
 
-    if (ext) {
+    if (useAgenticAnthropic) {
       llmResponse = await ext.generateAdvisory(userId, field_id, message, currentSessionId);
+    } else if (useAgenticGroq) {
+      llmResponse = await ext.generateAdvisoryGroq(userId, field_id, message, currentSessionId);
     } else {
       const fieldContext = await getFieldContextForLLM(field_id);
       if ("error" in fieldContext) {
@@ -98,12 +104,21 @@ export const getTarasAdviceStream = asyncHandler(
     try {
       let fullText: string;
 
-      if (ext) {
+      if (useAgenticAnthropic) {
         fullText = await ext.generateAdvisoryStream(
           userId, field_id, message, currentSessionId,
           (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
           (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
-          (screen: string) => res.write(`data: ${JSON.stringify({ navigate: screen })}\n\n`),
+          (screen: string, section: string | null) =>
+            res.write(`data: ${JSON.stringify({ navigate: screen, section })}\n\n`),
+        );
+      } else if (useAgenticGroq) {
+        fullText = await ext.generateAdvisoryStreamGroq(
+          userId, field_id, message, currentSessionId,
+          (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
+          (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
+          (screen: string, section: string | null) =>
+            res.write(`data: ${JSON.stringify({ navigate: screen, section })}\n\n`),
         );
       } else {
         const fieldContext = await getFieldContextForLLM(field_id);

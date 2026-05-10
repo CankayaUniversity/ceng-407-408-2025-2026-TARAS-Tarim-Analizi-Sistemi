@@ -63,6 +63,7 @@ export async function getFieldDashboard(
     // 2) Node pozisyonlari + son okuma (DISTINCT ON ile tek sorgu)
     prisma.$queryRawUnsafe<{
       node_id: string;
+      zone_id: string;
       x: number | null;
       z: number | null;
       sm_percent: number | null;
@@ -70,7 +71,7 @@ export async function getFieldDashboard(
       humidity: number | null;
       created_at: Date | null;
     }[]>(
-      `SELECT sn.node_id, sn.x, sn.z, lr.sm_percent, lr.temperature, lr.humidity, lr.created_at
+      `SELECT sn.node_id, sn.zone_id, sn.x, sn.z, lr.sm_percent, lr.temperature, lr.humidity, lr.created_at
        FROM sensor_nodes sn
        JOIN zones z ON z.zone_id = sn.zone_id
        LEFT JOIN LATERAL (
@@ -128,6 +129,7 @@ export async function getFieldDashboard(
 
     allNodes.push({
       id: node.node_id,
+      zone_id: node.zone_id,
       x: node.x ?? 0,
       z: node.z ?? 0,
       moisture,

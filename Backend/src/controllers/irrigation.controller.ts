@@ -7,6 +7,7 @@ import {
   generateAndSaveIrrigationJob,
   generateAndSaveIrrigationJobsForAllZones,
   getLatestIrrigationJobsByField,
+  getZoneIrrigationJobs,
   submitIrrigationJobActual,
 } from "../services/irrigation.service";
 
@@ -95,6 +96,40 @@ export const runAllIrrigationJobs = asyncHandler(
 );
 
 
+export const getZoneIrrigationJobsHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+
+    const zoneId = getStringParam(req.params.zone_id);
+    if (!zoneId) {
+      res.status(400).json({
+        success: false,
+        error: "Eksik parametre: 'zone_id' zorunludur.",
+      });
+      return;
+    }
+
+    try {
+      const data = await getZoneIrrigationJobs(zoneId, userId);
+      res.status(200).json({ success: true, data });
+    } catch (err: any) {
+      if (err?.message === "ZONE_NOT_FOUND_OR_FORBIDDEN") {
+        res.status(404).json({
+          success: false,
+          error: "Bolge bulunamadi veya erisim izniniz yok.",
+        });
+        return;
+      }
+      throw err;
+    }
+  },
+);
+
+
 export const getFieldIrrigationJobs = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     const userId = (req as any).user?.user_id;
@@ -161,16 +196,21 @@ export const submitIrrigationJobOutcome = asyncHandler(
       return;
     }
 
-    if (
-      typeof actual_duration_min !== "number" ||
-      !Number.isFinite(actual_duration_min) ||
-      actual_duration_min <= 0
-    ) {
-      res.status(400).json({
-        success: false,
-        error: "'actual_duration_min' pozitif bir sayi olmalidir.",
-      });
-      return;
+    // duration optional — mobil UI sormuyor, atlanırsa dokunulmaz
+    let durationMin: number | undefined = undefined;
+    if (actual_duration_min !== undefined && actual_duration_min !== null) {
+      if (
+        typeof actual_duration_min !== "number" ||
+        !Number.isFinite(actual_duration_min) ||
+        actual_duration_min <= 0
+      ) {
+        res.status(400).json({
+          success: false,
+          error: "'actual_duration_min' pozitif bir sayi olmalidir.",
+        });
+        return;
+      }
+      durationMin = actual_duration_min;
     }
 
     if (
@@ -205,7 +245,7 @@ export const submitIrrigationJobOutcome = asyncHandler(
       const updated = await submitIrrigationJobActual(jobId, userId, {
         actual_water_amount_ml,
         actual_start_time: startTime,
-        actual_duration_min,
+        ...(durationMin != null ? { actual_duration_min: durationMin } : {}),
       });
 
       res.status(200).json({

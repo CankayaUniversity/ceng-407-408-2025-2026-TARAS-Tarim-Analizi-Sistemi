@@ -1027,7 +1027,7 @@ export async function getLatestIrrigationJobsByField(
 export type SubmitActualInput = {
   actual_water_amount_ml: number;
   actual_start_time: Date;
-  actual_duration_min: number;
+  actual_duration_min?: number;
 };
 
 export async function submitIrrigationJobActual(
@@ -1067,7 +1067,9 @@ export async function submitIrrigationJobActual(
     data: {
       actual_water_amount_ml: input.actual_water_amount_ml,
       actual_start_time: input.actual_start_time,
-      actual_duration_min: input.actual_duration_min,
+      ...(input.actual_duration_min != null
+        ? { actual_duration_min: input.actual_duration_min }
+        : {}),
       status: "EXECUTED",
     },
     select: {
@@ -1080,6 +1082,58 @@ export async function submitIrrigationJobActual(
   });
 
   return updated;
+}
+
+// UUID v4-ish format dogrulamasi (Prisma'nin @db.Uuid sutununa sokmadan once)
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Bir zone'a ait tum sulama islerini getir (auth: zone user'a ait olmali)
+export async function getZoneIrrigationJobs(zoneId: string, userId: string) {
+  if (!UUID_RE.test(zoneId)) {
+    const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+    (err as any).status = 404;
+    throw err;
+  }
+
+  const zone = await prisma.zone.findUnique({
+    where: { zone_id: zoneId },
+    include: {
+      field: {
+        include: { farm: true },
+      },
+    },
+  });
+
+  if (!zone || zone.field?.farm?.user_id !== userId) {
+    const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+    (err as any).status = 404;
+    throw err;
+  }
+
+  const jobs = await prisma.irrigationJob.findMany({
+    where: { zone_id: zoneId, status: { not: "FAILED" } },
+    orderBy: { created_at: "desc" },
+    select: {
+      job_id: true,
+      zone_id: true,
+      status: true,
+      should_irrigate: true,
+      water_amount_ml: true,
+      start_time: true,
+      current_sm: true,
+      target_sm: true,
+      sm_deficit: true,
+      urgency_level: true,
+      reasoning: true,
+      actual_water_amount_ml: true,
+      actual_start_time: true,
+      actual_duration_min: true,
+      created_at: true,
+    },
+  });
+
+  return jobs;
 }
 
 export async function testDirectPgConnection() {

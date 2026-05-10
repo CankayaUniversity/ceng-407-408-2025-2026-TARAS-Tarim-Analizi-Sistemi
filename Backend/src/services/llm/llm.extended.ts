@@ -1,12 +1,21 @@
-// LLM servisi — Anthropic Haiku 4.5 + arac kullanim dongusu
-// Groq fallback: LLM_PROVIDER=groq ile eski davranisa donulebilir
+// LLM servisi — Anthropic Haiku 4.5 + arac kullanim dongusu (BIRINCIL)
+// + Groq agentic (Llama 4 Scout) — LLM_PROVIDER=groq icin ayni tool loop, OpenAI semasi
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { getSessionHistory } from "../chatMemory.service";
-import { getFieldContextForLLM } from "../tarasData.service";
 import { anthropic, ANTHROPIC_MODEL, CACHED_SYSTEM_PROMPT, buildPerRequestContext } from "./anthropic.service";
 import { TOOL_DEFINITIONS } from "./toolDefinitions";
 import { ToolExecutor } from "./toolExecutor";
 import { getFieldInventory } from "../dashboardService";
+import {
+  groqClient,
+  GROQ_MODEL,
+  GROQ_MAX_TOKENS,
+  GROQ_TEMPERATURE,
+  GROQ_REASONING_EFFORT,
+  GROQ_SYSTEM_PROMPT,
+  GROQ_TOOLS,
+} from "./groq.service";
 import logger from "../../utils/logger";
 
 const MAX_ITERATIONS = 8;
@@ -99,7 +108,6 @@ export const generateAdvisoryStream = async (
 
   let iteration = 0;
 
-  // Arac dongusu — streaming olmayan iterasyonlar
   while (iteration < MAX_ITERATIONS) {
     if (Date.now() > deadline) {
       logger.warn("[LLM] zaman asimi");
@@ -130,10 +138,9 @@ export const generateAdvisoryStream = async (
     );
 
     if (response.stop_reason === "end_turn" || toolBlocks.length === 0) {
-      // Son yanit — stream et
       const finalText = textBlocks.map((b) => b.text).join("");
       if (finalText) {
-        // Chunk chunk gonder — kucuk parcalar ve gecikme ile dogal hiz
+        // Kucuk parcalar halinde gonder, dogal hiz hissi icin
         const chunkSize = 500;
         for (let i = 0; i < finalText.length; i += chunkSize) {
           onChunk(finalText.slice(i, i + chunkSize));
@@ -144,10 +151,9 @@ export const generateAdvisoryStream = async (
       return finalText || "Yanıt alınamadı.";
     }
 
-    // Asistan mesajini gecmise ekle
     messages.push({ role: "assistant", content: response.content });
 
-    // Araclari calistir (paralel) — her araci istemciye bildir
+    // Paralel — her araci istemciye onStatus ile bildir
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolBlocks.map(async (block) => {
         onStatus?.(block.name);
@@ -163,86 +169,157 @@ export const generateAdvisoryStream = async (
       }),
     );
 
-    // Arac sonuclarini mesajlara ekle
     messages.push({ role: "user", content: toolResults });
     iteration++;
   }
 
-  // Maksimum iterasyona ulasildi
   logger.warn(`[LLM] maks iterasyon (${MAX_ITERATIONS})`);
   const fallback = "Analiz tamamlanamadı. Lütfen tekrar deneyin.";
   onChunk(fallback);
   return fallback;
 };
 
-// ===== GROQ FALLBACK =====
-
-// Groq icin OpenAI SDK — sadece LLM_PROVIDER=groq oldugunda kullanilir
-let groqClient: any = null;
-
-function getGroqClient(): any {
-  if (!groqClient) {
-    const OpenAI = require("openai").default;
-    groqClient = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-  }
-  return groqClient;
-}
-
-const GROQ_MODEL = "qwen/qwen3-32b";
-const GROQ_SYSTEM_PROMPT = `Sen TARAS (Tarımsal Karar Destek Sistemi) için çalışan uzman bir ziraat asistanısın.
-
-KESİN KURALLAR:
-1. Sana verilen [TARAS SİSTEM VERİSİ] dışındaki hiçbir bilgiyi kullanarak sulama, ilaç veya gübre tavsiyesi verme.
-2. Çiftçi teknik olmayan bir dilde soru sorabilir, ona her zaman saygılı, net ve profesyonel bir dille (Sen/Siz) hitap et.
-3. Kural motorunun aldığı kararın ("son_sistem_karari") NEDENİNİ, sistem eşiklerini ("sistem_esikleri") ve mevcut durumu ("mevcut_durum") karşılaştırarak açıkla.
-4. Eğer çiftçinin sorusunun cevabı verilerde yoksa, tahmin yürütme! Sadece "Mevcut sistem verilerinde bu soruya dair bir ölçüm bulunmuyor" de.
-5. Cevabın kısa ve doğrudan konuya yönelik olsun.`;
+// ===== GROQ AGENTIC (Llama 4 Scout) =====
+//
+// OpenAI tool-call semasi uzerinden ayni ToolExecutor'i kullanir. Anthropic
+// pathindekiyle ayni signature: (userId, fieldId, userMessage, sessionId, ...).
+// Tool iterasyonlari non-streaming — her iterasyonun yapisini incelememiz
+// gerekiyor (tool_calls vs content). Final text yapay olarak chunk'lanir
+// (Anthropic versiyonu da ayni desen — chunkSize=500).
 
 const stripThinkTags = (text: string): string => {
   const cleaned = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
   return cleaned || text;
 };
 
+// Llama 3.3'un uretebildigi legacy "<function=name>{...}</function>" text
+// formatini icerikten temizle (Llama 4 Scout normalde bunu yapmaz, paranoid).
+const stripLegacyToolFormat = (text: string): string =>
+  text.replace(/<function=[^>]+>[\s\S]*?<\/function>/g, "").trim();
+
+// gpt-oss reasoning channel leak guvenligi (Groq community forum'da rapor edilen
+// `<|channel|>` token'lari hidden modunda 4/10 oraninda sizdiriyor — biz default
+// "parsed" kullaniyoruz, leak gozlenmedi ama defansif olarak temizliyoruz).
+const stripChannelTokens = (text: string): string =>
+  text.replace(/<\|channel\|>[\s\S]*?<\|message\|>/g, "")
+      .replace(/<\|(?:channel|message|start|end|return)\|>/g, "")
+      .trim();
+
+function buildGroqMessages(
+  userMessage: string,
+  history: { role: string; content: string }[],
+  inventory: Awaited<ReturnType<typeof getFieldInventory>>,
+  fieldId: string,
+): OpenAI.Chat.ChatCompletionMessageParam[] {
+  return [
+    { role: "system", content: GROQ_SYSTEM_PROMPT },
+    {
+      role: "system",
+      content: buildPerRequestContext(inventory, fieldId, new Date()),
+    },
+    ...history.map((msg) => ({
+      role: (msg.role === "user" ? "user" : "assistant") as "user" | "assistant",
+      content: msg.content,
+    })),
+    { role: "user", content: userMessage },
+  ];
+}
+
+async function runGroqToolLoop(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[],
+  executor: ToolExecutor,
+  onStatus?: (status: string) => void,
+): Promise<string> {
+  const deadline = Date.now() + LOOP_TIMEOUT_MS;
+
+  for (let i = 0; i < MAX_ITERATIONS; i++) {
+    if (Date.now() > deadline) {
+      logger.warn("[LLM-GROQ] zaman asimi");
+      return "Analiz zaman aşımına uğradı. Lütfen sorunuzu tekrar sorun.";
+    }
+
+    const response = await groqClient.chat.completions.create({
+      model: GROQ_MODEL,
+      max_tokens: GROQ_MAX_TOKENS,
+      temperature: GROQ_TEMPERATURE,
+      messages,
+      tools: GROQ_TOOLS,
+      tool_choice: "auto",
+      // gpt-oss-* reasoning seviyesini dusur — diger modeller bu parami yoksayar
+      reasoning_effort: GROQ_REASONING_EFFORT,
+    } as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
+
+    const choice = response.choices[0];
+    if (!choice?.message) {
+      return "Yanıt alınamadı.";
+    }
+
+    const message = choice.message;
+    const toolCalls = message.tool_calls;
+    const content = message.content || "";
+
+    // Tool cagrisi yoksa final yanit — defansif temizlik, markdown korunur
+    if (!toolCalls || toolCalls.length === 0) {
+      const cleaned = stripChannelTokens(
+        stripLegacyToolFormat(stripThinkTags(content)),
+      );
+      return cleaned || "Yanıt alınamadı.";
+    }
+
+    // Asistan mesajini gecmise ekle — tool_calls verbatim, content nullable
+    messages.push({
+      role: "assistant",
+      content: content || null,
+      tool_calls: toolCalls,
+    });
+
+    // Her tool cagrisini sirayla yurut, sonucunu role=tool mesaji olarak ekle
+    for (const tc of toolCalls) {
+      // OpenAI SDK union: function vs custom — sadece function tipini calistir
+      if (tc.type !== "function") continue;
+      const fnName = tc.function.name;
+      onStatus?.(fnName);
+      let args: Record<string, unknown> = {};
+      try {
+        args = JSON.parse(tc.function.arguments || "{}");
+      } catch (e) {
+        logger.warn(`[LLM-GROQ] tool arg JSON parse hatasi: ${fnName}`, e);
+      }
+      const result = await executor.execute(fnName, args);
+      messages.push({
+        role: "tool",
+        tool_call_id: tc.id,
+        content: result,
+      });
+    }
+  }
+
+  logger.warn(`[LLM-GROQ] maks iterasyon (${MAX_ITERATIONS})`);
+  return "Analiz tamamlanamadı. Lütfen tekrar deneyin.";
+}
+
 export const generateAdvisoryGroq = async (
+  userId: string,
   fieldId: string,
   userMessage: string,
   sessionId: string,
 ): Promise<string> => {
   try {
     const start = Date.now();
-    const [history, fieldContext] = await Promise.all([
+    const [history, inventory] = await Promise.all([
       getSessionHistory(sessionId),
-      getFieldContextForLLM(fieldId),
+      getFieldInventory(userId),
     ]);
 
-    if ("error" in fieldContext) {
-      return `Tarla verisi alınamadı: ${fieldContext.error}`;
-    }
+    logger.debug(`[LLM-GROQ] gecmis: ${history.length} mesaj, sorgu: ${userMessage.slice(0, 60)}...`);
 
-    const groq = getGroqClient();
-    const response = await groq.chat.completions.create({
-      model: GROQ_MODEL,
-      messages: [
-        { role: "system", content: GROQ_SYSTEM_PROMPT },
-        { role: "system", content: `[TARAS SİSTEM VERİSİ]\n${JSON.stringify(fieldContext, null, 2)}` },
-        ...history.map((msg) => ({
-          role: (msg.role === "user" ? "user" : "assistant") as "user" | "assistant",
-          content: msg.content,
-        })),
-        { role: "user", content: userMessage },
-      ],
-      temperature: 0.7,
-      max_tokens: 2048,
-    });
+    const messages = buildGroqMessages(userMessage, history, inventory, fieldId);
+    const executor = new ToolExecutor(userId, fieldId);
+    const result = await runGroqToolLoop(messages, executor);
 
-    const raw = response.choices[0]?.message?.content ?? "Yanıt alınamadı.";
-    const text = stripThinkTags(raw);
     const duration = Date.now() - start;
-    logger.debug(`[LLM-GROQ] yanit: ${duration}ms, ${text.length} karakter`);
-    return text;
+    logger.debug(`[LLM-GROQ] yanit: ${duration}ms, ${result.length} karakter, model=${GROQ_MODEL}`);
+    return result;
   } catch (error) {
     logger.error("[LLM-GROQ] hata:", error);
     return "Şu anda TARAS yapay zeka asistanına ulaşılamıyor. Lütfen daha sonra tekrar deneyin.";
@@ -250,82 +327,46 @@ export const generateAdvisoryGroq = async (
 };
 
 export const generateAdvisoryStreamGroq = async (
+  userId: string,
   fieldId: string,
   userMessage: string,
   sessionId: string,
   onChunk: (text: string) => void,
+  onStatus?: (status: string) => void,
+  onNavigate?: (screen: string, section: string | null) => void,
 ): Promise<string> => {
-  const start = Date.now();
-  const [history, fieldContext] = await Promise.all([
-    getSessionHistory(sessionId),
-    getFieldContextForLLM(fieldId),
-  ]);
+  try {
+    const start = Date.now();
+    const [history, inventory] = await Promise.all([
+      getSessionHistory(sessionId),
+      getFieldInventory(userId),
+    ]);
 
-  if ("error" in fieldContext) {
-    const errorText = `Tarla verisi alınamadı: ${fieldContext.error}`;
-    onChunk(errorText);
-    return errorText;
+    logger.debug(`[LLM-GROQ] "${userMessage.slice(0, 50)}..." (gecmis: ${history.length})`);
+
+    const messages = buildGroqMessages(userMessage, history, inventory, fieldId);
+    const executor = new ToolExecutor(userId, fieldId);
+    executor.onNavigate = onNavigate;
+
+    const finalText = await runGroqToolLoop(messages, executor, onStatus);
+
+    // Anthropic deseni — final text'i 500 char chunk'lar halinde gonder
+    if (finalText) {
+      const chunkSize = 500;
+      for (let i = 0; i < finalText.length; i += chunkSize) {
+        onChunk(finalText.slice(i, i + chunkSize));
+      }
+    }
+
+    const duration = Date.now() - start;
+    logger.debug(`[LLM-GROQ] bitti: ${duration}ms, ${finalText.length} chr`);
+    return finalText || "Yanıt alınamadı.";
+  } catch (error) {
+    logger.error("[LLM-GROQ] stream hatasi:", error);
+    const fallback = "Şu anda TARAS yapay zeka asistanına ulaşılamıyor. Lütfen daha sonra tekrar deneyin.";
+    onChunk(fallback);
+    return fallback;
   }
-
-  const groq = getGroqClient();
-  const stream = await groq.chat.completions.create({
-    model: GROQ_MODEL,
-    messages: [
-      { role: "system", content: GROQ_SYSTEM_PROMPT },
-      { role: "system", content: `[TARAS SİSTEM VERİSİ]\n${JSON.stringify(fieldContext, null, 2)}` },
-      ...history.map((msg) => ({
-        role: (msg.role === "user" ? "user" : "assistant") as "user" | "assistant",
-        content: msg.content,
-      })),
-      { role: "user", content: userMessage },
-    ],
-    temperature: 0.7,
-    max_tokens: 2048,
-    stream: true,
-  });
-
-  let fullText = "";
-  let buffer = "";
-  let streaming = false;
-
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content ?? "";
-    if (!delta) continue;
-    fullText += delta;
-
-    if (streaming) {
-      onChunk(delta);
-      continue;
-    }
-
-    buffer += delta;
-    const thinkEnd = buffer.indexOf("</think>");
-    if (thinkEnd !== -1) {
-      const afterThink = buffer.substring(thinkEnd + 8).trimStart();
-      streaming = true;
-      if (afterThink) onChunk(afterThink);
-      continue;
-    }
-    const trimmed = buffer.trimStart();
-    if (trimmed.length >= 7 && !trimmed.startsWith("<think")) {
-      streaming = true;
-      onChunk(buffer);
-      continue;
-    }
-    if (trimmed.length > 0 && !trimmed.startsWith("<")) {
-      streaming = true;
-      onChunk(buffer);
-    }
-  }
-
-  if (!streaming && buffer) {
-    const cleaned = stripThinkTags(buffer);
-    if (cleaned) onChunk(cleaned);
-  }
-
-  const duration = Date.now() - start;
-  logger.debug(`[LLM-GROQ] bitti: ${duration}ms, ${fullText.length} chr`);
-  return stripThinkTags(fullText);
 };
 
 // ===== YARDIMCI =====
