@@ -434,6 +434,8 @@ export interface StringDictionary {
     yesFollowedExactly: string;
     noUsedDifferent: string;
     enterActualValues: string;
+    amountQuestion: string;
+    timeQuestion: string;
     amountInvalid: string;
     // Card-level display strings
     pendingRecommendation: string;
@@ -442,6 +444,49 @@ export interface StringDictionary {
     urgencyMedium: string;
     urgencyLow: string;
     lastIrrigation: string;
+  };
+
+  // Add Field
+  addField: {
+    addNewField: string;
+    selectFieldType: string;
+    greenhouse: string;
+    greenhouseDesc: string;
+    potArea: string;
+    potAreaDesc: string;
+    fieldName: string;
+    fieldNamePlaceholder: string;
+    cropName: string;
+    cropNamePlaceholder: string;
+    next: string;
+    drawBoundary: string;
+    drawBoundaryHint: string;
+    drawZones: string;
+    drawZonesHint: string;
+    addZone: string;
+    zoneName: string;
+    zoneNamePlaceholder: string;
+    closePolygon: string;
+    undoPoint: string;
+    clearAll: string;
+    deleteZone: string;
+    potCount: string;
+    potCountPlaceholder: string;
+    potCountHint: string;
+    preview: string;
+    fieldNameLabel: string;
+    fieldTypeLabel: string;
+    zoneCountLabel: string;
+    potCountLabel: string;
+    cropLabel: string;
+    createField: string;
+    fieldCreated: string;
+    nameRequired: string;
+    minPoints: string;
+    minOneZone: string;
+    potCountPositive: string;
+    potCountMax: string;
+    zoneNameRequired: string;
   };
 }
 
@@ -866,6 +911,8 @@ const tr: StringDictionary = {
     yesFollowedExactly: "Evet, öneri miktarı ve zamanında suladım",
     noUsedDifferent: "Hayır, farklı değerler kullandım",
     enterActualValues: "Gerçek değerleri girin",
+    amountQuestion: "Sulamayı önerdiğimiz miktarda mı yaptınız?",
+    timeQuestion: "Sulamayı önerdiğimiz zamanda mı yaptınız?",
     amountInvalid: "Geçerli bir miktar girin (0'dan büyük)",
     pendingRecommendation: "Sulama önerisi mevcut",
     noSuggestion: "Yeni öneri yok",
@@ -873,6 +920,48 @@ const tr: StringDictionary = {
     urgencyMedium: "Orta",
     urgencyLow: "Düşük",
     lastIrrigation: "Son Sulama",
+  },
+
+  addField: {
+    addNewField: "+ Yeni Tarla Ekle",
+    selectFieldType: "Tarla Tipi Seçin",
+    greenhouse: "Sera",
+    greenhouseDesc: "Poligon sınırı ve bölgeler çizin",
+    potArea: "Saksı Alanı",
+    potAreaDesc: "Saksı sayısını girin, otomatik yerleşim",
+    fieldName: "Tarla Adı",
+    fieldNamePlaceholder: "örn. Sera 1",
+    cropName: "Mahsul Tipi",
+    cropNamePlaceholder: "örn. Domates",
+    next: "İleri",
+    drawBoundary: "Dış Sınırı Çizin",
+    drawBoundaryHint: "Dokunarak en az 3 nokta ekleyin",
+    drawZones: "Bölgeleri Çizin",
+    drawZonesHint: "Sınır içinde bölge poligonları çizin",
+    addZone: "Bölge Ekle",
+    zoneName: "Bölge Adı",
+    zoneNamePlaceholder: "örn. Bölge 1",
+    closePolygon: "Poligonu Kapat",
+    undoPoint: "Geri Al",
+    clearAll: "Temizle",
+    deleteZone: "Sil",
+    potCount: "Saksı Sayısı",
+    potCountPlaceholder: "örn. 20",
+    potCountHint: "Her saksı bir bölge olarak oluşturulur",
+    preview: "Ön İzleme",
+    fieldNameLabel: "Tarla Adı",
+    fieldTypeLabel: "Tarla Tipi",
+    zoneCountLabel: "Bölge Sayısı",
+    potCountLabel: "Saksı Sayısı",
+    cropLabel: "Mahsul",
+    createField: "Tarlayı Oluştur",
+    fieldCreated: "Tarla başarıyla oluşturuldu!",
+    nameRequired: "Tarla adı zorunludur",
+    minPoints: "En az 3 nokta gereklidir",
+    minOneZone: "En az 1 bölge gereklidir",
+    potCountPositive: "Saksı sayısı pozitif bir sayı olmalıdır",
+    potCountMax: "En fazla 32 saksı eklenebilir",
+    zoneNameRequired: "Bölge adı zorunludur",
   },
 };
 
@@ -1297,6 +1386,8 @@ const en: StringDictionary = {
     yesFollowedExactly: "Yes, I irrigated with the recommended amount and time",
     noUsedDifferent: "No, I used different values",
     enterActualValues: "Enter your actual values",
+    amountQuestion: "Did you irrigate with our recommended amount?",
+    timeQuestion: "Did you irrigate at our recommended time?",
     amountInvalid: "Enter a valid amount (greater than 0)",
     pendingRecommendation: "Irrigation recommendation pending",
     noSuggestion: "No new irrigation suggestion",
@@ -1304,6 +1395,48 @@ const en: StringDictionary = {
     urgencyMedium: "Medium",
     urgencyLow: "Low",
     lastIrrigation: "Last Irrigation",
+  },
+
+  addField: {
+    addNewField: "+ Add New Field",
+    selectFieldType: "Select Field Type",
+    greenhouse: "Greenhouse",
+    greenhouseDesc: "Draw polygon boundary and zones",
+    potArea: "Pot Area",
+    potAreaDesc: "Enter pot count, auto-layout",
+    fieldName: "Field Name",
+    fieldNamePlaceholder: "e.g. Greenhouse 1",
+    cropName: "Crop Type",
+    cropNamePlaceholder: "e.g. Tomato",
+    next: "Next",
+    drawBoundary: "Draw Outer Boundary",
+    drawBoundaryHint: "Tap to place at least 3 points",
+    drawZones: "Draw Zones",
+    drawZonesHint: "Draw zone polygons inside the boundary",
+    addZone: "Add Zone",
+    zoneName: "Zone Name",
+    zoneNamePlaceholder: "e.g. Zone 1",
+    closePolygon: "Close Polygon",
+    undoPoint: "Undo",
+    clearAll: "Clear",
+    deleteZone: "Delete",
+    potCount: "Pot Count",
+    potCountPlaceholder: "e.g. 20",
+    potCountHint: "Each pot will be created as a zone",
+    preview: "Preview",
+    fieldNameLabel: "Field Name",
+    fieldTypeLabel: "Field Type",
+    zoneCountLabel: "Zone Count",
+    potCountLabel: "Pot Count",
+    cropLabel: "Crop",
+    createField: "Create Field",
+    fieldCreated: "Field created successfully!",
+    nameRequired: "Field name is required",
+    minPoints: "At least 3 points are required",
+    minOneZone: "At least 1 zone is required",
+    potCountPositive: "Pot count must be a positive number",
+    potCountMax: "Maximum 32 pots allowed",
+    zoneNameRequired: "Zone name is required",
   },
 };
 

@@ -789,7 +789,10 @@ export const ColorPlane = memo(function ColorPlane({
   };
 
   const GEOMETRY_DEPTH = 1.5;
-  const geometrySurfaceY = GEOMETRY_DEPTH / scale;
+  const POT_HEIGHT_LOCAL = 5.0; // local group units — pot height in field coordinate space
+  const geometrySurfaceY = fieldData.isPotField
+    ? POT_HEIGHT_LOCAL
+    : GEOMETRY_DEPTH / scale;
   const NODE_HEIGHT = geometrySurfaceY + 0.05;
 
   const getNodeLocalPosition = (node: NodeInfo) => ({
@@ -805,6 +808,7 @@ export const ColorPlane = memo(function ColorPlane({
   const headInstRef = useRef<any>(null);
   const bodyInstRef = useRef<any>(null);
   const tipInstRef = useRef<any>(null);
+  const potBodyInstRef = useRef<any>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tmpColor = useMemo(() => new THREE.Color(), []);
 
@@ -861,6 +865,38 @@ export const ColorPlane = memo(function ColorPlane({
     invalidate,
   ]);
 
+  // Saksi instance guncelleme — govde rengi dogrudan nemi gosterir
+  useEffect(() => {
+    if (!fieldData.isPotField) return;
+    const body = potBodyInstRef.current;
+    if (!body || nodes.length === 0) return;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      const lx = node.x - centerX;
+      const lz = centerZ - node.z;
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.position.set(lx, POT_HEIGHT_LOCAL / 2, lz);
+      dummy.updateMatrix();
+      body.setMatrixAt(i, dummy.matrix);
+      tmpColor.set(moistureToColor(node.moisture));
+      body.setColorAt(i, tmpColor);
+    }
+
+    body.instanceMatrix.needsUpdate = true;
+    if (body.instanceColor) body.instanceColor.needsUpdate = true;
+    invalidate();
+  }, [
+    nodes,
+    fieldData.isPotField,
+    centerX,
+    centerZ,
+    dummy,
+    tmpColor,
+    invalidate,
+  ]);
+
   // applySelectionRef guncelleme + disaridan gelen secim uygulama
   // field/scale degisince closure'i yeniler; externalSelectedNodeId degisince secimi uygular
   useEffect(() => {
@@ -901,7 +937,7 @@ export const ColorPlane = memo(function ColorPlane({
 
   return (
     <group ref={groupRef} position={[0, 0, 0]} scale={[scale, scale, scale]}>
-      <mesh
+      {!fieldData.isPotField && <mesh
         ref={meshRef}
         position={[0, 0, 0]}
         geometry={geometry}
@@ -956,7 +992,19 @@ export const ColorPlane = memo(function ColorPlane({
           vertexShader={vertexShader}
           fragmentShader={fragmentShader}
         />
-      </mesh>
+      </mesh>}
+
+      {/* Saksi tarla: birbirinden bagimsiz, esit boyutlu saksılar — renk nemi gosterir */}
+      {fieldData.isPotField && nodes.length > 0 && (
+        <instancedMesh
+          key={`pot-body-${nodes.length}`}
+          ref={potBodyInstRef}
+          args={[undefined, undefined, nodes.length]}
+        >
+          <cylinderGeometry args={[3.2, 2.2, POT_HEIGHT_LOCAL, 8]} />
+          <meshStandardMaterial roughness={0.75} metalness={0.0} vertexColors />
+        </instancedMesh>
+      )}
 
       <ambientLight intensity={0.8} />
       <directionalLight

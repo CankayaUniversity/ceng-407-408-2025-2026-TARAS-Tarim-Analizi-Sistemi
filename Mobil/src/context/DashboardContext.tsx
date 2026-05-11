@@ -26,9 +26,12 @@ interface DashboardContextValue {
   dashboardData: DashboardData | null;
   refreshing: boolean;
   fieldSelectorOpen: boolean;
+  addFieldModalOpen: boolean;
   selectField: (fieldId: string) => Promise<void>;
   refresh: () => Promise<void>;
   setFieldSelectorOpen: (open: boolean) => void;
+  setAddFieldModalOpen: (open: boolean) => void;
+  addLocalField: (summary: FieldSummary, data: DashboardData) => void;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -40,12 +43,21 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [fieldSelectorOpen, setFieldSelectorOpen] = useState(false);
+  const [addFieldModalOpen, setAddFieldModalOpen] = useState(false);
+  const [localFields] = useState(() => new Map<string, DashboardData>());
 
   // Auth hatalarini logout'a cevirir. Diger hatalarda mevcut datayi BOZMAZ —
   // bir refresh basarisiz olursa user son bilinen iyi datayi gormeye devam eder
   // (eskiden silently demo'ya dusuyordu, real ve demo veri karisiyordu).
   const loadDashboardForField = useCallback(
     async (fieldId: string, isDemo: boolean) => {
+      // Lokal olusturulmus tarla varsa ondan yukle (backend'e gitmeden)
+      const localData = localFields.get(fieldId);
+      if (localData) {
+        setDashboardData(localData);
+        return;
+      }
+
       if (isDemo) {
         setDashboardData(generateDemoDashboardData(fieldId));
         return;
@@ -65,7 +77,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
         // UI spinner gosterir. Mid-session hatasi olursa son data kalir.
       }
     },
-    [handleLogout],
+    [handleLogout, localFields],
   );
 
   // isLoggedIn / dataSource degisince veri yukle. Mode gecisinde stale datayi
@@ -159,6 +171,19 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     setRefreshing(false);
   }, [selectedFieldId, dataSource, loadDashboardForField]);
 
+  // Lokal tarla ekle — frontend-only, session boyunca gecerli
+  const addLocalField = useCallback(
+    (summary: FieldSummary, data: DashboardData) => {
+      localFields.set(summary.id, data);
+      setFields((prev) => [...prev, summary]);
+      setSelectedFieldId(summary.id);
+      setDashboardData(data);
+      setFieldSelectorOpen(false);
+      setAddFieldModalOpen(false);
+    },
+    [localFields],
+  );
+
   const value = useMemo(
     () => ({
       fields,
@@ -166,9 +191,12 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       dashboardData,
       refreshing,
       fieldSelectorOpen,
+      addFieldModalOpen,
       selectField,
       refresh,
       setFieldSelectorOpen,
+      setAddFieldModalOpen,
+      addLocalField,
     }),
     [
       fields,
@@ -176,8 +204,10 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       dashboardData,
       refreshing,
       fieldSelectorOpen,
+      addFieldModalOpen,
       selectField,
       refresh,
+      addLocalField,
     ],
   );
 

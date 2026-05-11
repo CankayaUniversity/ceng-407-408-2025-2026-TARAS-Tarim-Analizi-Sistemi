@@ -20,6 +20,7 @@ import LogoLight from "../assets/Taras-logo-light.svg";
 import LogoDark from "../assets/Taras-logo-dark.svg";
 import { NotificationsButton } from "./NotificationsButton";
 import { NotificationsScreen } from "../screens";
+import { AddFieldModal } from "../screens/AddField";
 
 export const AppHeader = () => {
   const { theme, isDark } = useTheme();
@@ -29,6 +30,8 @@ export const AppHeader = () => {
     selectField,
     fieldSelectorOpen,
     setFieldSelectorOpen,
+    addFieldModalOpen,
+    setAddFieldModalOpen,
   } = useDashboard();
   const { t } = useLanguage();
   const { screenWidth } = useResponsive();
@@ -36,88 +39,114 @@ export const AppHeader = () => {
   const notificationsButtonSize = getProfileButtonSize(headerDims.logoSize);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
 
-  const fieldSelectorJSX =
-    fields.length > 0 ? (
-      <View className="flex-1 relative">
-        <TouchableOpacity
-          onPress={() => setFieldSelectorOpen(!fieldSelectorOpen)}
-          className="row-between rounded-lg border"
+  const fieldSelectorJSX = (
+    <View className="flex-1 relative">
+      <TouchableOpacity
+        onPress={() => setFieldSelectorOpen(!fieldSelectorOpen)}
+        className="row-between rounded-lg border"
+        style={{
+          paddingVertical: vs(6),
+          paddingHorizontal: s(12),
+          backgroundColor: theme.surface,
+          borderColor: theme.primary + "30",
+        }}
+      >
+        <View className="row flex-1" style={{ gap: s(6) }}>
+          <Ionicons name="leaf" size={ms(14, 0.3)} color={theme.primary} />
+          <Text
+            className="font-semibold flex-1"
+            style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
+            numberOfLines={1}
+          >
+            {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
+          </Text>
+        </View>
+        <Ionicons
+          name={fieldSelectorOpen ? "chevron-up" : "chevron-down"}
+          size={ms(14, 0.3)}
+          color={theme.textSecondary}
+          style={{ marginLeft: s(6) }}
+        />
+      </TouchableOpacity>
+
+      {fieldSelectorOpen && (
+        <View
+          className="absolute left-0 right-0 rounded-lg border overflow-hidden z-[1001]"
           style={{
-            paddingVertical: vs(6),
-            paddingHorizontal: s(12),
+            top: vs(38),
+            maxHeight: vs(250),
             backgroundColor: theme.surface,
             borderColor: theme.primary + "30",
+            elevation: 10,
+            shadowColor: theme.shadowColor,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.15,
+            shadowRadius: 8,
           }}
         >
-          <View className="row flex-1" style={{ gap: s(6) }}>
-            <Ionicons name="leaf" size={ms(14, 0.3)} color={theme.primary} />
-            <Text
-              className="font-semibold flex-1"
-              style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
-              numberOfLines={1}
-            >
-              {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
-            </Text>
-          </View>
-          <Ionicons
-            name={fieldSelectorOpen ? "chevron-up" : "chevron-down"}
-            size={ms(14, 0.3)}
-            color={theme.textSecondary}
-            style={{ marginLeft: s(6) }}
-          />
-        </TouchableOpacity>
-
-        {fieldSelectorOpen && (
-          <View
-            className="absolute left-0 right-0 rounded-lg border overflow-hidden z-[1001]"
-            style={{
-              top: vs(38),
-              maxHeight: vs(200),
-              backgroundColor: theme.surface,
-              borderColor: theme.primary + "30",
-              elevation: 10,
-              shadowColor: theme.shadowColor,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 8,
-            }}
-          >
-            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-              {fields
-                .filter((f) => f.id !== selectedFieldId)
-                .map((field, index, arr) => (
-                  <TouchableOpacity
-                    key={field.id}
-                    onPress={() => selectField(field.id)}
-                    className="row"
-                    style={[
-                      { paddingHorizontal: s(12), paddingVertical: vs(10) },
-                      index < arr.length - 1 && {
-                        borderBottomWidth: 1,
-                        borderBottomColor: theme.primary + "15",
-                      },
-                    ]}
-                    activeOpacity={0.7}
+          <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+            {fields
+              .filter((f) => f.id !== selectedFieldId)
+              .map((field, index, arr) => (
+                <TouchableOpacity
+                  key={field.id}
+                  onPress={() => selectField(field.id)}
+                  className="row"
+                  style={[
+                    { paddingHorizontal: s(12), paddingVertical: vs(10) },
+                    index < arr.length - 1 && {
+                      borderBottomWidth: 1,
+                      borderBottomColor: theme.primary + "15",
+                    },
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="leaf-outline"
+                    size={ms(14, 0.3)}
+                    color={theme.textSecondary}
+                    style={{ marginRight: s(8) }}
+                  />
+                  <Text
+                    className="font-medium"
+                    style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
                   >
-                    <Ionicons
-                      name="leaf-outline"
-                      size={ms(14, 0.3)}
-                      color={theme.textSecondary}
-                      style={{ marginRight: s(8) }}
-                    />
-                    <Text
-                      className="font-medium"
-                      style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
-                    >
-                      {field.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-    ) : null;
+                    {field.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+            {/* Ayirici + Yeni Tarla Ekle */}
+            {fields.filter((f) => f.id !== selectedFieldId).length > 0 && (
+              <View style={{ borderTopWidth: 1, borderTopColor: theme.primary + "15" }} />
+            )}
+            <TouchableOpacity
+              onPress={() => {
+                setFieldSelectorOpen(false);
+                setAddFieldModalOpen(true);
+              }}
+              className="row"
+              style={{ paddingHorizontal: s(12), paddingVertical: vs(10) }}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={ms(14, 0.3)}
+                color={theme.primary}
+                style={{ marginRight: s(8) }}
+              />
+              <Text
+                className="font-medium"
+                style={{ fontSize: ms(13, 0.3), color: theme.primary }}
+              >
+                {t.addField.addNewField}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <View
@@ -157,6 +186,12 @@ export const AppHeader = () => {
       >
         <NotificationsScreen onClose={() => setNotificationsOpen(false)} />
       </Modal>
+
+      <AddFieldModal
+        visible={addFieldModalOpen}
+        theme={theme}
+        onClose={() => setAddFieldModalOpen(false)}
+      />
     </View>
   );
 };

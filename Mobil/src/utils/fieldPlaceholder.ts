@@ -19,6 +19,7 @@ export interface SensorNode {
 export interface FieldData {
   polygon: FieldPolygon;
   nodes: SensorNode[];
+  isPotField?: boolean;
 }
 
 function getPolygonBounds(polygon: [number, number][]) {
