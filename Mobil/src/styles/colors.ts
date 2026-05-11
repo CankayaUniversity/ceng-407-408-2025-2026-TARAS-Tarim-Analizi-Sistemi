@@ -29,6 +29,21 @@ export const palette = {
     900: '#2a230b',
     950: '#15110a',
   },
+  // Soil-moisture visualization — digital twin humidity overlay.
+  // 100 = driest, 900 = wettest. Do NOT use for decorative UI elements.
+  soilMoisture: {
+    50:  '#e5f6ff',
+    100: '#ccecff',
+    200: '#99daff',
+    300: '#66c7ff',
+    400: '#33b4ff',
+    500: '#00a1ff',
+    600: '#0081cc',
+    700: '#006199',
+    800: '#004166',
+    900: '#002033',
+    950: '#001724',
+  },
   // Warm olive-tinted neutral — hue ~96°, low sat. Replaces slateGrey.
   // Used for secondary text, muted text, borders, dividers.
   sageGray: {

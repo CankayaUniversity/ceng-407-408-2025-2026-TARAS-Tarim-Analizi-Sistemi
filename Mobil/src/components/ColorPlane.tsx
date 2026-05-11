@@ -76,7 +76,7 @@ const TAP_DISTANCE_THRESHOLD = 10;
 const TAP_TIME_THRESHOLD = 300;
 const PIN_WORLD_SIZE = 0.5;
 
-// Nem → renk: kuru toprak (altin/kum) → yasil zeytinlik (olive)
+// Nem → renk: soilMoisture paleti — kuru (#ccecff) → yasli (#002033)
 const moistureToColor = (m: number): string => {
   const clamped = Math.max(0, Math.min(100, m));
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -84,12 +84,12 @@ const moistureToColor = (m: number): string => {
     "#" +
     [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
 
-  // Kuru: gold[300] → Hafif: olive[400] → Optimal: olive[700] → Doygun: olive[900]
+  // Kuru: soilMoisture[100] → Hafif: soilMoisture[300] → Nemli: soilMoisture[600] → Doygun: soilMoisture[900]
   const stops = [
-    hexToRgb(palette.gold[300]), // 0%  — kuru, kum renkli
-    hexToRgb(palette.olive[400]), // 33% — hafif nem, acik yesil
-    hexToRgb(palette.olive[700]), // 67% — optimal nem, koyu zeytin
-    hexToRgb(palette.olive[900]), // 100% — doygun, derin zeytin
+    hexToRgb(palette.soilMoisture[100]), // 0%  — kuru, cok acik mavi
+    hexToRgb(palette.soilMoisture[300]), // 33% — hafif nem, acik mavi
+    hexToRgb(palette.soilMoisture[600]), // 67% — nemli, orta mavi
+    hexToRgb(palette.soilMoisture[900]), // 100% — doygun, derin lacivert
   ];
 
   const t = clamped / 100;
