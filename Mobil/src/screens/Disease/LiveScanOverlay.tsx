@@ -10,16 +10,20 @@ import { useLanguage } from "../../context/LanguageContext";
 import { s, vs, ms } from "../../utils/responsive";
 
 const CLASS_LABELS: Record<string, { tr: string; en: string }> = {
-  bacterial_spot:          { tr: "Bakteriyel Leke",     en: "Bacterial Spot" },
-  early_blight:            { tr: "Erken Yanıklık",      en: "Early Blight" },
-  healthy:                 { tr: "Sağlıklı",            en: "Healthy" },
-  late_blight:             { tr: "Geç Yanıklık",        en: "Late Blight" },
-  leaf_mold:               { tr: "Yaprak Küfü",         en: "Leaf Mold" },
-  mosaic_virus:            { tr: "Mozaik Virüsü",       en: "Mosaic Virus" },
-  septoria_leaf_spot:      { tr: "Septoria Lekesi",     en: "Septoria Spot" },
-  spider_mites:            { tr: "Kırmızı Örümcek",     en: "Spider Mites" },
-  target_spot:             { tr: "Hedef Leke",          en: "Target Spot" },
-  yellow_leaf_curl_virus:  { tr: "Sarı Kıvrım Virüsü", en: "Yellow Curl Virus" },
+  bacterial_spot:            { tr: "Bakteriyel Leke",     en: "Bacterial Spot" },
+  corn_common_rust:          { tr: "Mısır Pası",          en: "Corn Common Rust" },
+  corn_gray_leaf_spot:       { tr: "Mısır Gri Leke",      en: "Corn Gray Leaf Spot" },
+  corn_northern_leaf_blight: { tr: "Mısır Kuzey Yanıklığı", en: "Corn N. Leaf Blight" },
+  early_blight:              { tr: "Erken Yanıklık",      en: "Early Blight" },
+  healthy:                   { tr: "Sağlıklı",            en: "Healthy" },
+  late_blight:               { tr: "Geç Yanıklık",        en: "Late Blight" },
+  leaf_mold:                 { tr: "Yaprak Küfü",         en: "Leaf Mold" },
+  mosaic_virus:              { tr: "Mozaik Virüsü",       en: "Mosaic Virus" },
+  powdery_mildew:            { tr: "Külleme",             en: "Powdery Mildew" },
+  septoria_leaf_spot:        { tr: "Septoria Lekesi",     en: "Septoria Spot" },
+  spider_mites:              { tr: "Kırmızı Örümcek",     en: "Spider Mites" },
+  target_spot:               { tr: "Hedef Leke",          en: "Target Spot" },
+  yellow_leaf_curl_virus:    { tr: "Sarı Kıvrım Virüsü",  en: "Yellow Curl Virus" },
 };
 
 interface LiveScanOverlayProps {

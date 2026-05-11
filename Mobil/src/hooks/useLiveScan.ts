@@ -5,7 +5,7 @@
 //   B) Bridge fallback — uint8 buffer JS'e, normalize + run() JS thread'inde, tek pre-allocated f32 buffer
 //
 // Adaptif tempo: bir EMA latency * safety_factor ile interval hesaplanir; sabit FPS yok.
-// Stabil sahne tasarrufu: 2 sn boyunca ayni sonuc + parlaklik degisimi yoksa keep-alive (2.5 Hz).
+// Stabil sahne tasarrufu: ayni sonuc + sabit parlaklik 2 sn surerse 2.5 Hz keep-alive.
 // AppState: arka plana gectiginde frame processor durur, on plana gelince devam eder.
 // AsyncStorage: ust uste 3 worklet hatasinda B mimarisi kaydedilir; bir sonraki acilis B'den baslar.
 
@@ -48,6 +48,10 @@ const ARCH_ERROR_THRESHOLD = 3;      // ust uste N hata sonrasi B'ye ge
 
 const INPUT_SIZE = 224 * 224 * 3;    // 150528
 
+const STABLE_AFTER_MS = 2000;
+const STABLE_INTERVAL_MS = 400;
+const STABLE_LUMA_DELTA = 0.06;
+
 export interface UseLiveScanReturn {
   liveResult: LocalInferenceResult | null;
   modelLoading: boolean;
@@ -86,6 +90,10 @@ export function useLiveScan(
   const errorCountShared = useSharedValue(0);
   const useFallbackShared = useSharedValue(false);
   const appPausedShared = useSharedValue(false);
+  // Stabil sahne tespiti — sonuc anahtari ayni + parlaklik sapma esikte
+  // kaldigi surece stableSinceMs > 0; throttle interval check'inde okunur.
+  const stableSinceMsShared = useSharedValue(0);
+  const stableLumaShared = useSharedValue(0);
   // Yaprak cascade flag — JS effect bunu setLeafShared.value ile gunceller
   const useLeafShared = useSharedValue(false);
 
@@ -375,6 +383,7 @@ export function useLiveScan(
       appPausedShared.value = paused;
       if (paused) {
         inflightShared.value = false;
+        stableSinceMsShared.value = 0;
       }
     });
     return () => sub.remove();
@@ -394,6 +403,8 @@ export function useLiveScan(
       lastEmittedKeyShared.value = "";
       lastFireMsShared.value = 0;
       latencyEmaShared.value = 0;
+      stableSinceMsShared.value = 0;
+      stableLumaShared.value = 0;
       // errorCountShared & useFallbackShared korunur — oturum boyu
     }
     return () => {
@@ -435,12 +446,16 @@ export function useLiveScan(
       if (inflightShared.value) return;
       if (!model) return;
 
-      // Adaptif interval — EMA * SAFETY_FACTOR, alt sinir MIN_INTERVAL_MS, ust sinir yok
-      // Bootstrap (ilk frame): MIN_INTERVAL_MS — hizli baslat, sonra EMA devralir
+      // Adaptif interval — EMA * SAFETY_FACTOR, alt sinir MIN_INTERVAL_MS
+      // Stabil sahne 2 sn sonra STABLE_INTERVAL_MS tabaninda kalir
       const now = Date.now();
       const ema = latencyEmaShared.value;
       let interval = ema > 0 ? ema * SAFETY_FACTOR : MIN_INTERVAL_MS;
       if (interval < MIN_INTERVAL_MS) interval = MIN_INTERVAL_MS;
+      const stableSince = stableSinceMsShared.value;
+      if (stableSince > 0 && now - stableSince > STABLE_AFTER_MS) {
+        if (interval < STABLE_INTERVAL_MS) interval = STABLE_INTERVAL_MS;
+      }
       if (now - lastFireMsShared.value < interval) return;
       lastFireMsShared.value = now;
 
@@ -469,9 +484,13 @@ export function useLiveScan(
             // Defansif: bu frame'de cascade'i atla, classifier full frame'le calissin.
           } else if (!leafResult.topBox) {
             const k = "no_leaf:";
-            if (lastEmittedKeyShared.value !== k) {
+            const keyChanged = lastEmittedKeyShared.value !== k;
+            if (keyChanged) {
               lastEmittedKeyShared.value = k;
               emitResult({ status: "no_leaf" }, 0);
+              stableSinceMsShared.value = 0;
+            } else if (stableSinceMsShared.value === 0) {
+              stableSinceMsShared.value = now;
             }
             inflightShared.value = false;
             return;
@@ -536,18 +555,36 @@ export function useLiveScan(
         // Aydinlatma erken cikis — buffer JS'e gitmeden
         if (meanLuma < LIGHT_DARK_THR) {
           const k = "dark:";
-          if (lastEmittedKeyShared.value !== k) {
+          const keyChanged = lastEmittedKeyShared.value !== k;
+          if (keyChanged) {
             lastEmittedKeyShared.value = k;
             emitResult({ status: "dark" }, 0);
+            stableSinceMsShared.value = 0;
+            stableLumaShared.value = meanLuma;
+          } else if (Math.abs(meanLuma - stableLumaShared.value) >= STABLE_LUMA_DELTA) {
+            stableSinceMsShared.value = 0;
+            stableLumaShared.value = meanLuma;
+          } else if (stableSinceMsShared.value === 0) {
+            stableSinceMsShared.value = now;
+            stableLumaShared.value = meanLuma;
           }
           inflightShared.value = false;
           return;
         }
         if (meanLuma > LIGHT_BRIGHT_THR) {
           const k = "overexposed:";
-          if (lastEmittedKeyShared.value !== k) {
+          const keyChanged = lastEmittedKeyShared.value !== k;
+          if (keyChanged) {
             lastEmittedKeyShared.value = k;
             emitResult({ status: "overexposed" }, 0);
+            stableSinceMsShared.value = 0;
+            stableLumaShared.value = meanLuma;
+          } else if (Math.abs(meanLuma - stableLumaShared.value) >= STABLE_LUMA_DELTA) {
+            stableSinceMsShared.value = 0;
+            stableLumaShared.value = meanLuma;
+          } else if (stableSinceMsShared.value === 0) {
+            stableSinceMsShared.value = now;
+            stableLumaShared.value = meanLuma;
           }
           inflightShared.value = false;
           return;
@@ -614,7 +651,8 @@ export function useLiveScan(
         }
         const conf5 = Math.round(topProb * 20);
         const key = `${resultStatus}:${resultName}:${conf5}`;
-        if (key !== lastEmittedKeyShared.value) {
+        const keyChanged = key !== lastEmittedKeyShared.value;
+        if (keyChanged) {
           lastEmittedKeyShared.value = key;
           if (resultStatus === "confident") {
             const allProbs: Record<string, number> = {};
@@ -634,9 +672,16 @@ export function useLiveScan(
           } else {
             emitResult({ status: "uncertain", leafBox: detectedLeafBox }, ms);
           }
-        } else {
-          // Ayni sonuc — sadece timer guncellemesi icin runOnJS gerekmiyor
-          // commitResult zaten 2 Hz throttle yapiyor
+        }
+        if (keyChanged) {
+          stableSinceMsShared.value = 0;
+          stableLumaShared.value = meanLuma;
+        } else if (Math.abs(meanLuma - stableLumaShared.value) >= STABLE_LUMA_DELTA) {
+          stableSinceMsShared.value = 0;
+          stableLumaShared.value = meanLuma;
+        } else if (stableSinceMsShared.value === 0) {
+          stableSinceMsShared.value = now;
+          stableLumaShared.value = meanLuma;
         }
 
         // Basari -> hata sayacini sifirla
