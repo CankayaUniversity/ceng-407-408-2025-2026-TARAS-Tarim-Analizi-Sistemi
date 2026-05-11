@@ -100,8 +100,8 @@ export const IrrigationDetailScreen = ({
   const [loading, setLoading] = useState(true);
 
   // Form durumu
-  // followedRecommendation: true = öneriyi tam uyguladım, false = farklı değer girdim
-  const [followedRecommendation, setFollowedRecommendation] = useState<boolean | null>(null);
+  const [followedAmount, setFollowedAmount] = useState<boolean | null>(null);
+  const [followedTime, setFollowedTime] = useState<boolean | null>(null);
   const [actualAmount, setActualAmount] = useState("");
   const [actualTime, setActualTime] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -166,8 +166,8 @@ export const IrrigationDetailScreen = ({
     if (!pendingJob) return;
     setValidationError(null);
 
-    // "No" yolu: kullanıcı girişlerini doğrula
-    if (followedRecommendation === false) {
+    // "No" miktarı yolu: kullanıcı girişlerini doğrula
+    if (followedAmount === false) {
       const amountVal = parseFloat(actualAmount);
       if (!actualAmount.trim() || isNaN(amountVal) || amountVal <= 0) {
         setValidationError(t.irrigation.amountInvalid);
@@ -180,18 +180,21 @@ export const IrrigationDetailScreen = ({
 
     const payload: { actual_water_amount_ml?: number; actual_start_time?: string } = {};
 
-    if (followedRecommendation === true) {
-      payload.actual_water_amount_ml = pendingJob.water_amount_ml ?? 0;
-      payload.actual_start_time = pendingJob.start_time ?? new Date().toISOString();
-    } else if (followedRecommendation === false) {
-      payload.actual_water_amount_ml = parseFloat(actualAmount);
-      payload.actual_start_time = actualTime.toISOString();
-    }
+    payload.actual_water_amount_ml =
+      followedAmount === true
+        ? (pendingJob.water_amount_ml ?? 0)
+        : parseFloat(actualAmount);
+
+    payload.actual_start_time =
+      followedTime === true
+        ? (pendingJob.start_time ?? new Date().toISOString())
+        : actualTime.toISOString();
 
     const res = await irrigationAPI.updateJobActual(pendingJob.job_id, payload);
     if (res.success) {
       setSaveResult("success");
-      setFollowedRecommendation(null);
+      setFollowedAmount(null);
+      setFollowedTime(null);
       setActualAmount("");
       setValidationError(null);
       await loadData();
@@ -199,7 +202,7 @@ export const IrrigationDetailScreen = ({
       setSaveResult("error");
     }
     setSaving(false);
-  }, [pendingJob, followedRecommendation, actualAmount, actualTime, loadData, t.irrigation.amountInvalid]);
+  }, [pendingJob, followedAmount, followedTime, actualAmount, actualTime, loadData, t.irrigation.amountInvalid]);
 
   // DateTimePicker handler
   const onDateChange = (_: any, selected?: Date) => {
@@ -225,10 +228,10 @@ export const IrrigationDetailScreen = ({
   };
 
   const canSave =
-    followedRecommendation === true ||
-    (followedRecommendation === false &&
-      actualAmount.trim().length > 0 &&
-      parseFloat(actualAmount) > 0);
+    followedAmount !== null &&
+    followedTime !== null &&
+    (followedAmount === true ||
+      (actualAmount.trim().length > 0 && parseFloat(actualAmount) > 0));
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -456,7 +459,7 @@ export const IrrigationDetailScreen = ({
 
             {pendingJob ? (
               <>
-            {/* Sulama onayı — tek soru */}
+            {/* Soru 1: Miktar */}
             <Text
               style={{
                 fontSize: ms(14, 0.3),
@@ -465,198 +468,172 @@ export const IrrigationDetailScreen = ({
                 marginBottom: spacing.sm,
               }}
             >
-              {t.irrigation.confirmIrrigationQuestion}
+              {t.irrigation.amountQuestion}
             </Text>
+            <YesNoToggle
+              value={followedAmount}
+              onChange={(val) => {
+                setFollowedAmount(val);
+                setValidationError(null);
+                setSaveResult(null);
+              }}
+              theme={theme}
+              yesLabel={t.common.yes}
+              noLabel={t.common.no}
+            />
 
-            {/* Seçenek kartları */}
-            <View style={{ gap: s(8) }}>
-              {([true, false] as const).map((option) => {
-                const isSelected = followedRecommendation === option;
-                const label = option
-                  ? t.irrigation.yesFollowedExactly
-                  : t.irrigation.noUsedDifferent;
-                return (
-                  <TouchableOpacity
-                    key={String(option)}
-                    onPress={() => {
-                      setFollowedRecommendation(option);
-                      setValidationError(null);
-                      setSaveResult(null);
-                    }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingVertical: spacing.sm,
-                      paddingHorizontal: spacing.md,
-                      borderRadius: 12,
-                      borderWidth: 1.5,
-                      borderColor: isSelected ? theme.primary : theme.border,
-                      backgroundColor: isSelected
-                        ? theme.primary + "12"
-                        : theme.surface,
-                      gap: s(10),
-                    }}
-                  >
-                    <Ionicons
-                      name={
-                        isSelected
-                          ? option
-                            ? "checkmark-circle"
-                            : "close-circle"
-                          : "radio-button-off-outline"
-                      }
-                      size={22}
-                      color={isSelected ? theme.primary : theme.textMuted}
-                    />
-                    <Text
-                      style={{
-                        flex: 1,
-                        fontSize: ms(13, 0.3),
-                        fontWeight: isSelected ? "600" : "500",
-                        color: isSelected ? theme.primary : theme.textMain,
-                      }}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* "Hayır" seçilince: miktar + zaman girişi */}
-            {followedRecommendation === false && (
+            {/* Miktar girişi — "Hayır" seçilince */}
+            {followedAmount === false && (
               <View
                 style={{
-                  marginTop: spacing.md,
+                  marginTop: spacing.sm,
                   padding: spacing.md,
                   backgroundColor: theme.surface,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: theme.border,
-                  gap: spacing.md,
                 }}
               >
                 <Text
                   style={{
-                    fontSize: ms(13, 0.3),
-                    fontWeight: "600",
-                    color: theme.textMain,
-                    marginBottom: spacing.xs,
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
                   }}
                 >
-                  {t.irrigation.enterActualValues}
+                  {t.irrigation.actualAmount}
                 </Text>
-
-                {/* Gerçek miktar */}
-                <View>
+                <TextInput
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: validationError ? theme.danger : theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    fontSize: ms(16, 0.3),
+                    color: theme.textMain,
+                  }}
+                  value={actualAmount}
+                  onChangeText={(v) => {
+                    setActualAmount(v);
+                    setValidationError(null);
+                  }}
+                  placeholder={t.irrigation.enterAmount}
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="numeric"
+                />
+                {validationError ? (
                   <Text
                     style={{
-                      fontSize: ms(12, 0.3),
-                      color: theme.textSecondary,
-                      marginBottom: 4,
+                      fontSize: ms(11, 0.3),
+                      color: theme.danger,
+                      marginTop: 4,
                     }}
                   >
-                    {t.irrigation.actualAmount}
+                    {validationError}
                   </Text>
-                  <TextInput
-                    style={{
-                      backgroundColor: theme.background,
-                      borderWidth: 1,
-                      borderColor: validationError ? theme.danger : theme.border,
-                      borderRadius: 10,
-                      paddingHorizontal: spacing.sm,
-                      paddingVertical: spacing.sm,
-                      fontSize: ms(16, 0.3),
-                      color: theme.textMain,
-                    }}
-                    value={actualAmount}
-                    onChangeText={(v) => {
-                      setActualAmount(v);
-                      setValidationError(null);
-                    }}
-                    placeholder={t.irrigation.enterAmount}
-                    placeholderTextColor={theme.textMuted}
-                    keyboardType="numeric"
+                ) : null}
+              </View>
+            )}
+
+            {/* Soru 2: Zaman */}
+            <Text
+              style={{
+                fontSize: ms(14, 0.3),
+                fontWeight: "600",
+                color: theme.textMain,
+                marginTop: spacing.md,
+                marginBottom: spacing.sm,
+              }}
+            >
+              {t.irrigation.timeQuestion}
+            </Text>
+            <YesNoToggle
+              value={followedTime}
+              onChange={(val) => {
+                setFollowedTime(val);
+                setSaveResult(null);
+              }}
+              theme={theme}
+              yesLabel={t.common.yes}
+              noLabel={t.common.no}
+            />
+
+            {/* Zaman girişi — "Hayır" seçilince */}
+            {followedTime === false && (
+              <View
+                style={{
+                  marginTop: spacing.sm,
+                  padding: spacing.md,
+                  backgroundColor: theme.surface,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
+                  }}
+                >
+                  {t.irrigation.actualTime}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ fontSize: ms(15, 0.3), color: theme.textMain }}>
+                    {actualTime.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={actualTime}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onDateChange}
+                    maximumDate={new Date()}
                   />
-                  {validationError ? (
-                    <Text
-                      style={{
-                        fontSize: ms(11, 0.3),
-                        color: theme.danger,
-                        marginTop: 4,
-                      }}
-                    >
-                      {validationError}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* Gerçek zaman */}
-                <View>
-                  <Text
-                    style={{
-                      fontSize: ms(12, 0.3),
-                      color: theme.textSecondary,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {t.irrigation.actualTime}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowDatePicker(true)}
-                    style={{
-                      backgroundColor: theme.background,
-                      borderWidth: 1,
-                      borderColor: theme.border,
-                      borderRadius: 10,
-                      paddingHorizontal: spacing.sm,
-                      paddingVertical: spacing.sm,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={{ fontSize: ms(15, 0.3), color: theme.textMain }}>
-                      {actualTime.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
-                    </Text>
-                    <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
-                  </TouchableOpacity>
-
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={actualTime}
-                      mode="date"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={onDateChange}
-                      maximumDate={new Date()}
-                    />
-                  )}
-                  {showTimePicker && (
-                    <DateTimePicker
-                      value={actualTime}
-                      mode="time"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={onTimeChange}
-                      is24Hour={true}
-                    />
-                  )}
-                  {/* iOS: tarih ve saat picker'ı aynı anda göster */}
-                  {Platform.OS === "ios" && showDatePicker && (
-                    <DateTimePicker
-                      value={actualTime}
-                      mode="time"
-                      display="spinner"
-                      onChange={onTimeChange}
-                      is24Hour={true}
-                    />
-                  )}
-                </View>
+                )}
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={actualTime}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onTimeChange}
+                    is24Hour={true}
+                  />
+                )}
+                {Platform.OS === "ios" && showDatePicker && (
+                  <DateTimePicker
+                    value={actualTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={onTimeChange}
+                    is24Hour={true}
+                  />
+                )}
               </View>
             )}
 
