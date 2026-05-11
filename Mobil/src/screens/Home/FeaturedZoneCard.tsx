@@ -15,6 +15,11 @@ interface FeaturedZoneCardProps {
   nextIrrigationTime: string | null;
   /** First PENDING job with should_irrigate === true from irrigationAPI.getZoneJobs(). */
   pendingSuggestion?: IrrigationSuggestion | null;
+  /** En yeni NO_ACTION jobu — sistem kontrol etti ama sulama gerekmiyor */
+  noActionEvaluation?: {
+    reasoning: string | null;
+    created_at: string;
+  } | null;
   /** Most recent EXECUTED job's actual_start_time ?? start_time. */
   lastIrrigationTime?: string | null;
   onPress: () => void;
@@ -114,6 +119,7 @@ export const FeaturedZoneCard = ({
   node,
   nodeIndex,
   pendingSuggestion = null,
+  noActionEvaluation = null,
   lastIrrigationTime = null,
   onPress,
 }: FeaturedZoneCardProps) => {
@@ -279,8 +285,57 @@ export const FeaturedZoneCard = ({
                 )}
               </View>
             </>
+          ) : noActionEvaluation ? (
+            /* ── DURUM B': Sistem kontrol etti, sulama gerekmiyor ── */
+            <>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: s(5),
+                  marginBottom: spacing.xs,
+                }}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={14}
+                  color={theme.success}
+                />
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    fontWeight: "600",
+                    color: theme.success,
+                  }}
+                >
+                  {t.irrigation.noIrrigationNeeded}
+                </Text>
+              </View>
+              {noActionEvaluation.reasoning && (
+                <Text
+                  numberOfLines={2}
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    lineHeight: ms(16, 0.3),
+                  }}
+                >
+                  {noActionEvaluation.reasoning}
+                </Text>
+              )}
+              <Text
+                style={{
+                  fontSize: ms(11, 0.3),
+                  color: theme.textMuted,
+                  marginTop: spacing.xs,
+                }}
+              >
+                {t.irrigation.lastChecked}:{" "}
+                {formatCardTime(noActionEvaluation.created_at, language)}
+              </Text>
+            </>
           ) : (
-            /* ── DURUM B: Aktif öneri yok ── */
+            /* ── DURUM C: Hiç değerlendirme yok ── */
             <>
               <Text
                 style={{

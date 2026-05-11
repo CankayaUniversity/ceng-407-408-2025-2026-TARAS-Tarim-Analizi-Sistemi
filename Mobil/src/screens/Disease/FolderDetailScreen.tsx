@@ -22,6 +22,8 @@ import { usePopupMessage } from "../../context/PopupMessageContext";
 import { spacing, s, vs, ms } from "../../utils/responsive";
 import { diseaseAPI, type DiseaseTrackingFolderDetail, type FolderDetectionDetail } from "../../utils/api";
 import { DISEASE_TARGET_LABELS } from "../../utils/diseaseTargetLabels";
+import { PendingUpload } from "../../utils/pendingUploads";
+import { PendingUploadCard } from "./PendingUploadCard";
 
 interface FolderDetailScreenProps {
   folderId: string;
@@ -33,6 +35,12 @@ interface FolderDetailScreenProps {
   onAddPhoto: (folderId: string, folderName: string) => void;
   /** Detection tap'lerine callback (parent detail modal'i acabilir) */
   onDetectionPress?: (detection: FolderDetectionDetail) => void;
+  /** Parent submit sonrasi artar → useEffect refetch tetikler */
+  refreshKey?: number;
+  pendingForFolder?: PendingUpload[];
+  retryingPendingId?: string | null;
+  onPendingRetry?: (pendingId: string) => void;
+  onPendingDismiss?: (pendingId: string) => void;
 }
 
 export const FolderDetailScreen = ({
@@ -42,6 +50,11 @@ export const FolderDetailScreen = ({
   onDeactivated,
   onAddPhoto,
   onDetectionPress,
+  refreshKey = 0,
+  pendingForFolder = [],
+  retryingPendingId = null,
+  onPendingRetry,
+  onPendingDismiss,
 }: FolderDetailScreenProps) => {
   const { t, language } = useLanguage();
   const { showPopup } = usePopupMessage();
@@ -76,6 +89,12 @@ export const FolderDetailScreen = ({
   useEffect(() => {
     fetchFolder();
   }, [fetchFolder]);
+
+  // refreshKey > 0 ise initial mount fetch'i ile cakismasin
+  useEffect(() => {
+    if (refreshKey > 0) fetchFolder(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const handleDeactivate = () => {
     if (!folder) return;
@@ -197,7 +216,18 @@ export const FolderDetailScreen = ({
           {t.disease.folderDetailTimeline}
         </Text>
 
-        {folder.detections.length === 0 ? (
+        {pendingForFolder.map((p) => (
+          <PendingUploadCard
+            key={p.pendingId}
+            pending={p}
+            theme={theme}
+            retrying={retryingPendingId === p.pendingId}
+            onRetry={(id) => onPendingRetry?.(id)}
+            onDismiss={(id) => onPendingDismiss?.(id)}
+          />
+        ))}
+
+        {folder.detections.length === 0 && pendingForFolder.length === 0 ? (
           <View style={[styles.emptyState, { backgroundColor: theme.surface, borderColor: theme.primary + "15" }]}>
             <Ionicons name="image-outline" size={36} color={theme.textSecondary} />
             <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>

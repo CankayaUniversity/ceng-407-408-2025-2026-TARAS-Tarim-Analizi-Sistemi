@@ -19,10 +19,18 @@ import { Theme } from "../../utils/theme";
 import { diseaseAPI, DiseaseDetection, type DiseaseTrackingFolder } from "../../utils/api";
 import { IS_EXPO_GO } from "../../utils/runtimeEnv";
 import { DiseaseResultCard, getConfidenceTier, FeedbackRating } from "./DiseaseResultCard";
+import { PendingUploadCard } from "./PendingUploadCard";
 import { DiseaseCameraScreen } from "./DiseaseCameraScreen";
 import { FolderCard } from "./FolderCard";
 import { CreateFolderModal } from "./CreateFolderModal";
 import { FolderDetailScreen } from "./FolderDetailScreen";
+import {
+  PendingUpload,
+  enqueuePending,
+  listPending,
+  removePending,
+  updatePendingError,
+} from "../../utils/pendingUploads";
 import { DiseaseScreenProps } from "./types";
 import { spacing } from "../../utils/responsive";
 import { s, vs } from "../../utils/responsive";
@@ -62,6 +70,24 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   // Kamera acildiginda (folder detail FAB'den) hangi folder'a baglanmali
   const [cameraFolderContext, setCameraFolderContext] =
     useState<{ folderId: string; folderName: string } | null>(null);
+  const [returnToFolderId, setReturnToFolderId] = useState<string | null>(null);
+  const [folderRefreshKey, setFolderRefreshKey] = useState(0);
+
+  const [pending, setPending] = useState<PendingUpload[]>([]);
+  const [retryingPendingId, setRetryingPendingId] = useState<string | null>(null);
+
+  const refreshPending = async () => {
+    try {
+      const list = await listPending();
+      setPending(list);
+    } catch (err) {
+      console.log("[DISEASE] pending list fail:", String(err));
+    }
+  };
+
+  useEffect(() => {
+    refreshPending();
+  }, []);
 
   // Modeli arka planda yukle — kullanici Live mode'a gectiginde hazir olur
   // Singleton oldugu icin useLiveScan ikinci yukleme baslatmaz
@@ -176,28 +202,113 @@ export const DiseaseScreen = memo(function DiseaseScreen({
     },
   });
 
-  const handleSendForAnalysis = async (imageUri: string, folderId?: string | null) => {
+  const closeCameraAndReturn = () => {
+    setShowCamera(false);
+    setCameraFolderContext(null);
+    if (returnToFolderId) {
+      setOpenFolderId(returnToFolderId);
+      setReturnToFolderId(null);
+      setFolderRefreshKey((k) => k + 1);
+    }
+  };
+
+  const handleSendForAnalysis = async (
+    imageUri: string,
+    folderId?: string | null,
+    extras?: import("./types").DiseaseSubmissionExtras,
+  ) => {
     try {
-      // Submit the image — folderId set ise klasore baglanir, yoksa general detection
-      const response = await diseaseAPI.submitDetection(imageUri, folderId ?? null);
+      const response = await diseaseAPI.submitDetection(
+        imageUri,
+        folderId ?? null,
+        extras?.hintedLabel ?? null,
+        extras?.liveScanResult ?? null,
+      );
+
       if (!response.success || !response.data) {
-        showPopup(response.error || t.disease.errorSendingImage);
+        // Backend basarisizsa goruntuyu yerel kuyruga al — kullanici resmi tekrar cekmesin
+        try {
+          await enqueuePending({
+            imageUri,
+            folderId: folderId ?? null,
+            hintedLabel: extras?.hintedLabel ?? null,
+            liveScanResult: extras?.liveScanResult ?? null,
+            errorReason: response.error ?? null,
+          });
+          await refreshPending();
+          showPopup(t.disease.queuedForRetry);
+        } catch (err) {
+          console.log("[DISEASE] enqueue pending fail:", String(err));
+          showPopup(response.error || t.disease.errorSendingImage);
+        }
+        closeCameraAndReturn();
+        fetchDetections();
         return;
       }
 
       const { detectionId } = response.data;
 
-      // Show success message and close camera
       showPopup(t.disease.sentForAnalysis);
-      setShowCamera(false);
-      // Folder context'i temizle — bir sonraki kamera "general" baslar
-      setCameraFolderContext(null);
-
-      // Start polling for results in the background
+      closeCameraAndReturn();
+      fetchDetections();
       pollForResults(detectionId);
     } catch (error) {
-      showPopup(t.disease.errorGeneric);
+      console.log("[DISEASE] submit unexpected:", String(error));
+      try {
+        await enqueuePending({
+          imageUri,
+          folderId: folderId ?? null,
+          hintedLabel: extras?.hintedLabel ?? null,
+          liveScanResult: extras?.liveScanResult ?? null,
+          errorReason: error instanceof Error ? error.message : "unknown",
+        });
+        await refreshPending();
+        showPopup(t.disease.queuedForRetry);
+      } catch {
+        showPopup(t.disease.errorGeneric);
+      }
+      closeCameraAndReturn();
+      fetchDetections();
     }
+  };
+
+  const handleRetryPending = async (pendingId: string) => {
+    const item = pending.find((p) => p.pendingId === pendingId);
+    if (!item) return;
+    setRetryingPendingId(pendingId);
+    try {
+      const response = await diseaseAPI.submitDetection(
+        item.imageUri,
+        item.folderId ?? null,
+        item.hintedLabel ?? null,
+        (item.liveScanResult as any) ?? null,
+      );
+      if (response.success && response.data) {
+        await removePending(pendingId);
+        await refreshPending();
+        showPopup(t.disease.retrySuccess);
+        fetchDetections();
+        if (item.folderId) setFolderRefreshKey((k) => k + 1);
+        pollForResults(response.data.detectionId);
+      } else {
+        const reason = response.error ?? "retry failed";
+        await updatePendingError(pendingId, reason);
+        await refreshPending();
+        showPopup(reason);
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : "retry error";
+      await updatePendingError(pendingId, reason);
+      await refreshPending();
+      showPopup(t.disease.errorSendingImage);
+    } finally {
+      setRetryingPendingId(null);
+    }
+  };
+
+  const handleDismissPending = async (pendingId: string) => {
+    await removePending(pendingId);
+    await refreshPending();
   };
 
   // ── Folder handlers ──────────────────────────────────────────────────────
@@ -222,7 +333,8 @@ export const DiseaseScreen = memo(function DiseaseScreen({
 
   const handleAddPhotoFromFolder = (folderId: string, folderName: string) => {
     setCameraFolderContext({ folderId, folderName });
-    setOpenFolderId(null); // detail'i kapat
+    setReturnToFolderId(folderId); // gönder/iptal sonrası bu folder'a geri dön
+    setOpenFolderId(null); // detail'i kapat (modal stack temiz olsun)
     setShowCamera(true);
   };
 
@@ -436,7 +548,22 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                 theme={theme}
                 scrollViewRef={scrollViewRef}
               >
-                {!generalExpanded ? null : detections.length === 0 ? (
+                {/* Pending uploads (failed-to-send) — folder'a bagli olmayanlar */}
+                {generalExpanded &&
+                  pending
+                    .filter((p) => !p.folderId)
+                    .map((p) => (
+                      <PendingUploadCard
+                        key={p.pendingId}
+                        pending={p}
+                        theme={theme}
+                        retrying={retryingPendingId === p.pendingId}
+                        onRetry={handleRetryPending}
+                        onDismiss={handleDismissPending}
+                      />
+                    ))}
+
+                {!generalExpanded ? null : detections.length === 0 && pending.filter((p) => !p.folderId).length === 0 ? (
                   <View className="flex-1 center" style={{ paddingVertical: vs(16) }}>
                     <Ionicons
                       name="leaf-outline"
@@ -630,6 +757,11 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                 // FolderDetectionDetail seti subset of DiseaseDetection — cast guvenli
                 setSelectedDetection(d as unknown as DiseaseDetection);
               }}
+              refreshKey={folderRefreshKey}
+              pendingForFolder={pending.filter((p) => p.folderId === openFolderId)}
+              retryingPendingId={retryingPendingId}
+              onPendingRetry={handleRetryPending}
+              onPendingDismiss={handleDismissPending}
             />
           </SafeAreaProvider>
         )}
@@ -669,6 +801,8 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
 
   const topTier = confidencePct != null ? getConfidenceTier(confidencePct, theme) : null;
 
+  const [heroAspect, setHeroAspect] = useState<number | null>(null);
+
   return (
     <ScrollView
       contentContainerStyle={{
@@ -679,13 +813,11 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
       }}
       showsVerticalScrollIndicator={false}
     >
-      {/* Hero — flexGrow + flex:1 + minHeight: dolu icerikte 213px tabaninda kalir,
-          bos kalan dikey alanda buyur. Feedback scrollsuz gorunsun diye. */}
       <View
         style={{
           flex: 1,
           minHeight: 213,
-          aspectRatio: 1,
+          aspectRatio: heroAspect ?? 1,
           alignSelf: "center",
           maxWidth: "100%",
           borderRadius: 14,
@@ -697,7 +829,13 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
           <Image
             source={{ uri: imageUrl }}
             style={{ width: "100%", height: "100%" }}
-            resizeMode="cover"
+            resizeMode="contain"
+            onLoad={(e) => {
+              const src = e.nativeEvent.source;
+              if (src && src.width > 0 && src.height > 0) {
+                setHeroAspect(src.width / src.height);
+              }
+            }}
           />
         ) : (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -713,7 +851,7 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
         </View>
       )}
 
-      {detection.status === "NOT_STARTED" && (
+      {(detection.status === "NOT_STARTED" || detection.status === "QUEUED") && (
         <Text className="text-secondary text-sm text-center">
           {t.disease.waitingInQueue}
         </Text>

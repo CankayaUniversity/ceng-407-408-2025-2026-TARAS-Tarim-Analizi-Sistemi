@@ -101,6 +101,10 @@ export const HomeScreen = memo(({
   // Sulama verisi — secili zone icin
   const [pendingSuggestion, setPendingSuggestion] = useState<IrrigationSuggestion | null>(null);
   const [lastIrrigationTime, setLastIrrigationTime] = useState<string | null>(null);
+  const [noActionEvaluation, setNoActionEvaluation] = useState<{
+    reasoning: string | null;
+    created_at: string;
+  } | null>(null);
   const [irrigationRefreshKey, setIrrigationRefreshKey] = useState(0);
 
   // Secili node her zaman mevcut tarlanin node'larindan biri olmali.
@@ -160,6 +164,7 @@ export const HomeScreen = memo(({
     if (!selectedNode) {
       setPendingSuggestion(null);
       setLastIrrigationTime(null);
+      setNoActionEvaluation(null);
       return;
     }
 
@@ -181,6 +186,16 @@ export const HomeScreen = memo(({
               start_time: pending.start_time,
               urgency_level: pending.urgency_level as IrrigationSuggestion["urgency_level"],
             }
+          : null,
+      );
+
+      // PENDING yoksa en yeni NO_ACTION'i goster — "sistem kontrol etti, sulama gerekmiyor"
+      const noAction = pending
+        ? null
+        : sorted.find((j) => j.status === "NO_ACTION");
+      setNoActionEvaluation(
+        noAction
+          ? { reasoning: noAction.reasoning, created_at: noAction.created_at }
           : null,
       );
 
@@ -220,6 +235,7 @@ export const HomeScreen = memo(({
             nodeIndex={nodeIndex}
             nextIrrigationTime={dashboardData?.irrigation?.nextIrrigationTime ?? null}
             pendingSuggestion={pendingSuggestion}
+            noActionEvaluation={noActionEvaluation}
             lastIrrigationTime={lastIrrigationTime}
             onPress={handleOpenDetail}
           />

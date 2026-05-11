@@ -86,6 +86,12 @@ export interface StringDictionary {
     confidence: string;
     analysisFailed: string;
     waitingInQueue: string;
+    failedToSend: string;
+    failedToSendSubtitle: string;
+    retryButton: string;
+    retrying: string;
+    retrySuccess: string;
+    queuedForRetry: string;
     allPredictions: string;
     detailTitle: string;
     detailNoData: string;
@@ -160,6 +166,11 @@ export interface StringDictionary {
     folderDeactivateError: string;
     folderAddPhotoTo: string;
     folderCameraAddingTo: string;
+    // ── Demo modu ──
+    sampleButton: string;
+    sampleSheetTitle: string;
+    sampleResolveError: string;
+    demoHardwareUnavailable: string;
   };
 
   // Camera Screen
@@ -247,13 +258,9 @@ export interface StringDictionary {
     language: string;
     languageTurkish: string;
     languageEnglish: string;
-    awsConnectionTest: string;
+    datasetConsentTitle: string;
+    datasetConsentSubtitle: string;
     logout: string;
-    diagnosticsTitle: string;
-    diagnosticsConfirmation: string;
-    diagnosticsStart: string;
-    diagnosticsCompleted: string;
-    diagnosticsFailed: string;
   };
 
   // Hardware Setup
@@ -319,23 +326,6 @@ export interface StringDictionary {
     history: string;
     historyEmpty: string;
     readMore: string;
-  };
-
-  // Network Diagnostics
-  networkDiag: {
-    title: string;
-    running: string;
-    startButton: string;
-    shareReport: string;
-    infoHeader: string;
-    bulletNetworkStatus: string;
-    bulletDNS: string;
-    bulletHTTP: string;
-    bulletAPI: string;
-    bulletSocketIO: string;
-    lastRun: string;
-    promptMessage: string;
-    tip: string;
   };
 
   // Error Boundary / 3D
@@ -433,6 +423,9 @@ export interface StringDictionary {
     recommendationTime: string;
     noActiveRecommendation: string;
     noActiveRecommendationSub: string;
+    noIrrigationNeeded: string;
+    noIrrigationNeededSub: string;
+    lastChecked: string;
     confirmIrrigationQuestion: string;
     yesFollowedExactly: string;
     noUsedDifferent: string;
@@ -530,6 +523,12 @@ const tr: StringDictionary = {
     confidence: "güven",
     analysisFailed: "Analiz başarısız oldu",
     waitingInQueue: "Analiz için sırada bekliyor",
+    failedToSend: "Gönderilemedi",
+    failedToSendSubtitle: "İnternet bağlantınızı kontrol edip tekrar deneyin",
+    retryButton: "Tekrar dene",
+    retrying: "Gönderiliyor...",
+    retrySuccess: "Gönderildi",
+    queuedForRetry: "Görsel sıraya alındı, daha sonra tekrar denenecek",
     allPredictions: "Tüm Tahminler",
     detailTitle: "Analiz Detayı",
     detailNoData: "Veri yok",
@@ -604,6 +603,10 @@ const tr: StringDictionary = {
     folderDeactivateError: "Klasör arşivlenemedi.",
     folderAddPhotoTo: "Klasöre fotoğraf ekle:",
     folderCameraAddingTo: "Eklenecek klasör:",
+    sampleButton: "ÖRNEK",
+    sampleSheetTitle: "Demo örnek görüntü seç",
+    sampleResolveError: "Örnek görüntü yüklenemedi.",
+    demoHardwareUnavailable: "Donanım kurulumu demo modunda kullanılamaz.",
   },
 
   camera: {
@@ -690,14 +693,9 @@ const tr: StringDictionary = {
     language: "Dil",
     languageTurkish: "Türkçe",
     languageEnglish: "English",
-    awsConnectionTest: "AWS Bağlantı Testi",
+    datasetConsentTitle: "TARAS'ı geliştirmeye yardım et",
+    datasetConsentSubtitle: "Çektiğin yaprak fotoğrafları gelecekteki model eğitiminde kullanılabilir. İstediğin zaman kapatabilirsin.",
     logout: "Çıkış Yap",
-    diagnosticsTitle: "Ağ Tanılaması",
-    diagnosticsConfirmation:
-      "AWS sunucusuna bağlantıyı test etmek istiyor musunuz? Bu 30-60 saniye sürebilir.",
-    diagnosticsStart: "Başlat",
-    diagnosticsCompleted: "Tanılama Tamamlandı",
-    diagnosticsFailed: "Hata: Tanılama başarısız oldu",
   },
 
   hardware: {
@@ -761,23 +759,6 @@ const tr: StringDictionary = {
     history: "Geçmiş Sohbetler",
     historyEmpty: "Henüz sohbet geçmişi yok",
     readMore: "Tümünü gör",
-  },
-
-  networkDiag: {
-    title: "Ağ Tanılaması",
-    running: "Çalışıyor...",
-    startButton: "Tanılama Başlat",
-    shareReport: "Raporu Paylaş",
-    infoHeader: "Bu araç AWS sunucunuza olan bağlantıyı test eder:",
-    bulletNetworkStatus: "Ağ durumu",
-    bulletDNS: "DNS çözümlemesi",
-    bulletHTTP: "HTTP bağlantısı",
-    bulletAPI: "API uç noktaları",
-    bulletSocketIO: "Socket.IO bağlantısı",
-    lastRun: "Son çalıştırma",
-    promptMessage:
-      'AWS bağlantınızı test etmek için\n"Tanılama Başlat" butonuna basın',
-    tip: "İpucu: Raporu paylaşarak geliştirici ekibinizle veya Claude ile hata ayıklayabilirsiniz.",
   },
 
   errors: {
@@ -870,6 +851,9 @@ const tr: StringDictionary = {
     recommendationTime: "Öneri Zamanı",
     noActiveRecommendation: "Aktif öneri yok",
     noActiveRecommendationSub: "Bu bölge için bekleyen sulama önerisi bulunmuyor.",
+    noIrrigationNeeded: "Sulama gerekmiyor",
+    noIrrigationNeededSub: "Sistem kontrol etti, şu an sulama gerekmiyor.",
+    lastChecked: "Son kontrol",
     confirmIrrigationQuestion: "Sulama önerisini tam olarak uyguladınız mı?",
     yesFollowedExactly: "Evet, öneri miktarı ve zamanında suladım",
     noUsedDifferent: "Hayır, farklı değerler kullandım",
@@ -966,6 +950,12 @@ const en: StringDictionary = {
     confidence: "confidence",
     analysisFailed: "Analysis failed",
     waitingInQueue: "Waiting in queue for analysis",
+    failedToSend: "Couldn't send",
+    failedToSendSubtitle: "Check your connection and try again",
+    retryButton: "Retry",
+    retrying: "Sending...",
+    retrySuccess: "Sent",
+    queuedForRetry: "Image queued — will retry later",
     allPredictions: "All Predictions",
     detailTitle: "Analysis Detail",
     detailNoData: "No data",
@@ -1040,6 +1030,10 @@ const en: StringDictionary = {
     folderDeactivateError: "Could not archive folder.",
     folderAddPhotoTo: "Add photo to",
     folderCameraAddingTo: "Adding to:",
+    sampleButton: "SAMPLE",
+    sampleSheetTitle: "Pick a demo sample image",
+    sampleResolveError: "Could not load sample image.",
+    demoHardwareUnavailable: "Hardware setup is not available in demo mode.",
   },
 
   camera: {
@@ -1126,14 +1120,9 @@ const en: StringDictionary = {
     language: "Language",
     languageTurkish: "Türkçe",
     languageEnglish: "English",
-    awsConnectionTest: "AWS Connection Test",
+    datasetConsentTitle: "Help improve TARAS",
+    datasetConsentSubtitle: "Your leaf photos may be used to train future disease-detection models. You can turn this off anytime.",
     logout: "Log Out",
-    diagnosticsTitle: "Network Diagnostics",
-    diagnosticsConfirmation:
-      "Do you want to test the connection to AWS server? This may take 30-60 seconds.",
-    diagnosticsStart: "Start",
-    diagnosticsCompleted: "Diagnostics Completed",
-    diagnosticsFailed: "Error: Diagnostics failed",
   },
 
   hardware: {
@@ -1197,23 +1186,6 @@ const en: StringDictionary = {
     history: "Past Conversations",
     historyEmpty: "No conversation history yet",
     readMore: "Read more",
-  },
-
-  networkDiag: {
-    title: "Network Diagnostics",
-    running: "Running...",
-    startButton: "Start Diagnostics",
-    shareReport: "Share Report",
-    infoHeader: "This tool tests the connection to your AWS server:",
-    bulletNetworkStatus: "Network status",
-    bulletDNS: "DNS resolution",
-    bulletHTTP: "HTTP connection",
-    bulletAPI: "API endpoints",
-    bulletSocketIO: "Socket.IO connection",
-    lastRun: "Last run",
-    promptMessage:
-      'Press "Start Diagnostics" button\nto test your AWS connection',
-    tip: "Tip: Share the report with your developer team or Claude for debugging.",
   },
 
   errors: {
@@ -1306,6 +1278,9 @@ const en: StringDictionary = {
     recommendationTime: "Recommendation Time",
     noActiveRecommendation: "No active recommendation",
     noActiveRecommendationSub: "There is no pending irrigation recommendation for this zone.",
+    noIrrigationNeeded: "No irrigation needed",
+    noIrrigationNeededSub: "System checked — no irrigation is required right now.",
+    lastChecked: "Last checked",
     confirmIrrigationQuestion: "Did you follow the irrigation recommendation exactly?",
     yesFollowedExactly: "Yes, I irrigated with the recommended amount and time",
     noUsedDifferent: "No, I used different values",

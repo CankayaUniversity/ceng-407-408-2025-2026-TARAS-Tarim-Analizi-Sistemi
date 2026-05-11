@@ -119,6 +119,14 @@ export const IrrigationDetailScreen = ({
         .find((j) => j.status === "PENDING" && j.should_irrigate),
     [jobs],
   );
+  // En yeni NO_ACTION — "sistem kontrol etti, sulama gerekmiyor" durumu
+  const noActionJob = useMemo(
+    () =>
+      [...jobs]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .find((j) => j.status === "NO_ACTION"),
+    [jobs],
+  );
   const historyJobs = useMemo(
     () => jobs.filter((j) => j.status === "EXECUTED"),
     [jobs],
@@ -707,6 +715,57 @@ export const IrrigationDetailScreen = ({
               </Text>
             )}
               </>
+            ) : noActionJob ? (
+              /* Sistem kontrol etti, sulama gerekmiyor — gerekçeyi göster */
+              <View
+                style={{
+                  backgroundColor: theme.surface,
+                  borderRadius: 14,
+                  padding: spacing.md,
+                  borderWidth: 1,
+                  borderColor: theme.success + "40",
+                  marginTop: spacing.sm,
+                  gap: spacing.sm,
+                }}
+              >
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: s(8) }}
+                >
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={22}
+                    color={theme.success}
+                  />
+                  <Text
+                    style={{
+                      fontSize: ms(15, 0.3),
+                      fontWeight: "700",
+                      color: theme.textMain,
+                      flex: 1,
+                    }}
+                  >
+                    {t.irrigation.noIrrigationNeeded}
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: ms(13, 0.3),
+                    color: theme.textSecondary,
+                    lineHeight: ms(18, 0.3),
+                  }}
+                >
+                  {noActionJob.reasoning ?? t.irrigation.noIrrigationNeededSub}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: ms(11, 0.3),
+                    color: theme.textMuted,
+                  }}
+                >
+                  {t.irrigation.lastChecked}:{" "}
+                  {formatDateTime(noActionJob.created_at, language)}
+                </Text>
+              </View>
             ) : (
               <View
                 style={{

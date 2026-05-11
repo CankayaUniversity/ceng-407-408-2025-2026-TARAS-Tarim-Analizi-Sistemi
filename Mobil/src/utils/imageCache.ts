@@ -1,19 +1,20 @@
-// Hastalik tespit resimleri icin kalici disk cache
-// Dosyalar document dizininde saklanir, detection_id ile indekslenir
-// Downloadlar bir kez yapilir, S3 URL expiry onemsizdir
+// Hastalik tespit resimleri icin kalici disk cache.
+// Dosyalar document dizininde saklanir, detection_id ile indekslenir.
+// Indirme sonrasi compressForLocalCache ile display-quality versiyon kaydedilir.
 
 import { Directory, File, Paths } from "expo-file-system";
+import { compressForLocalCache } from "./diseaseImageProcessing";
 
 const DIR_NAME = "disease";
 
-// Cache dizin referansi (lazy, Paths.document runtime'da cagrilir)
 const getDir = (): Directory => new Directory(Paths.document, DIR_NAME);
 
-// detection_id icin yerel File referansi (mevcut olsun olmasin)
 const getFile = (detectionId: string): File =>
   new File(getDir(), `${detectionId}.jpg`);
 
-// Dizini garanti et — idempotent
+const getTempFile = (detectionId: string): File =>
+  new File(getDir(), `${detectionId}.tmp.jpg`);
+
 export const ensureDir = async (): Promise<void> => {
   const dir = getDir();
   if (!dir.exists) {
@@ -21,16 +22,11 @@ export const ensureDir = async (): Promise<void> => {
   }
 };
 
-// detection_id icin yerel dosya var mi
 export const hasLocal = async (detectionId: string): Promise<boolean> => {
   await ensureDir();
   return getFile(detectionId).exists;
 };
 
-// Bir detection icin kullanilacak URI'yi cozumle:
-//   1. Yerel dosya varsa → file:// URI
-//   2. remoteUrl verildiyse → indir, kaydet, yerel URI don
-//   3. Aksi halde null
 export const resolveImage = async (
   detectionId: string,
   remoteUrl?: string | null,
@@ -40,20 +36,32 @@ export const resolveImage = async (
     const file = getFile(detectionId);
 
     if (file.exists) return file.uri;
-
     if (!remoteUrl) return null;
 
-    const downloaded = await File.downloadFileAsync(remoteUrl, file, {
+    const tempFile = getTempFile(detectionId);
+    if (tempFile.exists) tempFile.delete();
+    const downloaded = await File.downloadFileAsync(remoteUrl, tempFile, {
       idempotent: true,
     });
-    return downloaded.uri;
+
+    const compressedUri = await compressForLocalCache(downloaded.uri);
+    if (compressedUri !== downloaded.uri) {
+      new File(compressedUri).copy(file);
+    } else {
+      tempFile.copy(file);
+    }
+    tempFile.delete();
+    return file.uri;
   } catch (error) {
     console.log("[IMG] resolve fail:", detectionId, String(error));
+    try {
+      const tempFile = getTempFile(detectionId);
+      if (tempFile.exists) tempFile.delete();
+    } catch { /* ignore */ }
     return null;
   }
 };
 
-// Tek dosyayi sil — best effort, ENOENT yut
 export const deleteLocal = async (detectionId: string): Promise<void> => {
   try {
     await ensureDir();
@@ -64,7 +72,6 @@ export const deleteLocal = async (detectionId: string): Promise<void> => {
   }
 };
 
-// Cache'deki tum detection_id'leri listele (uzantisiz)
 export const listCachedIds = async (): Promise<string[]> => {
   try {
     await ensureDir();
@@ -84,8 +91,8 @@ export const listCachedIds = async (): Promise<string[]> => {
   }
 };
 
-// Cross-device sync: keepIds disindaki yerel dosyalari sil
-// Sadece backend fetch basarili olduktan sonra cagrilmali
+// Cross-device sync: keepIds disindaki yerel dosyalari sil.
+// Sadece backend fetch basarili olduktan sonra cagrilmali.
 export const reconcile = async (keepIds: Set<string>): Promise<number> => {
   const cached = await listCachedIds();
   let deleted = 0;
@@ -99,6 +106,6 @@ export const reconcile = async (keepIds: Set<string>): Promise<number> => {
   return deleted;
 };
 
-// Yerel dosya URI'sini hesapla — cache'den hydration icin (var olup olmadigini kontrol etmez)
+// Yerel dosya URI'sini hesapla (varlik kontrolu yapmaz).
 export const localPath = (detectionId: string): string =>
   getFile(detectionId).uri;

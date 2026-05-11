@@ -28,6 +28,7 @@ interface DiseaseResultCardProps {
   theme: Theme;
   imageUrl?: string;
   onPress?: () => void;
+  /** Detail modal kullaniyor; list kartinda gosterilmiyor. */
   onDelete?: () => void;
 }
 
@@ -433,6 +434,7 @@ const getStatusInfo = (
 ): { text: string; color: string; icon: string } => {
   switch (status) {
     case "NOT_STARTED":
+    case "QUEUED":
       return {
         text: t.disease.statusPending,
         color: theme.textMuted,
@@ -487,6 +489,7 @@ export const DiseaseResultCard = ({
   onPress,
   onDelete,
 }: DiseaseResultCardProps) => {
+  void onDelete; // list kartinda kullanilmiyor; detail modal kullaniyor
   const { t, language } = useLanguage();
   const statusInfo = getStatusInfo(detection.status, t, theme);
 
@@ -620,14 +623,14 @@ export const DiseaseResultCard = ({
           className="flex-1"
           style={{ minHeight: 56, justifyContent: "space-between" }}
         >
-          {/* Top: headline + chip-below on left; trash floating top-right */}
           <View className="flex-row items-start" style={{ gap: 8 }}>
             <View className="flex-1">{headline}</View>
-            {onDelete && (
-              <TouchableOpacity onPress={onDelete} hitSlop={10} style={{ padding: 2 }}>
-                <Ionicons name="trash-outline" size={14} color={theme.textSecondary} />
-              </TouchableOpacity>
-            )}
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={theme.textSecondary}
+              style={{ padding: 2 }}
+            />
           </View>
 
           {/* Bottom: relative date pinned bottom-right */}
