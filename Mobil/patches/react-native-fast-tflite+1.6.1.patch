@@ -1,0 +1,70 @@
+diff --git a/node_modules/react-native-fast-tflite/android/CMakeLists.txt b/node_modules/react-native-fast-tflite/android/CMakeLists.txt
+index aaaaaaa..bbbbbbb 100644
+--- a/node_modules/react-native-fast-tflite/android/CMakeLists.txt
++++ b/node_modules/react-native-fast-tflite/android/CMakeLists.txt
+@@ -16,13 +16,7 @@ find_library(
+   NO_CMAKE_FIND_ROOT_PATH
+ )
+
+-find_library(
+-  TFLITE_GPU
+-  tensorflowlite_gpu_jni
+-  PATHS "./src/main/cpp/lib/litert/jni/${ANDROID_ABI}"
+-  NO_DEFAULT_PATH
+-  NO_CMAKE_FIND_ROOT_PATH
+-)
++# TARAS patch: GPU delegate disabled — save 2 MB APK size
+
+ string(APPEND CMAKE_CXX_FLAGS " -DANDROID")
+
+@@ -56,7 +50,6 @@ target_link_libraries(
+   ReactAndroid::jsi               # <-- jsi.h
+   fbjni::fbjni                    # <-- fbjni.h
+   ${TFLITE}
+-  ${TFLITE_GPU}
+ )
+
+ if(ReactAndroid_VERSION_MINOR GREATER_EQUAL 76)
+diff --git a/node_modules/react-native-fast-tflite/android/build.gradle b/node_modules/react-native-fast-tflite/android/build.gradle
+index 41b4359..50126eb 100644
+--- a/node_modules/react-native-fast-tflite/android/build.gradle
++++ b/node_modules/react-native-fast-tflite/android/build.gradle
+@@ -64,7 +64,7 @@ android {
+                 "-DNODE_MODULES_DIR=${nodeModules}",
+                 "-DIS_NEW_ARCHITECTURE_ENABLED=${isNewArchitectureEnabled()}"
+         cppFlags "-O2 -frtti -fexceptions -Wall -fstack-protector-all"
+-        abiFilters "x86", "x86_64", "armeabi-v7a", "arm64-v8a"
++        abiFilters (*(project.hasProperty("reactNativeArchitectures") ? project.getProperties().get("reactNativeArchitectures").split(",") : ["x86", "x86_64", "armeabi-v7a", "arm64-v8a"]))
+       }
+     }
+   }
+@@ -130,8 +130,5 @@ dependencies {
+   extractSO("com.google.ai.edge.litert:litert:1.0.1")
+   extractHeaders("com.google.ai.edge.litert:litert:1.0.1")
+
+-  // Tensorflow Lite GPU delegate
+-  implementation "com.google.ai.edge.litert:litert-gpu:1.0.1"
+-  extractSO("com.google.ai.edge.litert:litert-gpu:1.0.1")
+-  extractHeaders("com.google.ai.edge.litert:litert-gpu:1.0.1")
++  // TARAS patch: Tensorflow Lite GPU delegate removed — save 2 MB (we use NNAPI)
+ }
+diff --git a/node_modules/react-native-fast-tflite/cpp/TensorflowPlugin.cpp b/node_modules/react-native-fast-tflite/cpp/TensorflowPlugin.cpp
+index aaaaaaa..bbbbbbb 100644
+--- a/node_modules/react-native-fast-tflite/cpp/TensorflowPlugin.cpp
++++ b/node_modules/react-native-fast-tflite/cpp/TensorflowPlugin.cpp
+@@ -113,10 +113,11 @@
+                   break;
+                 }
+                 case Delegate::AndroidGPU: {
+-                  TfLiteGpuDelegateOptionsV2 delegateOptions = TfLiteGpuDelegateOptionsV2Default();
+-                  auto delegate = TfLiteGpuDelegateV2Create(&delegateOptions);
+-                  TfLiteInterpreterOptionsAddDelegate(options, delegate);
+-                  break;
++                  // TARAS patch: GPU delegate removed to save 2 MB APK size (we only use NNAPI)
++                  callInvoker->invokeAsync([=]() {
++                    promise->reject("Android GPU delegate is disabled in this build. Use 'nnapi' or 'default'.");
++                  });
++                  return;
+                 }
+ #else
+                     case Delegate::NnApi: {

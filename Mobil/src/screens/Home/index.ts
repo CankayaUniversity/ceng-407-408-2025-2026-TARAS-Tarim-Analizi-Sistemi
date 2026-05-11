@@ -5,4 +5,6 @@ export { FieldSelector } from "./FieldSelector";
 export { NodePopup } from "./NodePopup";
 export { IrrigationCountdown } from "./IrrigationCountdown";
 export { CameraController } from "./CameraController";
+export { WelcomeHeader } from "./WelcomeHeader";
+export { FeaturedZoneCard } from "./FeaturedZoneCard";
 export * from "./types";

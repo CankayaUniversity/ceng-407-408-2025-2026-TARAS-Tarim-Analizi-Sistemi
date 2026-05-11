@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma";
@@ -10,22 +13,26 @@ declare global {
 }
 
 function createPrismaClient(): PrismaClient {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error("DATABASE_URL not configured");
+
+  logger.info(`Prisma DB host test: ${dbUrl.replace(/:\/\/.*?:.*?@/, "://***:***@")}`);
+
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_SSL === "false"
-      ? undefined
-      : { rejectUnauthorized: false },
+    connectionString: dbUrl,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 10000,
   });
 
   const adapter = new PrismaPg(pool);
 
   return new PrismaClient({
     adapter,
-    log: DEBUG_QUERIES
-      ? ["query", "error", "warn"]
-      : ["error", "warn"],
+    log: DEBUG_QUERIES ? ["query", "error", "warn"] : ["error", "warn"],
   });
 }
+
 
 export const prisma = global.prisma ?? createPrismaClient();
 
@@ -37,7 +44,7 @@ let isConnected = false;
 
 export async function initializeDatabase(): Promise<void> {
   try {
-    const dbUrl = process.env.DATABASE_URL || "";
+    const dbUrl = process.env.DATABASE_URL;
 
     if (!dbUrl) {
       logger.warn("DATABASE_URL not configured");

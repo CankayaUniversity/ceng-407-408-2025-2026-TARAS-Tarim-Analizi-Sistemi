@@ -1,0 +1,17 @@
+menu "AHT25 Configuration"
+
+    config AHT25_I2C_SDA
+        int "SDA GPIO Num"
+        default 2 if IDF_TARGET_ESP32C6
+        default 5
+        help
+            GPIO number for I2C SDA.
+
+    config AHT25_I2C_SCL
+        int "SCL GPIO Num"
+        default 3 if IDF_TARGET_ESP32C6
+        default 4
+        help
+            GPIO number for I2C SCL.
+
+endmenu

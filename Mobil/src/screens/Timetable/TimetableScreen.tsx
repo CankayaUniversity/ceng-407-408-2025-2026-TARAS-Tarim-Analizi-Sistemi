@@ -1,6 +1,6 @@
 // Cizelge ekrani - sensor verilerini grafik ve tablo olarak gosterir
 // Props: theme, isActive, selectedFieldId
-import { useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,22 +9,56 @@ import {
   RefreshControl,
   TouchableOpacity,
   Modal,
+  InteractionManager,
+  Share,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { appStyles } from "../../styles";
-import { sensorAPI } from "../../utils/api";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { sensorAPI, isDemoToken } from "../../utils/api";
+import { secureGet } from "../../utils/secureStorage";
+import { ErrorBoundary } from "../../components/ErrorBoundary";
+import { FocusableSection } from "../../components/FocusableSection";
 import { ChartCard } from "./ChartCard";
 import { SensorDataTable } from "./SensorDataTable";
 import { TimetableScreenProps, ChartDataPoint, SensorReading } from "./types";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { useLanguage } from "../../context/LanguageContext";
+import { Theme } from "../../utils/theme";
+import { s, vs, ms } from "../../utils/responsive";
 
-export const TimetableScreen = ({
+interface ChartSectionProps {
+  id: string;
+  theme: Theme;
+  scrollViewRef: React.RefObject<ScrollView | null>;
+  title: string;
+  icon: string;
+  color: string;
+  data: ChartDataPoint[];
+  fallback: React.ReactNode;
+  onTouchStart?: () => void;
+  onTouchEnd?: () => void;
+}
+
+const ChartSection = ({ id, theme, scrollViewRef, title, icon, color, data, fallback, onTouchStart, onTouchEnd }: ChartSectionProps) => (
+  <FocusableSection id={id} screen="timetable" theme={theme} scrollViewRef={scrollViewRef}>
+    <ErrorBoundary fallback={fallback}>
+      <ChartCard
+        theme={theme}
+        title={title}
+        icon={icon}
+        color={color}
+        data={data}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      />
+    </ErrorBoundary>
+  </FocusableSection>
+);
+
+export const TimetableScreen = memo(function TimetableScreen({
   theme,
   isActive = true,
   selectedFieldId,
-}: TimetableScreenProps) => {
+}: TimetableScreenProps) {
   const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,6 +76,8 @@ export const TimetableScreen = ({
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [timeRange, setTimeRange] = useState<number>(72);
   const scrollViewRef = useRef<ScrollView>(null);
+  // Son basarili fetch anahtari — ayni field+timeRange icin tekrar fetch engellenir
+  const fetchedKeyRef = useRef<string | null>(null);
 
   const timeRangeOptions = [
     { label: t.timetable.range6h, hours: 6 },
@@ -52,22 +88,25 @@ export const TimetableScreen = ({
   ];
 
   // Sensor verilerini cek
-  const fetchSensorData = async () => {
+  const fetchSensorData = async (cancelled?: { current: boolean }) => {
     try {
+      if (cancelled?.current) return;
       setError(null);
 
-      const token = await AsyncStorage.getItem("auth_token");
-      const isDemoMode = !token || token === "DEMO_MODE_TOKEN";
+      const token = await secureGet("auth_token");
+      const isDemoMode = !token || isDemoToken(token);
 
       if (isDemoMode) {
         console.log("[TIMETABLE] demo mode");
-        generateDemoData();
+        generateDemoData(cancelled);
         return;
       }
 
       if (!selectedFieldId) {
-        setError(t.timetable.noFieldSelected);
-        setIsLoading(false);
+        if (!cancelled?.current) {
+          setError(t.timetable.noFieldSelected);
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -76,6 +115,8 @@ export const TimetableScreen = ({
         selectedFieldId,
         timeRange,
       );
+
+      if (cancelled?.current) return;
 
       if (!response.success || !response.data) {
         console.log("[TIMETABLE] err:", response.error);
@@ -93,12 +134,14 @@ export const TimetableScreen = ({
 
       const { readings, field_name } = response.data;
       if (!readings?.length) {
-        setError(t.timetable.noDataYet);
-        setIsLoading(false);
+        if (!cancelled?.current) {
+          setError(t.timetable.noDataYet);
+          setIsLoading(false);
+        }
         return;
       }
 
-      setFieldName(field_name);
+      if (!cancelled?.current) setFieldName(field_name);
 
       // Gecersiz tarihleri filtrele
       const validReadings = readings.filter((r) => {
@@ -108,8 +151,10 @@ export const TimetableScreen = ({
       });
 
       if (validReadings.length === 0) {
-        setError(t.timetable.noDataYet);
-        setIsLoading(false);
+        if (!cancelled?.current) {
+          setError(t.timetable.noDataYet);
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -175,13 +220,16 @@ export const TimetableScreen = ({
         });
       });
 
-      setError(null);
-      setRawReadings(sortedReadings);
-      setTemperatureData(tempPoints);
-      setHumidityData(humPoints);
-      setSoilMoistureData(soilPoints);
-      setLastUpdated(new Date());
+      if (!cancelled?.current) {
+        setError(null);
+        setRawReadings(sortedReadings);
+        setTemperatureData(tempPoints);
+        setHumidityData(humPoints);
+        setSoilMoistureData(soilPoints);
+        setLastUpdated(new Date());
+      }
     } catch (error) {
+      if (cancelled?.current) return;
       console.log(
         "[TIMETABLE] err:",
         error instanceof Error ? error.message : "unknown",
@@ -191,13 +239,16 @@ export const TimetableScreen = ({
           (error instanceof Error ? error.message : t.timetable.unknownError),
       );
     } finally {
-      setIsLoading(false);
-      setRefreshing(false);
+      if (!cancelled?.current) {
+        setIsLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   // Demo veri olustur
-  const generateDemoData = () => {
+  const generateDemoData = (cancelled?: { current: boolean }) => {
+    if (cancelled?.current) return;
     setDataSource("demo");
     setFieldName("Demo Field");
     setError(null);
@@ -248,11 +299,13 @@ export const TimetableScreen = ({
       });
     }
 
-    setRawReadings(demoReadings);
-    setTemperatureData(tempPoints);
-    setHumidityData(humPoints);
-    setSoilMoistureData(soilPoints);
-    setLastUpdated(new Date());
+    if (!cancelled?.current) {
+      setRawReadings(demoReadings);
+      setTemperatureData(tempPoints);
+      setHumidityData(humPoints);
+      setSoilMoistureData(soilPoints);
+      setLastUpdated(new Date());
+    }
   };
 
   useScreenReset(isActive, {
@@ -263,9 +316,20 @@ export const TimetableScreen = ({
   });
 
   useEffect(() => {
-    if (isActive) {
-      fetchSensorData();
-    }
+    if (!isActive) return;
+    // Ayni field+timeRange icin zaten veri varsa tekrar cekme
+    const key = `${selectedFieldId ?? "none"}_${timeRange}`;
+    if (fetchedKeyRef.current === key) return;
+    fetchedKeyRef.current = key;
+    const cancelled = { current: false };
+    // Tab gecis animasyonu bittikten sonra agir veriyi yukle
+    const task = InteractionManager.runAfterInteractions(() => {
+      void fetchSensorData(cancelled);
+    });
+    return () => {
+      cancelled.current = true;
+      task.cancel();
+    };
   }, [isActive, selectedFieldId, timeRange]);
 
   const handleTimeRangeChange = (hours: number) => {
@@ -276,21 +340,66 @@ export const TimetableScreen = ({
   };
 
   const onRefresh = () => {
+    fetchedKeyRef.current = null; // cache'i temizle, yeniden cekmeye izin ver
     setRefreshing(true);
     fetchSensorData();
   };
 
+  const handleExportCSV = useCallback(async () => {
+    const header = "timestamp,temperature,humidity,soilMoisture";
+    const rows = rawReadings
+      .map((r) => {
+        const d = new Date(r.created_at);
+        const iso = d.toISOString();
+        return [iso, r.temperature, r.humidity, r.sm_percent].join(",");
+      })
+      .join("\n");
+    const csv = `${header}\n${rows}`;
+    try {
+      await Share.share({ message: csv });
+    } catch (e) {
+      console.log("[TIMETABLE] share err:", e);
+    }
+  }, [rawReadings]);
+
+  const renderChartFallback = (title: string) => (
+    <View
+      className="rounded-xl surface-bg"
+      style={{
+        marginBottom: vs(24),
+        padding: s(16),
+        borderWidth: 1,
+        borderColor: theme.textSecondary + "20",
+      }}
+    >
+      <Text
+        className="text-primary font-semibold"
+        style={{ fontSize: ms(16, 0.3), marginBottom: vs(8) }}
+      >
+        {title}
+      </Text>
+      <Text
+        className="text-secondary"
+        style={{ fontSize: ms(13, 0.3), lineHeight: ms(20, 0.3) }}
+      >
+        {t.timetable.loadFailed}
+      </Text>
+      <Text
+        className="text-secondary"
+        style={{ fontSize: ms(12, 0.3), lineHeight: ms(18, 0.3), marginTop: vs(6) }}
+      >
+        {t.timetable.table}
+      </Text>
+    </View>
+  );
+
   if (isLoading) {
     return (
-      <View
-        style={[appStyles.placeholder, { backgroundColor: theme.background }]}
-      >
-        <ActivityIndicator size="large" color={theme.accent} />
+      <View className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack">
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text
-          style={[
-            appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 16 },
-          ]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3), marginTop: vs(16) }}
         >
           {t.timetable.loadingSensorData}
         </Text>
@@ -301,40 +410,42 @@ export const TimetableScreen = ({
   if (error) {
     return (
       <ScrollView
-        style={{ flex: 1, backgroundColor: theme.background }}
+        className="screen-bg"
         contentContainerStyle={{
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          padding: 20,
+          padding: s(20),
         }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.accent]}
+            colors={[theme.primary]}
           />
         }
       >
         <MaterialCommunityIcons
           name="alert-circle"
           size={48}
-          color={theme.accent}
-          style={{ marginBottom: 16 }}
+          color={theme.primary}
+          style={{ marginBottom: vs(16) }}
         />
-        <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+        <Text
+          className="text-primary font-bold"
+          style={{ fontSize: ms(24, 0.3), marginBottom: vs(6) }}
+        >
           {t.timetable.loadFailed}
         </Text>
         <Text
-          style={[appStyles.placeholderSub, { color: theme.textSecondary }]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3) }}
         >
           {error}
         </Text>
         <Text
-          style={[
-            appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 8 },
-          ]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3), marginTop: vs(8) }}
         >
           {t.timetable.pullToRefresh}
         </Text>
@@ -345,157 +456,167 @@ export const TimetableScreen = ({
   return (
     <ScrollView
       ref={scrollViewRef}
-      style={{ flex: 1, backgroundColor: theme.background }}
+      className="screen-bg"
       scrollEnabled={scrollEnabled}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={[theme.accent]}
+          colors={[theme.primary]}
         />
       }
     >
-      <View style={{ padding: 16 }}>
+      <View style={{ padding: s(16) }}>
         <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
+          className="flex-row justify-between items-center"
+          style={{ marginBottom: vs(8) }}
         >
-          <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+          <Text
+            className="text-primary font-bold"
+            style={{ fontSize: ms(24, 0.3) }}
+          >
             {t.timetable.title}
           </Text>
           <View
+            className="rounded-md"
             style={{
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              borderRadius: 6,
-              backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
+              paddingHorizontal: s(8),
+              paddingVertical: vs(4),
+              backgroundColor: dataSource === "aws" ? theme.success : theme.warning,
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}>
+            <Text style={{ color: theme.textOnPrimary, fontSize: ms(10, 0.3), fontWeight: "600" }}>
               {dataSource === "aws" ? "AWS" : "DEMO"}
             </Text>
           </View>
         </View>
         <Text
-          style={[
-            appStyles.placeholderSub,
-            { color: theme.textSecondary, marginBottom: 8 },
-          ]}
+          className="text-secondary"
+          style={{ fontSize: ms(14, 0.3), marginBottom: vs(8) }}
         >
           {fieldName || t.common.loading}
         </Text>
 
         {/* Zaman araligi secici */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginBottom: 12 }}
+        <FocusableSection
+          id="timeRangeSelector"
+          screen="timetable"
+          theme={theme}
+          scrollViewRef={scrollViewRef}
         >
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            {timeRangeOptions.map((option) => (
-              <TouchableOpacity
-                key={option.hours}
-                onPress={() => handleTimeRangeChange(option.hours)}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 8,
-                  backgroundColor:
-                    timeRange === option.hours ? theme.accent : theme.surface,
-                  borderWidth: 1,
-                  borderColor:
-                    timeRange === option.hours
-                      ? theme.accent
-                      : theme.textSecondary + "30",
-                }}
-              >
-                <Text
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: vs(12) }}
+          >
+            <View className="flex-row" style={{ gap: s(8) }}>
+              {timeRangeOptions.map((option) => (
+                <TouchableOpacity
+                  key={option.hours}
+                  onPress={() => handleTimeRangeChange(option.hours)}
+                  className="rounded-lg"
                   style={{
-                    fontSize: 12,
-                    fontWeight: "600",
-                    color: timeRange === option.hours ? "#fff" : theme.text,
+                    paddingHorizontal: s(14),
+                    paddingVertical: vs(8),
+                    backgroundColor:
+                      timeRange === option.hours ? theme.primary : theme.surface,
+                    borderWidth: 1,
+                    borderColor:
+                      timeRange === option.hours
+                        ? theme.primary
+                        : theme.textSecondary + "30",
                   }}
                 >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+                  <Text
+                    style={{
+                      fontSize: ms(12, 0.3),
+                      fontWeight: "600",
+                      color: timeRange === option.hours ? theme.textOnPrimary : theme.textMain,
+                    }}
+                  >
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </FocusableSection>
 
         {lastUpdated && (
           <Text
-            style={{
-              fontSize: 11,
-              color: theme.textSecondary,
-              marginBottom: 16,
-            }}
+            className="text-secondary"
+            style={{ fontSize: ms(11, 0.3), marginBottom: vs(16) }}
           >
             {t.timetable.lastUpdated}: {lastUpdated.toLocaleTimeString()}
           </Text>
         )}
 
         {/* Tablo butonu */}
-        <View style={{ flexDirection: "row", marginBottom: 16 }}>
-          <TouchableOpacity
-            onPress={() => setShowTable(true)}
-            style={{
-              paddingHorizontal: 10,
-              paddingVertical: 6,
-              borderRadius: 8,
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.textSecondary + "30",
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            <MaterialCommunityIcons
-              name="table"
-              size={16}
-              color={theme.textSecondary}
-            />
-            <Text
+        <FocusableSection
+          id="tableButton"
+          screen="timetable"
+          theme={theme}
+          scrollViewRef={scrollViewRef}
+        >
+          <View className="flex-row" style={{ marginBottom: vs(16) }}>
+            <TouchableOpacity
+              onPress={() => setShowTable(true)}
+              className="row rounded-lg surface-bg"
               style={{
-                marginLeft: 6,
-                color: theme.textSecondary,
-                fontSize: 12,
-                fontWeight: "600",
+                paddingHorizontal: s(10),
+                paddingVertical: vs(6),
+                borderWidth: 1,
+                borderColor: theme.textSecondary + "30",
               }}
             >
-              {t.timetable.table}
-            </Text>
-          </TouchableOpacity>
-        </View>
+              <MaterialCommunityIcons
+                name="table"
+                size={16}
+                color={theme.textSecondary}
+              />
+              <Text
+                className="text-secondary font-semibold"
+                style={{ marginLeft: s(6), fontSize: ms(12, 0.3) }}
+              >
+                {t.timetable.table}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </FocusableSection>
 
-        <ChartCard
+        <ChartSection
+          id="temperatureChart"
           theme={theme}
+          scrollViewRef={scrollViewRef}
           title={t.timetable.temperature}
           icon="thermometer"
-          color="#FF6B6B"
+          color={theme.danger}
           data={temperatureData}
+          fallback={renderChartFallback(t.timetable.temperature)}
           onTouchStart={() => setScrollEnabled(false)}
           onTouchEnd={() => setScrollEnabled(true)}
         />
-        <ChartCard
+        <ChartSection
+          id="humidityChart"
           theme={theme}
+          scrollViewRef={scrollViewRef}
           title={t.timetable.humidity}
           icon="water-percent"
-          color="#4ECDC4"
+          color={theme.info}
           data={humidityData}
+          fallback={renderChartFallback(t.timetable.humidity)}
           onTouchStart={() => setScrollEnabled(false)}
           onTouchEnd={() => setScrollEnabled(true)}
         />
-        <ChartCard
+        <ChartSection
+          id="soilMoistureChart"
           theme={theme}
+          scrollViewRef={scrollViewRef}
           title={t.timetable.soilMoisture}
           icon="flower"
-          color="#95E1D3"
+          color={theme.success}
           data={soilMoistureData}
+          fallback={renderChartFallback(t.timetable.soilMoisture)}
           onTouchStart={() => setScrollEnabled(false)}
           onTouchEnd={() => setScrollEnabled(true)}
         />
@@ -508,30 +629,27 @@ export const TimetableScreen = ({
         onRequestClose={() => setShowTable(false)}
       >
         <View
-          style={{ flex: 1, backgroundColor: theme.background, padding: 16 }}
+          className="screen-bg"
+          style={{ padding: s(16) }}
         >
           <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 12,
-              marginTop: 12,
-            }}
+            className="flex-row justify-between items-center"
+            style={{ marginBottom: vs(12), marginTop: vs(12) }}
           >
             <Text
-              style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}
+              className="text-primary font-bold"
+              style={{ fontSize: ms(16, 0.3) }}
             >
               {fieldName} - {t.timetable.last72Hours}
             </Text>
             <TouchableOpacity
               onPress={() => setShowTable(false)}
-              style={{ padding: 8 }}
+              style={{ padding: s(8) }}
             >
               <MaterialCommunityIcons
                 name="close"
                 size={22}
-                color={theme.text}
+                color={theme.textMain}
               />
             </TouchableOpacity>
           </View>
@@ -539,39 +657,16 @@ export const TimetableScreen = ({
           <SensorDataTable theme={theme} data={rawReadings} />
 
           <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "flex-end",
-              marginTop: 16,
-            }}
+            className="flex-row justify-end"
+            style={{ marginTop: vs(16) }}
           >
             <TouchableOpacity
-              onPress={async () => {
-                const header = "timestamp,temperature,humidity,soilMoisture";
-                const rows = rawReadings
-                  .map((r) => {
-                    const d = new Date(r.created_at);
-                    const iso = d.toISOString();
-                    return [iso, r.temperature, r.humidity, r.sm_percent].join(
-                      ",",
-                    );
-                  })
-                  .join("\n");
-                const csv = `${header}\n${rows}`;
-                const { Share } = await import("react-native");
-                try {
-                  await Share.share({ message: csv });
-                } catch (e) {
-                  console.log("[TIMETABLE] share err:", e);
-                }
-              }}
+              onPress={handleExportCSV}
+              className="row rounded-lg"
               style={{
-                paddingHorizontal: 12,
-                paddingVertical: 10,
-                borderRadius: 8,
-                backgroundColor: theme.accent,
-                flexDirection: "row",
-                alignItems: "center",
+                paddingHorizontal: s(12),
+                paddingVertical: vs(10),
+                backgroundColor: theme.primary,
               }}
             >
               <MaterialCommunityIcons
@@ -580,11 +675,11 @@ export const TimetableScreen = ({
                 color={theme.background}
               />
               <Text
+                className="font-bold"
                 style={{
-                  marginLeft: 8,
+                  marginLeft: s(8),
                   color: theme.background,
-                  fontSize: 12,
-                  fontWeight: "700",
+                  fontSize: ms(12, 0.3),
                 }}
               >
                 {t.timetable.shareCSV}
@@ -595,4 +690,4 @@ export const TimetableScreen = ({
       </Modal>
     </ScrollView>
   );
-};
+});

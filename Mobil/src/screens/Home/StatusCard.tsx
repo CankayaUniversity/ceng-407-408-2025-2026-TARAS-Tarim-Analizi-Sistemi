@@ -2,11 +2,13 @@
 // Props: theme, dashboardData (API verisi), loading
 
 import { View, Text } from "react-native";
-import { FontAwesome6, MaterialIcons, Entypo } from "@expo/vector-icons";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import Entypo from "@expo/vector-icons/Entypo";
 import { MetricCard } from "./MetricCard";
 import { IrrigationCountdown } from "./IrrigationCountdown";
 import { StatusCardProps } from "./types";
-import { spacing } from "../../utils/responsive";
+import { ms } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
 
 // Son okuma zamanini formatla - tarih ve saat gosterir
@@ -69,8 +71,8 @@ export const StatusCard = ({
   );
 
   return (
-    <View style={{ flex: 1, paddingHorizontal: spacing.md, paddingTop: 4 }}>
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+    <View className="flex-1 px-1 pt-1">
+      <View className="flex-row flex-wrap">
         <MetricCard
           theme={theme}
           title={t.home.airTemperature}
@@ -80,7 +82,7 @@ export const StatusCard = ({
             <FontAwesome6
               name="temperature-three-quarters"
               size={22}
-              color={theme.accent}
+              color={theme.primary}
             />
           }
           loading={loading}
@@ -90,13 +92,13 @@ export const StatusCard = ({
           title={t.home.airHumidity}
           value={airHumidity}
           icon={
-            <MaterialIcons name="water-drop" size={22} color={theme.accent} />
+            <MaterialIcons name="water-drop" size={22} color={theme.primary} />
           }
           loading={loading}
         />
       </View>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+      <View className="flex-row flex-wrap">
         <MetricCard
           theme={theme}
           title={t.home.timeToIrrigation}
@@ -107,26 +109,24 @@ export const StatusCard = ({
             />
           }
           unit={""}
-          icon={<FontAwesome6 name="clock" size={22} color={theme.accent} />}
+          icon={<FontAwesome6 name="clock" size={22} color={theme.primary} />}
           loading={false}
         />
         <MetricCard
           theme={theme}
           title={t.home.soilMoisture}
           value={soilMoisture}
-          icon={<Entypo name="air" size={22} color={theme.accent} />}
+          icon={<Entypo name="air" size={22} color={theme.primary} />}
           loading={loading}
         />
       </View>
 
       {!loading && (
         <Text
+          className="text-right mt-1 mr-1"
           style={{
-            fontSize: 11,
+            fontSize: ms(11, 0.3),
             color: theme.textSecondary,
-            textAlign: "right",
-            marginTop: spacing.xs,
-            marginRight: spacing.xs,
           }}
         >
           {t.home.lastReading}: {lastReadingTime ?? "—"}

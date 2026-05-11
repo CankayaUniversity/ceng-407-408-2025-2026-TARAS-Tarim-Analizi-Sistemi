@@ -10,11 +10,12 @@ import {
   FlatList,
   TouchableOpacity,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { appStyles } from "../../styles";
 import { sensorAPI } from "../../utils/api";
 import { TimetableScreenProps, SensorReading } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 
 export const SensorDataDumpScreen = ({
   theme,
@@ -112,11 +113,11 @@ export const SensorDataDumpScreen = ({
       <View
         style={[appStyles.placeholder, { backgroundColor: theme.background }]}
       >
-        <ActivityIndicator size="large" color={theme.accent} />
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text
           style={[
             appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 16 },
+            { color: theme.textSecondary, marginTop: vs(16) },
           ]}
         >
           {t.timetable.loadingSensorData}
@@ -128,28 +129,29 @@ export const SensorDataDumpScreen = ({
   if (error) {
     return (
       <ScrollView
-        style={{ flex: 1, backgroundColor: theme.background }}
+        className="flex-1"
+        style={{ backgroundColor: theme.background }}
         contentContainerStyle={{
           flex: 1,
           justifyContent: "center",
           alignItems: "center",
-          padding: 20,
+          padding: s(20),
         }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[theme.accent]}
+            colors={[theme.primary]}
           />
         }
       >
         <MaterialCommunityIcons
           name="alert-circle"
           size={48}
-          color={theme.accent}
-          style={{ marginBottom: 16 }}
+          color={theme.primary}
+          style={{ marginBottom: vs(16) }}
         />
-        <Text style={[appStyles.placeholderText, { color: theme.text }]}>
+        <Text style={[appStyles.placeholderText, { color: theme.textMain }]}>
           {t.timetable.loadFailed}
         </Text>
         <Text
@@ -160,7 +162,7 @@ export const SensorDataDumpScreen = ({
         <Text
           style={[
             appStyles.placeholderSub,
-            { color: theme.textSecondary, marginTop: 8 },
+            { color: theme.textSecondary, marginTop: vs(8) },
           ]}
         >
           {t.timetable.pullToRefresh}
@@ -170,33 +172,26 @@ export const SensorDataDumpScreen = ({
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <View style={{ padding: 16 }}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 8,
-          }}
-        >
-          <Text style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>
+    <View className="flex-1" style={{ backgroundColor: theme.background }}>
+      <View style={{ padding: s(16) }}>
+        <View className="row-between" style={{ marginBottom: vs(8) }}>
+          <Text style={{ color: theme.textMain, fontSize: ms(16, 0.3), fontWeight: "700" }}>
             {t.timetable.sensorDump} (72 {t.timetable.hours})
           </Text>
           <View
+            className="rounded-md"
             style={{
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              borderRadius: 6,
-              backgroundColor: dataSource === "aws" ? "#10b981" : "#f59e0b",
+              paddingHorizontal: s(8),
+              paddingVertical: vs(4),
+              backgroundColor: dataSource === "aws" ? theme.success : theme.warning,
             }}
           >
-            <Text style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}>
+            <Text style={{ color: theme.textOnPrimary, fontWeight: "600", fontSize: ms(10, 0.3) }}>
               {dataSource === "aws" ? "AWS" : "DEMO"}
             </Text>
           </View>
         </View>
-        <Text style={{ color: theme.textSecondary, marginBottom: 4 }}>
+        <Text style={{ color: theme.textSecondary, marginBottom: vs(4) }}>
           {fieldName} — {t.timetable.total}: {readings.length} |{" "}
           {t.timetable.showing}: {filteredReadings.length}
         </Text>
@@ -207,28 +202,28 @@ export const SensorDataDumpScreen = ({
           horizontal
           showsHorizontalScrollIndicator={false}
           keyExtractor={(nodeId) => nodeId}
-          contentContainerStyle={{ paddingVertical: 6 }}
+          contentContainerStyle={{ paddingVertical: vs(6) }}
           renderItem={({ item: nodeId }) => (
             <TouchableOpacity
               onPress={() => toggleNode(nodeId)}
               style={{
-                paddingHorizontal: 8,
-                paddingVertical: 3,
+                paddingHorizontal: s(8),
+                paddingVertical: vs(3),
                 borderRadius: 12,
-                marginRight: 6,
+                marginRight: s(6),
                 backgroundColor: selectedNodes.has(nodeId)
-                  ? theme.accent
+                  ? theme.primary
                   : theme.surface,
                 borderWidth: 1,
                 borderColor: selectedNodes.has(nodeId)
-                  ? theme.accent
+                  ? theme.primary
                   : theme.textSecondary + "40",
               }}
             >
               <Text
                 style={{
-                  color: selectedNodes.has(nodeId) ? "#fff" : theme.text,
-                  fontSize: 10,
+                  color: selectedNodes.has(nodeId) ? theme.textOnPrimary : theme.textMain,
+                  fontSize: ms(10, 0.3),
                   fontWeight: "600",
                 }}
               >
@@ -252,40 +247,40 @@ export const SensorDataDumpScreen = ({
           setShowJumpButton(offsetY > 500);
         }}
         scrollEventThrottle={400}
-        style={{ flex: 1 }}
+        className="flex-1"
         ListHeaderComponent={() => (
           <ScrollView
             ref={headerScrollRef}
             horizontal
             scrollEnabled={false}
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ minWidth: 820 }}
+            contentContainerStyle={{ minWidth: s(820) }}
           >
             <View
+              className="flex-row"
               style={{
-                flexDirection: "row",
                 backgroundColor: theme.surface,
-                minWidth: 820,
+                minWidth: s(820),
               }}
             >
               {[
-                { label: t.timetable.dateTime, width: 220 },
-                { label: "Node", width: 100 },
-                { label: `${t.timetable.temperature} (°C)`, width: 120 },
-                { label: `${t.timetable.humidity} (%)`, width: 120 },
-                { label: `${t.timetable.soilMoisture} (%)`, width: 140 },
-                { label: t.timetable.rawMoisture, width: 120 },
-                { label: "ET0", width: 100 },
+                { label: t.timetable.dateTime, width: s(220) },
+                { label: "Node", width: s(100) },
+                { label: `${t.timetable.temperature} (°C)`, width: s(120) },
+                { label: `${t.timetable.humidity} (%)`, width: s(120) },
+                { label: `${t.timetable.soilMoisture} (%)`, width: s(140) },
+                { label: t.timetable.rawMoisture, width: s(120) },
+                { label: "ET0", width: s(100) },
               ].map((h) => (
                 <View
                   key={h.label}
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
                     width: h.width,
                   }}
                 >
-                  <Text style={{ color: theme.text, fontWeight: "700" }}>
+                  <Text style={{ color: theme.textMain, fontWeight: "700" }}>
                     {h.label}
                   </Text>
                 </View>
@@ -310,14 +305,14 @@ export const SensorDataDumpScreen = ({
               nestedScrollEnabled
               onScroll={(e) => handleScroll(e.nativeEvent.contentOffset.x)}
               scrollEventThrottle={16}
-              contentContainerStyle={{ minWidth: 820 }}
+              contentContainerStyle={{ minWidth: s(820) }}
             >
               <View
+                className="flex-row"
                 style={{
-                  flexDirection: "row",
                   borderBottomWidth: 1,
                   borderBottomColor: theme.textSecondary + "20",
-                  minWidth: 820,
+                  minWidth: s(820),
                   backgroundColor: isEven
                     ? theme.background
                     : theme.surface + "40",
@@ -325,72 +320,72 @@ export const SensorDataDumpScreen = ({
               >
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 220,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(220),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>{time}</Text>
+                  <Text style={{ color: theme.textMain }}>{time}</Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 100,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(100),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>{item.node_id}</Text>
+                  <Text style={{ color: theme.textMain }}>{item.node_id}</Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 120,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(120),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.temperature?.toFixed(2)}
                   </Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 120,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(120),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.humidity?.toFixed(2)}
                   </Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 140,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(140),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.sm_percent?.toFixed(2)}
                   </Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 120,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(120),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>{item.raw_sm_value}</Text>
+                  <Text style={{ color: theme.textMain }}>{item.raw_sm_value}</Text>
                 </View>
                 <View
                   style={{
-                    paddingVertical: 8,
-                    paddingHorizontal: 8,
-                    width: 100,
+                    paddingVertical: vs(8),
+                    paddingHorizontal: s(8),
+                    width: s(100),
                   }}
                 >
-                  <Text style={{ color: theme.text }}>
+                  <Text style={{ color: theme.textMain }}>
                     {item.et0_instant ?? ""}
                   </Text>
                 </View>
@@ -404,24 +399,17 @@ export const SensorDataDumpScreen = ({
       {showJumpButton && (
         <TouchableOpacity
           onPress={jumpToLatest}
+          className="absolute rounded-full center shadow-md"
           style={{
-            position: "absolute",
-            bottom: 20,
-            right: 20,
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: theme.accent,
-            justifyContent: "center",
-            alignItems: "center",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 4,
+            bottom: s(20),
+            right: s(20),
+            width: s(56),
+            height: s(56),
+            backgroundColor: theme.primary,
             elevation: 5,
           }}
         >
-          <MaterialCommunityIcons name="chevron-down" size={28} color="#fff" />
+          <MaterialCommunityIcons name="chevron-down" size={28} color={theme.textOnPrimary} />
         </TouchableOpacity>
       )}
     </View>

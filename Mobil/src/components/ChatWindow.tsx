@@ -1,5 +1,4 @@
-// Sohbet penceresi - AI asistan ile mesajlasma
-// Props: visible, messages, chatInput, chatHeight, keyboardHeight, theme, onClose, onSendMessage, onInputChange
+// Tam ekran sohbet penceresi — LLM asistan arayuzu + gecmis panel
 import { useRef, useEffect, useState } from "react";
 import {
   View,
@@ -7,321 +6,319 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  Pressable,
-  StyleSheet,
-  Animated,
+  Keyboard,
+  Platform,
+  ActivityIndicator,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import Markdown from "@ronradtke/react-native-markdown-display";
 import { ChatMessage, Theme } from "../types";
+import { ChatSessionSummary } from "../hooks/useChat";
 import { useKeyboard } from "../hooks/useKeyboard";
-import { appStyles } from "../styles";
 import { useLanguage } from "../context/LanguageContext";
+import { s, vs, ms } from "../utils/responsive";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface ChatWindowProps {
-  visible: boolean;
   messages: ChatMessage[];
   chatInput: string;
-  chatHeight: number;
-  keyboardHeight: number;
   theme: Theme;
+  isLoading?: boolean;
   onClose: () => void;
   onSendMessage: () => void;
   onInputChange: (text: string) => void;
+  onNewChat?: () => void;
+  // Gecmis
+  historySessions: ChatSessionSummary[];
+  isLoadingHistory: boolean;
+  onLoadHistory: () => void;
+  onSelectSession: (sessionId: string) => void;
 }
 
+// Zaman formatlama — "2 dk once", "Dun", "3 Nis"
+const formatSessionTime = (iso: string | null): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const now = Date.now();
+  const diffMin = Math.floor((now - d.getTime()) / 60000);
+  if (diffMin < 1) return "Az önce";
+  if (diffMin < 60) return `${diffMin} dk`;
+  if (diffMin < 1440) return `${Math.floor(diffMin / 60)} sa`;
+  if (diffMin < 2880) return "Dün";
+  return `${d.getDate()} ${["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"][d.getMonth()]}`;
+};
+
 export const ChatWindow = ({
-  visible,
   messages,
   chatInput,
-  chatHeight,
-  keyboardHeight,
   theme,
+  isLoading,
   onClose,
   onSendMessage,
   onInputChange,
+  onNewChat,
+  historySessions,
+  isLoadingHistory,
+  onLoadHistory,
+  onSelectSession,
 }: ChatWindowProps) => {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
-  const { animatedPadding } = useKeyboard();
+  const { keyboardHeight } = useKeyboard();
   const [isInputFocused, setIsInputFocused] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
-  const handleFocus = () => {
-    setIsInputFocused(true);
-    setTimeout(
-      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-      80,
-    );
-  };
-
-  const handleBlur = () => {
-    setIsInputFocused(false);
-    setTimeout(
-      () => scrollViewRef.current?.scrollToEnd({ animated: true }),
-      80,
-    );
-  };
+  const scrollToEnd = () =>
+    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 60);
 
   const handleSendPress = () => {
     chatInputRef.current?.blur();
-    setTimeout(() => onSendMessage(), 120);
+    setTimeout(() => onSendMessage(), 80);
   };
 
-  const handleClose = () => {
-    chatInputRef.current?.blur();
-    setTimeout(() => onClose(), 120);
+  const handleHistoryToggle = () => {
+    if (!showHistory) onLoadHistory();
+    setShowHistory(!showHistory);
   };
 
-  const animatedPaddingBottom = animatedPadding.interpolate({
-    inputRange: [0, 1],
-    outputRange: [24, keyboardHeight || 24],
-  });
+  const handleSelectSession = (sid: string) => {
+    setShowHistory(false);
+    onSelectSession(sid);
+  };
+
+  // Android: OS klavye kapatma butonu TextInput'u blur etmez
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = Keyboard.addListener("keyboardDidHide", () => {
+      chatInputRef.current?.blur();
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    scrollToEnd();
   }, [messages]);
 
-  if (!visible) return null;
-
-  const isUserMessage = (sender: string) => sender === "user";
+  const hasInput = chatInput.trim().length > 0;
+  const bottomPadding = keyboardHeight > 0 ? keyboardHeight : insets.bottom + vs(8);
 
   return (
-    <View style={styles.chatOverlay}>
-      <Pressable style={styles.chatBackdrop} onPress={handleClose} />
-      <Animated.View
-        style={[styles.chatContainer, { paddingBottom: animatedPaddingBottom }]}
+    <View className="flex-1" style={{ backgroundColor: theme.background }}>
+      {/* Header */}
+      <View
+        className="row-between border-b"
+        style={{
+          paddingHorizontal: s(14),
+          paddingTop: insets.top + vs(8),
+          paddingBottom: vs(10),
+          borderBottomColor: theme.primary + "15",
+        }}
       >
-        <View
-          style={[
-            styles.chatWindow,
-            { backgroundColor: theme.surface, height: chatHeight },
-          ]}
-        >
-          {/* Header */}
-          <View style={[styles.chatHeader, { backgroundColor: theme.accent }]}>
-            <View style={styles.chatHeaderLeft}>
-              <MaterialCommunityIcons name="robot" size={24} color="#fff" />
-              <Text style={styles.chatHeaderTitle}>{t.chat.title}</Text>
-            </View>
-            <TouchableOpacity
-              onPress={onClose}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <MaterialCommunityIcons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <MaterialCommunityIcons name="chevron-down" size={ms(24, 0.3)} color={theme.textSecondary} />
+        </TouchableOpacity>
 
+        <View className="row" style={{ gap: s(6) }}>
+          <View className="rounded-full bg-olive-800 dark:bg-olive-700" style={{ width: s(6), height: s(6) }} />
+          <Text
+            className="font-semibold uppercase tracking-wider"
+            style={{ fontSize: ms(12, 0.3), color: theme.textSecondary }}
+          >
+            {showHistory ? t.chat.history : t.chat.title}
+          </Text>
+        </View>
+
+        <View className="row">
+          <TouchableOpacity
+            onPress={handleHistoryToggle}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={{ opacity: 0.7 }}
+          >
+            <MaterialCommunityIcons
+              name={showHistory ? "chat" : "history"}
+              size={ms(18, 0.3)}
+              color={theme.textSecondary}
+            />
+          </TouchableOpacity>
+          {!showHistory && onNewChat && (
+            <TouchableOpacity
+              onPress={onNewChat}
+              disabled={isLoading}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ opacity: isLoading ? 0.3 : 0.7, marginLeft: s(12) }}
+            >
+              <MaterialCommunityIcons name="refresh" size={ms(18, 0.3)} color={theme.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {showHistory ? (
+        /* Gecmis panel */
+        <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: s(14) }}>
+          {isLoadingHistory ? (
+            <ActivityIndicator style={{ marginTop: vs(40) }} color={theme.primary} />
+          ) : historySessions.length === 0 ? (
+            <Text
+              className="text-center"
+              style={{ marginTop: vs(40), fontSize: ms(14, 0.3), color: theme.textSecondary }}
+            >
+              {t.chat.historyEmpty}
+            </Text>
+          ) : (
+            historySessions.map((session) => (
+              <TouchableOpacity
+                key={session.session_id}
+                className="border-b"
+                style={{ paddingVertical: vs(12), borderBottomColor: theme.primary + "10" }}
+                onPress={() => handleSelectSession(session.session_id)}
+                activeOpacity={0.7}
+              >
+                <View className="flex-row justify-between items-center" style={{ marginBottom: vs(4) }}>
+                  <Text
+                    className="font-semibold flex-1"
+                    style={{ fontSize: ms(14, 0.3), color: theme.textMain }}
+                    numberOfLines={1}
+                  >
+                    {session.field_name}
+                  </Text>
+                  <Text style={{ fontSize: ms(11, 0.3), marginLeft: s(8), color: theme.textSecondary }}>
+                    {formatSessionTime(session.last_message_at || session.started_at)}
+                  </Text>
+                </View>
+                <Text
+                  style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3), color: theme.textSecondary }}
+                  numberOfLines={2}
+                >
+                  {session.last_message || "\u2014"}
+                </Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      ) : (
+        <>
           {/* Mesajlar */}
           <ScrollView
             ref={scrollViewRef}
-            style={[
-              styles.messagesScroll,
-              { backgroundColor: theme.background },
-            ]}
-            contentContainerStyle={styles.messagesContent}
+            className="flex-1"
+            contentContainerStyle={{
+              paddingHorizontal: s(12),
+              paddingVertical: vs(10),
+              gap: vs(6),
+            }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {messages.map((message) => (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageRow,
-                  isUserMessage(message.sender) && styles.messageRowUser,
-                ]}
-              >
-                {!isUserMessage(message.sender) && (
+            {messages.map((msg) => {
+              const isUser = msg.sender === "user";
+              return (
+                <View key={msg.id} className={`flex-row ${isUser ? "justify-end" : "justify-start"}`}>
                   <View
+                    className="rounded-[14px]"
                     style={[
-                      styles.avatarContainer,
-                      { backgroundColor: theme.accent + "20" },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="robot"
-                      size={16}
-                      color={theme.accent}
-                    />
-                  </View>
-                )}
-                <View
-                  style={[
-                    styles.messageBubble,
-                    isUserMessage(message.sender)
-                      ? { backgroundColor: theme.accent }
-                      : {
-                          backgroundColor: theme.surface,
-                          borderWidth: 1,
-                          borderColor: theme.accent + "40",
-                        },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.messageText,
                       {
-                        color: isUserMessage(message.sender)
-                          ? "#fff"
-                          : theme.text,
+                        maxWidth: "82%",
+                        paddingHorizontal: s(12),
+                        paddingVertical: vs(8),
                       },
+                      isUser
+                        ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
+                        : { backgroundColor: theme.surface, borderColor: theme.primary + "12", borderWidth: 1, borderBottomLeftRadius: 4 },
                     ]}
                   >
-                    {message.text}
-                  </Text>
-                </View>
-                {isUserMessage(message.sender) && (
-                  <View
-                    style={[
-                      styles.avatarContainer,
-                      { backgroundColor: theme.accent },
-                    ]}
-                  >
-                    <MaterialCommunityIcons
-                      name="account"
-                      size={16}
-                      color="#fff"
-                    />
+                    {isUser ? (
+                      <Text style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3), color: theme.textOnPrimary }}>{msg.text}</Text>
+                    ) : (
+                      <Markdown style={{
+                        body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
+                        strong: { fontWeight: "700", color: theme.textMain },
+                        bullet_list: { marginVertical: vs(4) },
+                        ordered_list: { marginVertical: vs(4) },
+                        list_item: { marginVertical: vs(1) },
+                        paragraph: { marginVertical: vs(2) },
+                        heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(4) },
+                        heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(3) },
+                        heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, marginVertical: vs(2) },
+                        code_inline: { backgroundColor: theme.primary + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
+                        fence: { backgroundColor: theme.primary + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
+                      }}>
+                        {msg.text}
+                      </Markdown>
+                    )}
                   </View>
-                )}
-              </View>
-            ))}
+                </View>
+              );
+            })}
           </ScrollView>
 
-          {/* Input alani */}
+          {/* Input */}
           <View
-            style={[
-              styles.chatInputArea,
-              {
-                backgroundColor: theme.surface,
-                borderTopColor: theme.accent + "20",
-              },
-            ]}
+            className="border-t"
+            style={{
+              paddingHorizontal: s(10),
+              paddingTop: vs(8),
+              paddingBottom: bottomPadding,
+              borderTopColor: theme.primary + "10",
+            }}
           >
-            <View style={styles.inputRow}>
+            <View
+              className="flex-row items-end rounded-[22px] border"
+              style={{
+                paddingLeft: s(14),
+                paddingRight: s(4),
+                paddingVertical: vs(4),
+                backgroundColor: theme.surface,
+                borderColor: isInputFocused ? theme.primary + "60" : theme.primary + "20",
+              }}
+            >
               <TextInput
                 ref={chatInputRef}
-                style={[
-                  appStyles.loginInput,
-                  {
-                    backgroundColor: theme.surface,
-                    color: theme.text,
-                    borderColor: isInputFocused
-                      ? theme.accent
-                      : theme.accentDim,
-                    flex: 1,
-                    marginBottom: 0,
-                    marginRight: 8,
-                  },
-                ]}
+                className="flex-1"
+                style={{
+                  fontSize: ms(14, 0.3),
+                  lineHeight: ms(19, 0.3),
+                  maxHeight: vs(100),
+                  paddingVertical: vs(6),
+                  color: theme.textMain,
+                }}
                 placeholder={t.chat.placeholder}
-                placeholderTextColor={theme.textSecondary}
+                placeholderTextColor={theme.textSecondary + "80"}
                 value={chatInput}
                 onChangeText={onInputChange}
                 onSubmitEditing={handleSendPress}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
+                onFocus={() => { setIsInputFocused(true); scrollToEnd(); }}
+                onBlur={() => setIsInputFocused(false)}
                 returnKeyType="send"
                 blurOnSubmit={false}
                 multiline
                 maxLength={500}
               />
               <TouchableOpacity
-                style={[
-                  styles.sendButton,
-                  {
-                    backgroundColor: chatInput.trim()
-                      ? theme.accent
-                      : theme.surface,
-                    borderColor: chatInput.trim()
-                      ? "transparent"
-                      : theme.accent + "30",
-                    borderWidth: chatInput.trim() ? 0 : 1,
-                  },
-                ]}
+                className="center"
+                style={{
+                  width: s(28),
+                  height: s(28),
+                  borderRadius: 14,
+                  backgroundColor: hasInput ? theme.primary : "transparent",
+                  marginBottom: 1,
+                }}
                 onPress={handleSendPress}
-                disabled={!chatInput.trim()}
+                disabled={!hasInput || isLoading}
                 activeOpacity={0.8}
               >
                 <MaterialCommunityIcons
-                  name="send"
-                  size={18}
-                  color={chatInput.trim() ? "#fff" : theme.accent}
+                  name="arrow-up"
+                  size={ms(16, 0.3)}
+                  color={hasInput ? theme.textOnPrimary : theme.primary + "40"}
                 />
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Animated.View>
+        </>
+      )}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  chatOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1000,
-  },
-  chatBackdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  chatContainer: { flex: 1, justifyContent: "flex-end", padding: 12 },
-  chatWindow: {
-    borderRadius: 20,
-    overflow: "hidden",
-    elevation: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-  },
-  chatHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  chatHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  chatHeaderTitle: { fontSize: 17, fontWeight: "700", color: "#fff" },
-  messagesScroll: { flex: 1 },
-  messagesContent: { padding: 16, gap: 12 },
-  messageRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
-  messageRowUser: { flexDirection: "row-reverse" },
-  avatarContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  messageBubble: {
-    maxWidth: "75%",
-    flexShrink: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-  },
-  messageText: { fontSize: 15, lineHeight: 20, flexWrap: "wrap" },
-  chatInputArea: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-  },
-  inputRow: { flexDirection: "row", alignItems: "center", width: "100%" },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});

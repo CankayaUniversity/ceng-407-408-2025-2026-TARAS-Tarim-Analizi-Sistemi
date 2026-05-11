@@ -1,6 +1,6 @@
 import { Theme } from "../../types";
 
-export type ThemeMode = 'light' | 'dark' | 'system' | 'weather';
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface SettingsScreenProps {
   theme: Theme;
@@ -8,6 +8,7 @@ export interface SettingsScreenProps {
   themeMode: ThemeMode;
   onThemeModeChange: (mode: ThemeMode) => void;
   onLogout: () => void;
+  onHardwareSetup: () => void;
 }
 
 export interface ThemeOption {

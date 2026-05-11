@@ -28,6 +28,12 @@ Thumbs.db
 
 # Model files (add your model to model/ folder separately)
 # model/*.tflite should be added via COPY in Dockerfile
+**/*.bin
+**/*.tflite
+**/*.keras
+**/*.pth
+**/*.pt
+**/*.onnx
 
 # Docker
 .dockerignore

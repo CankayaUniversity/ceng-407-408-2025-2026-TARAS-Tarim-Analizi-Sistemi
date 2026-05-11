@@ -23,8 +23,10 @@ interface S3UploadResponse {
   size: number;
 }
 
+if (!process.env.AWS_REGION) throw new Error("AWS_REGION not configured");
+
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: process.env.AWS_REGION,
 });
 
 export async function uploadToS3(options: S3UploadOptions): Promise<S3UploadResponse> {
@@ -43,7 +45,8 @@ export async function uploadToS3(options: S3UploadOptions): Promise<S3UploadResp
 
     const response = await s3Client.send(command);
 
-    const s3Url = `https://${bucket}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+    const getCommand = new GetObjectCommand({ Bucket: bucket, Key: key });
+    const s3Url = await getSignedUrl(s3Client, getCommand, { expiresIn: 60 * 60 * 24 * 7 });
 
     logger.info(`File uploaded to S3: s3://${bucket}/${key}`, {
       etag: response.ETag,
@@ -97,7 +100,7 @@ export async function generatePresignedDownloadUrl(
 
     const url = await getSignedUrl(s3Client, command, { expiresIn });
 
-    logger.info(`Presigned download URL generated for: ${key}`, { expiresIn });
+    logger.debug(`[S3] presign: ${key.split("/").pop()}`);
     return url;
   } catch (error) {
     logger.error('Failed to generate presigned download URL:', error);

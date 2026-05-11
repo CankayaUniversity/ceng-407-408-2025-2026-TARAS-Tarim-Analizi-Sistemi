@@ -44,7 +44,7 @@ export const SlidingTabContainer = ({
   }, [activeIndex]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View className="flex-1">
       {tabs.map((tab, index) => {
         const isActive = index === activeIndex;
         return (

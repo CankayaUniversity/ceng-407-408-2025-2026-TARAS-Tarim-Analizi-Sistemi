@@ -1,0 +1,87 @@
+{
+  "name": "effnet_b0_distilled_v3",
+  "version": "3.0.0",
+  "file": "disease_model.tflite",
+  "format": "tflite",
+  "precision": "fp16",
+  "size_mb": 7.7,
+  "params_m": 5.3,
+  "runtime": "react-native-fast-tflite",
+  "min_runtime_version": "1.6.0",
+  "delegates_preferred": ["nnapi", "core-ml", "default"],
+  "input": {
+    "name": "input",
+    "shape": [1, 224, 224, 3],
+    "dtype": "float32",
+    "layout": "NHWC",
+    "preprocessing": {
+      "resize_shortest_side": 256,
+      "center_crop": 224,
+      "normalize_mean": [0.485, 0.456, 0.406],
+      "normalize_std": [0.229, 0.224, 0.225],
+      "color_order": "RGB"
+    }
+  },
+  "output": {
+    "name": "logits",
+    "shape": [1, 14],
+    "dtype": "float32",
+    "semantics": "unnormalized_logits",
+    "postprocessing": {
+      "divide_by_temperature": 1.0,
+      "then_apply": "softmax",
+      "confidence_threshold": 0.5
+    }
+  },
+  "classes": [
+    {"index": 0,  "name": "bacterial_spot",            "crops": ["tomato", "pepper", "peach"]},
+    {"index": 1,  "name": "corn_common_rust",          "crops": ["corn"]},
+    {"index": 2,  "name": "corn_gray_leaf_spot",       "crops": ["corn"]},
+    {"index": 3,  "name": "corn_northern_leaf_blight", "crops": ["corn"]},
+    {"index": 4,  "name": "early_blight",              "crops": ["tomato", "potato"]},
+    {"index": 5,  "name": "healthy",                   "crops": ["tomato", "potato", "pepper", "corn", "cherry", "peach"]},
+    {"index": 6,  "name": "late_blight",               "crops": ["tomato", "potato"]},
+    {"index": 7,  "name": "leaf_mold",                 "crops": ["tomato"]},
+    {"index": 8,  "name": "mosaic_virus",              "crops": ["tomato"]},
+    {"index": 9,  "name": "powdery_mildew",            "crops": ["squash", "cherry"]},
+    {"index": 10, "name": "septoria_leaf_spot",        "crops": ["tomato"]},
+    {"index": 11, "name": "spider_mites",              "crops": ["tomato"]},
+    {"index": 12, "name": "target_spot",               "crops": ["tomato"]},
+    {"index": 13, "name": "yellow_leaf_curl_virus",    "crops": ["tomato"]}
+  ],
+  "benchmarks": {
+    "fair_v2_leakage_free_macro_f1": 0.5098,
+    "fair_v2_n": 44,
+    "distilled_from": "cc_v16_final M1",
+    "training_provenance": "deployment_bundle_v3 (2026-05-08)",
+    "tflite_fp16_vs_pt_fp32_max_softmax_drift": "<= 0.003",
+    "ref_mobile_cpu_inference_ms": {
+      "snapdragon_7_series": 30,
+      "snapdragon_8_gen3": 15,
+      "iphone_a14_plus": 12
+    }
+  },
+  "ui_hints": {
+    "uncertain_message_en": "Not confident. Please take a clearer photo of the leaf.",
+    "uncertain_message_tr": "Emin degilim. Lutfen yapragin daha net bir fotografini cekin.",
+    "max_fps": 30,
+    "throttle_ms_between_inferences": 150,
+    "lighting_ok_lux_min": 50
+  },
+  "v2_experiments": {
+    "leaf_detector_cascade_2026_04_26": {
+      "status": "rejected",
+      "asset": "../leaf_detector/leaf_detector.tflite",
+      "detector_map_50": 0.83,
+      "detector_size_mb": 3.46,
+      "f1_uplift_vs_center_crop": -0.1121,
+      "n_test_images": 58,
+      "n_classes_in_sample": 9,
+      "ci_pp_estimate": 10,
+      "padding_sweep": {
+        "0.10": -11.21, "0.20": -10.80, "0.30": -10.31, "0.40": -9.22, "0.50": -7.86
+      },
+      "notes": "Negative or zero on PlantDoc-OD dedup'd test split. Padding sweep showed monotonic improvement as padding increases (smaller detector influence = less damage), but no ratio in 0.10-0.50 reached the +5pp gate. Trend implies pad=infinity converges to center-crop F1 (delta=0). Don't reintegrate without re-distilling classifier on detector-cropped data, or first running Lambda shadow logging to validate against real field uploads."
+    }
+  }
+}

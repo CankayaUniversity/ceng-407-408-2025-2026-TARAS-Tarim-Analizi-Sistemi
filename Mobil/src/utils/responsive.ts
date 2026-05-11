@@ -1,7 +1,16 @@
 // Responsive tasarim sistemi - ekran boyutuna gore olcekleme
-// spacing, useResponsive, calculateCardDimensions, getResponsiveFontSize
+// s, vs, ms, spacing, useResponsive, calculateCardDimensions, getResponsiveFontSize
 
 import { useWindowDimensions, Dimensions } from "react-native";
+import { scale, verticalScale, moderateScale } from "react-native-size-matters";
+
+// Kisa takma adlar — tum dosyalarda kullanim icin
+// s()  → layout: padding, margin, gap, width, height (tam genislik olcekleme)
+// vs() → dikey: ust/alt bosluk, yukseklikler (tam yukseklik olcekleme)
+// ms() → fontlar + agresif olceklenmemesi gerekenler (sondurulmis olcekleme)
+export const s = scale;
+export const vs = verticalScale;
+export const ms = moderateScale;
 
 export interface DeviceType {
   isPhone: boolean;
@@ -63,13 +72,13 @@ export const BASE_UNIT = 8;
  * Use these instead of hardcoded pixel values
  */
 export const spacing = {
-  xs: BASE_UNIT * 0.5, // 4px
-  sm: BASE_UNIT, // 8px
-  md: BASE_UNIT * 2, // 16px
-  lg: BASE_UNIT * 3, // 24px
-  xl: BASE_UNIT * 4, // 32px
-  xxl: BASE_UNIT * 6, // 48px
-} as const;
+  xs: scale(BASE_UNIT * 0.5), // ~4px
+  sm: scale(BASE_UNIT), // ~8px
+  md: scale(BASE_UNIT * 2), // ~16px
+  lg: scale(BASE_UNIT * 3), // ~24px
+  xl: scale(BASE_UNIT * 4), // ~32px
+  xxl: scale(BASE_UNIT * 6), // ~48px
+};
 
 /**
  * Predefined font size configurations

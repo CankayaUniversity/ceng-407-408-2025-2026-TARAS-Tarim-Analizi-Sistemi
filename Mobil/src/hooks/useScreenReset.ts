@@ -13,7 +13,8 @@ export const useScreenReset = (
   options: UseScreenResetOptions = {},
 ) => {
   const { onActivate, onDeactivate } = options;
-  const wasActive = useRef(isActive);
+  // false olarak basla — ilk mount'ta isActive=true ise onActivate tetiklensin
+  const wasActive = useRef(false);
   const mountedRef = useRef(true);
 
   // Store callbacks in refs to avoid re-triggering effect on callback changes

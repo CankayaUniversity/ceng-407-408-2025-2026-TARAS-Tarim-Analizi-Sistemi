@@ -4,7 +4,6 @@ import React, { Component, ReactNode } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
 } from "react-native";
@@ -66,41 +65,66 @@ export class ErrorBoundary extends Component<Props, State> {
       const { error, errorInfo, showDetails } = this.state;
 
       return (
-        <View style={styles.container}>
-          <Text style={styles.title}>3D Gorsellestirme Hatasi</Text>
-          <Text style={styles.message}>
+        <View className="flex-1 center p-5 bg-gray-100">
+          <Text className="text-lg font-bold text-red-600 mb-2 text-center">
+            3D Gorsellestirme Hatasi
+          </Text>
+          <Text className="text-sm text-gray-500 text-center mb-4 px-2.5">
             {error?.message || "Bilinmeyen bir hata olustu"}
           </Text>
 
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-              <Text style={styles.buttonText}>Tekrar Dene</Text>
+          <View className="flex-row gap-3 mb-4">
+            <TouchableOpacity
+              className="bg-blue-500 px-5 py-2.5 rounded-lg"
+              onPress={this.handleReset}
+            >
+              <Text className="text-white text-sm font-semibold">
+                Tekrar Dene
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.detailsButton}
+              className="bg-gray-500 px-5 py-2.5 rounded-lg"
               onPress={this.toggleDetails}
             >
-              <Text style={styles.detailsButtonText}>
+              <Text className="text-white text-sm font-semibold">
                 {showDetails ? "Gizle" : "Detaylar"}
               </Text>
             </TouchableOpacity>
           </View>
 
           {showDetails && (
-            <ScrollView style={styles.debugContainer} nestedScrollEnabled>
-              <Text style={styles.debugTitle}>Hata Detaylari:</Text>
-              <Text style={styles.debugLabel}>Error:</Text>
-              <Text style={styles.debugText}>
+            <ScrollView
+              className="w-full bg-gray-800 rounded-lg p-3"
+              style={{ maxHeight: 300 }}
+              nestedScrollEnabled
+            >
+              <Text className="text-sm font-bold text-amber-500 mb-3">
+                Hata Detaylari:
+              </Text>
+              <Text className="text-xs font-semibold text-blue-400 mt-2 mb-1">
+                Error:
+              </Text>
+              <Text className="text-[11px] text-gray-200 font-mono leading-4">
                 {error?.name}: {error?.message}
               </Text>
-              <Text style={styles.debugLabel}>Stack:</Text>
-              <Text style={styles.debugText} selectable>
+              <Text className="text-xs font-semibold text-blue-400 mt-2 mb-1">
+                Stack:
+              </Text>
+              <Text
+                className="text-[11px] text-gray-200 font-mono leading-4"
+                selectable
+              >
                 {error?.stack || "N/A"}
               </Text>
               {errorInfo?.componentStack && (
                 <>
-                  <Text style={styles.debugLabel}>Component Stack:</Text>
-                  <Text style={styles.debugText} selectable>
+                  <Text className="text-xs font-semibold text-blue-400 mt-2 mb-1">
+                    Component Stack:
+                  </Text>
+                  <Text
+                    className="text-[11px] text-gray-200 font-mono leading-4"
+                    selectable
+                  >
                     {errorInfo.componentStack}
                   </Text>
                 </>
@@ -115,67 +139,3 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#f3f4f6",
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#dc2626",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  message: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: "center",
-    marginBottom: 16,
-    paddingHorizontal: 10,
-  },
-  buttonRow: { flexDirection: "row", gap: 12, marginBottom: 16 },
-  button: {
-    backgroundColor: "#3b82f6",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  buttonText: { color: "#ffffff", fontSize: 14, fontWeight: "600" },
-  detailsButton: {
-    backgroundColor: "#6b7280",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  detailsButtonText: { color: "#ffffff", fontSize: 14, fontWeight: "600" },
-  debugContainer: {
-    maxHeight: 300,
-    width: "100%",
-    backgroundColor: "#1f2937",
-    borderRadius: 8,
-    padding: 12,
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#f59e0b",
-    marginBottom: 12,
-  },
-  debugLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#60a5fa",
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  debugText: {
-    fontSize: 11,
-    color: "#e5e7eb",
-    fontFamily: "monospace",
-    lineHeight: 16,
-  },
-});

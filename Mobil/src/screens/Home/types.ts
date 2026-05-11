@@ -1,6 +1,44 @@
 import { Theme } from "../../utils/theme";
 import { DashboardData, FieldSummary } from "../../utils/api";
 
+/**
+ * Subset of IrrigationJob fields the home-screen card needs to display.
+ * Sourced from: GET /api/irrigation/zone/:zoneId/jobs
+ * Map the PENDING job with should_irrigate=true into this shape.
+ */
+export interface IrrigationSuggestion {
+  job_id: string;
+  status: string;
+  reasoning: string | null;
+  water_amount_ml: number | null;
+  start_time: string | null;
+  urgency_level: "low" | "medium" | "high" | null;
+}
+
+/**
+ * Display model for the FeaturedZoneCard.
+ * Aggregates zone sensor data + the optional pending suggestion.
+ */
+export interface ZoneCardData {
+  zoneName: string;
+  currentMoisture: number | null;
+  /** ISO string of the most recently EXECUTED job's actual_start_time or start_time */
+  lastIrrigationTime: string | null;
+  pendingSuggestion: IrrigationSuggestion | null;
+}
+
+/**
+ * Payload sent to the backend when the user confirms actual irrigation.
+ * Endpoint: PATCH /api/irrigation/jobs/:jobId/actual
+ * Fields:
+ *   actual_water_amount_ml — either the suggested value (Yes path) or user-entered (No path)
+ *   actual_start_time      — either the suggested start_time (Yes path) or user-entered (No path)
+ */
+export interface ActualIrrigationPayload {
+  actual_water_amount_ml: number;
+  actual_start_time: string;
+}
+
 export interface HomeScreenProps {
   theme: Theme;
   isDark: boolean;

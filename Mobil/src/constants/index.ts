@@ -13,11 +13,11 @@ export const SCREEN_TYPE = {
 export type ScreenType = (typeof SCREEN_TYPE)[keyof typeof SCREEN_TYPE];
 
 export const NAV_ITEMS = [
-  { id: "carbon", label: "Karbon", icon: "calculator" },
-  { id: "timetable", label: "Çizelge", icon: "calendar-month" },
-  { id: "home", label: "Ana Sayfa", icon: "home" },
-  { id: "disease", label: "Hastalık", icon: "leaf" },
-  { id: "settings", label: "Ayarlar", icon: "cog" },
+  { id: "carbon", icon: "calculator" },
+  { id: "timetable", icon: "calendar-month" },
+  { id: "home", icon: "home" },
+  { id: "disease", icon: "leaf" },
+  { id: "settings", icon: "cog" },
 ] as const;
 
 export const HEADER_TEXT: Record<Exclude<ScreenType, "login">, string> = {

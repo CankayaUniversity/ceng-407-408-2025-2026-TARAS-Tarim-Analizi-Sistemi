@@ -1,11 +1,11 @@
 import json
-import base64
 import logging
 import io
 from typing import Dict, Any
 import numpy as np
 from PIL import Image
 import tensorflow as tf
+import boto3
 
 # Configure logging
 logger = logging.getLogger()
@@ -15,6 +15,36 @@ logger.setLevel(logging.INFO)
 INTERPRETER = None
 INPUT_INDEX = None
 OUTPUT_INDEX = None
+DISEASE_CLASSES = None
+
+
+def load_classes():
+    """classes.txt dosyasindan sinif isimlerini oku"""
+    global DISEASE_CLASSES
+    if DISEASE_CLASSES is None:
+        with open("model/classes.txt", "r") as f:
+            raw = [line.strip() for line in f if line.strip()]
+        # Ham isimleri okunabilir formata cevir
+        display_map = {
+            "Pepper__bell___Bacterial_spot": "Pepper Bell - Bacterial Spot",
+            "Pepper__bell___healthy": "Pepper Bell - Healthy",
+            "Potato_Early_blight": "Potato - Early Blight",
+            "Potato_Late_blight": "Potato - Late Blight",
+            "Potato_healthy": "Potato - Healthy",
+            "Tomato_Bacterial_spot": "Tomato - Bacterial Spot",
+            "Tomato_Early_blight": "Tomato - Early Blight",
+            "Tomato_Late_blight": "Tomato - Late Blight",
+            "Tomato_Leaf_Mold": "Tomato - Leaf Mold",
+            "Tomato_Septoria_leaf_spot": "Tomato - Septoria Leaf Spot",
+            "Tomato_Spider_mites_Two_spotted_spider_mite": "Tomato - Spider Mites (Two-Spotted)",
+            "Tomato_Target_Spot": "Tomato - Target Spot",
+            "Tomato_Tomato_YellowLeaf_Curl_Virus": "Tomato - Yellow Leaf Curl Virus",
+            "Tomato_Tomato_mosaic_virus": "Tomato - Mosaic Virus",
+            "Tomato_healthy": "Tomato - Healthy",
+        }
+        DISEASE_CLASSES = {i: display_map.get(name, name) for i, name in enumerate(raw)}
+        logger.info(f"Loaded {len(DISEASE_CLASSES)} classes from classes.txt")
+    return DISEASE_CLASSES
 
 
 def load_model():
@@ -23,11 +53,9 @@ def load_model():
 
     if INTERPRETER is None:
         try:
-            # Load the embedded TFLite model
             interpreter = tf.lite.Interpreter(model_path="model/disease_detection.tflite")
             interpreter.allocate_tensors()
 
-            # Get input and output details
             input_details = interpreter.get_input_details()
             output_details = interpreter.get_output_details()
 
@@ -45,29 +73,15 @@ def load_model():
 
 def preprocess_image(image_data: bytes, target_size: tuple = (256, 256)) -> np.ndarray:
     """
-    Preprocess image for TFLite inference
-
-    Args:
-        image_data: Raw image bytes
-        target_size: Model input size
-
-    Returns:
-        Preprocessed image array normalized to [0, 1]
+    EfficientNet preprocess_input = no-op (raw [0, 255])
+    Sadece resize + float32 donusumu yapilir
     """
     try:
-        # Load image
         image = Image.open(io.BytesIO(image_data)).convert('RGB')
-
-        # Resize
         image = image.resize(target_size, Image.Resampling.LANCZOS)
 
-        # Convert to array and normalize
         image_array = np.array(image, dtype=np.float32)
-        image_array = image_array / 255.0
-
-        # Add batch dimension
         image_array = np.expand_dims(image_array, axis=0)
-
         return image_array
     except Exception as e:
         logger.error(f"Image preprocessing failed: {str(e)}")
@@ -102,29 +116,15 @@ def detect_disease(image_data: bytes) -> Dict[str, Any]:
         class_idx = np.argmax(predictions)
         confidence = float(predictions[class_idx])
 
-        # Disease classes mapping (from classes.txt)
-        disease_classes = {
-            0: "Pepper Bell - Bacterial Spot",
-            1: "Pepper Bell - Healthy",
-            2: "Potato - Early Blight",
-            3: "Potato - Healthy",
-            4: "Potato - Late Blight",
-            5: "Tomato - Target Spot",
-            6: "Tomato - Mosaic Virus",
-            7: "Tomato - Yellow Leaf Curl Virus",
-            8: "Tomato - Bacterial Spot",
-            9: "Tomato - Early Blight",
-            10: "Tomato - Healthy",
-            11: "Tomato - Late Blight",
-            12: "Tomato - Leaf Mold",
-            13: "Tomato - Septoria Leaf Spot",
-            14: "Tomato - Spider Mites (Two-Spotted)"
-        }
+        CONF_THRESHOLD = 0.7
 
-        disease_name = disease_classes.get(class_idx, "Unknown")
-
-        # Generate recommendations based on disease
-        recommendations = get_disease_recommendations(disease_name)
+        disease_classes = load_classes()
+        if confidence < CONF_THRESHOLD:
+            disease_name = "Uncertain"
+            recommendations = ["Model emin degil — farkli acidan veya daha net bir fotograf ile tekrar deneyin."]
+        else:
+            disease_name = disease_classes.get(class_idx, "Unknown")
+            recommendations = get_disease_recommendations(disease_name)
 
         result = {
             "disease": disease_name,
@@ -261,14 +261,21 @@ def get_disease_recommendations(disease: str) -> list:
     return recommendations_map.get(disease, ["Consult agricultural extension for unknown disease"])
 
 
+def fetch_image_from_s3(bucket: str, key: str) -> bytes:
+    """S3'ten goruntu indir"""
+    s3 = boto3.client("s3")
+    response = s3.get_object(Bucket=bucket, Key=key)
+    return response["Body"].read()
+
+
 def handler(event, context) -> Dict[str, Any]:
     """
     AWS Lambda handler for disease detection
 
     Expected event format:
     {
-        "image": "base64_encoded_image_data"  // or
-        "imageUrl": "s3://bucket/path/to/image.jpg"
+        "s3_bucket": "taras-images",
+        "s3_key": "disease-detection/uuid.jpg"
     }
     """
     try:
@@ -277,21 +284,12 @@ def handler(event, context) -> Dict[str, Any]:
         if isinstance(event.get('body'), str):
             body = json.loads(event['body'])
 
-        # Get image data
-        image_data = None
+        if 's3_bucket' not in body or 's3_key' not in body:
+            raise ValueError("Missing 's3_bucket' or 's3_key' in request")
 
-        if 'image' in body:
-            # Base64 encoded image
-            image_b64 = body['image']
-            image_data = base64.b64decode(image_b64)
-
-        elif 'imageUrl' in body:
-            # URL-based image (requires additional setup)
-            # For now, not implemented - use base64 instead
-            raise ValueError("imageUrl not yet supported. Please use base64 encoded image data.")
-
-        else:
-            raise ValueError("Missing 'image' or 'imageUrl' in request")
+        # S3'ten goruntu indir
+        logger.info(f"Fetching image from S3: s3://{body['s3_bucket']}/{body['s3_key']}")
+        image_data = fetch_image_from_s3(body['s3_bucket'], body['s3_key'])
 
         # Run detection
         result = detect_disease(image_data)

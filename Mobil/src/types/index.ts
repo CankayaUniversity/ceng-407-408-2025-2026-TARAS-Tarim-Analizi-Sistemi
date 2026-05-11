@@ -5,24 +5,6 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
-export interface ThemeClasses {
-  background: string;
-  surface: string;
-  text: string;
-  textSecondary: string;
-  accent: string;
-  accentBg: string;
-  accentDim: string;
-  accentDimBg: string;
-}
+// Theme type is defined in utils/theme.ts and re-exported here for convenience.
+export type { Theme } from '../utils/theme';
 
-export interface Theme {
-  isDark: boolean;
-  background: string;
-  surface: string;
-  text: string;
-  textSecondary: string;
-  accent: string;
-  accentDim: string;
-  tw: ThemeClasses;
-}

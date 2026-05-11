@@ -140,30 +140,6 @@ export async function logKcCalibration(data: {
   });
 }
 
-export async function createIrrigationJob(data: {
-  zone_id: string;
-  trigger_reading_id: bigint;
-  reasoning: string;
-  recommended_duration_min: number;
-  recommended_volume_liters: number;
-}) {
-  return prisma.irrigationJob.create({
-    data: {
-      ...data,
-      status: "PENDING",
-    },
-    include: {
-      zone: {
-        include: {
-          details: true,
-          field: true,
-        },
-      },
-      trigger_reading: true,
-    },
-  });
-}
-
 export async function getPendingJobsForZone(zoneId: string) {
   return prisma.irrigationJob.findMany({
     where: {
@@ -180,22 +156,6 @@ export async function getPendingJobsForZone(zoneId: string) {
   });
 }
 
-export async function updateJobExecution(
-  jobId: string,
-  data: {
-    status: "EXECUTED" | "SKIPPED" | "ANALYZED";
-    actual_start_time?: Date;
-    actual_duration_min?: number;
-    result_reading_id?: bigint;
-    calculated_gain_outcome?: number;
-  },
-) {
-  return prisma.irrigationJob.update({
-    where: { job_id: jobId },
-    data,
-  });
-}
-
 export async function getIrrigationHistory(zoneId: string, limit: number = 20) {
   return prisma.irrigationJob.findMany({
     where: { zone_id: zoneId },
@@ -203,7 +163,13 @@ export async function getIrrigationHistory(zoneId: string, limit: number = 20) {
     take: limit,
     include: {
       trigger_reading: true,
-      result_reading: true,
+      followups: {
+        orderBy: { check_time: "desc" },
+        take: 1,
+        include: {
+          result_reading: true,
+        },
+      },
     },
   });
 }
@@ -219,11 +185,23 @@ export async function getUserFarmsWithSensors(userId: string) {
             include: {
               details: true,
               sensor_nodes: {
-                include: {
+                select: {
+                  node_id: true,
+                  status: true,
+                  battery_level: true,
+                  x: true,
+                  z: true,
                   readings: {
                     where: { created_at: { lte: now } },
                     orderBy: { created_at: "desc" },
                     take: 1,
+                    select: {
+                      id: true,
+                      sm_percent: true,
+                      temperature: true,
+                      humidity: true,
+                      created_at: true,
+                    },
                   },
                 },
               },
@@ -324,6 +302,7 @@ export async function getFieldSensorHistory(
                   },
                 },
                 orderBy: { created_at: "asc" },
+                take: 5000,
                 select: {
                   id: true,
                   node_id: true,
@@ -371,9 +350,7 @@ export default {
   getZoneWithAdaptiveControl,
   updateZoneAdaptiveParams,
   logKcCalibration,
-  createIrrigationJob,
   getPendingJobsForZone,
-  updateJobExecution,
   getIrrigationHistory,
   getUserFarmsWithSensors,
   getFarmDashboard,

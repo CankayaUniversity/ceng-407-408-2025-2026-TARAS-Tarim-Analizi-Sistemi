@@ -4,6 +4,7 @@ import dashboardService from "../services/dashboardService";
 import { prisma } from "../config/database";
 import logger from "../utils/logger";
 import { getStringParam, getNumberParam } from "../utils/requestHelpers";
+import { emitSensorUpdate } from "../config/socket";
 
 export async function getUserZones(req: Request, res: Response): Promise<void> {
   try {
@@ -49,10 +50,12 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
       farm.fields.flatMap((field) =>
         field.zones.map((zone) => ({
           zone_id: zone.zone_id,
-          name: zone.name,
-          soil_type: zone.soil_type,
+          zone_name: zone.name,
+          field_id: field.field_id,
           field_name: field.name,
+          farm_id: farm.farm_id,
           farm_name: farm.name,
+          soil_type: zone.soil_type,
           sensor_count: zone.sensor_nodes.length,
           active_sensors: zone.sensor_nodes.filter((s) => s.status === 'ACTIVE').length,
           sensors: zone.sensor_nodes,
@@ -83,10 +86,20 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
   }
 }
 
-async function checkZoneAccess(
-  userId: string,
-  zoneId: string,
-): Promise<boolean> {
+// Erisim kontrolu — zone verisini dondurur, basarisizsa response gonderir
+async function requireZoneAccess(req: Request, res: Response, zoneId: string | undefined) {
+  const userId = (req as any).user?.user_id;
+
+  if (!userId) {
+    res.status(401).json({ success: false, error: "Authentication required" });
+    return null;
+  }
+
+  if (!zoneId) {
+    res.status(400).json({ success: false, error: "Zone ID is required" });
+    return null;
+  }
+
   const zone = await prisma.zone.findUnique({
     where: { zone_id: zoneId },
     include: {
@@ -98,11 +111,12 @@ async function checkZoneAccess(
     },
   });
 
-  if (!zone?.field?.farm) {
-    return false;
+  if (!zone?.field?.farm || zone.field.farm.user_id !== userId) {
+    res.status(403).json({ success: false, error: "You do not have access to this zone" });
+    return null;
   }
 
-  return zone.field.farm.user_id === userId;
+  return zone;
 }
 
 export async function getSensorsByZone(
@@ -110,42 +124,18 @@ export async function getSensorsByZone(
   res: Response,
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const zone = await requireZoneAccess(req, res, zoneId);
+    if (!zone) return;
+
     const limit = req.query.limit;
-
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
-
     const readingLimit = getNumberParam(limit, 10);
-    const sensors = await sensorNodeService.getSensorNodesForZone(zoneId, readingLimit);
+    const sensors = await sensorNodeService.getSensorNodesForZone(zone.zone_id, readingLimit);
 
     res.status(200).json({
       success: true,
       data: {
-        zone_id: zoneId,
+        zone_id: zone.zone_id,
         sensor_count: sensors.length,
         sensors: sensors.map((sensor) => ({
           node_id: sensor.node_id,
@@ -170,35 +160,11 @@ export async function getSensorsByZone(
 
 export async function getLatestReadings(req: Request, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const zone = await requireZoneAccess(req, res, zoneId);
+    if (!zone) return;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
-
-    const sensors = await sensorNodeService.getSensorNodesForZone(zoneId, 1);
+    const sensors = await sensorNodeService.getSensorNodesForZone(zone.zone_id, 1);
 
     const latestData = sensors.map((sensor) => {
       const reading = sensor.readings[0];
@@ -224,7 +190,7 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
     res.status(200).json({
       success: true,
       data: {
-        zone_id: zoneId,
+        zone_id: zone.zone_id,
         timestamp: new Date(),
         sensors: latestData,
       },
@@ -240,36 +206,13 @@ export async function getLatestReadings(req: Request, res: Response): Promise<vo
 
 export async function getZoneHistory(req: Request, res: Response): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const zone = await requireZoneAccess(req, res, zoneId);
+    if (!zone) return;
+
     const startTime = getStringParam(req.query.startTime);
     const endTime = getStringParam(req.query.endTime);
     const nodeId = getStringParam(req.query.nodeId);
-
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
 
     const end = endTime ? new Date(endTime) : new Date();
     const start = startTime
@@ -284,23 +227,20 @@ export async function getZoneHistory(req: Request, res: Response): Promise<void>
         end,
       );
     } else {
-      const sensors = await prisma.sensorNode.findMany({
-        where: { zone_id: zoneId },
+      // Tek sorgu ile tum zone sensorlerinin okumalarini cek
+      readings = await prisma.sensorReading.findMany({
+        where: {
+          node: { zone_id: zone.zone_id },
+          created_at: { gte: start, lte: end },
+        },
+        orderBy: { created_at: "asc" },
       });
-
-      const allReadings = await Promise.all(
-        sensors.map((sensor) =>
-          sensorNodeService.getReadingsInTimeRange(sensor.node_id, start, end),
-        ),
-      );
-
-      readings = allReadings.flat();
     }
 
     res.status(200).json({
       success: true,
       data: {
-        zone_id: zoneId,
+        zone_id: zone.zone_id,
         time_range: {
           start,
           end,
@@ -331,35 +271,11 @@ export async function getZoneDetails(
   res: Response,
 ): Promise<void> {
   try {
-    const userId = (req as any).user?.user_id;
     const zoneId = getStringParam(req.params.zoneId);
+    const accessZone = await requireZoneAccess(req, res, zoneId);
+    if (!accessZone) return;
 
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: "Authentication required",
-      });
-      return;
-    }
-
-    if (!zoneId) {
-      res.status(400).json({
-        success: false,
-        error: "Zone ID is required",
-      });
-      return;
-    }
-
-    const hasAccess = await checkZoneAccess(userId, zoneId);
-    if (!hasAccess) {
-      res.status(403).json({
-        success: false,
-        error: "You do not have access to this zone",
-      });
-      return;
-    }
-
-    const zone = await sensorNodeService.getZoneWithAdaptiveControl(zoneId);
+    const zone = await sensorNodeService.getZoneWithAdaptiveControl(accessZone.zone_id);
 
     if (!zone) {
       res.status(404).json({
@@ -398,7 +314,7 @@ export async function getZoneDetails(
         active_plantings: zone.plantings.map((p) => ({
           planting_id: p.planting_id,
           crop_name: p.crop?.name,
-          planted_at: p.planted_at,
+          planting_date: p.planting_date,
           is_active: p.is_active,
         })),
         recent_kc_calibrations: zone.kc_history.slice(0, 5),
@@ -565,6 +481,289 @@ export async function getFieldSensorHistory(
   }
 }
 
+export async function registerDevice(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Authentication required" });
+      return;
+    }
+
+    const { mac, zone_id } = req.body;
+    if (!mac) {
+      res.status(400).json({ success: false, error: "Missing mac address" });
+      return;
+    }
+
+    // Check if MAC already registered
+    const existing = await prisma.sensorNode.findUnique({
+      where: { hardware_mac: mac },
+    });
+
+    if (existing) {
+      // Return existing device_key
+      res.status(200).json({
+        success: true,
+        node_id: existing.node_id,
+        device_key: existing.device_key,
+        message: "Device already registered",
+      });
+      return;
+    }
+
+    // Verify zone belongs to user (if provided)
+    if (zone_id) {
+      const zone = await prisma.zone.findFirst({
+        where: { zone_id },
+        include: { field: { include: { farm: true } } },
+      });
+      if (!zone || zone.field?.farm?.user_id !== userId) {
+        res.status(403).json({ success: false, error: "Zone not found or not owned by user" });
+        return;
+      }
+    }
+
+    // Create new sensor node — device_key auto-generated by database
+    const node = await prisma.sensorNode.create({
+      data: {
+        hardware_mac: mac,
+        zone_id: zone_id || null,
+        status: "ACTIVE",
+      },
+    });
+
+    logger.info(`[DEVICE] New device registered: MAC=${mac} key=${node.device_key}`);
+
+    res.status(201).json({
+      success: true,
+      node_id: node.node_id,
+      device_key: node.device_key,
+    });
+  } catch (error) {
+    logger.error("[DEVICE] registerDevice error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+export async function postDeviceData(req: Request, res: Response): Promise<void> {
+  try {
+    const deviceKey = req.headers["x-device-key"] as string;
+    if (!deviceKey) {
+      res.status(401).json({ success: false, error: "Missing X-Device-Key header" });
+      return;
+    }
+
+    // Find device by its unique key
+    const sensorNode = await prisma.sensorNode.findUnique({
+      where: { device_key: deviceKey },
+      include: { zone: true },
+    });
+
+    if (!sensorNode) {
+      res.status(401).json({ success: false, error: "Invalid device key" });
+      return;
+    }
+
+    const { readings } = req.body;
+    if (!readings || !Array.isArray(readings) || readings.length === 0) {
+      res.status(400).json({ success: false, error: "Missing readings array" });
+      return;
+    }
+
+    const now = Date.now();
+    const calDry = sensorNode.cal_dry_value;
+    const calWet = sensorNode.cal_wet_value;
+    const hasCalibration = calDry != null && calWet != null && calDry !== calWet;
+
+    const readingsData = readings.map((r: any) => {
+      const rawSm = r.raw_sm_value ?? null;
+      let smPercent: number | null = null;
+      if (hasCalibration && rawSm != null) {
+        // (dry - raw) / (dry - wet) * 100, clamped 0-100
+        smPercent = Math.max(0, Math.min(100,
+          ((calDry! - rawSm) / (calDry! - calWet!)) * 100
+        ));
+        smPercent = Math.round(smPercent * 10) / 10; // 1 decimal
+      }
+      return {
+        node_id: sensorNode.node_id,
+        temperature: r.temperature ?? null,
+        humidity: r.humidity ?? null,
+        raw_temperature: r.raw_temperature ?? null,
+        raw_humidity: r.raw_humidity ?? null,
+        raw_sm_value: rawSm,
+        sm_percent: smPercent,
+        battery_voltage: r.battery_voltage ?? null,
+        created_at: new Date(now - (r.minutes_ago || 0) * 60000),
+      };
+    });
+
+    const result = await prisma.sensorReading.createMany({ data: readingsData });
+    const savedCount = result.count;
+
+    logger.info(`[DEVICE] ${savedCount} readings from ${sensorNode.hardware_mac}`);
+
+    // Emit socket update for the latest reading (use calibrated data, not raw)
+    const latestCalibrated = readingsData[readingsData.length - 1];
+    const latestRaw = readings[readings.length - 1];
+    const fieldId = sensorNode.zone?.field_id;
+    if (fieldId && latestCalibrated) {
+      emitSensorUpdate(fieldId, {
+        readingId: null,
+        sensorNodeId: sensorNode.node_id,
+        macAddress: sensorNode.hardware_mac,
+        temperature: latestCalibrated.temperature ?? null,
+        humidity: latestCalibrated.humidity ?? null,
+        smPercent: latestCalibrated.sm_percent ?? null,
+        sensorError: latestRaw?.sensor_error || 0,
+        timestamp: new Date(),
+      });
+    }
+
+    // Check for sensor errors (bitmask: 1=SHT31, 2=soil, 3=both)
+    // Rate-limited: 1 alert per node per hour
+    const errorCode = readings.reduce((acc: number, r: { sensor_error?: number }) =>
+      acc | (r.sensor_error || 0), 0);
+
+    if (errorCode > 0 && fieldId) {
+      const oneHourAgo = new Date(Date.now() - 3600000);
+      const recentAlert = await prisma.alert.findFirst({
+        where: {
+          title: "Sensor Failure",
+          message: { startsWith: `Sensor ${sensorNode.hardware_mac}:` },
+          created_at: { gte: oneHourAgo },
+        },
+      });
+
+      if (!recentAlert) {
+        const errorParts: string[] = [];
+        if (errorCode & 1) errorParts.push("SHT31 (temperature/humidity)");
+        if (errorCode & 2) errorParts.push("Soil moisture");
+        const errorDesc = errorParts.join(" + ");
+
+        const field = await prisma.field.findUnique({
+          where: { field_id: fieldId },
+          include: { farm: true },
+        });
+        if (field?.farm?.user_id) {
+          await prisma.alert.create({
+            data: {
+              user_id: field.farm.user_id,
+              title: "Sensor Failure",
+              message: `Sensor ${sensorNode.hardware_mac}: ${errorDesc} sensor failed. Check wiring.`,
+              severity: "CRITICAL",
+            },
+          });
+          emitSensorUpdate(fieldId, {
+            type: "sensor-alert",
+            sensorNodeId: sensorNode.node_id,
+            macAddress: sensorNode.hardware_mac,
+            errorCode,
+          });
+          logger.warn(`[DEVICE] Sensor failure (code=${errorCode}): ${sensorNode.hardware_mac}`);
+        }
+      }
+    }
+
+    res.status(200).json({ success: true, count: savedCount });
+  } catch (error) {
+    logger.error("[DEVICE] postDeviceData error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+export async function postDeviceDiagnostic(req: Request, res: Response): Promise<void> {
+  try {
+    const deviceKey = req.headers["x-device-key"] as string;
+    if (!deviceKey) {
+      res.status(401).json({ success: false, error: "Missing X-Device-Key header" });
+      return;
+    }
+
+    const sensorNode = await prisma.sensorNode.findUnique({
+      where: { device_key: deviceKey },
+      include: { zone: { include: { field: { include: { farm: true } } } } },
+    });
+
+    if (!sensorNode) {
+      res.status(401).json({ success: false, error: "Invalid device key" });
+      return;
+    }
+
+    const d = req.body;
+
+    await prisma.sensorDiagnostic.create({
+      data: {
+        node_id: sensorNode.node_id,
+        reset_reason: d.reset_reason ?? 0,
+        boot_count: d.boot_count ?? 0,
+        uptime_cycles: d.uptime_cycles ?? 0,
+        failures: d.failures && Object.keys(d.failures).length > 0 ? d.failures : undefined,
+      },
+    });
+
+    await prisma.sensorNode.update({
+      where: { node_id: sensorNode.node_id },
+      data: {
+        last_reset_reason: d.reset_reason ?? null,
+        last_boot_count: d.boot_count ?? null,
+        last_diag_at: new Date(),
+      },
+    });
+
+    // Alert on abnormal resets
+    const ABNORMAL = [7, 9, 15]; // WDT, BROWNOUT, PANIC
+    if (ABNORMAL.includes(d.reset_reason)) {
+      const names: Record<number, string> = {
+        7: "Watchdog timeout (firmware hang)",
+        9: "Brownout (low battery)",
+        15: "Panic (firmware crash)",
+      };
+      const userId = sensorNode.zone?.field?.farm?.user_id;
+      if (userId) {
+        await prisma.alert.create({
+          data: {
+            user_id: userId,
+            title: "Sensor Reset Detected",
+            message: `Sensor ${sensorNode.hardware_mac}: ${names[d.reset_reason] ?? "Unknown"}. Boot count: ${d.boot_count}.`,
+            severity: d.reset_reason === 9 ? "CRITICAL" : "WARNING",
+          },
+        });
+      }
+    }
+
+    logger.info(`[DIAG] ${sensorNode.hardware_mac} rst=${d.reset_reason} boots=${d.boot_count}`);
+    res.status(200).json({ success: true });
+  } catch (error) {
+    logger.error("[DIAG] postDeviceDiagnostic error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+export async function getNodeDiagnostics(req: Request, res: Response): Promise<void> {
+  try {
+    const nodeId = req.params.nodeId as string;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const diagnostics = await prisma.sensorDiagnostic.findMany({
+      where: { node_id: nodeId as string },
+      orderBy: { created_at: "desc" },
+      take: limit,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: diagnostics.map((d) => ({
+        ...d,
+        id: d.id.toString(),
+      })),
+    });
+  } catch (error) {
+    logger.error("[DIAG] getNodeDiagnostics error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
 export default {
   getUserZones,
   getSensorsByZone,
@@ -573,4 +772,8 @@ export default {
   getZoneDetails,
   getNodeReadings,
   getFieldSensorHistory,
+  registerDevice,
+  postDeviceData,
+  postDeviceDiagnostic,
+  getNodeDiagnostics,
 };

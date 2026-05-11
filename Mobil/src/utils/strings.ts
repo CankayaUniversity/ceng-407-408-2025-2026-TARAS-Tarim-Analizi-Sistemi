@@ -32,7 +32,11 @@ export interface StringDictionary {
     registerButton: string;
     skipButton: string;
     localDemoButton: string;
+    localDemoSubtitle: string;
     awsDemoButton: string;
+    awsDemoSubtitle: string;
+    demoOnlyHeading: string;
+    demoOnlyBody: string;
     switchToRegister: string;
     switchToLogin: string;
     connectingToServer: string;
@@ -62,8 +66,6 @@ export interface StringDictionary {
 
   // Disease Screen
   disease: {
-    title: string;
-    subtitle: string;
     noAnalysisYet: string;
     noAnalysisSubtitle: string;
     loadingResults: string;
@@ -88,6 +90,91 @@ export interface StringDictionary {
     confidence: string;
     analysisFailed: string;
     waitingInQueue: string;
+    failedToSend: string;
+    failedToSendSubtitle: string;
+    retryButton: string;
+    retrying: string;
+    retrySuccess: string;
+    queuedForRetry: string;
+    allPredictions: string;
+    detailTitle: string;
+    detailNoData: string;
+    detailConfidenceRaw: string;
+    detailConfidenceScore: string;
+    detailRecommendations: string;
+    detailTimestamps: string;
+    detailDetectionId: string;
+    detailCapturedAt: string;
+    uncertainTitle: string;
+    uncertainMessage: string;
+    uncertainPossibleGuess: string;
+    feedbackPrompt: string;
+    feedbackThanks: string;
+    feedbackError: string;
+    feedbackDefinitelyWrong: string;
+    feedbackLikelyWrong: string;
+    feedbackUnsure: string;
+    feedbackLikelyCorrect: string;
+    feedbackDefinitelyCorrect: string;
+    correctionPrompt: string;
+    correctionPickerTitle: string;
+    correctionCancel: string;
+    correctionConfirm: string;
+    correctionDontKnow: string;
+    correctionOther: string;
+    correctionBacterialSpot: string;
+    correctionCornCommonRust: string;
+    correctionCornGrayLeafSpot: string;
+    correctionCornNorthernLeafBlight: string;
+    correctionEarlyBlight: string;
+    correctionHealthy: string;
+    correctionLateBlight: string;
+    correctionLeafMold: string;
+    correctionMosaicVirus: string;
+    correctionPowderyMildew: string;
+    correctionSeptoriaLeafSpot: string;
+    correctionSpiderMites: string;
+    correctionTargetSpot: string;
+    correctionYellowLeafCurlVirus: string;
+    // ── Klasor (folder) ekranlari ──
+    foldersSectionTitle: string;
+    foldersEmpty: string;
+    generalSectionTitle: string;
+    folderCreateButton: string;
+    folderCreateTitle: string;
+    folderCreateHelper: string;
+    folderCreateZoneLabel: string;
+    folderCreateZoneLoadError: string;
+    folderCreateNoZones: string;
+    folderCreateNameLabel: string;
+    folderCreateNamePlaceholder: string;
+    folderCreateNamePlaceholderEmpty: string;
+    folderCreateConfirm: string;
+    folderCreatePickZone: string;
+    folderCreateNameRequired: string;
+    folderCreateSuccess: string;
+    folderCreateDuplicateName: string;
+    folderCreateNoActivePlanting: string;
+    folderCreateGenericError: string;
+    folderPhotoSingular: string;
+    folderPhotoPlural: string;
+    folderDetailLoadError: string;
+    folderDetailTarget: string;
+    folderDetailStarted: string;
+    folderDetailTimeline: string;
+    folderDetailEmpty: string;
+    folderDeactivateTitle: string;
+    folderDeactivateConfirmation: string;
+    folderDeactivateConfirm: string;
+    folderDeactivateSuccess: string;
+    folderDeactivateError: string;
+    folderAddPhotoTo: string;
+    folderCameraAddingTo: string;
+    // ── Demo modu ──
+    sampleButton: string;
+    sampleSheetTitle: string;
+    sampleResolveError: string;
+    demoHardwareUnavailable: string;
   };
 
   // Camera Screen
@@ -105,8 +192,17 @@ export interface StringDictionary {
     sentSuccess: string;
     liveCameraUnavailable: string;
     liveCameraMessage: string;
+    systemPermissionDescription: string;
     cancelButton: string;
     sendButton: string;
+    liveMode: string;
+    photoMode: string;
+    liveScanLoading: string;
+    liveScanUncertain: string;
+    liveScanAdjustLight: string;
+    localResultBanner: string;
+    retakeButton: string;
+    closeButton: string;
   };
 
   // Timetable Screen
@@ -147,6 +243,15 @@ export interface StringDictionary {
     rawMoisture: string;
   };
 
+  // Bottom navigation bar
+  nav: {
+    carbon: string;
+    timetable: string;
+    home: string;
+    disease: string;
+    settings: string;
+  };
+
   // Settings Screen
   settings: {
     title: string;
@@ -154,40 +259,77 @@ export interface StringDictionary {
     themeLight: string;
     themeDark: string;
     themeSystem: string;
-    themeWeather: string;
     language: string;
     languageTurkish: string;
     languageEnglish: string;
-    awsConnectionTest: string;
+    datasetConsentTitle: string;
+    datasetConsentSubtitle: string;
     logout: string;
-    diagnosticsTitle: string;
-    diagnosticsConfirmation: string;
-    diagnosticsStart: string;
-    diagnosticsCompleted: string;
-    diagnosticsFailed: string;
+  };
+
+  // Hardware Setup
+  hardware: {
+    title: string;
+    addGateway: string;
+    addGatewayDesc: string;
+    addSensorNode: string;
+    addSensorNodeDesc: string;
+    selectFarm: string;
+    scanningGateways: string;
+    noGatewaysFound: string;
+    enterWifi: string;
+    ssidPlaceholder: string;
+    passwordPlaceholder: string;
+    configureGateway: string;
+    provisioning: string;
+    gatewayConfigured: string;
+    selectGateway: string;
+    gatewayOffline: string;
+    selectZone: string;
+    startPairing: string;
+    searchingNodes: string;
+    nodeFound: string;
+    approve: string;
+    decline: string;
+    autoRejectNotice: string;
+    noZonesFound: string;
+    nodePaired: string;
+    pairingTimeout: string;
+    bleDisabled: string;
+    blePermissionNeeded: string;
+    connectionLost: string;
+    retry: string;
+    powerOnSensor: string;
+    done: string;
+    registering: string;
+    writingConfig: string;
+    waitingGateway: string;
+    testingWifi: string;
+    wifiFailed: string;
+    backendUnreachable: string;
+    provisionFailed: string;
+    online: string;
+    offline: string;
+    sensors: string;
+    firmwareVersion: string;
+    firmwareUpToDate: string;
+    updateAvailable: string;
+    updateConfirmTitle: string;
+    updateConfirmMessage: string;
+    updating: string;
+    updateSuccess: string;
+    updateFailed: string;
   };
 
   // Chat
   chat: {
     title: string;
     placeholder: string;
-  };
-
-  // Network Diagnostics
-  networkDiag: {
-    title: string;
-    running: string;
-    startButton: string;
-    shareReport: string;
-    infoHeader: string;
-    bulletNetworkStatus: string;
-    bulletDNS: string;
-    bulletHTTP: string;
-    bulletAPI: string;
-    bulletSocketIO: string;
-    lastRun: string;
-    promptMessage: string;
-    tip: string;
+    newChat: string;
+    tapToOpen: string;
+    history: string;
+    historyEmpty: string;
+    readMore: string;
   };
 
   // Error Boundary / 3D
@@ -217,6 +359,89 @@ export interface StringDictionary {
   carbon: {
     title: string;
     comingSoon: string;
+    loadError: string;
+    typeRequired: string;
+    amountRequired: string;
+    logSuccess: string;
+    logError: string;
+    kgCO2: string;
+    deleteConfirmTitle: string;
+    deleteConfirmMessage: string;
+    deleteSuccess: string;
+    deleteError: string;
+    loadingFarms: string;
+    noFarmFound: string;
+    summaryTitle: string;
+    addLog: string;
+    selectActivityType: string;
+    noData: string;
+    amount: string;
+    date: string;
+    notes: string;
+    notesPlaceholder: string;
+    logActivity: string;
+    recentLogs: string;
+    noLogs: string;
+    noLogsSubtitle: string;
+    categoryFuel: string;
+    categoryFertilizer: string;
+    categoryElectricity: string;
+  };
+
+  // Notifications Screen
+  notifications: {
+    title: string;
+    empty: string;
+  };
+
+  // Irrigation Detail
+  irrigation: {
+    welcome: string;
+    nextIrrigation: string;
+    soilMoisture: string;
+    zone: string;
+    detail: string;
+    recommendedAmount: string;
+    recommendedTime: string;
+    currentMoisture: string;
+    didIrrigateAmount: string;
+    didIrrigateTime: string;
+    actualAmount: string;
+    actualTime: string;
+    enterAmount: string;
+    selectDateTime: string;
+    save: string;
+    saved: string;
+    saveFailed: string;
+    history: string;
+    noHistory: string;
+    noRecommendation: string;
+    ml: string;
+    tapForDetails: string;
+    targetMoisture: string;
+    crop: string;
+    growthStage: string;
+    status: string;
+    urgencyLevel: string;
+    reasoning: string;
+    recommendationTime: string;
+    noActiveRecommendation: string;
+    noActiveRecommendationSub: string;
+    noIrrigationNeeded: string;
+    noIrrigationNeededSub: string;
+    lastChecked: string;
+    confirmIrrigationQuestion: string;
+    yesFollowedExactly: string;
+    noUsedDifferent: string;
+    enterActualValues: string;
+    amountInvalid: string;
+    // Card-level display strings
+    pendingRecommendation: string;
+    noSuggestion: string;
+    urgencyHigh: string;
+    urgencyMedium: string;
+    urgencyLow: string;
+    lastIrrigation: string;
   };
 }
 
@@ -246,8 +471,12 @@ const tr: StringDictionary = {
     loginButton: "Giriş Yap",
     registerButton: "Kayıt Ol",
     skipButton: "Demo modu ile devam et",
-    localDemoButton: "Yerel Demo",
-    awsDemoButton: "AWS Demo",
+    localDemoButton: "Local Demo",
+    localDemoSubtitle: "Tamamen yerel — hesap gerekmez",
+    awsDemoButton: "Canlı Sunucu Demo",
+    awsDemoSubtitle: "Bulutta canlı sensör verileriyle örnek hesap",
+    demoOnlyHeading: "Demoyu Keşfet",
+    demoOnlyBody: "TARAS'ı nasıl deneyimleyeceğini seç",
     switchToRegister: "Hesabınız yok mu? Kayıt Ol",
     switchToLogin: "Zaten hesabınız var mı? Giriş Yap",
     connectingToServer: "Sunucuya bağlanılıyor...",
@@ -276,8 +505,6 @@ const tr: StringDictionary = {
   },
 
   disease: {
-    title: "Hastalık Tespit",
-    subtitle: "Yaprak fotoğrafları ile hastalık tespit sonuçları",
     noAnalysisYet: "Henüz analiz yok",
     noAnalysisSubtitle: "Yaprak fotoğrafı çekerek hastalık tespiti başlatın",
     loadingResults: "Yükleniyor...",
@@ -304,6 +531,90 @@ const tr: StringDictionary = {
     confidence: "güven",
     analysisFailed: "Analiz başarısız oldu",
     waitingInQueue: "Analiz için sırada bekliyor",
+    failedToSend: "Gönderilemedi",
+    failedToSendSubtitle: "İnternet bağlantınızı kontrol edip tekrar deneyin",
+    retryButton: "Tekrar dene",
+    retrying: "Gönderiliyor...",
+    retrySuccess: "Gönderildi",
+    queuedForRetry: "Görsel sıraya alındı, daha sonra tekrar denenecek",
+    allPredictions: "Tüm Tahminler",
+    detailTitle: "Analiz Detayı",
+    detailNoData: "Veri yok",
+    detailConfidenceRaw: "confidence (ham)",
+    detailConfidenceScore: "confidence_score (ham)",
+    detailRecommendations: "Öneriler",
+    detailTimestamps: "Zamanlar",
+    detailDetectionId: "Tespit ID",
+    detailCapturedAt: "Tarih",
+    uncertainTitle: "Emin Değil",
+    uncertainMessage:
+      "Model bu fotoğraftan emin olamadı. Lütfen yaprağın daha net bir fotoğrafını çekin.",
+    uncertainPossibleGuess: "Olası tahmin",
+    feedbackPrompt: "Bu sonuç sizce ne kadar doğru?",
+    feedbackThanks: "Teşekkürler — geri bildiriminiz kaydedildi",
+    feedbackError: "Geri bildirim gönderilemedi",
+    feedbackDefinitelyWrong: "Kesinlikle yanlış",
+    feedbackLikelyWrong: "Sanırım yanlış",
+    feedbackUnsure: "Bilmiyorum",
+    feedbackLikelyCorrect: "Sanırım doğru",
+    feedbackDefinitelyCorrect: "Kesinlikle doğru",
+    correctionPrompt: "Sizce gerçek hastalık nedir?",
+    correctionPickerTitle: "Gerçek hastalığı seçin",
+    correctionCancel: "İptal",
+    correctionConfirm: "Onayla",
+    correctionDontKnow: "Bilmiyorum",
+    correctionOther: "Diğer",
+    correctionBacterialSpot: "Bakteriyel leke",
+    correctionCornCommonRust: "Mısır pas hastalığı",
+    correctionCornGrayLeafSpot: "Mısır gri yaprak lekesi",
+    correctionCornNorthernLeafBlight: "Mısır kuzey yaprak yanıklığı",
+    correctionEarlyBlight: "Erken yanıklık",
+    correctionHealthy: "Sağlıklı",
+    correctionLateBlight: "Geç yanıklık",
+    correctionLeafMold: "Yaprak küfü",
+    correctionMosaicVirus: "Mozaik virüsü",
+    correctionPowderyMildew: "Külleme",
+    correctionSeptoriaLeafSpot: "Septoria yaprak lekesi",
+    correctionSpiderMites: "Kırmızı örümcek",
+    correctionTargetSpot: "Hedef leke",
+    correctionYellowLeafCurlVirus: "Sarı yaprak kıvırcık virüsü",
+    foldersSectionTitle: "Takip Klasörleri",
+    foldersEmpty: "Henüz aktif klasör yok. Bir hastalığı zamanla takip etmek için klasör oluşturun.",
+    generalSectionTitle: "Genel Tespitler",
+    folderCreateButton: "Yeni",
+    folderCreateTitle: "Takip Klasörü Oluştur",
+    folderCreateHelper: "Bölge seçin",
+    folderCreateZoneLabel: "Bölge",
+    folderCreateZoneLoadError: "Bölgeler yüklenemedi.",
+    folderCreateNoZones: "Hiç bölge bulunamadı. Önce çiftlik / tarla / bölge yapınızı kurun.",
+    folderCreateNameLabel: "Klasör Adı",
+    folderCreateNamePlaceholder: "örn. Domates erken yanıklık takibi",
+    folderCreateNamePlaceholderEmpty: "Önce bir bölge seçin",
+    folderCreateConfirm: "Klasörü Oluştur",
+    folderCreatePickZone: "Lütfen önce bir bölge seçin.",
+    folderCreateNameRequired: "Klasör adı zorunlu.",
+    folderCreateSuccess: "Klasör oluşturuldu.",
+    folderCreateDuplicateName: "Bu bölgenin aktif ekiminde aynı isimli bir klasör zaten var.",
+    folderCreateNoActivePlanting: "Bu bölgede aktif bir ekim yok.",
+    folderCreateGenericError: "Klasör oluşturulamadı.",
+    folderPhotoSingular: "fotoğraf",
+    folderPhotoPlural: "fotoğraf",
+    folderDetailLoadError: "Klasör yüklenemedi.",
+    folderDetailTarget: "Hedef",
+    folderDetailStarted: "Başlangıç:",
+    folderDetailTimeline: "Zaman Çizelgesi",
+    folderDetailEmpty: "Henüz fotoğraf yok.",
+    folderDeactivateTitle: "Klasörü Arşivle?",
+    folderDeactivateConfirmation: "{name} arşivlenecek. Fotoğraflar ve tespitler korunur.",
+    folderDeactivateConfirm: "Arşivle",
+    folderDeactivateSuccess: "Klasör arşivlendi.",
+    folderDeactivateError: "Klasör arşivlenemedi.",
+    folderAddPhotoTo: "Klasöre fotoğraf ekle:",
+    folderCameraAddingTo: "Eklenecek klasör:",
+    sampleButton: "ÖRNEK",
+    sampleSheetTitle: "Demo örnek görüntü seç",
+    sampleResolveError: "Örnek görüntü yüklenemedi.",
+    demoHardwareUnavailable: "Donanım kurulumu demo modunda kullanılamaz.",
   },
 
   camera: {
@@ -322,8 +633,18 @@ const tr: StringDictionary = {
     liveCameraUnavailable: "Canlı kamera kullanılamıyor",
     liveCameraMessage:
       "Cihaz kameranızı kullanmak için izin verin veya albümden seçin.",
+    systemPermissionDescription:
+      "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
     cancelButton: "İptal",
     sendButton: "Gönder",
+    liveMode: "Canlı Tarama",
+    photoMode: "Fotoğraf",
+    liveScanLoading: "Model yükleniyor...",
+    liveScanUncertain: "Belirsiz — net fotoğraf çekin",
+    liveScanAdjustLight: "Işığı ayarlayın",
+    localResultBanner: "Cihaz sonucu: {class} (%{conf})",
+    retakeButton: "Tekrar Çek",
+    closeButton: "Kapat",
   },
 
   timetable: {
@@ -363,46 +684,89 @@ const tr: StringDictionary = {
     rawMoisture: "Ham Nem",
   },
 
+  nav: {
+    carbon: "Karbon",
+    timetable: "Çizelge",
+    home: "Ana Sayfa",
+    disease: "Hastalık",
+    settings: "Ayarlar",
+  },
+
   settings: {
     title: "Ayarlar",
     themeMode: "Tema Modu",
     themeLight: "Açık",
     themeDark: "Koyu",
     themeSystem: "Sistem",
-    themeWeather: "Hava Durumu",
     language: "Dil",
     languageTurkish: "Türkçe",
     languageEnglish: "English",
-    awsConnectionTest: "AWS Bağlantı Testi",
+    datasetConsentTitle: "TARAS'ı geliştirmeye yardım et",
+    datasetConsentSubtitle: "Çektiğin yaprak fotoğrafları gelecekteki model eğitiminde kullanılabilir. İstediğin zaman kapatabilirsin.",
     logout: "Çıkış Yap",
-    diagnosticsTitle: "Ağ Tanılaması",
-    diagnosticsConfirmation:
-      "AWS sunucusuna bağlantıyı test etmek istiyor musunuz? Bu 30-60 saniye sürebilir.",
-    diagnosticsStart: "Başlat",
-    diagnosticsCompleted: "Tanılama Tamamlandı",
-    diagnosticsFailed: "Hata: Tanılama başarısız oldu",
+  },
+
+  hardware: {
+    title: "Donanım Kurulumu",
+    addGateway: "Gateway Ekle",
+    addGatewayDesc: "BLE ile yeni gateway cihazı yapılandır",
+    addSensorNode: "Sensör Düğümü Ekle",
+    addSensorNodeDesc: "Gateway üzerinden yeni sensör eşleştir",
+    selectFarm: "Tarla Seçin",
+    scanningGateways: "Gateway Aranıyor",
+    noGatewaysFound: "Gateway bulunamadı",
+    enterWifi: "WiFi Bilgilerini Girin",
+    ssidPlaceholder: "Ağ adı (SSID)",
+    passwordPlaceholder: "WiFi Şifresi",
+    configureGateway: "Gateway Yapılandır",
+    provisioning: "Yapılandırılıyor...",
+    gatewayConfigured: "Gateway Yapılandırıldı",
+    selectGateway: "Gateway Seçin",
+    gatewayOffline: "Çevrimdışı",
+    selectZone: "Bölge Seçin",
+    startPairing: "Eşleştirmeyi Başlat",
+    searchingNodes: "Sensör Aranıyor",
+    nodeFound: "Sensör Bulundu",
+    approve: "Onayla",
+    decline: "Reddet",
+    autoRejectNotice: "Otomatik red",
+    noZonesFound: "Bölge bulunamadı",
+    nodePaired: "Sensör Eşleştirildi",
+    pairingTimeout: "Süre doldu, sensör bulunamadı",
+    bleDisabled: "Bluetooth kapalı, lütfen açın",
+    blePermissionNeeded: "Bluetooth izni gerekli",
+    connectionLost: "Bağlantı kesildi",
+    retry: "Tekrar Dene",
+    powerOnSensor: "Sensör düğümünü şimdi açın...",
+    done: "Tamam",
+    registering: "Kaydediliyor...",
+    writingConfig: "Yapılandırma yazılıyor...",
+    waitingGateway: "Gateway bekleniyor...",
+    testingWifi: "WiFi test ediliyor...",
+    wifiFailed: "WiFi bağlantısı başarısız. SSID ve şifreyi kontrol edin.",
+    backendUnreachable: "Backend sunucusuna ulaşılamıyor. İnternet bağlantısını kontrol edin.",
+    provisionFailed: "Yapılandırma başarısız.",
+    online: "Çevrimiçi",
+    offline: "Çevrimdışı",
+    sensors: "sensör",
+    firmwareVersion: "Yazılım",
+    firmwareUpToDate: "Güncel",
+    updateAvailable: "Güncelleme mevcut",
+    updateConfirmTitle: "Yazılım Güncellemesi",
+    updateConfirmMessage: "Gateway v{version} sürümüne güncellensin mi? Gateway yeniden başlatılacak.",
+    updating: "Yazılım güncelleniyor...",
+    updateSuccess: "Yazılım başarıyla güncellendi!",
+    updateFailed: "Yazılım güncellemesi başarısız",
   },
 
   chat: {
     title: "TarasMobil Asistanı",
     placeholder: "Mesajınızı yazın...",
-  },
-
-  networkDiag: {
-    title: "Ağ Tanılaması",
-    running: "Çalışıyor...",
-    startButton: "Tanılama Başlat",
-    shareReport: "Raporu Paylaş",
-    infoHeader: "Bu araç AWS sunucunuza olan bağlantıyı test eder:",
-    bulletNetworkStatus: "Ağ durumu",
-    bulletDNS: "DNS çözümlemesi",
-    bulletHTTP: "HTTP bağlantısı",
-    bulletAPI: "API uç noktaları",
-    bulletSocketIO: "Socket.IO bağlantısı",
-    lastRun: "Son çalıştırma",
-    promptMessage:
-      'AWS bağlantınızı test etmek için\n"Tanılama Başlat" butonuna basın',
-    tip: "İpucu: Raporu paylaşarak geliştirici ekibinizle veya Claude ile hata ayıklayabilirsiniz.",
+    newChat: "Yeni Sohbet",
+    tapToOpen: "Sohbeti açmak için dokunun",
+    history: "Geçmiş Sohbetler",
+    historyEmpty: "Henüz sohbet geçmişi yok",
+    readMore: "Tümünü gör",
   },
 
   errors: {
@@ -429,6 +793,86 @@ const tr: StringDictionary = {
   carbon: {
     title: "Karbon Ayak İzi",
     comingSoon: "Yakında...",
+    loadError: "Veriler yüklenemedi",
+    typeRequired: "Lütfen bir aktivite tipi seçin",
+    amountRequired: "Lütfen bir miktar girin",
+    logSuccess: "Kayıt eklendi",
+    logError: "Kayıt eklenemedi",
+    kgCO2: "kg CO₂",
+    deleteConfirmTitle: "Kaydı Sil",
+    deleteConfirmMessage: "Bu kaydı silmek istediğinize emin misiniz?",
+    deleteSuccess: "Kayıt silindi",
+    deleteError: "Kayıt silinemedi",
+    loadingFarms: "Çiftlikler yükleniyor...",
+    noFarmFound: "Çiftlik bulunamadı",
+    summaryTitle: "Toplam Emisyon",
+    addLog: "Yeni Kayıt",
+    selectActivityType: "Aktivite tipi seçin",
+    noData: "Veri yok",
+    amount: "Miktar",
+    date: "Tarih",
+    notes: "Notlar",
+    notesPlaceholder: "Opsiyonel not ekleyin...",
+    logActivity: "Kaydet",
+    recentLogs: "Son Kayıtlar",
+    noLogs: "Henüz kayıt yok",
+    noLogsSubtitle: "Aktivite kaydı ekleyerek karbon ayak izinizi takip edin",
+    categoryFuel: "Yakıt",
+    categoryFertilizer: "Gübre",
+    categoryElectricity: "Elektrik",
+  },
+
+  notifications: {
+    title: "Bildirimler",
+    empty: "Henüz bildirim yok",
+  },
+
+  irrigation: {
+    welcome: "Merhaba",
+    nextIrrigation: "Sonraki Sulama",
+    soilMoisture: "Toprak Nemi",
+    zone: "Bölge",
+    detail: "Sulama Detayı",
+    recommendedAmount: "Önerilen Miktar",
+    recommendedTime: "Önerilen Zaman",
+    currentMoisture: "Mevcut Nem",
+    didIrrigateAmount: "Önerilen miktarda suladınız mı?",
+    didIrrigateTime: "Önerilen zamanda suladınız mı?",
+    actualAmount: "Gerçek Miktar (ml)",
+    actualTime: "Gerçek Sulama Zamanı",
+    enterAmount: "Miktarı girin",
+    selectDateTime: "Tarih ve saat seçin",
+    save: "Kaydet",
+    saved: "Kaydedildi!",
+    saveFailed: "Kayıt başarısız",
+    history: "Sulama Geçmişi",
+    noHistory: "Henüz sulama kaydı yok",
+    noRecommendation: "Öneri mevcut değil",
+    ml: "ml",
+    tapForDetails: "Detaylar için dokunun",
+    targetMoisture: "Hedef Nem",
+    crop: "Mahsul",
+    growthStage: "Büyüme Aşaması",
+    status: "Durum",
+    urgencyLevel: "Aciliyet Seviyesi",
+    reasoning: "Gerekçe",
+    recommendationTime: "Öneri Zamanı",
+    noActiveRecommendation: "Aktif öneri yok",
+    noActiveRecommendationSub: "Bu bölge için bekleyen sulama önerisi bulunmuyor.",
+    noIrrigationNeeded: "Sulama gerekmiyor",
+    noIrrigationNeededSub: "Sistem kontrol etti, şu an sulama gerekmiyor.",
+    lastChecked: "Son kontrol",
+    confirmIrrigationQuestion: "Sulama önerisini tam olarak uyguladınız mı?",
+    yesFollowedExactly: "Evet, öneri miktarı ve zamanında suladım",
+    noUsedDifferent: "Hayır, farklı değerler kullandım",
+    enterActualValues: "Gerçek değerleri girin",
+    amountInvalid: "Geçerli bir miktar girin (0'dan büyük)",
+    pendingRecommendation: "Sulama önerisi mevcut",
+    noSuggestion: "Yeni öneri yok",
+    urgencyHigh: "Yüksek",
+    urgencyMedium: "Orta",
+    urgencyLow: "Düşük",
+    lastIrrigation: "Son Sulama",
   },
 };
 
@@ -459,7 +903,11 @@ const en: StringDictionary = {
     registerButton: "Sign Up",
     skipButton: "Continue with Demo Mode",
     localDemoButton: "Local Demo",
-    awsDemoButton: "AWS Demo",
+    localDemoSubtitle: "Fully offline — no account needed",
+    awsDemoButton: "Live Server Demo",
+    awsDemoSubtitle: "Sample cloud account with live sensor data",
+    demoOnlyHeading: "Try TARAS",
+    demoOnlyBody: "Choose how to explore TARAS",
     switchToRegister: "Don't have an account? Sign Up",
     switchToLogin: "Already have an account? Log In",
     connectingToServer: "Connecting to server...",
@@ -489,8 +937,6 @@ const en: StringDictionary = {
   },
 
   disease: {
-    title: "Disease Detection",
-    subtitle: "Disease detection results from leaf photos",
     noAnalysisYet: "No analysis yet",
     noAnalysisSubtitle: "Take a leaf photo to start disease detection",
     loadingResults: "Loading...",
@@ -516,6 +962,90 @@ const en: StringDictionary = {
     confidence: "confidence",
     analysisFailed: "Analysis failed",
     waitingInQueue: "Waiting in queue for analysis",
+    failedToSend: "Couldn't send",
+    failedToSendSubtitle: "Check your connection and try again",
+    retryButton: "Retry",
+    retrying: "Sending...",
+    retrySuccess: "Sent",
+    queuedForRetry: "Image queued — will retry later",
+    allPredictions: "All Predictions",
+    detailTitle: "Analysis Detail",
+    detailNoData: "No data",
+    detailConfidenceRaw: "confidence (raw)",
+    detailConfidenceScore: "confidence_score (raw)",
+    detailRecommendations: "Recommendations",
+    detailTimestamps: "Timestamps",
+    detailDetectionId: "Detection ID",
+    detailCapturedAt: "Captured",
+    uncertainTitle: "Not Confident",
+    uncertainMessage:
+      "The model was not confident about this photo. Please take a clearer shot of the leaf.",
+    uncertainPossibleGuess: "Possible guess",
+    feedbackPrompt: "How accurate was this result?",
+    feedbackThanks: "Thanks — your feedback was recorded",
+    feedbackError: "Could not submit feedback",
+    feedbackDefinitelyWrong: "Definitely wrong",
+    feedbackLikelyWrong: "I think wrong",
+    feedbackUnsure: "Don't know",
+    feedbackLikelyCorrect: "I think true",
+    feedbackDefinitelyCorrect: "Definitely true",
+    correctionPrompt: "What do you think it actually is?",
+    correctionPickerTitle: "Pick the actual disease",
+    correctionCancel: "Cancel",
+    correctionConfirm: "Confirm",
+    correctionDontKnow: "Don't know",
+    correctionOther: "Other",
+    correctionBacterialSpot: "Bacterial spot",
+    correctionCornCommonRust: "Corn common rust",
+    correctionCornGrayLeafSpot: "Corn gray leaf spot",
+    correctionCornNorthernLeafBlight: "Corn northern leaf blight",
+    correctionEarlyBlight: "Early blight",
+    correctionHealthy: "Healthy",
+    correctionLateBlight: "Late blight",
+    correctionLeafMold: "Leaf mold",
+    correctionMosaicVirus: "Mosaic virus",
+    correctionPowderyMildew: "Powdery mildew",
+    correctionSeptoriaLeafSpot: "Septoria leaf spot",
+    correctionSpiderMites: "Spider mites",
+    correctionTargetSpot: "Target spot",
+    correctionYellowLeafCurlVirus: "Yellow leaf curl virus",
+    foldersSectionTitle: "Tracking Folders",
+    foldersEmpty: "No active folders yet. Create one to track a disease over time.",
+    generalSectionTitle: "General Detections",
+    folderCreateButton: "New",
+    folderCreateTitle: "Create Tracking Folder",
+    folderCreateHelper: "Select a zone",
+    folderCreateZoneLabel: "Zone",
+    folderCreateZoneLoadError: "Failed to load zones.",
+    folderCreateNoZones: "No zones found. Set up your farm / field / zone structure first.",
+    folderCreateNameLabel: "Folder Name",
+    folderCreateNamePlaceholder: "e.g. Tomato early blight watch",
+    folderCreateNamePlaceholderEmpty: "Pick a zone first",
+    folderCreateConfirm: "Create Folder",
+    folderCreatePickZone: "Please pick a zone first.",
+    folderCreateNameRequired: "Folder name is required.",
+    folderCreateSuccess: "Folder created.",
+    folderCreateDuplicateName: "A folder with this name already exists for this zone's planting.",
+    folderCreateNoActivePlanting: "This zone has no active planting.",
+    folderCreateGenericError: "Could not create folder.",
+    folderPhotoSingular: "photo",
+    folderPhotoPlural: "photos",
+    folderDetailLoadError: "Could not load folder.",
+    folderDetailTarget: "Target",
+    folderDetailStarted: "Started",
+    folderDetailTimeline: "Timeline",
+    folderDetailEmpty: "No photos yet.",
+    folderDeactivateTitle: "Archive Folder?",
+    folderDeactivateConfirmation: "{name} will be archived. Photos and detections are preserved.",
+    folderDeactivateConfirm: "Archive",
+    folderDeactivateSuccess: "Folder archived.",
+    folderDeactivateError: "Could not archive folder.",
+    folderAddPhotoTo: "Add photo to",
+    folderCameraAddingTo: "Adding to:",
+    sampleButton: "SAMPLE",
+    sampleSheetTitle: "Pick a demo sample image",
+    sampleResolveError: "Could not load sample image.",
+    demoHardwareUnavailable: "Hardware setup is not available in demo mode.",
   },
 
   camera: {
@@ -534,8 +1064,18 @@ const en: StringDictionary = {
     liveCameraUnavailable: "Live camera unavailable",
     liveCameraMessage:
       "Grant permission to use your device camera or select from album.",
+    systemPermissionDescription:
+      "Camera access is required for plant disease detection.",
     cancelButton: "Cancel",
     sendButton: "Send",
+    liveMode: "Live Scan",
+    photoMode: "Photo",
+    liveScanLoading: "Loading model...",
+    liveScanUncertain: "Uncertain — hold steady or reframe",
+    liveScanAdjustLight: "Adjust lighting",
+    localResultBanner: "On-device: {class} ({conf}%)",
+    retakeButton: "Retake",
+    closeButton: "Close",
   },
 
   timetable: {
@@ -575,46 +1115,89 @@ const en: StringDictionary = {
     rawMoisture: "Raw Moisture",
   },
 
+  nav: {
+    carbon: "Carbon",
+    timetable: "Schedule",
+    home: "Home",
+    disease: "Disease",
+    settings: "Settings",
+  },
+
   settings: {
     title: "Settings",
     themeMode: "Theme Mode",
     themeLight: "Light",
     themeDark: "Dark",
     themeSystem: "System",
-    themeWeather: "Weather",
     language: "Language",
     languageTurkish: "Türkçe",
     languageEnglish: "English",
-    awsConnectionTest: "AWS Connection Test",
+    datasetConsentTitle: "Help improve TARAS",
+    datasetConsentSubtitle: "Your leaf photos may be used to train future disease-detection models. You can turn this off anytime.",
     logout: "Log Out",
-    diagnosticsTitle: "Network Diagnostics",
-    diagnosticsConfirmation:
-      "Do you want to test the connection to AWS server? This may take 30-60 seconds.",
-    diagnosticsStart: "Start",
-    diagnosticsCompleted: "Diagnostics Completed",
-    diagnosticsFailed: "Error: Diagnostics failed",
+  },
+
+  hardware: {
+    title: "Hardware Setup",
+    addGateway: "Add Gateway",
+    addGatewayDesc: "Configure a new gateway device via BLE",
+    addSensorNode: "Add Sensor Node",
+    addSensorNodeDesc: "Pair a new sensor via gateway",
+    selectFarm: "Select Farm",
+    scanningGateways: "Scanning for Gateways",
+    noGatewaysFound: "No gateways found",
+    enterWifi: "Enter WiFi Credentials",
+    ssidPlaceholder: "Network name (SSID)",
+    passwordPlaceholder: "WiFi Password",
+    configureGateway: "Configure Gateway",
+    provisioning: "Configuring...",
+    gatewayConfigured: "Gateway Configured",
+    selectGateway: "Select Gateway",
+    gatewayOffline: "Offline",
+    selectZone: "Select Zone",
+    startPairing: "Start Pairing",
+    searchingNodes: "Searching for Sensors",
+    nodeFound: "Sensor Found",
+    approve: "Approve",
+    decline: "Decline",
+    autoRejectNotice: "Auto-decline",
+    noZonesFound: "No zones found",
+    nodePaired: "Sensor Paired",
+    pairingTimeout: "Timed out, no sensor found",
+    bleDisabled: "Bluetooth is off, please enable it",
+    blePermissionNeeded: "Bluetooth permission required",
+    connectionLost: "Connection lost",
+    retry: "Retry",
+    powerOnSensor: "Power on the sensor node now...",
+    done: "Done",
+    registering: "Registering...",
+    writingConfig: "Writing configuration...",
+    waitingGateway: "Waiting for gateway...",
+    testingWifi: "Testing WiFi...",
+    wifiFailed: "WiFi connection failed. Check SSID and password.",
+    backendUnreachable: "Cannot reach backend server. Check internet connection.",
+    provisionFailed: "Configuration failed.",
+    online: "Online",
+    offline: "Offline",
+    sensors: "sensors",
+    firmwareVersion: "Firmware",
+    firmwareUpToDate: "Up to date",
+    updateAvailable: "Update available",
+    updateConfirmTitle: "Firmware Update",
+    updateConfirmMessage: "Update gateway to v{version}? The gateway will restart.",
+    updating: "Updating firmware...",
+    updateSuccess: "Firmware updated successfully!",
+    updateFailed: "Firmware update failed",
   },
 
   chat: {
-    title: "TarasMobil Assistant",
+    title: "TARAS Assistant",
     placeholder: "Type your message...",
-  },
-
-  networkDiag: {
-    title: "Network Diagnostics",
-    running: "Running...",
-    startButton: "Start Diagnostics",
-    shareReport: "Share Report",
-    infoHeader: "This tool tests the connection to your AWS server:",
-    bulletNetworkStatus: "Network status",
-    bulletDNS: "DNS resolution",
-    bulletHTTP: "HTTP connection",
-    bulletAPI: "API endpoints",
-    bulletSocketIO: "Socket.IO connection",
-    lastRun: "Last run",
-    promptMessage:
-      'Press "Start Diagnostics" button\nto test your AWS connection',
-    tip: "Tip: Share the report with your developer team or Claude for debugging.",
+    newChat: "New Chat",
+    tapToOpen: "Tap to open chat",
+    history: "Past Conversations",
+    historyEmpty: "No conversation history yet",
+    readMore: "Read more",
   },
 
   errors: {
@@ -641,6 +1224,86 @@ const en: StringDictionary = {
   carbon: {
     title: "Carbon Footprint",
     comingSoon: "Coming Soon...",
+    loadError: "Failed to load data",
+    typeRequired: "Please select an activity type",
+    amountRequired: "Please enter an amount",
+    logSuccess: "Log added",
+    logError: "Failed to add log",
+    kgCO2: "kg CO₂",
+    deleteConfirmTitle: "Delete Log",
+    deleteConfirmMessage: "Are you sure you want to delete this log?",
+    deleteSuccess: "Log deleted",
+    deleteError: "Failed to delete log",
+    loadingFarms: "Loading farms...",
+    noFarmFound: "No farm found",
+    summaryTitle: "Total Emissions",
+    addLog: "New Log",
+    selectActivityType: "Select activity type",
+    noData: "No data",
+    amount: "Amount",
+    date: "Date",
+    notes: "Notes",
+    notesPlaceholder: "Add an optional note...",
+    logActivity: "Save",
+    recentLogs: "Recent Logs",
+    noLogs: "No logs yet",
+    noLogsSubtitle: "Track your carbon footprint by adding activity logs",
+    categoryFuel: "Fuel",
+    categoryFertilizer: "Fertilizer",
+    categoryElectricity: "Electricity",
+  },
+
+  notifications: {
+    title: "Notifications",
+    empty: "No notifications yet",
+  },
+
+  irrigation: {
+    welcome: "Hello",
+    nextIrrigation: "Next Irrigation",
+    soilMoisture: "Soil Moisture",
+    zone: "Zone",
+    detail: "Irrigation Detail",
+    recommendedAmount: "Recommended Amount",
+    recommendedTime: "Recommended Time",
+    currentMoisture: "Current Moisture",
+    didIrrigateAmount: "Did you irrigate with the recommended amount?",
+    didIrrigateTime: "Did you irrigate at the recommended time?",
+    actualAmount: "Actual Amount (ml)",
+    actualTime: "Actual Irrigation Time",
+    enterAmount: "Enter amount",
+    selectDateTime: "Select date and time",
+    save: "Save",
+    saved: "Saved!",
+    saveFailed: "Save failed",
+    history: "Irrigation History",
+    noHistory: "No irrigation history yet",
+    noRecommendation: "No recommendation available",
+    ml: "ml",
+    tapForDetails: "Tap for details",
+    targetMoisture: "Target Moisture",
+    crop: "Crop",
+    growthStage: "Growth Stage",
+    status: "Status",
+    urgencyLevel: "Urgency Level",
+    reasoning: "Reason",
+    recommendationTime: "Recommendation Time",
+    noActiveRecommendation: "No active recommendation",
+    noActiveRecommendationSub: "There is no pending irrigation recommendation for this zone.",
+    noIrrigationNeeded: "No irrigation needed",
+    noIrrigationNeededSub: "System checked — no irrigation is required right now.",
+    lastChecked: "Last checked",
+    confirmIrrigationQuestion: "Did you follow the irrigation recommendation exactly?",
+    yesFollowedExactly: "Yes, I irrigated with the recommended amount and time",
+    noUsedDifferent: "No, I used different values",
+    enterActualValues: "Enter your actual values",
+    amountInvalid: "Enter a valid amount (greater than 0)",
+    pendingRecommendation: "Irrigation recommendation pending",
+    noSuggestion: "No new irrigation suggestion",
+    urgencyHigh: "High",
+    urgencyMedium: "Medium",
+    urgencyLow: "Low",
+    lastIrrigation: "Last Irrigation",
   },
 };
 

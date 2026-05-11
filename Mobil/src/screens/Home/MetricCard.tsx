@@ -1,5 +1,4 @@
-// Metrik karti - tek bir olcum degerini gosterir
-// Props: title (baslik), value (deger), unit (birim), icon, theme, loading
+// Metrik karti — tek bir olcum degerini gosterir (2x2 grid icinde)
 import { View, Text, ActivityIndicator } from "react-native";
 import { MetricCardProps } from "./types";
 import {
@@ -9,7 +8,12 @@ import {
   spacing,
   fontSizes,
   getResponsiveSpacing,
+  s,
+  ms,
 } from "../../utils/responsive";
+
+const VALUE_FONT = ms(36, 0.5);
+const UNIT_FONT = ms(14, 0.5);
 
 export const MetricCard = ({
   title,
@@ -22,100 +26,62 @@ export const MetricCard = ({
   const { screenWidth, screenHeight, isTablet } = useResponsive();
 
   const cardLayout = calculateCardDimensions(screenWidth, screenHeight, {
-    horizontalPadding: spacing.md * 2,
+    horizontalPadding: s(12) * 2,
     cardsPerRow: 2,
-    cardGap: spacing.sm,
-    cardMargin: 4,
+    cardGap: s(6),
+    cardMargin: s(2),
   });
 
   const cardPadding = getResponsiveSpacing(10, screenWidth, 8, 16);
-
   const titleFontSize = getResponsiveFontSize(
     { ...fontSizes.sm, scaleFactorMultiplier: 0.09 },
     cardLayout.scaleFactor,
     isTablet,
   );
 
-  const valueFontSize = getResponsiveFontSize(
-    { base: 32, min: 28, max: isTablet ? 56 : 48, scaleFactorMultiplier: 0.4 },
-    cardLayout.scaleFactor,
-    isTablet,
-  );
-
-  const unitFontSize = valueFontSize * 0.4;
-
   return (
-    <View style={{ flex: 1, marginHorizontal: 4, marginBottom: spacing.sm }}>
+    <View className="flex-1" style={{ marginHorizontal: s(2), marginBottom: spacing.sm }}>
       <View
+        className="border rounded-xl justify-between"
         style={{
           backgroundColor: theme.surface,
-          borderColor: theme.accent + "20",
-          borderWidth: 1,
-          borderRadius: 12,
+          borderColor: theme.primary + "20",
           padding: cardPadding,
           height: cardLayout.cardHeight,
-          justifyContent: "space-between",
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
+        {/* Baslik + ikon */}
+        <View className="row-between">
           <Text
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={{
-              color: theme.textSecondary,
-              fontSize: titleFontSize,
-              fontWeight: "600",
-              flex: 1,
-            }}
+            className="font-semibold flex-1"
+            style={{ color: theme.textSecondary, fontSize: titleFontSize }}
           >
             {title}
           </Text>
-          <View style={{ marginLeft: 4 }}>{icon}</View>
+          <View style={{ marginLeft: s(4) }}>{icon}</View>
         </View>
 
-        <View
-          style={{
-            alignItems: "flex-start",
-            justifyContent: loading ? "center" : "flex-end",
-            flex: 1,
-          }}
-        >
+        {/* Deger */}
+        <View className="items-start flex-1" style={{ justifyContent: loading ? "center" : "flex-end" }}>
           {loading ? (
-            <ActivityIndicator
-              size={valueFontSize * 0.7}
-              color={theme.accent}
-            />
+            <ActivityIndicator size={VALUE_FONT * 0.7} color={theme.primary} />
           ) : value !== null ? (
             typeof value === "string" ? (
-              <View style={{ flexDirection: "row", alignItems: "baseline" }}>
+              <View className="flex-row items-baseline">
                 <Text
-                  style={{
-                    color: theme.text,
-                    fontSize: valueFontSize,
-                    fontWeight: "400",
-                    lineHeight: valueFontSize * 1.1,
-                  }}
                   numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
+                  className="font-normal"
+                  style={{ color: theme.textMain, fontSize: VALUE_FONT, lineHeight: VALUE_FONT * 1.1 }}
                 >
                   {value}
                 </Text>
-                {unit && unit.trim() ? (
+                {unit?.trim() ? (
                   <Text
-                    style={{
-                      color: theme.textSecondary,
-                      fontSize: unitFontSize,
-                      fontWeight: "400",
-                      marginLeft: 2,
-                    }}
                     numberOfLines={1}
+                    className="font-normal"
+                    style={{ fontSize: UNIT_FONT, color: theme.textSecondary, marginLeft: s(2) }}
                   >
                     {unit.trim()}
                   </Text>
@@ -124,7 +90,11 @@ export const MetricCard = ({
             ) : (
               <View>{value}</View>
             )
-          ) : null}
+          ) : (
+            <Text className="font-normal" style={{ color: theme.textSecondary, fontSize: VALUE_FONT }}>
+              {"\u2014"}
+            </Text>
+          )}
         </View>
       </View>
     </View>

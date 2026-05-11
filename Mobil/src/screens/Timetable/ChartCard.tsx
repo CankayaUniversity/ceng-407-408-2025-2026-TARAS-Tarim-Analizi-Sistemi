@@ -1,18 +1,19 @@
 // Grafik karti - sensor verilerini cizgi grafik olarak gosterir
 // Props: theme, title, icon, color, data, onTouchStart, onTouchEnd
 
-import { View, Text, Dimensions, StyleSheet } from "react-native";
+import { View, Text, Dimensions } from "react-native";
 import { LineChart } from "react-native-gifted-charts";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useState, useEffect, useRef, useCallback } from "react";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useState, useEffect, useRef, useCallback, memo, useMemo } from "react";
 import { ChartCardProps } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
 
 // Sabitler
 const MAX_DISPLAY_POINTS = 50;
-const CHART_HEIGHT = 160;
-const Y_AXIS_WIDTH = 40;
-const X_AXIS_LABEL_HEIGHT = 25;
+const CHART_HEIGHT = vs(160);
+const Y_AXIS_WIDTH = s(40);
+const X_AXIS_LABEL_HEIGHT = vs(25);
 const POPUP_HIDE_DELAY = 2000;
 
 // Tarih formatla: GG/AA
@@ -32,7 +33,7 @@ const formatTime = (date: Date): string => {
 // Basliktan birim cikar (°C veya %)
 const extractUnit = (title: string): string => title.match(/°C|%/)?.[0] || "";
 
-export const ChartCard = ({
+export const ChartCard = memo(function ChartCard({
   theme,
   title,
   icon,
@@ -40,7 +41,7 @@ export const ChartCard = ({
   data,
   onTouchStart,
   onTouchEnd,
-}: ChartCardProps) => {
+}: ChartCardProps) {
   const { t } = useLanguage();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -59,65 +60,70 @@ export const ChartCard = ({
     };
   }, []);
 
-  // Layout calculations
-  const screenWidth = Dimensions.get("window").width;
-  const chartContainerWidth = screenWidth - 64;
-  const chartDrawableWidth = chartContainerWidth - Y_AXIS_WIDTH;
+  // Layout calculations — pencere boyutu degismedikce hesaplama yapma
+  const { chartContainerWidth, chartDrawableWidth } = useMemo(() => {
+    const screenWidth = Dimensions.get("window").width;
+    const containerWidth = screenWidth - s(64);
+    return { chartContainerWidth: containerWidth, chartDrawableWidth: containerWidth - Y_AXIS_WIDTH };
+  }, []);
 
-  // Sanitize and prepare data (moved before early return)
-  const safeData =
-    data?.map((point) => ({
-      ...point,
-      value:
-        typeof point.value === "number" && !isNaN(point.value)
-          ? point.value
-          : 0,
-    })) || [];
-
-  const isInterpolated = safeData.length > MAX_DISPLAY_POINTS;
-
-  // Downsample if needed
-  const displayData = isInterpolated
-    ? safeData.filter(
-        (_, i) => i % Math.ceil(safeData.length / MAX_DISPLAY_POINTS) === 0,
-      )
-    : safeData;
+  // Veri hazirlama — sadece data degisince yeniden hesapla
+  const { isInterpolated, displayData } = useMemo(() => {
+    const safe =
+      data?.map((point) => ({
+        ...point,
+        value:
+          typeof point.value === "number" && !isNaN(point.value)
+            ? point.value
+            : 0,
+      })) || [];
+    const interpolated = safe.length > MAX_DISPLAY_POINTS;
+    const display = interpolated
+      ? safe.filter(
+          (_, i) => i % Math.ceil(safe.length / MAX_DISPLAY_POINTS) === 0,
+        )
+      : safe;
+    return { isInterpolated: interpolated, displayData: display };
+  }, [data]);
 
   const numPoints = displayData.length;
-  const spacing =
-    numPoints > 1 ? chartDrawableWidth / (numPoints - 1) : chartDrawableWidth;
+  const spacing = useMemo(
+    () => (numPoints > 1 ? chartDrawableWidth / (numPoints - 1) : chartDrawableWidth),
+    [numPoints, chartDrawableWidth],
+  );
 
-  // Generate labels and track label positions for grid lines
-  const labelIndices: number[] = [];
-  const chartData = displayData.map((point, index) => {
-    let label = "";
+  // Label ve grafik verisi — displayData degisince yeniden hesapla
+  const { chartData, labelIndices } = useMemo(() => {
+    const indices: number[] = [];
+    const mapped = displayData.map((point, index) => {
+      let label = "";
 
-    if (point.ts) {
-      const date = new Date(point.ts);
-      const prevTs = index > 0 ? displayData[index - 1]?.ts : null;
-      const prevDate = prevTs ? new Date(prevTs) : null;
+      if (point.ts) {
+        const date = new Date(point.ts);
+        const prevTs = index > 0 ? displayData[index - 1]?.ts : null;
+        const prevDate = prevTs ? new Date(prevTs) : null;
 
-      if (isInterpolated) {
-        // Show DD/MM when day changes
-        const dayKey = formatDay(date);
-        const prevDayKey = prevDate ? formatDay(prevDate) : null;
-        if (index === 0 || dayKey !== prevDayKey) {
-          label = dayKey;
-          labelIndices.push(index);
-        }
-      } else {
-        // Show hour when it changes
-        const hour = date.getHours();
-        const prevHour = prevDate?.getHours();
-        if (index === 0 || hour !== prevHour) {
-          label = hour.toString().padStart(2, "0");
-          labelIndices.push(index);
+        if (isInterpolated) {
+          const dayKey = formatDay(date);
+          const prevDayKey = prevDate ? formatDay(prevDate) : null;
+          if (index === 0 || dayKey !== prevDayKey) {
+            label = dayKey;
+            indices.push(index);
+          }
+        } else {
+          const hour = date.getHours();
+          const prevHour = prevDate?.getHours();
+          if (index === 0 || hour !== prevHour) {
+            label = hour.toString().padStart(2, "0");
+            indices.push(index);
+          }
         }
       }
-    }
 
-    return { value: point.value, label, ts: point.ts };
-  });
+      return { value: point.value, label, ts: point.ts };
+    });
+    return { chartData: mapped, labelIndices: indices };
+  }, [displayData, isInterpolated]);
 
   const unit = extractUnit(title);
 
@@ -179,13 +185,11 @@ export const ChartCard = ({
   if (!isReady) {
     return (
       <View
-        style={[
-          styles.card,
-          { backgroundColor: theme.surface, height: CHART_HEIGHT + 100 },
-        ]}
+        className="rounded-xl"
+        style={{ marginBottom: vs(24), padding: s(16), paddingBottom: vs(8), backgroundColor: theme.surface, height: CHART_HEIGHT + 100 }}
       >
-        <View style={styles.loadingContainer}>
-          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+        <View className="flex-1 center">
+          <Text style={{ fontSize: ms(11, 0.3), color: theme.textSecondary }}>
             {t.common.loading}
           </Text>
         </View>
@@ -194,21 +198,24 @@ export const ChartCard = ({
   }
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.surface }]}>
+    <View
+      className="rounded-xl"
+      style={{ marginBottom: vs(24), padding: s(16), paddingBottom: vs(8), backgroundColor: theme.surface }}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
+      <View className="row-between" style={{ marginBottom: vs(8) }}>
+        <View className="row">
           <MaterialCommunityIcons name={icon as any} size={20} color={color} />
-          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+          <Text style={{ marginLeft: s(8), fontSize: ms(13, 0.3), fontWeight: "600", color: theme.textMain }}>
+            {title}
+          </Text>
         </View>
         {isInterpolated && (
           <View
-            style={[
-              styles.badge,
-              { backgroundColor: theme.textSecondary + "20" },
-            ]}
+            className="rounded"
+            style={{ paddingHorizontal: s(8), paddingVertical: vs(2), backgroundColor: theme.textSecondary + "20" }}
           >
-            <Text style={[styles.badgeText, { color: theme.textSecondary }]}>
+            <Text style={{ fontSize: ms(9, 0.3), fontWeight: "600", color: theme.textSecondary }}>
               {t.timetable.interpolated}
             </Text>
           </View>
@@ -216,10 +223,10 @@ export const ChartCard = ({
       </View>
 
       {/* Value popup */}
-      <View style={styles.popupContainer}>
+      <View className="center" style={{ height: vs(28) }}>
         {selectedPoint && (
-          <View style={styles.valuePopup}>
-            <Text style={styles.valueText}>
+          <View className="bg-neutral-900 rounded-md" style={{ paddingHorizontal: s(12), paddingVertical: vs(4) }}>
+            <Text className="text-white font-bold" style={{ fontSize: ms(13, 0.3) }}>
               {selectedPoint.value.toFixed(1)} {unit}
             </Text>
           </View>
@@ -228,13 +235,11 @@ export const ChartCard = ({
 
       {/* Chart container */}
       <View
-        style={[
-          styles.chartContainer,
-          {
-            width: chartContainerWidth,
-            height: CHART_HEIGHT + X_AXIS_LABEL_HEIGHT,
-          },
-        ]}
+        className="relative"
+        style={{
+          width: chartContainerWidth,
+          height: CHART_HEIGHT + X_AXIS_LABEL_HEIGHT,
+        }}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
         onResponderGrant={handleTouchStart}
@@ -246,28 +251,30 @@ export const ChartCard = ({
         {labelIndices.map((idx) => (
           <View
             key={`grid-${idx}`}
-            style={[
-              styles.gridLine,
-              {
-                left: getXPosition(idx),
-                height: CHART_HEIGHT,
-                backgroundColor: theme.textSecondary + "25",
-              },
-            ]}
+            style={{
+              position: "absolute",
+              top: 0,
+              width: 1,
+              zIndex: 1,
+              left: getXPosition(idx),
+              height: CHART_HEIGHT,
+              backgroundColor: theme.textSecondary + "25",
+            }}
           />
         ))}
 
         {/* Selection line */}
         {selectedIndex !== null && (
           <View
-            style={[
-              styles.selectionLine,
-              {
-                left: getXPosition(selectedIndex),
-                height: CHART_HEIGHT,
-                backgroundColor: color,
-              },
-            ]}
+            style={{
+              position: "absolute",
+              top: 0,
+              width: 2,
+              zIndex: 10,
+              left: getXPosition(selectedIndex),
+              height: CHART_HEIGHT,
+              backgroundColor: color,
+            }}
           />
         )}
 
@@ -308,104 +315,17 @@ export const ChartCard = ({
       </View>
 
       {/* Time label */}
-      <View style={styles.timeLabelContainer}>
+      <View className="center" style={{ height: vs(24), marginTop: vs(4) }}>
         {selectedPoint && (
-          <View style={styles.timePopup}>
-            <Text style={styles.timeText}>{getTimeLabel()}</Text>
+          <View className="bg-neutral-900 rounded" style={{ paddingHorizontal: s(10), paddingVertical: vs(3) }}>
+            <Text className="text-white font-semibold" style={{ fontSize: ms(10, 0.3) }}>
+              {getTimeLabel()}
+            </Text>
           </View>
         )}
       </View>
     </View>
   );
-};
-
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: 24,
-    borderRadius: 12,
-    padding: 16,
-    paddingBottom: 8,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    fontSize: 11,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  headerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  title: {
-    marginLeft: 8,
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: "600",
-  },
-  popupContainer: {
-    height: 28,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  valuePopup: {
-    backgroundColor: "#1a1a1a",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  valueText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "bold",
-  },
-  chartContainer: {
-    position: "relative",
-  },
-  gridLine: {
-    position: "absolute",
-    top: 0,
-    width: 1,
-    zIndex: 1,
-  },
-  selectionLine: {
-    position: "absolute",
-    top: 0,
-    width: 2,
-    zIndex: 10,
-  },
-  timeLabelContainer: {
-    height: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 4,
-  },
-  timePopup: {
-    backgroundColor: "#1a1a1a",
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  timeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-  },
 });
 
 export default ChartCard;

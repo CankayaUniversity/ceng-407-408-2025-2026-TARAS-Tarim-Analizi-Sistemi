@@ -30,16 +30,16 @@ function redact(value: string | undefined): string {
  */
 export function getDebugConfig(): Record<string, unknown> {
   return {
-    node_env: process.env.NODE_ENV || "(bos)",
-    port: process.env.PORT || 3000,
-    host: process.env.HOST || "localhost",
+    node_env: process.env.NODE_ENV,
+    port: process.env.PORT,
+    host: process.env.HOST,
     database_url: redact(process.env.DATABASE_URL),
-    mqtt_broker: process.env.MQTT_BROKER_URL || "(bos)",
-    aws_region: process.env.AWS_REGION || "(bos)",
+    mqtt_broker: redact(process.env.MQTT_BROKER_URL),
+    aws_region: process.env.AWS_REGION,
     aws_access_key: redact(process.env.AWS_ACCESS_KEY_ID),
-    s3_bucket: process.env.AWS_S3_BUCKET || "(bos)",
-    cors_origins: process.env.CORS_ORIGINS || "(bos)",
-    log_level: process.env.LOG_LEVEL || "info",
+    s3_bucket: process.env.AWS_S3_BUCKET,
+    cors_origins: process.env.CORS_ORIGINS,
+    log_level: process.env.LOG_LEVEL,
     debug_mode: DEBUG_MODE,
   };
 }

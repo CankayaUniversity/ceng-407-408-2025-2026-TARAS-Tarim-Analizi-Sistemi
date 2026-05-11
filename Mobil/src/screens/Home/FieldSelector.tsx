@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { FieldSelectorProps } from "./types";
 import { spacing } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
@@ -21,41 +21,26 @@ export const FieldSelector = ({
   if (fields.length === 0) return null;
 
   return (
-    <View
-      style={{
-        paddingHorizontal: spacing.md,
-        paddingTop: spacing.xs,
-        paddingBottom: spacing.xs,
-        position: "relative",
-      }}
-    >
+    <View className="relative" style={{ paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}>
       <TouchableOpacity
         onPress={() => setIsOpen(!isOpen)}
+        className="row-between surface-bg rounded-xl"
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
           paddingVertical: spacing.sm,
           paddingHorizontal: spacing.md,
-          backgroundColor: theme.surface,
-          borderRadius: spacing.sm + 2,
           borderWidth: 1,
-          borderColor: theme.accent + "30",
+          borderColor: theme.primary + "30",
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+        <View className="row flex-1">
           <Ionicons
             name="leaf"
             size={18}
-            color={theme.accent}
+            color={theme.primary}
             style={{ marginRight: spacing.sm }}
           />
           <Text
-            style={{
-              color: theme.text,
-              fontSize: 15,
-              fontWeight: "600",
-            }}
+            className="text-primary text-[15px] font-semibold"
             numberOfLines={1}
           >
             {selectedField?.name ?? t.home.selectField}
@@ -70,8 +55,8 @@ export const FieldSelector = ({
 
       {isOpen && (
         <View
+          className="absolute surface-bg rounded-xl overflow-hidden"
           style={{
-            position: "absolute",
             top:
               spacing.xs +
               spacing.sm +
@@ -81,15 +66,12 @@ export const FieldSelector = ({
               2,
             left: spacing.md,
             right: spacing.md,
-            backgroundColor: theme.surface,
-            borderRadius: spacing.sm + 2,
             borderWidth: 1,
-            borderColor: theme.accent + "30",
+            borderColor: theme.primary + "30",
             maxHeight: 200,
-            overflow: "hidden",
             zIndex: 1000,
             elevation: 10,
-            shadowColor: "#000",
+            shadowColor: theme.shadowColor,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.15,
             shadowRadius: 8,
@@ -105,14 +87,12 @@ export const FieldSelector = ({
                     onSelectField(field.id);
                     setIsOpen(false);
                   }}
+                  className="row surface-bg"
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm + 2,
                     borderBottomWidth: index < arr.length - 1 ? 1 : 0,
-                    borderBottomColor: theme.accent + "15",
-                    backgroundColor: theme.surface,
+                    borderBottomColor: theme.primary + "15",
                   }}
                   activeOpacity={0.7}
                 >
@@ -122,13 +102,7 @@ export const FieldSelector = ({
                     color={theme.textSecondary}
                     style={{ marginRight: spacing.sm }}
                   />
-                  <Text
-                    style={{
-                      color: theme.text,
-                      fontSize: 14,
-                      fontWeight: "500",
-                    }}
-                  >
+                  <Text className="text-primary text-sm font-medium">
                     {field.name}
                   </Text>
                 </TouchableOpacity>

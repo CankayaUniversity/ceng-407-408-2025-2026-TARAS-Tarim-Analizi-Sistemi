@@ -14,23 +14,28 @@ export function debugLogger(req: Request, res: Response, next: NextFunction): vo
 
   const start = Date.now();
 
-  // Request detaylari
-  logger.debug(`[DEBUG] --> ${req.method} ${req.originalUrl}`, {
-    body: req.body,
-    query: req.query,
-    params: req.params,
-    ip: req.ip,
-    contentType: req.get("content-type"),
-    auth: req.get("authorization") ? "Bearer ***" : "(yok)",
-  });
+  // Kisa request ozeti
+  const hasBody = req.body && Object.keys(req.body).length > 0;
+  const query = Object.keys(req.query).length > 0 ? ` q=${JSON.stringify(req.query)}` : "";
+  const bodyKeys = hasBody ? ` body=[${Object.keys(req.body).join(",")}]` : "";
+  logger.debug(`--> ${req.method} ${req.originalUrl}${query}${bodyKeys}`);
 
-  // Response'u yakala
+  // Response'u yakala — status + sure + yavas sorgu uyarisi
   const originalJson = res.json.bind(res);
   res.json = (body: unknown) => {
     const duration = Date.now() - start;
-    logger.debug(`[DEBUG] <-- ${req.method} ${req.originalUrl} [${res.statusCode}] ${duration}ms`, {
-      responseBody: body,
-    });
+    const status = res.statusCode;
+    const ok = status >= 200 && status < 300;
+
+    // Hata detayi
+    const errMsg = !ok && body && typeof body === "object" && "error" in (body as any)
+      ? ` ${(body as any).error}`
+      : "";
+
+    // Yavas sorgu uyarisi (>1s)
+    const slow = duration > 1000 ? " SLOW" : "";
+
+    logger.debug(`<-- ${req.method} ${req.originalUrl} ${status} ${duration}ms${slow}${errMsg}`);
     return originalJson(body);
   };
 

@@ -3,8 +3,13 @@ import jwt from 'jsonwebtoken';
 import userService from '../services/userService';
 import logger from '../utils/logger';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-me-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+const _JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!_JWT_SECRET_RAW || _JWT_SECRET_RAW === 'change-me-in-production' || _JWT_SECRET_RAW.length < 32) {
+  throw new Error('JWT_SECRET env var must be set to a strong random value (>=32 chars, not the default placeholder)');
+}
+const JWT_SECRET: string = _JWT_SECRET_RAW;
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN;
+if (!JWT_EXPIRES_IN) throw new Error("JWT_EXPIRES_IN not configured");
 
 interface JwtPayload {
   user_id: string;
@@ -75,8 +80,8 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    if (password.length < 6) {
-      res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+    if (password.length < 8) {
+      res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
       return;
     }
 
@@ -111,9 +116,10 @@ export async function register(req: Request, res: Response): Promise<void> {
   } catch (error: any) {
     logger.error('Registration error:', error);
 
+    // Generic error for both unique-constraint violations AND unexpected failures —
+    // prevents username/email enumeration via differential responses.
     if (error.code === 'P2002') {
-      const field = error.meta?.target?.[0] || 'field';
-      res.status(409).json({ success: false, error: `${field} already exists` });
+      res.status(400).json({ success: false, error: 'Registration failed' });
       return;
     }
 
@@ -171,8 +177,8 @@ export async function changePassword(req: Request, res: Response): Promise<void>
       return;
     }
 
-    if (newPassword.length < 6) {
-      res.status(400).json({ success: false, error: 'New password must be at least 6 characters' });
+    if (newPassword.length < 8) {
+      res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
       return;
     }
 

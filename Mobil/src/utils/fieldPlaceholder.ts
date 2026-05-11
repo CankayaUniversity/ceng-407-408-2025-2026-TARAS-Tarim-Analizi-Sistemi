@@ -8,6 +8,7 @@ export interface FieldPolygon {
 
 export interface SensorNode {
   id: string;
+  zone_id?: string;
   x: number;
   z: number;
   moisture: number;

@@ -5,12 +5,13 @@ import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// Configure multer for file uploads
+// Two fields: image (full original) + thumbnail (mobile-generated). Mobile is
+// the only allowed client and always sends both. See
+// Backend/docs/s3-lifecycle-disease-detection.json for tiering policy.
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: 5 * 1024 * 1024 }, // matches nginx + mobile prepare cap
   fileFilter: (_req, file, cb) => {
-    // Accept image files only
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {
@@ -27,8 +28,15 @@ router.use(authenticateToken);
 
 // Submit a new disease detection request
 // POST /api/disease/submit
-// Form-data: image (file, required)
-router.post('/submit', upload.single('image'), diseaseController.submitDetection);
+// Form-data: image (full original, required) + thumbnail (mobile-generated, required)
+router.post(
+  '/submit',
+  upload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'thumbnail', maxCount: 1 },
+  ]),
+  diseaseController.submitDetection,
+);
 
 // Get all disease detection requests for the authenticated user
 // GET /api/disease/requests
@@ -45,5 +53,21 @@ router.get('/requests/:detectionId/image', diseaseController.getDetectionImage);
 // Delete a disease detection request
 // DELETE /api/disease/requests/:detectionId
 router.delete('/requests/:detectionId', diseaseController.deleteDetectionRequest);
+
+// Record user feedback on a completed detection
+// PUT /api/disease/requests/:detectionId/feedback
+// Body: { feedback: "DEFINITELY_WRONG" | "LIKELY_WRONG" | "UNSURE" | "LIKELY_CORRECT" | "DEFINITELY_CORRECT", correction?: DiseaseTarget }
+router.put('/requests/:detectionId/feedback', diseaseController.recordFeedback);
+
+// Disease tracking folders
+router.post('/folders', diseaseController.createTrackingFolder);
+
+router.get('/folders', diseaseController.getTrackingFolders);
+
+router.get('/folders/:folderId/history', diseaseController.getTrackingFolderHistory);
+
+router.patch('/folders/:folderId/deactivate', diseaseController.deactivateTrackingFolder);
+
+router.get('/folders/:folderId', diseaseController.getTrackingFolderById);
 
 export default router;

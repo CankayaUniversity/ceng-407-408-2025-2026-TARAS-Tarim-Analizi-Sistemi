@@ -1,7 +1,6 @@
 const { withAndroidManifest, AndroidConfig } = require("@expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config();
 
 /**
  * Expo config plugin to add network security config for HTTP cleartext traffic
@@ -36,21 +35,34 @@ const withNetworkSecurityConfig = (config) => {
       fs.mkdirSync(xmlDir, { recursive: true });
     }
 
-    // Get API host from environment variable
-    const apiHost = process.env.API_HOST || "";
-    // Extract domain/IP from URL (remove http:// and port)
-    const domain =
-      apiHost.replace(/^https?:\/\//, "").replace(/:\d+$/, "") || "localhost";
+    // Get API host from environment variable — .env dosyasinda tanimli olmali
+    const useLocal = process.env.USE_LOCAL_API === "true";
+    const apiHost = useLocal ? (process.env.API_HOST_LOCAL || "") : (process.env.API_HOST_AWS || "");
+    // URL parse — protokol ve port temizle
+    const isHttps = apiHost.startsWith("https://");
+    const domain = apiHost.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
+    if (!domain) {
+      throw new Error(
+        "[withNetworkSecurityConfig] API_HOST_AWS or API_HOST_LOCAL must be set in .env"
+      );
+    }
 
-    // Write the network security config
-    const networkSecurityConfig = `<?xml version="1.0" encoding="utf-8"?>
+    // HTTPS kullaniliyorsa cleartext istisnasi gerekmez — sadece TLS guvene
+    // HTTP kullaniliyorsa (yerel dev) sadece o domain icin cleartext'e izin ver
+    const networkSecurityConfig = isHttps
+      ? `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow cleartext (HTTP) traffic ONLY to the backend server -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>`
+      : `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">${domain}</domain>
     </domain-config>
-
-    <!-- Block all other HTTP traffic (HTTPS only) -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />

@@ -6,13 +6,17 @@ import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 
+import { startIrrigationScheduler } from './jobs/irrigation.scheduler';
+import { startDiseaseRetryScheduler } from './jobs/disease.retry.scheduler';
+import { startDiseaseCleanupScheduler } from './jobs/disease.cleanup.scheduler';
+
 dotenv.config();
 
 // BigInt JSON serialization fix
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
-import { initializeDatabase } from './config/database';
+import { initializeDatabase, disconnectDatabase } from './config/database';
 import { initializeSocketIO } from './config/socket';
-import { initializeMQTT } from './config/mqtt';
+import { initializeMQTT, disconnectMQTT } from './config/mqtt';
 import { errorHandler } from './middleware/error.middleware';
 import { requestLogger } from './middleware/logger.middleware';
 import { debugLogger } from './middleware/debug.middleware';
@@ -21,11 +25,21 @@ import routes from './routes';
 import logger from './utils/logger';
 
 const app: Express = express();
-const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || 'localhost';
+const PORT = process.env.PORT;
+const HOST = process.env.HOST;
+if (!PORT) throw new Error("PORT not configured");
+if (!HOST) throw new Error("HOST not configured");
 const httpServer = createServer(app);
 
-app.use(helmet());
+// Reverse proxy (nginx) arkasinda calisirken gercek IP'yi al
+app.set('trust proxy', 1);
+
+app.use(helmet({
+  // API icin CSP gerekli degil — sadece JSON donduruyoruz
+  contentSecurityPolicy: false,
+  // HSTS — HTTPS uzerinden hizmet veriliyorken etkili olur
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+}));
 app.use(compression({
   filter: (req, res) => {
     // SSE bağlantılarında sıkıştırma yapma (streaming'i bozar)
@@ -33,12 +47,16 @@ app.use(compression({
     return compression.filter(req, res);
   },
 }));
+// CORS — mobile app only, native clients bypass CORS entirely.
+// Wildcard is fine; restrict this if a web frontend is ever added.
+const corsOrigins = process.env.CORS_ORIGINS?.split(',').map(s => s.trim()).filter(Boolean) || ['*'];
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || '*',
+  origin: corsOrigins,
   credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Bound request body memory to prevent slow-loris / large-payload DoS.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(requestLogger);
 app.use(debugLogger);
 
@@ -75,6 +93,10 @@ async function startServer(): Promise<void> {
         logger.warn('MQTT connection skipped');
       }
     }
+    
+    startIrrigationScheduler();
+    startDiseaseRetryScheduler();
+    startDiseaseCleanupScheduler();
 
     httpServer.listen(PORT, () => {
       logger.info(`Server running on http://${HOST}:${PORT}`);
@@ -85,8 +107,10 @@ async function startServer(): Promise<void> {
   }
 }
 
-const shutdown = () => {
+const shutdown = async () => {
   logger.info('Shutting down...');
+  disconnectMQTT();
+  await disconnectDatabase();
   httpServer.close(() => process.exit(0));
 };
 
