@@ -18,8 +18,11 @@ import { DiseaseScreenProps, LocalInferenceResult } from "./types";
 import { useLiveScan } from "../../hooks/useLiveScan";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useAuth } from "../../context/AuthContext";
 import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
 import { loadLeafToggle, saveLeafToggle } from "../../utils/diseaseInference";
+import { DEMO_SAMPLE_IMAGES } from "../../utils/demo/demoData";
+import { pickSampleImage, resolveSampleImageUri } from "../../utils/demo/demoSampleImage";
 import type { LeafBox } from "../../utils/leafDetection";
 import { vs, ms, s } from "../../utils/responsive";
 
@@ -36,7 +39,10 @@ export const DiseaseCameraScreenNative = ({
 }: DiseaseScreenProps) => {
   const { showPopup } = usePopupMessage();
   const { t } = useLanguage();
+  const { dataSource } = useAuth();
   const insets = useSafeAreaInsets();
+  const isDemo = dataSource === "demo";
+  const showSampleBtn = isDemo && DEMO_SAMPLE_IMAGES.length > 0;
 
   // folderContext set ise photo submit'i bu folder'a baglar
   // Kullanici banner'daki X ile mid-capture detach edebilir
@@ -53,6 +59,9 @@ export const DiseaseCameraScreenNative = ({
   const [liveMode, setLiveMode] = useState(false);
   const [pendingLocalResult, setPendingLocalResult] = useState<LocalInferenceResult | null>(null);
   const [showHint, setShowHint] = useState(true);
+  // Demo: capture aninda taze live result + sample image truth label submit'e iletilir
+  const liveResultStampRef = useRef<number>(0);
+  const [pendingHintedLabel, setPendingHintedLabel] = useState<string | null>(null);
 
   // Yaprak cascade toggle — DEFAULT OFF (model henuz hazir degil; sema yanlissa
   // useLiveScan yuklemede null doner ve toggle otomatik OFF'a kayar).
@@ -80,6 +89,10 @@ export const DiseaseCameraScreenNative = ({
     waitForInflightDrained,
     leafCascadeActive,
   } = useLiveScan(liveScanActive, livePauseRef, useLeafDetection);
+
+  useEffect(() => {
+    if (liveResult) liveResultStampRef.current = Date.now();
+  }, [liveResult]);
 
   // Yaprak modeli yuklenemediyse toggle JS state'inde de OFF'a doner
   // (hook AsyncStorage'i guncelledi, biz UI state'ini hizalayalim).
@@ -116,19 +129,48 @@ export const DiseaseCameraScreenNative = ({
     return prepareDiseaseImageForUpload(uri, {
       width: imageWidth,
       height: imageHeight,
-      exportSize: 256,
-      quality: 0.82,
     });
+  };
+
+  const handlePickSample = async () => {
+    try {
+      const sample = await pickSampleImage(
+        t.disease.sampleSheetTitle,
+        t.common.cancel,
+      );
+      if (!sample) return;
+      setIsPreparingImage(true);
+      const uri = await resolveSampleImageUri(sample.module);
+      if (!uri) {
+        showPopup(t.disease.sampleResolveError);
+        return;
+      }
+      const prepared = await prepareDiseaseImageForUpload(uri, {
+        width: 256,
+        height: 256,
+      }).catch(() => uri);
+      setPhotoUri(prepared);
+      setPendingHintedLabel(sample.label);
+      // Sample hint zaten ground truth — live scan'i submit'e ekleme
+      setPendingLocalResult(null);
+      setIsPreview(true);
+    } catch (err) {
+      console.log("[ERR] sample pick:", err);
+      showPopup(t.disease.sampleResolveError);
+    } finally {
+      setIsPreparingImage(false);
+    }
   };
 
   const pickFromGallery = async () => {
     try {
       setIsPreparingImage(true);
+      // EXIF korunur; HEIC iOS 14+'ta JPEG'e cevrilir; native aspect korunur
       const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-        base64: false,
+        mediaTypes: ["images"],
+        exif: true,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
       if (!result.canceled) {
         const asset = result.assets && result.assets[0];
@@ -140,6 +182,7 @@ export const DiseaseCameraScreenNative = ({
         }
       }
     } catch (err) {
+      console.log("[ERR] gallery:", (err as { message?: string })?.message);
       showPopup(t.camera.galleryError);
     } finally {
       setIsPreparingImage(false);
@@ -220,11 +263,37 @@ export const DiseaseCameraScreenNative = ({
         text: t.common.yes,
         onPress: () => {
           // folderId varsa parent submit'i bu klasore baglar; yoksa general
-          if (onSendForAnalysis) onSendForAnalysis(photoUri, activeFolderContext?.folderId ?? null);
-          else showPopup(t.camera.sentSuccess);
+          if (onSendForAnalysis) {
+            // Demo extras backend tarafindan yok sayilir; tazelik CAPTURE aninda kontrol edilir
+            const liveFreshAtCapture =
+              pendingLocalResult &&
+              pendingLocalResult.status === "confident" &&
+              Date.now() - liveResultStampRef.current <= 1500;
+            const extras = isDemo
+              ? {
+                  hintedLabel: pendingHintedLabel,
+                  liveScanResult: liveFreshAtCapture
+                    ? {
+                        className: pendingLocalResult.className,
+                        confidence: pendingLocalResult.confidence,
+                        allProbs: pendingLocalResult.allProbs,
+                        timestamp: Date.now(),
+                      }
+                    : null,
+                }
+              : undefined;
+            onSendForAnalysis(
+              photoUri,
+              activeFolderContext?.folderId ?? null,
+              extras,
+            );
+          } else {
+            showPopup(t.camera.sentSuccess);
+          }
           setPhotoUri(null);
           setIsPreview(false);
           setPendingLocalResult(null);
+          setPendingHintedLabel(null);
         },
       },
     ]);
@@ -235,6 +304,7 @@ export const DiseaseCameraScreenNative = ({
     setIsPreview(false);
     setPendingLocalResult(null);
     setPendingLeafBox(null);
+    setPendingHintedLabel(null);
   };
 
   // ── Permission ekrani ────────────────────────────────────────────────
@@ -389,11 +459,19 @@ export const DiseaseCameraScreenNative = ({
         />
       )}
 
-      {/* Alt bar — galeri / shutter / flash */}
+      {/* Alt bar — galeri / (sample) / shutter / flash */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + vs(16) }]}>
-        <TouchableOpacity onPress={pickFromGallery} style={styles.sideBtn}>
-          <MaterialCommunityIcons name="image-outline" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.bottomLeftCluster}>
+          <TouchableOpacity onPress={pickFromGallery} style={styles.sideBtn}>
+            <MaterialCommunityIcons name="image-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          {showSampleBtn && (
+            <TouchableOpacity onPress={handlePickSample} style={styles.samplePill}>
+              <Ionicons name="sparkles" size={14} color="#fff" />
+              <Text style={styles.samplePillLabel}>{t.disease.sampleButton}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         <Pressable
           onPress={takePicture}
@@ -482,6 +560,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  bottomLeftCluster: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  samplePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  samplePillLabel: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
   },
   shutterOuter: {
     width: 72,

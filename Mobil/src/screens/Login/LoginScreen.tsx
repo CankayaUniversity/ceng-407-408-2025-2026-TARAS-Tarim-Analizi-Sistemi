@@ -293,8 +293,8 @@ export const LoginScreen = ({
               borderColor: theme.border,
             }}
             onPress={() => {
-              handleSkip();
-              onLoginSuccess("");
+              // onLoginSuccess cagirma — dataSource'u "aws"a override eder, demo dallarini bozar
+              void handleSkip();
             }}
             disabled={isLoading}
           >

@@ -1,0 +1,26 @@
+Demo sample disease images
+==========================
+
+Drop small (~256x256, ~30-50 KB) JPEG files here whose filenames encode the
+truth label. Then uncomment the matching entry in:
+
+  src/utils/demo/demoData.ts -> DEMO_SAMPLE_IMAGES
+
+Naming convention: <label>_<n>.jpg
+  - label is one of the 14 model classes (lowercase snake_case):
+    bacterial_spot, corn_common_rust, corn_gray_leaf_spot,
+    corn_northern_leaf_blight, early_blight, healthy, late_blight,
+    leaf_mold, mosaic_virus, powdery_mildew, septoria_leaf_spot,
+    spider_mites, target_spot, yellow_leaf_curl_virus
+  - n is a sequential number (1, 2, ...) when you have multiple samples
+    of the same class.
+
+Examples:
+  early_blight_1.jpg
+  late_blight_1.jpg
+  healthy_tomato_1.jpg
+  powdery_mildew_1.jpg
+  bacterial_spot_1.jpg
+
+The Sample button in demo camera screens hides automatically when this
+list is empty, so the demo still works with zero bundled images.

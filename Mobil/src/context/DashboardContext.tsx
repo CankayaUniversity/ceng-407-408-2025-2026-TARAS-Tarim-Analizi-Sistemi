@@ -17,7 +17,7 @@ import {
   ERR_AUTH_EXPIRED,
   ERR_UNAUTHENTICATED,
 } from "../utils/api";
-import { getDemoFields, generateDemoDashboardData } from "../utils/demoData";
+import { getDemoFields, generateDemoDashboardData } from "../utils/demo/demoData";
 import { useAuth } from "./AuthContext";
 
 interface DashboardContextValue {

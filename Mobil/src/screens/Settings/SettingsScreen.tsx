@@ -1,13 +1,11 @@
-// Ayarlar ekrani - tema, dil, ag testi ve cikis
+// Ayarlar ekrani - tema, dil ve cikis
 // Props: theme, isDark, themeMode, onThemeModeChange, onLogout
 
-import { memo, useRef } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { memo, useEffect, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, ScrollView, Switch } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Constants from "expo-constants";
 import { SettingsScreenProps, ThemeOption } from "./types";
-import { runNetworkDiagnostics } from "../../utils/networkDiagnostics";
-import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { FocusableSection } from "../../components/FocusableSection";
 import { Language } from "../../utils/strings";
@@ -133,9 +131,22 @@ export const SettingsScreen = memo(function SettingsScreen({
   onLogout,
   onHardwareSetup,
 }: SettingsScreenProps) {
-  const { showPopup } = usePopupMessage();
   const { language, setLanguage, t } = useLanguage();
   const scrollViewRef = useRef<ScrollView>(null);
+  const [datasetConsent, setDatasetConsent] = useState<boolean>(true);
+
+  useEffect(() => {
+    (async () => {
+      const { loadDatasetConsent } = await import("../../utils/captureMetadata");
+      setDatasetConsent(await loadDatasetConsent());
+    })();
+  }, []);
+
+  const handleToggleDatasetConsent = async (next: boolean) => {
+    setDatasetConsent(next);
+    const { saveDatasetConsent } = await import("../../utils/captureMetadata");
+    await saveDatasetConsent(next);
+  };
 
   const themeOptions: ThemeOption[] = [
     {
@@ -146,35 +157,6 @@ export const SettingsScreen = memo(function SettingsScreen({
     { mode: "dark", label: t.settings.themeDark, icon: "moon-waning-crescent" },
     { mode: "system", label: t.settings.themeSystem, icon: "cellphone" },
   ];
-
-  const handleRunDiagnostics = async () => {
-    Alert.alert(
-      t.settings.diagnosticsTitle,
-      t.settings.diagnosticsConfirmation,
-      [
-        { text: t.common.cancel, style: "cancel" },
-        {
-          text: t.settings.diagnosticsStart,
-          onPress: async () => {
-            try {
-              const report = await runNetworkDiagnostics();
-              console.log("[NETDIAG] report:", report.length, "results");
-
-              // Count successes and failures
-              const lines = report.split("\n");
-              const passedLine = lines.find((l) => l.includes("passed"));
-
-              showPopup(
-                `${t.settings.diagnosticsCompleted}: ${passedLine || ""}`,
-              );
-            } catch (error) {
-              showPopup(`${t.settings.diagnosticsFailed}: ${error}`);
-            }
-          },
-        },
-      ],
-    );
-  };
 
   return (
     <ScrollView
@@ -283,19 +265,56 @@ export const SettingsScreen = memo(function SettingsScreen({
         </View>
       </FocusableSection>
 
-      {/* AWS Connection Test */}
+      {/* Dataset opt-in */}
       <FocusableSection
-        id="awsTest"
+        id="datasetConsent"
         screen="settings"
         theme={theme}
         scrollViewRef={scrollViewRef}
       >
-        <SettingRow
-          icon="network-strength-4"
-          label={t.settings.awsConnectionTest}
-          onPress={handleRunDiagnostics}
-          theme={theme}
-        />
+        <View
+          className="row-between"
+          style={{
+            paddingVertical: vs(14),
+            borderBottomWidth: 1,
+            borderBottomColor: theme.surface,
+          }}
+        >
+          <View className="row" style={{ flex: 1, marginRight: 12 }}>
+            <MaterialCommunityIcons
+              name="image-multiple-outline"
+              size={20}
+              color={theme.primary}
+              style={{ marginRight: 12 }}
+            />
+            <View style={{ flex: 1 }}>
+              <Text
+                className="text-primary font-semibold"
+                style={{ fontSize: ms(15, 0.3) }}
+              >
+                {t.settings.datasetConsentTitle}
+              </Text>
+              <Text
+                style={{
+                  color: theme.textSecondary,
+                  fontSize: ms(12, 0.3),
+                  marginTop: 2,
+                }}
+              >
+                {t.settings.datasetConsentSubtitle}
+              </Text>
+            </View>
+          </View>
+          <Switch
+            value={datasetConsent}
+            onValueChange={handleToggleDatasetConsent}
+            trackColor={{
+              false: theme.textSecondary + "55",
+              true: theme.primary + "AA",
+            }}
+            thumbColor={datasetConsent ? theme.primary : theme.surface}
+          />
+        </View>
       </FocusableSection>
 
       {/* Donanim Kurulumu */}

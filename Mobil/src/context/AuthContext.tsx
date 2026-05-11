@@ -9,7 +9,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { authAPI, dashboardAPI } from "../utils/api";
+import { authAPI, dashboardAPI, isDemoToken } from "../utils/api";
 
 type DataSource = "aws" | "demo";
 
@@ -19,7 +19,7 @@ interface AuthContextValue {
   username: string;
   dataSource: DataSource;
   handleLogin: (name: string) => void;
-  handleSkip: () => void;
+  handleSkip: () => Promise<void>;
   handleLogout: () => Promise<void>;
 }
 
@@ -35,12 +35,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     (async () => {
       try {
-        const isAuth = await authAPI.isAuthenticated();
-        if (isAuth) {
+        const token = await authAPI.getToken();
+        if (token) {
           setIsLoggedIn(true);
           const user = await authAPI.getStoredUser();
           setUsername(user?.username ?? "User");
-          setDataSource("aws");
+          setDataSource(isDemoToken(token) ? "demo" : "aws");
         } else {
           setIsLoggedIn(false);
           setDataSource("demo");
@@ -61,9 +61,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setDataSource("aws");
   }, []);
 
-  const handleSkip = useCallback(() => {
-    setIsLoggedIn(true);
+  // Token yazilmadan flip yaparsak reopen'da AppRouter bizi tekrar Login'e atar
+  const handleSkip = useCallback(async () => {
+    const user = await authAPI.enterDemoMode();
+    setUsername(user.username);
     setDataSource("demo");
+    setIsLoggedIn(true);
   }, []);
 
   const handleLogout = useCallback(async () => {

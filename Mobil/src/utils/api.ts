@@ -7,6 +7,7 @@ import type { FieldData } from "./fieldPlaceholder";
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
 import { secureSet, secureGet, secureRemove } from "./secureStorage";
+import type { CarbonLog } from "../screens/CarbonFootprint/types";
 
 // Environment variables from app.config.js
 export const API_HOST = Constants.expoConfig?.extra?.apiHost || "";
@@ -16,6 +17,11 @@ const DEMO_PASSWORD = Constants.expoConfig?.extra?.demoPassword || "";
 const API_BASE_URL = `${API_HOST}/api`;
 const TOKEN_KEY = "auth_token";
 const USER_DATA_KEY = "user_data";
+
+// Demo modu sentinel — gorulurse API modulleri backend yerine demo dallarina gider.
+export const DEMO_TOKEN = "DEMO_MODE_TOKEN";
+export const isDemoToken = (t: string | null | undefined): boolean =>
+  t === DEMO_TOKEN;
 
 let socket: Socket | null = null;
 
@@ -125,6 +131,18 @@ async function authFetch<T>(
   }
 }
 
+async function persistDemoSession(username: string): Promise<User> {
+  const demoUser: User = {
+    user_id: 0,
+    username: username || "Demo",
+    email: "test@local.demo",
+    role: "demo",
+  };
+  await secureSet(TOKEN_KEY, DEMO_TOKEN);
+  await secureSet(USER_DATA_KEY, JSON.stringify(demoUser));
+  return demoUser;
+}
+
 // Giris/kayit islemleri
 export const authAPI = {
   async login(
@@ -136,16 +154,8 @@ export const authAPI = {
       username.toLowerCase() === DEMO_USERNAME.toLowerCase() &&
       password === DEMO_PASSWORD
     ) {
-      const demoToken = "DEMO_MODE_TOKEN";
-      const demoUser = {
-        user_id: 0,
-        username: DEMO_USERNAME,
-        email: "test@local.demo",
-        role: "demo",
-      };
-      await secureSet(TOKEN_KEY, demoToken);
-      await secureSet(USER_DATA_KEY, JSON.stringify(demoUser));
-      return { success: true, data: { token: demoToken, user: demoUser } };
+      const demoUser = await persistDemoSession(DEMO_USERNAME);
+      return { success: true, data: { token: DEMO_TOKEN, user: demoUser } };
     }
 
     try {
@@ -219,8 +229,22 @@ export const authAPI = {
   },
 
   async logout() {
+    const token = await secureGet(TOKEN_KEY);
     await secureRemove(TOKEN_KEY);
     await secureRemove(USER_DATA_KEY);
+    // Demo oturumu kapatiyorsak yerel demo state'ini de sil
+    if (isDemoToken(token)) {
+      try {
+        const { clearAll } = await import("./demo/demoStorage");
+        await clearAll();
+      } catch {
+        // sessizce yut
+      }
+    }
+  },
+
+  async enterDemoMode(): Promise<User> {
+    return persistDemoSession(DEMO_USERNAME || "Demo");
   },
 
   async getToken() {
@@ -236,10 +260,20 @@ export const authAPI = {
 // Sensor veri islemleri
 export const sensorAPI = {
   async getUserZones(): Promise<ApiResponse<{ zones: Zone[] }>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { getDemoZones } = await import("./demo/demoData");
+      return { success: true, data: { zones: getDemoZones() } };
+    }
     return authFetch("/sensors/zones");
   },
 
   async getZoneSensors(zoneId: string) {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { generateDemoZoneLatest } = await import("./demo/demoData");
+      return { success: true, data: generateDemoZoneLatest(zoneId) };
+    }
     return authFetch<{
       zone_id: string;
       zone_name: string;
@@ -252,6 +286,20 @@ export const sensorAPI = {
   },
 
   async getZoneHistory(zoneId: string, hours = 24) {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { generateDemoSensorHistory } = await import("./demo/demoData");
+      const fieldId = zoneId.replace("demo-zone-", "");
+      const hist = generateDemoSensorHistory(fieldId, hours);
+      return {
+        success: true,
+        data: {
+          zone_id: zoneId,
+          zone_name: hist.field_name,
+          readings: hist.readings,
+        },
+      };
+    }
     const endTime = new Date().toISOString();
     const startTime = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
     return authFetch<{
@@ -262,10 +310,28 @@ export const sensorAPI = {
   },
 
   async getZoneDetails(zoneId: string): Promise<ApiResponse<ZoneDetailsData>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return {
+        success: true,
+        data: {
+          zone_id: zoneId,
+          name: "Bölge 1",
+          adaptive_config: { current_kc: 1.05, target_sm_percent: 60 },
+          active_plantings: [{ crop_name: "Domates", growth_stage: "vegetative" }],
+          recent_kc_calibrations: [],
+        },
+      };
+    }
     return authFetch<ZoneDetailsData>(`/sensors/zone/${zoneId}/details`);
   },
 
   async getFieldHistory(fieldId: string, hours = 72) {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { generateDemoSensorHistory } = await import("./demo/demoData");
+      return { success: true, data: generateDemoSensorHistory(fieldId, hours) };
+    }
     return authFetch<{
       field_id: string;
       field_name: string;
@@ -289,6 +355,7 @@ export const socketAPI = {
   async connect(): Promise<Socket | null> {
     const token = await secureGet(TOKEN_KEY);
     if (!token) return null;
+    if (isDemoToken(token)) return null;
     if (socket?.connected) return socket;
 
     console.log("[SOCKET] connect:", API_HOST);
@@ -457,8 +524,8 @@ export const dashboardAPI = {
     const token = await secureGet(TOKEN_KEY);
 
     // Demo modu: explicit demo token (login ekranindan "skip" veya demo user ile)
-    if (token === "DEMO_MODE_TOKEN") {
-      const { getDemoFields } = await import("./demoData");
+    if (isDemoToken(token)) {
+      const { getDemoFields } = await import("./demo/demoData");
       return getDemoFields();
     }
 
@@ -481,8 +548,8 @@ export const dashboardAPI = {
   getFieldDashboard: async (fieldId: string): Promise<DashboardData> => {
     const token = await secureGet(TOKEN_KEY);
 
-    if (token === "DEMO_MODE_TOKEN") {
-      const { generateDemoDashboardData } = await import("./demoData");
+    if (isDemoToken(token)) {
+      const { generateDemoDashboardData } = await import("./demo/demoData");
       return generateDemoDashboardData(fieldId);
     }
 
@@ -552,6 +619,13 @@ export const gatewayAPI = {
   },
 
   async getFarms(): Promise<ApiResponse<Array<{ farm_id: string; name: string }>>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return {
+        success: true,
+        data: [{ farm_id: "demo-farm", name: "Demo Çiftliği" }],
+      };
+    }
     return authFetch("/gateway/farms");
   },
 
@@ -635,6 +709,11 @@ export const carbonAPI = {
   async getActivityTypes(): Promise<
     ApiResponse<Record<string, Array<{ activity_type_id: number; name: string; unit: string }>>>
   > {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { getDemoActivityTypes } = await import("./demo/demoData");
+      return { success: true, data: getDemoActivityTypes() };
+    }
     return authFetch("/carbon/activity-types");
   },
 
@@ -642,6 +721,21 @@ export const carbonAPI = {
     farmId: string,
     params?: { startDate?: string; endDate?: string; category?: string },
   ): Promise<ApiResponse<unknown[]>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { listCarbonLogs } = await import("./demo/demoStorage");
+      const { getDemoCarbonLogsSeed } = await import("./demo/demoData");
+      let list = await listCarbonLogs();
+      if (list.length === 0) {
+        const seeds = getDemoCarbonLogsSeed();
+        const { addCarbonLog } = await import("./demo/demoStorage");
+        for (let i = seeds.length - 1; i >= 0; i--) {
+          await addCarbonLog(seeds[i]);
+        }
+        list = seeds;
+      }
+      return { success: true, data: list };
+    }
     const query = new URLSearchParams();
     if (params?.startDate) query.set("startDate", params.startDate);
     if (params?.endDate) query.set("endDate", params.endDate);
@@ -659,6 +753,45 @@ export const carbonAPI = {
       notes?: string;
     },
   ): Promise<ApiResponse<{ carbon_log_id: string; emission_amount: number }>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { addCarbonLog } = await import("./demo/demoStorage");
+      const { getDemoActivityTypes } = await import("./demo/demoData");
+      const types = getDemoActivityTypes();
+      let activityType: { name: string; category: string; unit: string } | null = null;
+      let factor = 1.0;
+      for (const [category, list] of Object.entries(types)) {
+        const found = list.find((t) => t.activity_type_id === body.activity_type_id);
+        if (found) {
+          activityType = { name: found.name, category, unit: found.unit };
+          // Yaklasik kgCO2/birim — demo icin kaba sabitler
+          factor = category === "YAKIT" ? 2.62 : category === "GUBRE" ? 0.9 : 0.43;
+          break;
+        }
+      }
+      if (!activityType) {
+        return { success: false, error: "Bilinmeyen aktivite tipi" };
+      }
+      const emission = Math.round(body.activity_amount * factor * 100) / 100;
+      const log: CarbonLog = {
+        carbon_log_id: `demo-clog-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 6)}`,
+        farm_id: farmId,
+        activity_type_id: body.activity_type_id,
+        activity_date: body.activity_date,
+        activity_amount: body.activity_amount,
+        emission_amount: emission,
+        notes: body.notes ?? null,
+        created_at: new Date().toISOString(),
+        activity_type: activityType,
+      };
+      await addCarbonLog(log);
+      return {
+        success: true,
+        data: { carbon_log_id: log.carbon_log_id, emission_amount: emission },
+      };
+    }
     return authFetch(`/carbon/farm/${farmId}/logs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -670,6 +803,12 @@ export const carbonAPI = {
     farmId: string,
     logId: string,
   ): Promise<ApiResponse<{ message: string }>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { deleteCarbonLog } = await import("./demo/demoStorage");
+      await deleteCarbonLog(logId);
+      return { success: true, data: { message: "deleted" } };
+    }
     return authFetch(`/carbon/farm/${farmId}/logs/${logId}`, {
       method: "DELETE",
     });
@@ -684,6 +823,35 @@ export const carbonAPI = {
       by_category: Array<{ category: string; total: number; count: number }>;
     }>
   > {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      // Kullanici eklediklerini de yansit; liste bos ise getDemoCarbonSummary'ye dus
+      const { listCarbonLogs } = await import("./demo/demoStorage");
+      const { getDemoCarbonSummary } = await import("./demo/demoData");
+      const logs = await listCarbonLogs();
+      if (logs.length === 0) return { success: true, data: getDemoCarbonSummary() };
+      const byCat = new Map<string, { total: number; count: number }>();
+      let total = 0;
+      for (const l of logs) {
+        const cat = l.activity_type.category;
+        const cur = byCat.get(cat) ?? { total: 0, count: 0 };
+        cur.total += l.emission_amount;
+        cur.count += 1;
+        byCat.set(cat, cur);
+        total += l.emission_amount;
+      }
+      return {
+        success: true,
+        data: {
+          total_emission: Math.round(total * 100) / 100,
+          by_category: Array.from(byCat.entries()).map(([category, v]) => ({
+            category,
+            total: Math.round(v.total * 100) / 100,
+            count: v.count,
+          })),
+        },
+      };
+    }
     const query = new URLSearchParams();
     if (params?.startDate) query.set("startDate", params.startDate);
     if (params?.endDate) query.set("endDate", params.endDate);
@@ -693,8 +861,11 @@ export const carbonAPI = {
 };
 
 // Hastalik tespit tipleri
+// QUEUED: S3'te durably saklaniyor, Lambda cagrisi henuz baslamadi (worker bekliyor)
+// PROCESSING: Lambda call su an in-flight
 export type DetectionStatus =
   | "NOT_STARTED"
+  | "QUEUED"
   | "PROCESSING"
   | "COMPLETED"
   | "FAILED";
@@ -843,25 +1014,145 @@ export interface DiseaseTrackingFolderHistory {
   }>;
 }
 
+/** Demo synthesizer ipuclari — in-memory; app oldurulurse uncertain fallback'a duser. */
+interface DemoLiveScanHint {
+  className?: string;
+  confidence?: number;
+  allProbs?: Record<string, number>;
+  timestamp?: number;
+}
+
+const demoPendingHints = new Map<
+  string,
+  {
+    hintedLabel?: string | null;
+    liveScanResult?: DemoLiveScanHint | null;
+    folderId?: string | null;
+  }
+>();
+
 // Hastalik tespit API
 export const diseaseAPI = {
   async submitDetection(
     imageUri: string,
     folderId?: string | null,
+    hintedLabel?: string | null,
+    liveScanResult?: DemoLiveScanHint | null,
   ): Promise<ApiResponse<SubmitDetectionResponse>> {
     const token = await secureGet(TOKEN_KEY);
     if (!token) return { success: false, error: "Oturum bulunamadı" };
 
+    if (isDemoToken(token)) {
+      try {
+        const { Directory, File, Paths } = await import("expo-file-system");
+        const { upsertDetection } = await import("./demo/demoStorage");
+        const detectionId = `demo-det-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        const imageUuid = `demo-img-${Date.now().toString(36)}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+
+        let storedUri = imageUri;
+        try {
+          const dir = new Directory(Paths.document, "disease");
+          if (!dir.exists) dir.create({ intermediates: true });
+          const dest = new File(dir, `${detectionId}.jpg`);
+          if (imageUri.startsWith("file://") || imageUri.startsWith("/")) {
+            const src = new File(imageUri);
+            if (src.exists) {
+              src.copy(dest);
+              storedUri = dest.uri;
+            }
+          }
+        } catch (err) {
+          console.log("[DISEASE] demo image copy err:", err);
+        }
+
+        const det: DiseaseDetection = {
+          detection_id: detectionId,
+          user_id: "0",
+          image_uuid: imageUuid,
+          image_s3_key: "demo://local",
+          status: "PROCESSING",
+          uploaded_at: new Date().toISOString(),
+          processing_started_at: new Date().toISOString(),
+          completed_at: null,
+          detected_disease: null,
+          confidence: null,
+          confidence_score: null,
+          all_predictions: null,
+          recommendations: null,
+          error_message: null,
+          imageUrl: storedUri,
+          confidence_status: null,
+          top_guess: null,
+        };
+        await upsertDetection(det);
+        demoPendingHints.set(detectionId, {
+          hintedLabel: hintedLabel ?? null,
+          liveScanResult: liveScanResult ?? null,
+          folderId: folderId ?? null,
+        });
+
+        console.log(
+          "[DISEASE] demo submit",
+          folderId ? `folder=${folderId.slice(0, 8)}` : "(general)",
+          hintedLabel ? `hint=${hintedLabel}` : "",
+        );
+
+        return {
+          success: true,
+          data: {
+            detectionId,
+            imageUuid,
+            status: "PROCESSING",
+            message: "demo: processing locally",
+          },
+        };
+      } catch (err) {
+        console.log("[DISEASE] demo submit err:", err);
+        return { success: false, error: "Demo submit basarisiz" };
+      }
+    }
+
     try {
+      // Thumbnail mobile-side uretilir; hata olursa upload yine devam etsin (orijinali kaybetme).
+      const { compressForLocalCache } = await import("./diseaseImageProcessing");
+      let thumbnailUri = imageUri; // fallback — original URI as thumbnail (rare)
+      try {
+        thumbnailUri = await compressForLocalCache(imageUri);
+      } catch (err) {
+        console.log("[DISEASE] thumb gen fail (using original):", String(err));
+      }
+
       const formData = new FormData();
       formData.append("image", {
         uri: imageUri,
         type: "image/jpeg",
         name: "leaf.jpg",
       } as any);
+      formData.append("thumbnail", {
+        uri: thumbnailUri,
+        type: "image/jpeg",
+        name: "leaf-thumb.jpg",
+      } as any);
       // Folder context (opsiyonel) — set edilirse detection bu klasore baglanir
       if (folderId) {
         formData.append("folderId", folderId);
+      }
+
+      try {
+        const { buildCaptureMetadata } = await import("./captureMetadata");
+        const meta = await buildCaptureMetadata({
+          liveScanResult: liveScanResult
+            ? { className: liveScanResult.className, confidence: liveScanResult.confidence }
+            : null,
+        });
+        formData.append("metadata", JSON.stringify(meta));
+      } catch (err) {
+        // Metadata olusturulamazsa submit yine de ilerlesin
+        console.log("[DISEASE] meta build fail:", String(err));
       }
 
       console.log("[DISEASE] submit", folderId ? `folder=${folderId.slice(0, 8)}` : "(general)");
@@ -895,6 +1186,20 @@ export const diseaseAPI = {
     zoneId: string,
     name: string,
   ): Promise<ApiResponse<DiseaseTrackingFolder>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { createFolder: createDemoFolder } = await import("./demo/demoStorage");
+      const { getDemoZones } = await import("./demo/demoData");
+      const zone = getDemoZones().find((z) => z.zone_id === zoneId);
+      if (!zone) return { success: false, error: "Bilinmeyen bölge" };
+      const folder = await createDemoFolder({
+        zoneId,
+        zoneName: zone.zone_name,
+        cropName: "Domates",
+        name,
+      });
+      return { success: true, data: folder };
+    }
     return authFetch("/disease/folders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -903,24 +1208,79 @@ export const diseaseAPI = {
   },
 
   async getFolders(): Promise<ApiResponse<DiseaseTrackingFolder[]>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { listFolders, seedIfEmpty } = await import("./demo/demoStorage");
+      const { getDemoFields } = await import("./demo/demoData");
+      await seedIfEmpty(getDemoFields());
+      const list = await listFolders();
+      return { success: true, data: list };
+    }
     return authFetch("/disease/folders");
   },
 
   async getFolderDetail(
     folderId: string,
   ): Promise<ApiResponse<DiseaseTrackingFolderDetail>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { getFolderDetail: getDemoFolderDetail } = await import("./demo/demoStorage");
+      const detail = await getDemoFolderDetail(folderId);
+      if (!detail) return { success: false, error: "Klasör bulunamadı" };
+      return { success: true, data: detail };
+    }
     return authFetch(`/disease/folders/${folderId}`);
   },
 
   async getFolderHistory(
     folderId: string,
   ): Promise<ApiResponse<DiseaseTrackingFolderHistory>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { getFolderDetail: getDemoFolderDetail } = await import("./demo/demoStorage");
+      const detail = await getDemoFolderDetail(folderId);
+      if (!detail) return { success: false, error: "Klasör bulunamadı" };
+      return {
+        success: true,
+        data: {
+          folderId: detail.folderId,
+          name: detail.name,
+          isActive: detail.isActive,
+          targetDisease: detail.targetDisease,
+          planting: {
+            plantingId: detail.planting.plantingId,
+            isActive: detail.planting.isActive,
+            cropName: detail.planting.cropName,
+            zoneId: detail.planting.zoneId,
+            zoneName: detail.planting.zoneName,
+          },
+          history: detail.detections.map((d) => ({
+            detectionId: d.detection_id,
+            uploadedAt: d.uploaded_at,
+            completedAt: d.completed_at,
+            disease: d.detected_disease,
+            confidence: d.confidence,
+            confidenceScore: d.confidence_score,
+            allPredictions: d.all_predictions ?? null,
+            recommendations: d.recommendations ?? null,
+          })),
+        },
+      };
+    }
     return authFetch(`/disease/folders/${folderId}/history`);
   },
 
   async deactivateFolder(
     folderId: string,
   ): Promise<ApiResponse<{ message: string }>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { deactivateFolder: deactivateDemoFolder } = await import(
+        "./demo/demoStorage"
+      );
+      await deactivateDemoFolder(folderId);
+      return { success: true, data: { message: "deactivated" } };
+    }
     return authFetch(`/disease/folders/${folderId}/deactivate`, {
       method: "PATCH",
     });
@@ -929,24 +1289,85 @@ export const diseaseAPI = {
   async getDetectionStatus(
     detectionId: string,
   ): Promise<ApiResponse<DiseaseDetection>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const {
+        getDetection,
+        upsertDetection,
+        attachDetectionToFolder,
+      } = await import("./demo/demoStorage");
+      const { synthesizeDemoDetection } = await import("./demo/demoData");
+
+      const det = await getDetection(detectionId);
+      if (!det) return { success: false, error: "Detection not found" };
+
+      if (det.status === "PROCESSING") {
+        const hints = demoPendingHints.get(detectionId);
+        const synthesized = synthesizeDemoDetection({
+          imageUri: det.imageUrl ?? "",
+          detectionId: det.detection_id,
+          imageUuid: det.image_uuid,
+          hintedLabel: hints?.hintedLabel,
+          liveScanResult: hints?.liveScanResult,
+          folderId: hints?.folderId,
+        });
+        await upsertDetection(synthesized);
+        if (hints?.folderId) {
+          await attachDetectionToFolder(hints.folderId, synthesized);
+        }
+        demoPendingHints.delete(detectionId);
+        return { success: true, data: synthesized };
+      }
+      return { success: true, data: det };
+    }
     return authFetch(`/disease/requests/${detectionId}`);
   },
 
   async getAllDetections(): Promise<
     ApiResponse<{ count: number; detections: DiseaseDetection[] }>
   > {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { listDetections, seedIfEmpty } = await import("./demo/demoStorage");
+      const { getDemoFields } = await import("./demo/demoData");
+      await seedIfEmpty(getDemoFields());
+      const detections = await listDetections();
+      return { success: true, data: { count: detections.length, detections } };
+    }
     return authFetch("/disease/requests");
   },
 
   async getImageUrl(
     detectionId: string,
   ): Promise<ApiResponse<ImageUrlResponse>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { getDetection } = await import("./demo/demoStorage");
+      const det = await getDetection(detectionId);
+      const local = det?.imageUrl ?? "";
+      return {
+        success: true,
+        data: {
+          imageUrl: local,
+          expiresIn: 3600 * 24 * 365,
+          expiresAt: new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
+        },
+      };
+    }
     return authFetch(`/disease/requests/${detectionId}/image`);
   },
 
   async deleteDetection(
     detectionId: string,
   ): Promise<ApiResponse<{ message: string }>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { deleteDetection: deleteDemoDetection } = await import(
+        "./demo/demoStorage"
+      );
+      await deleteDemoDetection(detectionId);
+      return { success: true, data: { message: "deleted" } };
+    }
     return authFetch(`/disease/requests/${detectionId}`, { method: "DELETE" });
   },
 
@@ -961,6 +1382,15 @@ export const diseaseAPI = {
       correction: DiseaseCorrection | null;
     }>
   > {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      const { applyFeedback } = await import("./demo/demoStorage");
+      await applyFeedback(detectionId, feedback, correction);
+      return {
+        success: true,
+        data: { detectionId, feedback, correction: correction ?? null },
+      };
+    }
     return authFetch(`/disease/requests/${detectionId}/feedback`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -1074,7 +1504,7 @@ export const irrigationAPI = {
     zoneIndex = 0,
   ): Promise<ApiResponse<IrrigationJob[]>> {
     const token = await secureGet(TOKEN_KEY);
-    if (!token || token === "DEMO_MODE_TOKEN") {
+    if (!token || isDemoToken(token)) {
       return { success: true, data: generateDemoIrrigationJobs(zoneIndex) };
     }
     console.log("[IRRIGATION] getZoneJobs zoneId:", zoneId);
@@ -1092,7 +1522,7 @@ export const irrigationAPI = {
     data: { actual_water_amount_ml?: number; actual_start_time?: string },
   ): Promise<ApiResponse<IrrigationJob>> {
     const token = await secureGet(TOKEN_KEY);
-    if (!token || token === "DEMO_MODE_TOKEN") {
+    if (!token || isDemoToken(token)) {
       return { success: true, data: { job_id: jobId, ...data } as any };
     }
     return authFetch<IrrigationJob>(`/irrigation/jobs/${jobId}/actual`, {
@@ -1107,7 +1537,7 @@ export const irrigationAPI = {
     fieldId: string,
   ): Promise<ApiResponse<IrrigationZoneRecommendation[]>> {
     const token = await secureGet(TOKEN_KEY);
-    if (!token || token === "DEMO_MODE_TOKEN") {
+    if (!token || isDemoToken(token)) {
       return { success: true, data: [] };
     }
     return authFetch<IrrigationZoneRecommendation[]>(

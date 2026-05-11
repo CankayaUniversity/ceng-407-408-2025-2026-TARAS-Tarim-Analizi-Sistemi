@@ -11,12 +11,16 @@ import React, {
   useState,
 } from "react";
 import { InteractionManager } from "react-native";
-import { useChat } from "../hooks/useChat";
+import { useChat, type DemoChatOptions } from "../hooks/useChat";
 import { useAuth } from "./AuthContext";
 import { useDashboard } from "./DashboardContext";
 import { useSectionFocus } from "./SectionFocusContext";
+import { useTheme } from "./ThemeContext";
+import { useLanguage } from "./LanguageContext";
 import { navigationRef, TabParamList } from "../navigation/navigationRef";
 import { ScreenType } from "../constants";
+import { diseaseAPI } from "../utils/api";
+import type { DiseaseDetection } from "../utils/api";
 
 type UseChatReturn = ReturnType<typeof useChat>;
 
@@ -32,15 +36,55 @@ interface ChatContextValue extends UseChatReturn {
 const ChatContext = createContext<ChatContextValue | null>(null);
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
-  const { handleLogout } = useAuth();
-  const { selectedFieldId } = useDashboard();
+  const { handleLogout, dataSource } = useAuth();
+  const { selectedFieldId, fields } = useDashboard();
   const { requestFocus } = useSectionFocus();
+  const { setThemeMode } = useTheme();
+  const { language, setLanguage } = useLanguage();
   const [showChat, setShowChat] = useState(false);
   const [aiSpotIndex, setAiSpotIndex] = useState(0);
   const [aiMoveTarget, setAiMoveTarget] = useState<number | null>(null);
   const focusTaskRef = useRef<{ cancel: () => void } | null>(null);
 
-  // Unmount'ta bekleyen focus gorevini iptal et
+  // Demo chat asistanin frontend tools callback'leri (AWS modunda kullanilmaz)
+  const selectedFieldName = useMemo(
+    () => fields.find((f) => f.id === selectedFieldId)?.name,
+    [fields, selectedFieldId],
+  );
+
+  const onCreateFolder = useCallback(
+    async (zoneId: string, name: string) => {
+      const res = await diseaseAPI.createFolder(zoneId, name);
+      if (!res.success || !res.data) return null;
+      return { folderId: res.data.folderId, folderName: res.data.name };
+    },
+    [],
+  );
+
+  const onSimulateScan = useCallback(
+    async (label: string): Promise<DiseaseDetection | null> => {
+      // Bos URI ile sahte capture; submitDetection demo dali hintedLabel'i alir
+      const submit = await diseaseAPI.submitDetection("", null, label, null);
+      if (!submit.success || !submit.data) return null;
+      const poll = await diseaseAPI.getDetectionStatus(submit.data.detectionId);
+      return poll.success && poll.data ? poll.data : null;
+    },
+    [],
+  );
+
+  const demoOptions: DemoChatOptions | undefined =
+    dataSource === "demo"
+      ? {
+          fields,
+          selectedFieldName,
+          language,
+          onSwitchTheme: setThemeMode,
+          onSwitchLanguage: setLanguage,
+          onCreateFolder,
+          onSimulateScan,
+        }
+      : undefined;
+
   useEffect(() => {
     return () => {
       focusTaskRef.current?.cancel();
@@ -69,7 +113,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     [handleLogout, requestFocus],
   );
 
-  const chat = useChat(handleLLMNavigate, selectedFieldId);
+  const chat = useChat(handleLLMNavigate, selectedFieldId, demoOptions);
 
   // Pending bubble geldiginde chat'i kapat ve AI butonu diger noktaya tasi
   useEffect(() => {

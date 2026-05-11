@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ChatMessage } from "../types";
-import { API_HOST, authAPI } from "../utils/api";
+import { API_HOST, authAPI, isDemoToken } from "../utils/api";
+import type { DiseaseDetection, FieldSummary } from "../utils/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { runDemoTurn, type DemoSseEvent } from "../utils/demo/demoChat";
 
 const ADVISORY_STREAM_URL = `${API_HOST}/api/advisory/stream`;
 const SESSION_URL = `${API_HOST}/api/advisory/session`;
@@ -54,9 +56,24 @@ export interface ChatSessionSummary {
   last_message_at: string | null;
 }
 
+/** ChatContext'in inject ettigi demo callback'leri (AWS modunda kullanilmaz). */
+export interface DemoChatOptions {
+  fields: FieldSummary[];
+  selectedFieldName?: string;
+  language: "tr" | "en";
+  onSwitchTheme?: (mode: "light" | "dark" | "system") => Promise<void> | void;
+  onSwitchLanguage?: (lang: "tr" | "en") => Promise<void> | void;
+  onCreateFolder?: (
+    zoneId: string,
+    name: string,
+  ) => Promise<{ folderId: string; folderName: string } | null>;
+  onSimulateScan?: (label: string) => Promise<DiseaseDetection | null>;
+}
+
 export const useChat = (
   onNavigate: NavigateHandler,
   fieldId: string | null,
+  demoOptions?: DemoChatOptions,
 ) => {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
   const [chatInput, setChatInput] = useState("");
@@ -70,11 +87,16 @@ export const useChat = (
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toolDotIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentToolLabelRef = useRef<string>("");
+  const demoTurnRef = useRef<{ cancel: () => void } | null>(null);
+  const demoOptionsRef = useRef<DemoChatOptions | undefined>(demoOptions);
+  useEffect(() => {
+    demoOptionsRef.current = demoOptions;
+  }, [demoOptions]);
 
-  // Unmount'ta acik stream ve intervalleri temizle
   useEffect(() => {
     return () => {
       xhrRef.current?.abort();
+      demoTurnRef.current?.cancel();
       if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
       if (toolDotIntervalRef.current) clearInterval(toolDotIntervalRef.current);
     };
@@ -89,6 +111,31 @@ export const useChat = (
     try {
       const token = await authAPI.getToken();
       if (!token) return;
+
+      if (isDemoToken(token)) {
+        const { getActiveSessionForField } = await import("../utils/demo/demoStorage");
+        const fieldName = demoOptionsRef.current?.fields.find(
+          (f) => f.id === fId,
+        )?.name ?? "Tarla";
+        const session = await getActiveSessionForField(fId, fieldName);
+        if (session && session.messages.length > 0) {
+          console.log("[CHAT] demo session yuklendi:", session.messages.length, "mesaj");
+          setSessionId(session.session_id);
+          setMessages([
+            WELCOME,
+            ...session.messages.map((m) => ({
+              id: m.id,
+              text: m.text,
+              sender: m.sender,
+              timestamp: new Date(m.timestamp),
+            })),
+          ]);
+        } else {
+          setSessionId(null);
+          setMessages([WELCOME]);
+        }
+        return;
+      }
 
       const res = await fetchWithTimeout(
         `${SESSION_URL}?field_id=${fId}`,
@@ -138,9 +185,15 @@ export const useChat = (
     }
   }, [fieldId, loadFieldSession]);
 
-  // Yeni sohbet baslat
-  const startNewChat = useCallback(() => {
+  const startNewChat = useCallback(async () => {
     console.log("[CHAT] yeni sohbet");
+    const token = await authAPI.getToken();
+    if (isDemoToken(token) && fieldIdRef.current) {
+      try {
+        const { startNewSession } = await import("../utils/demo/demoStorage");
+        await startNewSession(fieldIdRef.current);
+      } catch { /* sessiz */ }
+    }
     setSessionId(null);
     setMessages([WELCOME]);
     setChatInput("");
@@ -373,6 +426,60 @@ export const useChat = (
       setIsLoading(false);
     };
 
+    // Demo: XHR yerine runDemoTurn parseNewChunks + finalizeStream ikilisine emit eder
+    if (isDemoToken(token)) {
+      const opts = demoOptionsRef.current;
+      let demoBuffer = "";
+      const handleDemoEvent = (event: DemoSseEvent) => {
+        demoBuffer += `data: ${JSON.stringify(event)}\n`;
+        parseNewChunks(demoBuffer);
+        if (event.done) {
+          finalizeStream();
+          const fieldName =
+            opts?.fields.find((f) => f.id === currentFieldId)?.name ?? "Tarla";
+          const finalText = accumulated;
+          void (async () => {
+            try {
+              const { appendMessages } = await import("../utils/demo/demoStorage");
+              await appendMessages(currentFieldId, fieldName, [
+                {
+                  id: userMsg.id,
+                  text: userMsg.text,
+                  sender: "user",
+                  timestamp: userMsg.timestamp.toISOString(),
+                },
+                {
+                  id: streamingId,
+                  text: finalText,
+                  sender: "assistant",
+                  timestamp: new Date().toISOString(),
+                },
+              ]);
+            } catch (err) {
+              console.log("[CHAT] demo persist err:", err);
+            }
+          })();
+        }
+      };
+
+      demoTurnRef.current?.cancel();
+      const handle = runDemoTurn({
+        message: text,
+        fieldId: currentFieldId,
+        sessionId: sessionIdSnapshot,
+        fields: opts?.fields ?? [],
+        selectedFieldName: opts?.selectedFieldName,
+        language: opts?.language ?? "tr",
+        onSwitchTheme: opts?.onSwitchTheme,
+        onSwitchLanguage: opts?.onSwitchLanguage,
+        onCreateFolder: opts?.onCreateFolder,
+        onSimulateScan: opts?.onSimulateScan,
+        onEvent: handleDemoEvent,
+      });
+      demoTurnRef.current = handle;
+      return;
+    }
+
     xhr.send(
       JSON.stringify({
         message: text,
@@ -391,6 +498,14 @@ export const useChat = (
       const token = await authAPI.getToken();
       if (!token) return;
       setIsLoadingHistory(true);
+
+      if (isDemoToken(token)) {
+        const { listSessionSummaries } = await import("../utils/demo/demoStorage");
+        const summaries = await listSessionSummaries();
+        setHistorySessions(summaries);
+        return;
+      }
+
       const res = await fetchWithTimeout(
         HISTORY_URL,
         { headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" } },
@@ -412,6 +527,26 @@ export const useChat = (
     try {
       const token = await authAPI.getToken();
       if (!token) return;
+
+      if (isDemoToken(token)) {
+        const { getSessionById } = await import("../utils/demo/demoStorage");
+        const session = await getSessionById(sid);
+        if (session && session.messages.length > 0) {
+          setSessionId(session.session_id);
+          setMessages([
+            WELCOME,
+            ...session.messages.map((m) => ({
+              id: m.id,
+              text: m.text,
+              sender: m.sender,
+              timestamp: new Date(m.timestamp),
+            })),
+          ]);
+          console.log("[CHAT] demo gecmis session yuklendi:", sid.slice(0, 8));
+        }
+        return;
+      }
+
       // Session mesajlarini session endpoint'inden al (field_id gerekmez, session id ile)
       const res = await fetchWithTimeout(
         `${SESSION_URL}?session_id=${sid}`,

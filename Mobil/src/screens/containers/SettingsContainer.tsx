@@ -5,11 +5,23 @@ import { SettingsScreen } from "../";
 import { HardwareSetupModal } from "../Settings/HardwareSetupModal";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
+import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useLanguage } from "../../context/LanguageContext";
 
 export const SettingsContainer = () => {
   const { theme, isDark, themeMode, setThemeMode } = useTheme();
-  const { handleLogout } = useAuth();
+  const { handleLogout, dataSource } = useAuth();
+  const { showPopup } = usePopupMessage();
+  const { t } = useLanguage();
   const [showHardwareSetup, setShowHardwareSetup] = useState(false);
+
+  const onHardwareSetup = () => {
+    if (dataSource === "demo") {
+      showPopup(t.disease.demoHardwareUnavailable);
+      return;
+    }
+    setShowHardwareSetup(true);
+  };
 
   return (
     <>
@@ -19,7 +31,7 @@ export const SettingsContainer = () => {
         themeMode={themeMode}
         onThemeModeChange={setThemeMode}
         onLogout={handleLogout}
-        onHardwareSetup={() => setShowHardwareSetup(true)}
+        onHardwareSetup={onHardwareSetup}
       />
       <HardwareSetupModal
         visible={showHardwareSetup}

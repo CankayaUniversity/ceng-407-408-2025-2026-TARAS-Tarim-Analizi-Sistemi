@@ -13,7 +13,10 @@ import { PhotoPreview } from "./PhotoPreview";
 import { DiseaseScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useAuth } from "../../context/AuthContext";
 import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
+import { DEMO_SAMPLE_IMAGES } from "../../utils/demo/demoData";
+import { pickSampleImage, resolveSampleImageUri } from "../../utils/demo/demoSampleImage";
 import { vs, ms, s } from "../../utils/responsive";
 
 // Native variant'taki CameraView crop overlay'i ile birebir ayni — kullanici
@@ -35,7 +38,10 @@ export const DiseaseCameraScreenExpoGo = ({
 }: DiseaseScreenProps) => {
   const { showPopup } = usePopupMessage();
   const { t, language } = useLanguage();
+  const { dataSource } = useAuth();
   const insets = useSafeAreaInsets();
+  const isDemo = dataSource === "demo";
+  const showSampleBtn = isDemo && DEMO_SAMPLE_IMAGES.length > 0;
 
   const [activeFolderContext, setActiveFolderContext] = useState(folderContext ?? null);
   useEffect(() => {
@@ -50,6 +56,7 @@ export const DiseaseCameraScreenExpoGo = ({
   const [isPreparing, setIsPreparing] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [showHint, setShowHint] = useState(true);
+  const [pendingHintedLabel, setPendingHintedLabel] = useState<string | null>(null);
 
   useEffect(() => {
     const handle = setTimeout(() => setShowHint(false), HINT_AUTOHIDE_MS);
@@ -60,12 +67,7 @@ export const DiseaseCameraScreenExpoGo = ({
     const w = width ?? 0;
     const h = height ?? 0;
     if (w <= 0 || h <= 0) return uri;
-    return prepareDiseaseImageForUpload(uri, {
-      width: w,
-      height: h,
-      exportSize: 256,
-      quality: 0.82,
-    });
+    return prepareDiseaseImageForUpload(uri, { width: w, height: h });
   };
 
   const takePicture = async () => {
@@ -75,7 +77,11 @@ export const DiseaseCameraScreenExpoGo = ({
     }
     setIsPreparing(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 1, exif: false });
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.92,
+        exif: true,
+        skipProcessing: true,
+      });
       if (photo?.uri) {
         const prepared = await prepareImage(photo.uri, photo.width, photo.height);
         setPhotoUri(prepared);
@@ -89,15 +95,43 @@ export const DiseaseCameraScreenExpoGo = ({
     }
   };
 
+  const handlePickSample = async () => {
+    try {
+      const sample = await pickSampleImage(
+        t.disease.sampleSheetTitle,
+        t.common.cancel,
+      );
+      if (!sample) return;
+      setIsPreparing(true);
+      const uri = await resolveSampleImageUri(sample.module);
+      if (!uri) {
+        showPopup(t.disease.sampleResolveError);
+        return;
+      }
+      const prepared = await prepareDiseaseImageForUpload(uri, {
+        width: 256,
+        height: 256,
+      }).catch(() => uri);
+      setPhotoUri(prepared);
+      setPendingHintedLabel(sample.label);
+      setIsPreview(true);
+    } catch (err) {
+      console.log("[ERR] sample pick:", err);
+      showPopup(t.disease.sampleResolveError);
+    } finally {
+      setIsPreparing(false);
+    }
+  };
+
   const pickFromGallery = async () => {
     try {
       setIsPreparing(true);
+      // EXIF korunur; HEIC iOS 14+'ta JPEG'e cevrilir; native aspect korunur
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-        base64: false,
+        mediaTypes: ["images"],
+        exif: true,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
       });
       if (!result.canceled) {
         const asset = result.assets?.[0];
@@ -122,10 +156,21 @@ export const DiseaseCameraScreenExpoGo = ({
       {
         text: t.common.yes,
         onPress: () => {
-          if (onSendForAnalysis) onSendForAnalysis(photoUri, activeFolderContext?.folderId ?? null);
-          else showPopup(t.camera.sentSuccess);
+          if (onSendForAnalysis) {
+            const extras = isDemo
+              ? { hintedLabel: pendingHintedLabel, liveScanResult: null }
+              : undefined;
+            onSendForAnalysis(
+              photoUri,
+              activeFolderContext?.folderId ?? null,
+              extras,
+            );
+          } else {
+            showPopup(t.camera.sentSuccess);
+          }
           setPhotoUri(null);
           setIsPreview(false);
+          setPendingHintedLabel(null);
         },
       },
     ]);
@@ -134,6 +179,7 @@ export const DiseaseCameraScreenExpoGo = ({
   const handleCancelPreview = () => {
     setPhotoUri(null);
     setIsPreview(false);
+    setPendingHintedLabel(null);
   };
 
   if (isPreview && photoUri) {
@@ -274,9 +320,17 @@ export const DiseaseCameraScreenExpoGo = ({
       </View>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + vs(16) }]}>
-        <TouchableOpacity onPress={pickFromGallery} disabled={isPreparing} style={styles.sideBtn}>
-          <MaterialCommunityIcons name="image-outline" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.bottomLeftCluster}>
+          <TouchableOpacity onPress={pickFromGallery} disabled={isPreparing} style={styles.sideBtn}>
+            <MaterialCommunityIcons name="image-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          {showSampleBtn && (
+            <TouchableOpacity onPress={handlePickSample} style={styles.samplePill} disabled={isPreparing}>
+              <Ionicons name="sparkles" size={14} color="#fff" />
+              <Text style={styles.samplePillLabel}>{t.disease.sampleButton}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         <Pressable
           onPress={takePicture}
@@ -373,6 +427,26 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.15)",
+  },
+  bottomLeftCluster: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  samplePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  samplePillLabel: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
   },
   shutterOuter: {
     width: 72,
