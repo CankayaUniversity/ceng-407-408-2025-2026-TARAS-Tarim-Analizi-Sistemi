@@ -80,6 +80,8 @@ module.exports = {
       demoPassword: process.env.DEMO_PASSWORD,
       awsDemoUsername: process.env.AWS_DEMO_USERNAME,
       awsDemoPassword: process.env.AWS_DEMO_PASSWORD,
+      // DEMO_ONLY=true → DemoOnlyLoginScreen render edilir (input + register gizlenir)
+      demoOnly: process.env.DEMO_ONLY === "true",
     },
   },
 };

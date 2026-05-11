@@ -2,19 +2,23 @@
 // Tablar logged in iken mount'lu, chat overlay showChat iken ustte gozukuyor
 
 import { View, Text, Platform } from "react-native";
+import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useChatContext } from "../context/ChatContext";
-import { LoginScreen } from "../screens";
+import { LoginScreen, DemoOnlyLoginScreen } from "../screens";
 import { AppHeader } from "../components/AppHeader";
 import { AppTabs } from "./AppTabs";
 import { ChatBubbleLayer } from "../components/ChatBubbleLayer";
 import { DraggableAIButtonLayer } from "../components/DraggableAIButtonLayer";
 import { ChatOverlay } from "../components/ChatOverlay";
 import { appStyles } from "../styles";
+
+// DEMO_ONLY=true release'inde DemoOnlyLoginScreen render edilir (sadece 2 CTA)
+const DEMO_ONLY_RELEASE = Constants.expoConfig?.extra?.demoOnly === true;
 
 export const AppRouter = () => {
   const { isLoggedIn, isAuthReady, handleLogin, handleSkip } = useAuth();
@@ -46,11 +50,19 @@ export const AppRouter = () => {
         <StatusBar style={isDark ? "light" : "dark"} />
 
         {!isLoggedIn ? (
-          <LoginScreen
-            theme={theme}
-            onLoginSuccess={handleLogin}
-            onSkip={handleSkip}
-          />
+          DEMO_ONLY_RELEASE ? (
+            <DemoOnlyLoginScreen
+              theme={theme}
+              onLoginSuccess={handleLogin}
+              onSkip={handleSkip}
+            />
+          ) : (
+            <LoginScreen
+              theme={theme}
+              onLoginSuccess={handleLogin}
+              onSkip={handleSkip}
+            />
+          )
         ) : (
           <>
             <View

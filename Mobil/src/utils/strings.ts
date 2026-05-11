@@ -32,7 +32,11 @@ export interface StringDictionary {
     registerButton: string;
     skipButton: string;
     localDemoButton: string;
+    localDemoSubtitle: string;
     awsDemoButton: string;
+    awsDemoSubtitle: string;
+    demoOnlyHeading: string;
+    demoOnlyBody: string;
     switchToRegister: string;
     switchToLogin: string;
     connectingToServer: string;
@@ -467,8 +471,12 @@ const tr: StringDictionary = {
     loginButton: "Giriş Yap",
     registerButton: "Kayıt Ol",
     skipButton: "Demo modu ile devam et",
-    localDemoButton: "Yerel Demo",
-    awsDemoButton: "AWS Demo",
+    localDemoButton: "Local Demo",
+    localDemoSubtitle: "Tamamen yerel — hesap gerekmez",
+    awsDemoButton: "Canlı Sunucu Demo",
+    awsDemoSubtitle: "Bulutta canlı sensör verileriyle örnek hesap",
+    demoOnlyHeading: "Demoyu Keşfet",
+    demoOnlyBody: "TARAS'ı nasıl deneyimleyeceğini seç",
     switchToRegister: "Hesabınız yok mu? Kayıt Ol",
     switchToLogin: "Zaten hesabınız var mı? Giriş Yap",
     connectingToServer: "Sunucuya bağlanılıyor...",
@@ -895,7 +903,11 @@ const en: StringDictionary = {
     registerButton: "Sign Up",
     skipButton: "Continue with Demo Mode",
     localDemoButton: "Local Demo",
-    awsDemoButton: "AWS Demo",
+    localDemoSubtitle: "Fully offline — no account needed",
+    awsDemoButton: "Live Server Demo",
+    awsDemoSubtitle: "Sample cloud account with live sensor data",
+    demoOnlyHeading: "Try TARAS",
+    demoOnlyBody: "Choose how to explore TARAS",
     switchToRegister: "Don't have an account? Sign Up",
     switchToLogin: "Already have an account? Log In",
     connectingToServer: "Connecting to server...",
