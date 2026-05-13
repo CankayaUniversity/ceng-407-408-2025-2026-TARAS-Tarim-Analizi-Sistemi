@@ -159,6 +159,7 @@ model Field {
   default_check_after_min      Int?          @default(60)
   environment_type             String?       @db.VarChar(50)
   irrigation_gain_mm_per_100ml Float?
+  irrigation_gain_mm_per_10_min Float?
   irrigation_mode              String?       @db.VarChar(50)
   is_active                    Boolean?      @default(true)
   ml_per_sm_percent            Float?

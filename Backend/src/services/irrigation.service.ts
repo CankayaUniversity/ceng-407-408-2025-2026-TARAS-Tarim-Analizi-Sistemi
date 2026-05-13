@@ -42,6 +42,20 @@ const TOMATO_POT_RULES = {
 
 
 
+// KCLER
+const TOMATO_GREENHOUSE_RULES = {
+  kc_by_stage: {
+    seedling: 0.6,
+    vegetative: 0.85,
+    flowering: 1.15,
+    fruiting: 1.15,
+    ripening: 0.86,
+  },
+  safety_limits: {
+    min_duration_min: 0,
+    max_duration_min: 120,
+  },
+} as const;
 
 
 type RecommendationOutput = {
@@ -49,6 +63,7 @@ type RecommendationOutput = {
   start_time: Date | null;
   irrigation_mode: string | null;
   water_amount_ml: number;
+  recommended_duration_min: number | null;
   required_water_mm: number;
   predicted_sm_after_check: number;
   recommended_check_after_min: number | null;
@@ -65,7 +80,7 @@ type CalibrationResult = {
   record_count: number;
   learned_ml_per_sm_percent: number | null;
   learned_sm_percent_per_100ml: number | null;
-  learned_sm _percent_per_10_min: number | null;
+  learned_sm_percent_per_10_min: number | null;
   median_prediction_error: number;
 };
 
@@ -120,6 +135,46 @@ function getStageThresholds(growthStage: string) {
 }
 
 
+
+function getGreenhouseKc(growthStage: string): number | null {
+  return (
+    TOMATO_GREENHOUSE_RULES.kc_by_stage[
+      growthStage as keyof typeof TOMATO_GREENHOUSE_RULES.kc_by_stage
+    ] ?? null
+  );
+}
+
+
+function estimateGreenhouseEtoMmPerDay(
+  temperature: number,
+  humidity: number
+): number {
+  const saturationVaporPressure =
+    0.6108 * Math.exp((17.27 * temperature) / (temperature + 237.3));
+
+  const actualVaporPressure = saturationVaporPressure * (humidity / 100);
+  const vpd = Math.max(0, saturationVaporPressure - actualVaporPressure);
+
+  const baseEto = 2.0;
+  const tempFactor = Math.max(0, temperature - 20) * 0.08;
+  const vpdFactor = vpd * 0.6;
+
+  return clamp(baseEto + tempFactor + vpdFactor, 1.0, 6.0);
+}
+
+// Tam FAO değil, bizim MVP için
+
+
+function applyGreenhouseDurationLimits(durationMin: number): number {
+  return clamp(
+    durationMin,
+    TOMATO_GREENHOUSE_RULES.safety_limits.min_duration_min,
+    TOMATO_GREENHOUSE_RULES.safety_limits.max_duration_min
+  );
+}
+
+
+
 function getUrgency(
   currentSm: number,
   recSmMin: number,
@@ -144,6 +199,12 @@ function applySafetyLimits(waterAmountMl: number): number {
   }
 
   return value;
+}
+
+
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 
@@ -222,6 +283,7 @@ export async function getIrrigationPreviewInput(zoneId: string) {
     sm_percent_per_100ml: zone.field.sm_percent_per_100ml,
     irrigation_gain_mm_per_100ml: zone.field.irrigation_gain_mm_per_100ml,
     default_check_after_min: zone.field.default_check_after_min ?? 60,
+    irrigation_gain_mm_per_10_min:zone.field.irrigation_gain_mm_per_10_min,
   };
 
   const sensorRow = {
@@ -266,6 +328,8 @@ export async function getIrrigationPythonPayload(zoneId: string) {
       sm_percent_per_100ml: preview.fieldRow.sm_percent_per_100ml,
       irrigation_gain_mm_per_100ml: preview.fieldRow.irrigation_gain_mm_per_100ml,
       default_check_after_min: preview.fieldRow.default_check_after_min,
+     irrigation_gain_mm_per_10_min:
+  preview.fieldRow.irrigation_gain_mm_per_10_min,
     },
     sensor_row: {
       id: preview.sensorRow.id,
@@ -301,8 +365,11 @@ export async function generateAndSaveIrrigationJob(zoneId: string) {
     };
   }
 
-  const preview = await getIrrigationPreviewInput(zoneId);
-  const calibration = await getPotCalibrationForZone(zoneId);
+ const preview = await getIrrigationPreviewInput(zoneId);
+ const calibration = await getCalibrationForZone(
+  zoneId,
+  preview.fieldRow.environment_type
+);
 
   const { output, resolvedGrowthStage } =
     buildRecommendationFromPreview(preview, calibration);
@@ -496,6 +563,7 @@ function getMedian(values: number[]): number {
 }
 
 
+// POT KALİBRASYONU
 
 async function getPotCalibrationForZone(zoneId: string): Promise<CalibrationResult> {
   const followups = await prisma.irrigationFollowup.findMany({
@@ -508,7 +576,7 @@ async function getPotCalibrationForZone(zoneId: string): Promise<CalibrationResu
         current_sm: { not: null },
         zone: {
            field: {
-              environment_type: "pot";
+              environment_type: "pot",
            },
         },
       },
@@ -580,6 +648,106 @@ async function getPotCalibrationForZone(zoneId: string): Promise<CalibrationResu
       predictionErrors.length > 0 ? getMedian(predictionErrors) : 0,
   };
 }
+
+
+
+
+// GREENHOUSE KALİBRASYONU
+
+async function getGreenhouseCalibrationForZone(
+  zoneId: string
+): Promise<CalibrationResult> {
+  const followups = await prisma.irrigationFollowup.findMany({
+    where: {
+      zone_id: zoneId,
+      sm_after_check: { not: null },
+      job: {
+        status: "ANALYZED",
+        actual_duration_min: { gt: 0 },
+        current_sm: { not: null },
+        zone: {
+          field: {
+            environment_type: "greenhouse",
+          },
+        },
+      },
+    },
+    include: {
+      job: true,
+    },
+    orderBy: {
+      check_time: "desc",
+    },
+    take: 10,
+  });
+
+  const effectValues: number[] = [];
+  const predictionErrors: number[] = [];
+
+  for (const followup of followups) {
+    const smAfter = followup.sm_after_check;
+    const smBefore = followup.job.current_sm;
+    const durationMin = followup.job.actual_duration_min;
+    const predictionError = followup.prediction_error;
+
+    if (
+      smAfter == null ||
+      smBefore == null ||
+      durationMin == null ||
+      durationMin <= 0
+    ) {
+      continue;
+    }
+
+    const smGain = smAfter - smBefore;
+
+    if (smGain <= 0) {
+      continue;
+    }
+
+    const smPercentPer10Min = (smGain / durationMin) * 10;
+    effectValues.push(smPercentPer10Min);
+
+    if (predictionError != null) {
+      predictionErrors.push(predictionError);
+    }
+  }
+
+  if (effectValues.length < 5) {
+    return {
+      record_count: effectValues.length,
+      learned_ml_per_sm_percent: null,
+      learned_sm_percent_per_100ml: null,
+      learned_sm_percent_per_10_min: null,
+      median_prediction_error: 0,
+    };
+  }
+
+  return {
+    record_count: effectValues.length,
+    learned_ml_per_sm_percent: null,
+    learned_sm_percent_per_100ml: null,
+    learned_sm_percent_per_10_min: getMedian(effectValues),
+    median_prediction_error:
+      predictionErrors.length > 0 ? getMedian(predictionErrors) : 0,
+  };
+}
+
+
+// environmente göre ayrılır
+
+async function getCalibrationForZone(
+  zoneId: string,
+  environmentType: string | null
+): Promise<CalibrationResult> {
+  if (environmentType === "greenhouse") {
+    return getGreenhouseCalibrationForZone(zoneId);
+  }
+
+  return getPotCalibrationForZone(zoneId);
+}
+
+
 
 
 
@@ -662,6 +830,7 @@ function buildRecommendationFromPreview(
         start_time: null,
         irrigation_mode: field.irrigation_mode,
         water_amount_ml: 0,
+        recommended_duration_min: null,
         required_water_mm: 0,
         predicted_sm_after_check: sensor.sm_percent,
         recommended_check_after_min: null,
@@ -687,6 +856,7 @@ function buildRecommendationFromPreview(
         start_time: null,
         irrigation_mode: field.irrigation_mode,
         water_amount_ml: 0,
+        recommended_duration_min: null,
         required_water_mm: 0,
         predicted_sm_after_check: sensor.sm_percent,
         recommended_check_after_min: null,
@@ -741,6 +911,7 @@ function buildRecommendationFromPreview(
       start_time: recommendationTime,
       irrigation_mode: field.irrigation_mode,
       water_amount_ml: Number(waterAmountMl.toFixed(2)),
+      recommended_duration_min: null,
       required_water_mm: Number(requiredWaterMm.toFixed(2)),
       predicted_sm_after_check: Number(predictedSmAfterCheck.toFixed(2)),
       recommended_check_after_min: recommendedCheckAfterMin,
@@ -804,7 +975,7 @@ function buildIrrigationJobData(
     start_time: output.start_time,
     growth_stage: resolvedGrowthStage,
     water_amount_ml: output.water_amount_ml,
-    recommended_duration_min: null,
+    recommended_duration_min: output.recommended_duration_min,
     current_sm: output.current_sm,
     target_sm: output.target_sm,
     sm_deficit: output.sm_deficit,
