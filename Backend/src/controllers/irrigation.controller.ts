@@ -184,17 +184,43 @@ export const submitIrrigationJobOutcome = asyncHandler(
     const { actual_water_amount_ml, actual_start_time, actual_duration_min } =
       req.body ?? {};
 
-    if (
-      typeof actual_water_amount_ml !== "number" ||
-      !Number.isFinite(actual_water_amount_ml) ||
-      actual_water_amount_ml <= 0
-    ) {
-      res.status(400).json({
-        success: false,
-        error: "'actual_water_amount_ml' pozitif bir sayi olmalidir.",
-      });
-      return;
-    }
+//    if (
+//      typeof actual_water_amount_ml !== "number" ||
+//      !Number.isFinite(actual_water_amount_ml) ||
+//      actual_water_amount_ml <= 0
+//    ) {
+//      res.status(400).json({
+//        success: false,
+//        error: "'actual_water_amount_ml' pozitif bir sayi //olmalidir.",
+//      });
+//      return;
+//    }
+
+// onun yerine
+
+let actualWaterAmountMl: number | undefined = undefined;
+
+if (actual_water_amount_ml !== undefined && actual_water_amount_ml !== null) {
+  if (
+    typeof actual_water_amount_ml !== "number" ||
+    !Number.isFinite(actual_water_amount_ml) ||
+    actual_water_amount_ml <= 0
+  ) {
+    res.status(400).json({
+      success: false,
+      error: "'actual_water_amount_ml' pozitif bir sayi olmalidir.",
+    });
+    return;
+  }
+
+  actualWaterAmountMl = actual_water_amount_ml;
+}
+
+
+//actual_water_amount_ml geldiyse kontrol et.
+//Gelmediyse controller hata verme.
+
+
 
     // duration optional — mobil UI sormuyor, atlanırsa dokunulmaz
     let durationMin: number | undefined = undefined;
@@ -243,10 +269,12 @@ export const submitIrrigationJobOutcome = asyncHandler(
 
     try {
       const updated = await submitIrrigationJobActual(jobId, userId, {
-        actual_water_amount_ml,
-        actual_start_time: startTime,
-        ...(durationMin != null ? { actual_duration_min: durationMin } : {}),
-      });
+  ...(actualWaterAmountMl != null
+    ? { actual_water_amount_ml: actualWaterAmountMl }
+    : {}),
+  actual_start_time: startTime,
+  ...(durationMin != null ? { actual_duration_min: durationMin } : {}),
+});
 
       res.status(200).json({
         success: true,

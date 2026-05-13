@@ -65,6 +65,7 @@ type CalibrationResult = {
   record_count: number;
   learned_ml_per_sm_percent: number | null;
   learned_sm_percent_per_100ml: number | null;
+  learned_sm _percent_per_10_min: number | null;
   median_prediction_error: number;
 };
 
@@ -301,7 +302,7 @@ export async function generateAndSaveIrrigationJob(zoneId: string) {
   }
 
   const preview = await getIrrigationPreviewInput(zoneId);
-  const calibration = await getCalibrationForZone(zoneId);
+  const calibration = await getPotCalibrationForZone(zoneId);
 
   const { output, resolvedGrowthStage } =
     buildRecommendationFromPreview(preview, calibration);
@@ -496,7 +497,7 @@ function getMedian(values: number[]): number {
 
 
 
-async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult> {
+async function getPotCalibrationForZone(zoneId: string): Promise<CalibrationResult> {
   const followups = await prisma.irrigationFollowup.findMany({
     where: {
       zone_id: zoneId,
@@ -505,6 +506,11 @@ async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult>
         status: "ANALYZED",
         actual_water_amount_ml: { gt: 0 },
         current_sm: { not: null },
+        zone: {
+           field: {
+              environment_type: "pot";
+           },
+        },
       },
     },
     include: {
@@ -553,6 +559,7 @@ async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult>
       record_count: effectValues.length,
       learned_ml_per_sm_percent: null,
       learned_sm_percent_per_100ml: null,
+      learned_sm_percent_per_10_min: null,
       median_prediction_error: 0,
     };
   }
@@ -568,6 +575,7 @@ async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult>
     record_count: effectValues.length,
     learned_ml_per_sm_percent: learnedMlPerSmPercent,
     learned_sm_percent_per_100ml: learnedSmPercentPer100ml,
+    learned_sm_percent_per_10_min: null,
     median_prediction_error:
       predictionErrors.length > 0 ? getMedian(predictionErrors) : 0,
   };
@@ -1025,7 +1033,7 @@ export async function getLatestIrrigationJobsByField(
 }
 
 export type SubmitActualInput = {
-  actual_water_amount_ml: number;
+  actual_water_amount_ml?: number;
   actual_start_time: Date;
   actual_duration_min?: number;
 };
@@ -1062,22 +1070,84 @@ export async function submitIrrigationJobActual(
     throw err;
   }
 
+
+
+
+
+const environmentType = job.zone?.field?.environment_type;
+
+if (environmentType === "pot") {
+  if (
+    input.actual_water_amount_ml == null ||
+    input.actual_water_amount_ml <= 0
+  ) {
+    const err = new Error(
+      "Pot irrigation requires actual_water_amount_ml."
+    );
+    (err as any).status = 400;
+    throw err;
+  }
+}
+
+
+
+if (environmentType === "greenhouse") {
+  if (
+    input.actual_duration_min == null ||
+    input.actual_duration_min <= 0
+  ) {
+    const err = new Error(
+      "Greenhouse irrigation requires actual_duration_min."
+    );
+    (err as any).status = 400;
+    throw err;
+  }
+}
+
+if (environmentType !== "pot" && environmentType !== "greenhouse") {
+  const err = new Error(
+    `Unsupported environment_type for irrigation actuals: ${environmentType}`
+  );
+  (err as any).status = 400;
+  throw err;
+}
+
+// pot ise amount zorunlu
+// greenhouse ise duration zorunlu
+
+
+
+const followupCheckTime = calculateFollowupTimeFromActual(
+  input.actual_start_time
+);
+
+
+
+
+
   const updated = await prisma.irrigationJob.update({
     where: { job_id: jobId },
     data: {
-      actual_water_amount_ml: input.actual_water_amount_ml,
-      actual_start_time: input.actual_start_time,
-      ...(input.actual_duration_min != null
-        ? { actual_duration_min: input.actual_duration_min }
-        : {}),
-      status: "EXECUTED",
-    },
+  ...(input.actual_water_amount_ml != null
+    ? { actual_water_amount_ml: input.actual_water_amount_ml }
+    : {}),
+  actual_start_time: input.actual_start_time,
+  ...(input.actual_duration_min != null
+    ? { actual_duration_min: input.actual_duration_min }
+    : {}),
+  followup_check_time: followupCheckTime,
+  status: "EXECUTED",
+},
+
+
+
     select: {
       job_id: true,
       status: true,
       actual_water_amount_ml: true,
       actual_start_time: true,
       actual_duration_min: true,
+      followup_check_time: true,
     },
   });
 
