@@ -749,6 +749,144 @@ async function getCalibrationForZone(
 
 
 
+// greenhouse için
+
+function buildGreenhouseRecommendation(
+  preview: Awaited<ReturnType<typeof getIrrigationPreviewInput>>,
+  calibration: CalibrationResult,
+  resolvedGrowthStage: string,
+  recommendationTime: Date
+): RecommendationOutput {
+  const field = preview.fieldRow;
+  const sensor = preview.sensorRow;
+
+  const thresholds = getStageThresholds(resolvedGrowthStage);
+
+  if (!thresholds) {
+    throw new Error(`unsupported growth_stage: ${resolvedGrowthStage}`);
+  }
+
+  const greenhouseKc = getGreenhouseKc(resolvedGrowthStage);
+
+  if (greenhouseKc == null || greenhouseKc <= 0) {
+    throw new Error(`greenhouse Kc missing for growth_stage: ${resolvedGrowthStage}`);
+  }
+
+  if (
+    field.irrigation_gain_mm_per_10_min == null ||
+    field.irrigation_gain_mm_per_10_min <= 0
+  ) {
+    throw new Error(
+      "Greenhouse irrigation setup missing: irrigation_gain_mm_per_10_min is required."
+    );
+  }
+
+  const { rec_sm_min, rec_sm_max, critical_min, target_sm } = thresholds;
+
+  if (sensor.sm_percent == null) {
+    throw new Error("sm_percent missing");
+  }
+
+  if (sensor.temperature == null) {
+    throw new Error("temperature missing");
+  }
+
+  if (sensor.humidity == null) {
+    throw new Error("humidity missing");
+  }
+
+  if (sensor.sm_percent >= rec_sm_max) {
+    return {
+      should_irrigate: false,
+      start_time: null,
+      irrigation_mode: field.irrigation_mode,
+      water_amount_ml: 0,
+      recommended_duration_min: null,
+      required_water_mm: 0,
+      predicted_sm_after_check: sensor.sm_percent,
+      recommended_check_after_min: null,
+      followup_check_time: null,
+      urgency_level: "low",
+      reason: "Current soil moisture is already above recommended range.",
+      current_sm: sensor.sm_percent,
+      target_sm,
+      sm_deficit: 0,
+    };
+  }
+
+  const urgency = getUrgency(sensor.sm_percent, rec_sm_min, critical_min);
+  const shouldIrrigate = sensor.sm_percent <= rec_sm_min;
+
+  if (!shouldIrrigate) {
+    return {
+      should_irrigate: false,
+      start_time: null,
+      irrigation_mode: field.irrigation_mode,
+      water_amount_ml: 0,
+      recommended_duration_min: null,
+      required_water_mm: 0,
+      predicted_sm_after_check: sensor.sm_percent,
+      recommended_check_after_min: null,
+      followup_check_time: null,
+      urgency_level: urgency,
+      reason: "Soil moisture is still within acceptable range.",
+      current_sm: sensor.sm_percent,
+      target_sm,
+      sm_deficit: 0,
+    };
+  }
+
+  const estimatedEto = estimateGreenhouseEtoMmPerDay(
+    sensor.temperature,
+    sensor.humidity
+  );
+
+  const etc = estimatedEto * greenhouseKc;
+  const baseMmFromEtc = etc / 24;
+
+  const smDeficit = Math.max(0, target_sm - sensor.sm_percent);
+  const deficitAdjustmentMm = smDeficit * 0.5;
+
+  const requiredWaterMm = baseMmFromEtc + deficitAdjustmentMm;
+
+  let durationMin =
+    (requiredWaterMm / field.irrigation_gain_mm_per_10_min) * 10;
+
+  durationMin = applyGreenhouseDurationLimits(durationMin);
+
+  const learnedSmPercentPer10Min = calibration.learned_sm_percent_per_10_min;
+
+  let predictedSmAfterCheck = sensor.sm_percent;
+
+  if (learnedSmPercentPer10Min != null && learnedSmPercentPer10Min > 0) {
+    predictedSmAfterCheck =
+      sensor.sm_percent + (durationMin / 10) * learnedSmPercentPer10Min;
+  }
+
+  if (predictedSmAfterCheck > 100) predictedSmAfterCheck = 100;
+
+  const recommendedCheckAfterMin = field.default_check_after_min ?? 60;
+
+  return {
+    should_irrigate: true,
+    start_time: recommendationTime,
+    irrigation_mode: field.irrigation_mode,
+    water_amount_ml: 0,
+    recommended_duration_min: Number(durationMin.toFixed(2)),
+    required_water_mm: Number(requiredWaterMm.toFixed(2)),
+    predicted_sm_after_check: Number(predictedSmAfterCheck.toFixed(2)),
+    recommended_check_after_min: recommendedCheckAfterMin,
+    followup_check_time: null,
+    urgency_level: urgency,
+    reason:
+      "Irrigation is recommended based on greenhouse Kc, simplified ET0, soil moisture deficit, and irrigation duration calibration.",
+    current_sm: sensor.sm_percent,
+    target_sm,
+    sm_deficit: Number(smDeficit.toFixed(2)),
+  };
+}
+
+
 
 
 
@@ -793,13 +931,7 @@ function buildRecommendationFromPreview(
     throw new Error("humidity missing");
   }
 
-  if (field.environment_type !== "pot") {
-    throw new Error("V1 only supports pot environment");
-  }
 
-  if (field.irrigation_mode !== "manual") {
-    throw new Error("V1 only supports manual irrigation");
-  }
 
   const resolvedGrowthStage = resolveGrowthStage(
     {
@@ -813,7 +945,31 @@ function buildRecommendationFromPreview(
     throw new Error("growth_stage cannot be determined");
   }
 
-  const thresholds = getStageThresholds(resolvedGrowthStage);
+
+if (field.environment_type === "greenhouse") {
+  return {
+    resolvedGrowthStage,
+    recommendationTime,
+    output: buildGreenhouseRecommendation(
+      preview,
+      calibration,
+      resolvedGrowthStage,
+      recommendationTime
+    ),
+  };
+}
+
+if (field.environment_type !== "pot") {
+  throw new Error(`Unsupported environment_type: ${field.environment_type}`);
+}
+
+if (field.irrigation_mode !== "manual") {
+  throw new Error("Pot irrigation only supports manual irrigation mode.");
+}
+
+const thresholds = getStageThresholds(resolvedGrowthStage);
+
+
 
   if (!thresholds) {
     throw new Error(`unsupported growth_stage: ${resolvedGrowthStage}`);
