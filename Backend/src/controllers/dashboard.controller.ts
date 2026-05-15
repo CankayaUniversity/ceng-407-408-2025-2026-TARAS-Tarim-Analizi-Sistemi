@@ -89,7 +89,183 @@ export async function getFieldDashboard(
   }
 }
 
+// create a new field with zones
+export async function createField(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+      return;
+    }
+
+    const { fieldName, cropName, fieldType, polygon, area, zones } = req.body;
+
+    if (!fieldName || !fieldType || !polygon || area == null || !zones) {
+      res.status(400).json({
+        success: false,
+        error: "Missing required fields: fieldName, fieldType, polygon, area, zones",
+      });
+      return;
+    }
+
+    if (fieldType !== "GREENHOUSE" && fieldType !== "POT_AREA") {
+      res.status(400).json({
+        success: false,
+        error: "fieldType must be GREENHOUSE or POT_AREA",
+      });
+      return;
+    }
+
+    const field = await dashboardService.createField(userId, {
+      fieldName,
+      cropName,
+      fieldType,
+      polygon,
+      area,
+      zones,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: field,
+    });
+  } catch (error: any) {
+    if (error.message === "NO_FARM") {
+      res.status(400).json({
+        success: false,
+        error: "User has no farm. Please create a farm first.",
+      });
+      return;
+    }
+    logger.error("Create field error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+}
+
+// create a new farm
+export async function createFarm(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: "Authentication required",
+      });
+      return;
+    }
+
+    const { name, latitude, longitude, altitude_m } = req.body;
+
+    if (!name?.trim()) {
+      res.status(400).json({
+        success: false,
+        error: "Farm name is required",
+      });
+      return;
+    }
+
+    if (latitude == null || longitude == null) {
+      res.status(400).json({
+        success: false,
+        error: "Latitude and longitude are required",
+      });
+      return;
+    }
+
+    if (latitude < -90 || latitude > 90) {
+      res.status(400).json({
+        success: false,
+        error: "Latitude must be between -90 and 90",
+      });
+      return;
+    }
+
+    if (longitude < -180 || longitude > 180) {
+      res.status(400).json({
+        success: false,
+        error: "Longitude must be between -180 and 180",
+      });
+      return;
+    }
+
+    const farm = await dashboardService.createFarm(userId, {
+      name: name.trim(),
+      latitude,
+      longitude,
+      altitude_m: altitude_m ?? null,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: farm,
+    });
+  } catch (error) {
+    logger.error("Create farm error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+}
+
+// get elevation for a coordinate
+export async function getElevation(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  try {
+    const lat = parseFloat(req.query.latitude as string);
+    const lng = parseFloat(req.query.longitude as string);
+
+    if (isNaN(lat) || isNaN(lng)) {
+      res.status(400).json({
+        success: false,
+        error: "Valid latitude and longitude query params are required",
+      });
+      return;
+    }
+
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      res.status(400).json({
+        success: false,
+        error: "Latitude must be -90..90, longitude must be -180..180",
+      });
+      return;
+    }
+
+    const altitude_m = await dashboardService.getElevation(lat, lng);
+
+    res.json({
+      success: true,
+      data: { altitude_m },
+    });
+  } catch (error) {
+    logger.error("Elevation lookup error:", error);
+    res.status(502).json({
+      success: false,
+      error: "Could not fetch elevation data",
+    });
+  }
+}
+
 export default {
   getFields,
   getFieldDashboard,
+  createField,
+  createFarm,
+  getElevation,
 };

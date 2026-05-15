@@ -1,4 +1,5 @@
 export { LoginScreen, DemoOnlyLoginScreen } from './Login';
+export { RegisterScreen } from './Register';
 export { HomeScreen } from './Home';
 export { DiseaseScreen } from './Disease';
 export { TimetableScreen } from './Timetable';

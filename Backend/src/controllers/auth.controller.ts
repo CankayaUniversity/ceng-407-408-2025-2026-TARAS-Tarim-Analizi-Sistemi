@@ -67,10 +67,10 @@ export async function login(req: Request, res: Response): Promise<void> {
 
 export async function register(req: Request, res: Response): Promise<void> {
   try {
-    const { username, email, password, role_id } = req.body;
+    const { username, email, password, roleName } = req.body;
 
     if (!username || !email || !password) {
-      res.status(400).json({ success: false, error: 'Username, email, and password required' });
+      res.status(400).json({ success: false, error: 'Username, email and password required' });
       return;
     }
 
@@ -85,11 +85,16 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Rol ID'sini isimle coz (auto-increment ID sabit degil)
+    const resolvedRoleId = await userService.getRoleIdByName(
+      roleName === "admin" ? "admin" : "farmer",
+    );
+
     const user = await userService.createUser({
       username,
       email,
       password,
-      role_id: role_id || 2,
+      role_id: resolvedRoleId,
     });
 
     logger.info(`New user registered: ${user.username}`);
@@ -119,11 +124,16 @@ export async function register(req: Request, res: Response): Promise<void> {
     // Generic error for both unique-constraint violations AND unexpected failures —
     // prevents username/email enumeration via differential responses.
     if (error.code === 'P2002') {
-      res.status(400).json({ success: false, error: 'Registration failed' });
+      res.status(400).json({ success: false, error: 'Bu kullanıcı adı veya e-posta zaten kullanımda' });
       return;
     }
 
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    if (error.code === 'P2003') {
+      res.status(400).json({ success: false, error: 'Geçersiz rol. Lütfen tekrar deneyin.' });
+      return;
+    }
+
+    res.status(500).json({ success: false, error: 'Internal server error', debug: String(error) });
   }
 }
 

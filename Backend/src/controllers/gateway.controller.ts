@@ -731,7 +731,13 @@ export async function listFarms(req: Request, res: Response): Promise<void> {
 
     const farms = await prisma.farm.findMany({
       where: { user_id: userId },
-      select: { farm_id: true, name: true },
+      select: {
+        farm_id: true,
+        name: true,
+        latitude: true,
+        longitude: true,
+        altitude_m: true,
+      },
     });
 
     res.status(200).json({ success: true, data: farms });

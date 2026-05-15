@@ -6,6 +6,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma";
 import { DEBUG_QUERIES } from "./debug";
 import logger from "../utils/logger";
+import { ensureAdminRole, ensureFarmerRole } from "../services/userService";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -21,8 +22,8 @@ function createPrismaClient(): PrismaClient {
   const pool = new Pool({
     connectionString: dbUrl,
     ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 15000,
+    idleTimeoutMillis: 30000,
   });
 
   const adapter = new PrismaPg(pool);
@@ -53,6 +54,11 @@ export async function initializeDatabase(): Promise<void> {
 
     await prisma.$connect();
     isConnected = true;
+
+    // Seed required roles (idempotent upsert — safe to call every startup)
+    await ensureAdminRole();
+    await ensureFarmerRole();
+
     logger.info("Database connected");
   } catch (error) {
     isConnected = false;

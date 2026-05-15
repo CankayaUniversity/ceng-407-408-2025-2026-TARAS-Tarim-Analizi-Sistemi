@@ -7,6 +7,9 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get('/fields', dashboardController.getFields);
+router.post('/fields', dashboardController.createField);
 router.get('/fields/:fieldId', dashboardController.getFieldDashboard);
+router.post('/farms', dashboardController.createFarm);
+router.get('/elevation', dashboardController.getElevation);
 
 export default router;

@@ -59,8 +59,9 @@ export const AddFieldFlow = ({
         goToStep("preview");
         break;
       case "potCount": {
-        const potZones = generatePotZones(state.potCount);
-        setState((prev) => ({ ...prev, zones: potZones }));
+        // prev.potCount kullan — onUpdate ile setState ayni tick'te calisir,
+        // closure'daki state.potCount henuz guncellenmemis olabilir.
+        setState((prev) => ({ ...prev, zones: generatePotZones(prev.potCount) }));
         goToStep("preview");
         break;
       }

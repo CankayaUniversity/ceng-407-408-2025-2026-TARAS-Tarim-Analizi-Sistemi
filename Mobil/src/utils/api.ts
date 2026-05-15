@@ -188,15 +188,23 @@ export const authAPI = {
     username: string,
     email: string,
     password: string,
+    roleId?: number,
   ): Promise<ApiResponse<LoginData>> {
     try {
       console.log("[AUTH] register:", username);
+      // role_id yerine roleName gonder — auto-increment ID sabit degil
+      const roleName = roleId === 1 ? "admin" : "farmer";
       const res = await fetchWithTimeout(
         `${API_BASE_URL}/auth/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, password }),
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+            roleName,
+          }),
         },
         15000,
       );
@@ -588,6 +596,122 @@ export const dashboardAPI = {
     } catch {
       return null;
     }
+  },
+
+  createField: async (payload: {
+    fieldName: string;
+    cropName?: string;
+    fieldType: "GREENHOUSE" | "POT_AREA";
+    polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+    area: number;
+    zones: {
+      name: string;
+      polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+    }[];
+  }): Promise<ApiResponse<FieldSummary>> => {
+    const token = await secureGet(TOKEN_KEY);
+
+    if (isDemoToken(token)) {
+      // Demo modda sahte ID ile basarili dondur
+      return {
+        success: true,
+        data: {
+          id: `demo-${Date.now()}`,
+          name: payload.fieldName,
+          area: payload.area,
+        },
+      };
+    }
+
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
+    }
+
+    const res = await authFetch<FieldSummary>("/dashboard/fields", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.success && res.data) {
+      return res;
+    }
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to create field");
+  },
+
+  createFarm: async (payload: {
+    name: string;
+    latitude: number;
+    longitude: number;
+    altitude_m: number;
+  }): Promise<ApiResponse<{
+    farm_id: string;
+    name: string;
+    latitude: number | null;
+    longitude: number | null;
+    altitude_m: number | null;
+  }>> => {
+    const token = await secureGet(TOKEN_KEY);
+
+    if (isDemoToken(token)) {
+      return {
+        success: true,
+        data: {
+          farm_id: `demo-farm-${Date.now()}`,
+          name: payload.name,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          altitude_m: payload.altitude_m,
+        },
+      };
+    }
+
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
+    }
+
+    const res = await authFetch<{
+      farm_id: string;
+      name: string;
+      latitude: number | null;
+      longitude: number | null;
+      altitude_m: number | null;
+    }>("/dashboard/farms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.success && res.data) {
+      return res;
+    }
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to create farm");
+  },
+
+  getElevation: async (
+    latitude: number,
+    longitude: number,
+  ): Promise<ApiResponse<{ altitude_m: number }>> => {
+    const token = await secureGet(TOKEN_KEY);
+
+    if (isDemoToken(token)) {
+      // Demo: approximate elevation for Antalya region
+      return { success: true, data: { altitude_m: 30 } };
+    }
+
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
+    }
+
+    return authFetch<{ altitude_m: number }>(
+      `/dashboard/elevation?latitude=${latitude}&longitude=${longitude}`,
+    );
   },
 
   // Logout sirasinda cagrilir — userlar arasi cache leak'ini onler

@@ -204,9 +204,135 @@ export async function getFieldInventory(userId: string) {
   });
 }
 
+// create a new field with zones under the user's farm
+interface CreateFieldInput {
+  fieldName: string;
+  cropName?: string;
+  fieldType: "GREENHOUSE" | "POT_AREA";
+  polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+  area: number;
+  zones: {
+    name: string;
+    polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+  }[];
+}
+
+export async function createField(
+  userId: string,
+  input: CreateFieldInput,
+): Promise<FieldListItem> {
+  // find the user's farm (each user has exactly one)
+  const farm = await prisma.farm.findFirst({
+    where: { user_id: userId },
+    select: { farm_id: true },
+  });
+
+  if (!farm) {
+    throw new Error("NO_FARM");
+  }
+
+  const environmentType =
+    input.fieldType === "GREENHOUSE" ? "GREENHOUSE" : "POT_AREA";
+
+  // create field + zones in a single transaction
+  const field = await prisma.$transaction(async (tx) => {
+    const newField = await tx.field.create({
+      data: {
+        farm_id: farm.farm_id,
+        name: input.fieldName,
+        crop_name: input.cropName || null,
+        area: input.area,
+        polygon: input.polygon,
+        environment_type: environmentType,
+      },
+    });
+
+    if (input.zones.length > 0) {
+      await tx.zone.createMany({
+        data: input.zones.map((z) => ({
+          field_id: newField.field_id,
+          name: z.name,
+          polygon: z.polygon,
+        })),
+      });
+    }
+
+    return newField;
+  });
+
+  return {
+    id: field.field_id,
+    name: field.name,
+    area: field.area ?? 0,
+  };
+}
+
+// create a new farm for the user
+export interface CreateFarmInput {
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  altitude_m?: number;
+  location_text?: string;
+}
+
+export interface FarmResult {
+  farm_id: string;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+  altitude_m: number | null;
+  created_at: Date | null;
+}
+
+export async function createFarm(
+  userId: string,
+  input: CreateFarmInput,
+): Promise<FarmResult> {
+  const farm = await prisma.farm.create({
+    data: {
+      user_id: userId,
+      name: input.name,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      altitude_m: input.altitude_m ?? null,
+      ...(input.location_text ? { location_text: input.location_text } : {}),
+    },
+    select: {
+      farm_id: true,
+      name: true,
+      latitude: true,
+      longitude: true,
+      altitude_m: true,
+      created_at: true,
+    },
+  });
+  return farm;
+}
+
+// fetch elevation from Open-Meteo Elevation API
+export async function getElevation(
+  latitude: number,
+  longitude: number,
+): Promise<number> {
+  const url = `https://api.open-meteo.com/v1/elevation?latitude=${latitude}&longitude=${longitude}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Open-Meteo API error: ${res.status}`);
+  }
+  const data = (await res.json()) as { elevation?: number[] };
+  if (!data.elevation || !Array.isArray(data.elevation) || data.elevation.length === 0) {
+    throw new Error("No elevation data returned from Open-Meteo");
+  }
+  return data.elevation[0]!;
+}
+
 export default {
   getUserFields,
   checkFieldAccess,
   getFieldDashboard,
   getFieldInventory,
+  createField,
+  createFarm,
+  getElevation,
 };

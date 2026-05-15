@@ -12,6 +12,7 @@ import React, {
 import { AppState } from "react-native";
 import {
   dashboardAPI,
+  gatewayAPI,
   DashboardData,
   FieldSummary,
   ERR_AUTH_EXPIRED,
@@ -27,11 +28,15 @@ interface DashboardContextValue {
   refreshing: boolean;
   fieldSelectorOpen: boolean;
   addFieldModalOpen: boolean;
+  initialLoadDone: boolean;
+  hasFarms: boolean;
   selectField: (fieldId: string) => Promise<void>;
   refresh: () => Promise<void>;
+  refreshFields: (selectFieldId?: string) => Promise<void>;
   setFieldSelectorOpen: (open: boolean) => void;
   setAddFieldModalOpen: (open: boolean) => void;
   addLocalField: (summary: FieldSummary, data: DashboardData) => void;
+  notifyFarmCreated: () => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -45,6 +50,8 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
   const [fieldSelectorOpen, setFieldSelectorOpen] = useState(false);
   const [addFieldModalOpen, setAddFieldModalOpen] = useState(false);
   const [localFields] = useState(() => new Map<string, DashboardData>());
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [hasFarms, setHasFarms] = useState(false);
 
   // Auth hatalarini logout'a cevirir. Diger hatalarda mevcut datayi BOZMAZ —
   // bir refresh basarisiz olursa user son bilinen iyi datayi gormeye devam eder
@@ -89,9 +96,10 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     let cancelled = false;
     (async () => {
       if (dataSource === "demo") {
-        // Demo modu: explicit demo (skip-login veya demo user). Demo data dogru.
+        // Demo modu: explicit demo (skip-login veya demo user ile). Demo data dogru.
         const demoFields = getDemoFields();
         if (cancelled) return;
+        setHasFarms(true);
         setFields(demoFields);
         if (demoFields.length > 0) {
           setSelectedFieldId(demoFields[0].id);
@@ -100,6 +108,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
           setSelectedFieldId(null);
           setDashboardData(null);
         }
+        setInitialLoadDone(true);
         return;
       }
 
@@ -109,7 +118,22 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
         setFields([]);
         setSelectedFieldId(null);
         setDashboardData(null);
+        setHasFarms(false);
+        setInitialLoadDone(false);
         try {
+          // Once ciftlikleri kontrol et
+          const farmsRes = await gatewayAPI.getFarms();
+          if (cancelled) return;
+          const userHasFarms = farmsRes.success && farmsRes.data && farmsRes.data.length > 0;
+          setHasFarms(!!userHasFarms);
+
+          if (!userHasFarms) {
+            // Ciftlik yok — bos state, UI "Ciftlik Ekle" gosterir
+            setInitialLoadDone(true);
+            return;
+          }
+
+          // Ciftlik var — tarlalari yukle
           const fieldsData = await dashboardAPI.getFields();
           if (cancelled) return;
           if (fieldsData && fieldsData.length > 0) {
@@ -117,7 +141,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
             setSelectedFieldId(fieldsData[0].id);
             await loadDashboardForField(fieldsData[0].id, false);
           }
-          // 0 field: kullanicinin tarlasi yok — fields=[], data=null. UI spinner.
+          setInitialLoadDone(true);
         } catch (err: any) {
           if (cancelled) return;
           const msg = err?.message ?? "";
@@ -129,6 +153,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
           console.log("[DASHBOARD] init fail:", msg);
           // Network hatasi: state bos kalir, UI spinner gosterir, user
           // pull-to-refresh ile yeniden deneyebilir.
+          setInitialLoadDone(true);
         }
         return;
       }
@@ -137,6 +162,8 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       setFields([]);
       setSelectedFieldId(null);
       setDashboardData(null);
+      setHasFarms(false);
+      setInitialLoadDone(false);
     })();
 
     return () => {
@@ -171,6 +198,38 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     setRefreshing(false);
   }, [selectedFieldId, dataSource, loadDashboardForField]);
 
+  // Tarla listesini sunucudan yeniden yukle, istege bagli olarak belirli tarlayi sec
+  const refreshFields = useCallback(
+    async (selectFieldId?: string) => {
+      if (dataSource === "demo") return;
+      try {
+        const fieldsData = await dashboardAPI.getFields();
+        setFields(fieldsData);
+        const targetId = selectFieldId || selectedFieldId;
+        if (targetId && fieldsData.some((f) => f.id === targetId)) {
+          setSelectedFieldId(targetId);
+          await loadDashboardForField(targetId, false);
+        } else if (fieldsData.length > 0) {
+          setSelectedFieldId(fieldsData[0].id);
+          await loadDashboardForField(fieldsData[0].id, false);
+        }
+        setAddFieldModalOpen(false);
+      } catch (err: any) {
+        const msg = err?.message ?? "";
+        if (msg === ERR_AUTH_EXPIRED || msg === ERR_UNAUTHENTICATED) {
+          await handleLogout();
+        }
+      }
+    },
+    [dataSource, selectedFieldId, loadDashboardForField, handleLogout],
+  );
+
+  // Ciftlik olusturulduktan sonra cagrilir — hasFarms guncelle, tarlalari yenile
+  const notifyFarmCreated = useCallback(async () => {
+    setHasFarms(true);
+    await refreshFields();
+  }, [refreshFields]);
+
   // Lokal tarla ekle — frontend-only, session boyunca gecerli
   const addLocalField = useCallback(
     (summary: FieldSummary, data: DashboardData) => {
@@ -192,11 +251,15 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       refreshing,
       fieldSelectorOpen,
       addFieldModalOpen,
+      initialLoadDone,
+      hasFarms,
       selectField,
       refresh,
+      refreshFields,
       setFieldSelectorOpen,
       setAddFieldModalOpen,
       addLocalField,
+      notifyFarmCreated,
     }),
     [
       fields,
@@ -205,9 +268,13 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       refreshing,
       fieldSelectorOpen,
       addFieldModalOpen,
+      initialLoadDone,
+      hasFarms,
       selectField,
       refresh,
+      refreshFields,
       addLocalField,
+      notifyFarmCreated,
     ],
   );
 

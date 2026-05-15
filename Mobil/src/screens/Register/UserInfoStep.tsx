@@ -1,0 +1,301 @@
+// Hesap bilgileri — kullanici adi, e-posta, sifre, rol
+
+import { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useLanguage } from "../../context/LanguageContext";
+import { s, vs, ms } from "../../utils/responsive";
+import type { RegisterStepProps } from "./types";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export const UserInfoStep = ({
+  theme,
+  state,
+  onUpdate,
+  onSubmit,
+  onBack,
+  isLoading,
+}: RegisterStepProps) => {
+  const { t } = useLanguage();
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = () => {
+    if (
+      !state.username.trim() ||
+      !state.email.trim() ||
+      !state.password.trim() ||
+      !state.confirmPassword.trim()
+    ) {
+      setError(t.register.errorEmptyFields);
+      return;
+    }
+    if (!EMAIL_REGEX.test(state.email.trim())) {
+      setError(t.register.errorInvalidEmail);
+      return;
+    }
+    if (state.password.length < 8) {
+      setError(t.register.errorPasswordTooShort);
+      return;
+    }
+    if (state.password !== state.confirmPassword) {
+      setError(t.register.errorPasswordMismatch);
+      return;
+    }
+    setError(null);
+    onSubmit();
+  };
+
+  return (
+    <View style={{ flex: 1, padding: s(20) }}>
+      {/* Header */}
+      <Text
+        className="font-bold"
+        style={{
+          fontSize: ms(20, 0.3),
+          marginBottom: vs(20),
+          color: theme.textMain,
+        }}
+      >
+        {t.register.stepUserInfo}
+      </Text>
+
+      {/* Error banner */}
+      {error && (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            borderRadius: 8,
+            backgroundColor: theme.danger + "20",
+            paddingVertical: vs(10),
+            paddingHorizontal: s(16),
+            marginBottom: vs(16),
+          }}
+        >
+          <MaterialCommunityIcons
+            name="alert-circle"
+            size={18}
+            color={theme.danger}
+            style={{ marginRight: s(8) }}
+          />
+          <Text
+            style={{ flex: 1, fontSize: ms(13, 0.3), color: theme.danger }}
+          >
+            {error}
+          </Text>
+        </View>
+      )}
+
+      {/* Username */}
+      <TextInput
+        className="w-full rounded-xl border mb-3 surface-bg text-primary"
+        style={{
+          paddingVertical: vs(12),
+          paddingHorizontal: s(16),
+          borderColor: theme.border,
+          fontSize: ms(16, 0.3),
+          color: theme.textMain,
+          backgroundColor: theme.surface,
+        }}
+        placeholder={t.register.usernamePlaceholder}
+        placeholderTextColor={theme.textMuted}
+        value={state.username}
+        onChangeText={(text) => {
+          onUpdate({ username: text });
+          if (error) setError(null);
+        }}
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!isLoading}
+      />
+
+      {/* Email */}
+      <TextInput
+        className="w-full rounded-xl border mb-3 surface-bg text-primary"
+        style={{
+          paddingVertical: vs(12),
+          paddingHorizontal: s(16),
+          borderColor: theme.border,
+          fontSize: ms(16, 0.3),
+          color: theme.textMain,
+          backgroundColor: theme.surface,
+        }}
+        placeholder={t.register.emailPlaceholder}
+        placeholderTextColor={theme.textMuted}
+        value={state.email}
+        onChangeText={(text) => {
+          onUpdate({ email: text });
+          if (error) setError(null);
+        }}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!isLoading}
+      />
+
+      {/* Password */}
+      <TextInput
+        className="w-full rounded-xl border mb-3 surface-bg text-primary"
+        style={{
+          paddingVertical: vs(12),
+          paddingHorizontal: s(16),
+          borderColor: theme.border,
+          fontSize: ms(16, 0.3),
+          color: theme.textMain,
+          backgroundColor: theme.surface,
+        }}
+        placeholder={t.register.passwordPlaceholder}
+        placeholderTextColor={theme.textMuted}
+        value={state.password}
+        onChangeText={(text) => {
+          onUpdate({ password: text });
+          if (error) setError(null);
+        }}
+        secureTextEntry
+        editable={!isLoading}
+      />
+
+      {/* Confirm password */}
+      <TextInput
+        className="w-full rounded-xl border mb-3 surface-bg text-primary"
+        style={{
+          paddingVertical: vs(12),
+          paddingHorizontal: s(16),
+          borderColor: theme.border,
+          fontSize: ms(16, 0.3),
+          color: theme.textMain,
+          backgroundColor: theme.surface,
+        }}
+        placeholder={t.register.confirmPasswordPlaceholder}
+        placeholderTextColor={theme.textMuted}
+        value={state.confirmPassword}
+        onChangeText={(text) => {
+          onUpdate({ confirmPassword: text });
+          if (error) setError(null);
+        }}
+        secureTextEntry
+        editable={!isLoading}
+      />
+
+      {/* Role selector */}
+      <Text
+        style={{
+          fontSize: ms(13, 0.3),
+          color: theme.textSecondary,
+          fontWeight: "600",
+          marginBottom: vs(8),
+          marginTop: vs(4),
+        }}
+      >
+        {t.register.roleLabel}
+      </Text>
+      <View style={{ flexDirection: "row", gap: s(10), marginBottom: vs(16) }}>
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            paddingVertical: vs(10),
+            borderRadius: 10,
+            borderWidth: 1.5,
+            borderColor: state.roleId === 2 ? theme.primary : theme.border,
+            backgroundColor: state.roleId === 2 ? theme.primary + "15" : theme.surface,
+            alignItems: "center",
+          }}
+          onPress={() => onUpdate({ roleId: 2 })}
+          activeOpacity={0.7}
+          disabled={isLoading}
+        >
+          <Text
+            style={{
+              fontSize: ms(14, 0.3),
+              fontWeight: "600",
+              color: state.roleId === 2 ? theme.primary : theme.textSecondary,
+            }}
+          >
+            {t.register.roleFarmer}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            paddingVertical: vs(10),
+            borderRadius: 10,
+            borderWidth: 1.5,
+            borderColor: state.roleId === 1 ? theme.primary : theme.border,
+            backgroundColor: state.roleId === 1 ? theme.primary + "15" : theme.surface,
+            alignItems: "center",
+          }}
+          onPress={() => onUpdate({ roleId: 1 })}
+          activeOpacity={0.7}
+          disabled={isLoading}
+        >
+          <Text
+            style={{
+              fontSize: ms(14, 0.3),
+              fontWeight: "600",
+              color: state.roleId === 1 ? theme.primary : theme.textSecondary,
+            }}
+          >
+            {t.register.roleAdmin}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Submit button */}
+      <TouchableOpacity
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 12,
+          backgroundColor: theme.primary,
+          paddingVertical: vs(14),
+          paddingHorizontal: s(24),
+          marginTop: vs(4),
+          opacity: isLoading ? 0.6 : 1,
+        }}
+        onPress={handleSubmit}
+        activeOpacity={0.7}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator color={theme.textOnPrimary} />
+        ) : (
+          <Text
+            style={{
+              fontSize: ms(16, 0.3),
+              color: theme.textOnPrimary,
+              fontWeight: "bold",
+            }}
+          >
+            {t.register.createAccountButton}
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      {/* Back to login */}
+      <TouchableOpacity
+        style={{ marginTop: vs(16), alignItems: "center" }}
+        onPress={onBack}
+        activeOpacity={0.7}
+        disabled={isLoading}
+      >
+        <Text
+          style={{
+            fontSize: ms(14, 0.3),
+            color: theme.primary,
+            fontWeight: "600",
+          }}
+        >
+          {t.register.backToLogin}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};

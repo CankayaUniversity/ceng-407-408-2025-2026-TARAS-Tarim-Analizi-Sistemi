@@ -1,52 +1,80 @@
 // Son adim: Ozet ve olusturma — tarla bilgilerini gosterir, onayla butonu
-// addLocalField cagirarak DashboardContext'e ekler
+// Backend API cagirarak tarlayi veritabanina kaydeder
 
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { useState } from "react";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useDashboard } from "../../context/DashboardContext";
+import { useAuth } from "../../context/AuthContext";
+import { dashboardAPI } from "../../utils/api";
 import { s, vs, ms } from "../../utils/responsive";
 import {
   generateGreenhouseFieldData,
   generatePotFieldData,
   generateMockDashboardData,
-  generateId,
   calculatePolygonArea,
 } from "./addFieldUtils";
 import type { StepProps } from "./types";
 
-export const PreviewStep = ({ theme, state, onUpdate }: StepProps) => {
+export const PreviewStep = ({ theme, state }: StepProps) => {
   const { t } = useLanguage();
   const { showPopup } = usePopupMessage();
-  const { addLocalField } = useDashboard();
+  const { addLocalField, refreshFields } = useDashboard();
+  const { dataSource } = useAuth();
+  const [creating, setCreating] = useState(false);
 
   const isGreenhouse = state.fieldType === "GREENHOUSE";
   const zoneCount = isGreenhouse ? state.zones.length : state.potCount;
 
-  const handleCreate = () => {
-    let fieldData;
+  const handleCreate = async () => {
+    if (creating) return;
+    setCreating(true);
 
-    if (isGreenhouse) {
-      fieldData = generateGreenhouseFieldData(state.outerPolygon, state.zones);
-    } else {
-      fieldData = generatePotFieldData(state.potCount);
+    try {
+      const fieldData = isGreenhouse
+        ? generateGreenhouseFieldData(state.outerPolygon, state.zones)
+        : generatePotFieldData(state.potCount);
+
+      const area = isGreenhouse
+        ? calculatePolygonArea(state.outerPolygon)
+        : calculatePolygonArea(fieldData.polygon.exterior);
+
+      const zonesPayload = state.zones.map((z) => ({
+        name: z.name,
+        polygon: { exterior: z.polygonPoints },
+      }));
+
+      // Demo modda lokal kaydet, gercek modda backend'e gonder
+      if (dataSource === "demo") {
+        const dashboardData = generateMockDashboardData(fieldData);
+        addLocalField(
+          { id: `demo-${Date.now()}`, name: state.fieldName, area: Math.round(area) },
+          dashboardData,
+        );
+      } else {
+        const res = await dashboardAPI.createField({
+          fieldName: state.fieldName,
+          cropName: state.cropName || undefined,
+          fieldType: state.fieldType as "GREENHOUSE" | "POT_AREA",
+          polygon: { exterior: isGreenhouse ? state.outerPolygon : fieldData.polygon.exterior },
+          area: Math.round(area),
+          zones: zonesPayload,
+        });
+
+        if (res.success && res.data) {
+          await refreshFields(res.data.id);
+        }
+      }
+
+      showPopup(t.addField.fieldCreated);
+    } catch (err) {
+      console.log("[AddField] create error:", err);
+      showPopup(t.addField.fieldCreateError);
+    } finally {
+      setCreating(false);
     }
-
-    const fieldId = generateId();
-    const area = isGreenhouse
-      ? calculatePolygonArea(state.outerPolygon)
-      : calculatePolygonArea(fieldData.polygon.exterior);
-
-    const summary = {
-      id: fieldId,
-      name: state.fieldName,
-      area: Math.round(area),
-    };
-
-    const dashboardData = generateMockDashboardData(fieldData);
-    addLocalField(summary, dashboardData);
-    showPopup(t.addField.fieldCreated);
   };
 
   return (
@@ -183,23 +211,28 @@ export const PreviewStep = ({ theme, state, onUpdate }: StepProps) => {
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 12,
-          backgroundColor: theme.primary,
+          backgroundColor: creating ? theme.primary + "88" : theme.primary,
           paddingVertical: vs(14),
           paddingHorizontal: s(24),
         }}
         onPress={handleCreate}
         activeOpacity={0.7}
+        disabled={creating}
       >
-        <MaterialCommunityIcons
-          name="check-circle"
-          size={20}
-          color={theme.textOnPrimary}
-          style={{ marginRight: s(8) }}
-        />
+        {creating ? (
+          <ActivityIndicator size="small" color={theme.textOnPrimary} style={{ marginRight: s(8) }} />
+        ) : (
+          <MaterialCommunityIcons
+            name="check-circle"
+            size={20}
+            color={theme.textOnPrimary}
+            style={{ marginRight: s(8) }}
+          />
+        )}
         <Text
           style={{ fontSize: ms(16, 0.3), color: theme.textOnPrimary, fontWeight: 'bold' }}
         >
-          {t.addField.createField}
+          {creating ? t.addField.creating : t.addField.createField}
         </Text>
       </TouchableOpacity>
     </View>

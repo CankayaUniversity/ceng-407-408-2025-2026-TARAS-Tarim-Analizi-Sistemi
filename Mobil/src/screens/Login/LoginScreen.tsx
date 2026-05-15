@@ -1,5 +1,6 @@
-// Giris ekrani - kullanici girisi ve kayit islemi
-// Props: theme, onLoginSuccess, onSkip
+// Giris ekrani - sadece kullanici girisi
+// Kayit islemi ayri RegisterScreen'e tasindi
+// Props: theme, onLoginSuccess, onSkip, onGoToRegister
 
 import { useState } from "react";
 import Constants from "expo-constants";
@@ -8,7 +9,6 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  LayoutAnimation,
   View,
   KeyboardAvoidingView,
   ScrollView,
@@ -28,26 +28,18 @@ export const LoginScreen = ({
   theme,
   onLoginSuccess,
   onSkip,
+  onGoToRegister,
 }: LoginScreenProps) => {
   const { showPopup } = usePopupMessage();
   const { t, language, setLanguage } = useLanguage();
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [username, setUsername] = useState("");
   const [serverStatus, setServerStatus] = useState<string | null>(null);
 
   // AWS demo credentials from env
   const awsDemoUsername = Constants.expoConfig?.extra?.awsDemoUsername || "";
   const awsDemoPassword = Constants.expoConfig?.extra?.awsDemoPassword || "";
-
-  const toggleRegisterMode = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsRegisterMode(!isRegisterMode);
-    setConfirmPassword("");
-  };
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -83,44 +75,7 @@ export const LoginScreen = ({
     }
   };
 
-  const handleRegister = async () => {
-    if (
-      !username.trim() ||
-      !email.trim() ||
-      !password.trim() ||
-      !confirmPassword.trim()
-    ) {
-      showPopup(t.login.errorEmptyFields);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      showPopup(t.login.errorPasswordMismatch);
-      return;
-    }
-
-    setIsLoading(true);
-    const response = await authAPI.register(
-      username.trim(),
-      email.trim(),
-      password,
-    );
-    setIsLoading(false);
-
-    if (response.success) {
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-      setUsername("");
-      const displayName = response.data?.user.username || "";
-      onLoginSuccess(displayName);
-    } else {
-      showPopup(response.error || t.login.errorRegistrationFailed);
-    }
-  };
-
   const handleSkip = () => {
-    setEmail("");
     setPassword("");
     onSkip();
   };
@@ -182,25 +137,6 @@ export const LoginScreen = ({
           </Text>
         )}
 
-        {isRegisterMode && (
-          <TextInput
-            className="w-full rounded-xl border mb-3 surface-bg text-primary"
-            style={{
-              paddingVertical: vs(12),
-              paddingHorizontal: s(16),
-              borderColor: theme.border,
-              fontSize: ms(16, 0.3),
-            }}
-            placeholder={t.login.emailPlaceholder}
-            placeholderTextColor={theme.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!isLoading}
-          />
-        )}
-
         <TextInput
           className="w-full rounded-xl border mb-3 surface-bg text-primary"
           style={{
@@ -231,23 +167,6 @@ export const LoginScreen = ({
           secureTextEntry
           editable={!isLoading}
         />
-        {isRegisterMode && (
-          <TextInput
-            className="w-full rounded-xl border mb-3 surface-bg text-primary"
-            style={{
-              paddingVertical: vs(12),
-              paddingHorizontal: s(16),
-              borderColor: theme.border,
-              fontSize: ms(16, 0.3),
-            }}
-            placeholder={t.login.confirmPasswordPlaceholder}
-            placeholderTextColor={theme.textSecondary}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            editable={!isLoading}
-          />
-        )}
         <TouchableOpacity
           className="w-full rounded-xl center mt-6"
           style={{
@@ -256,7 +175,7 @@ export const LoginScreen = ({
             paddingHorizontal: s(24),
             opacity: isLoading ? 0.6 : 1,
           }}
-          onPress={isRegisterMode ? handleRegister : handleLogin}
+          onPress={handleLogin}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -266,21 +185,21 @@ export const LoginScreen = ({
               className="text-center font-bold"
               style={{ color: theme.textOnPrimary, fontSize: ms(16, 0.3) }}
             >
-              {isRegisterMode ? t.login.registerButton : t.login.loginButton}
+              {t.login.loginButton}
             </Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
           className="mt-4"
-          onPress={toggleRegisterMode}
+          onPress={onGoToRegister}
           disabled={isLoading}
         >
           <Text
             className="text-center font-semibold"
             style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
           >
-            {isRegisterMode ? t.login.switchToLogin : t.login.switchToRegister}
+            {t.login.switchToRegister}
           </Text>
         </TouchableOpacity>
 

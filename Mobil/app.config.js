@@ -30,6 +30,23 @@ const plugins = [
   // (ordering + REMOVE-ON-SDK56 gate plugin icinde)
   ["./plugins/withTarasAndroid.js", { useHermesV1 }],
   "@react-native-community/datetimepicker",
+  [
+    "react-native-maps",
+    {
+      // Android: Google Maps API anahtari gerekli — .env veya Google Cloud Console'dan alin
+      // iOS: Apple Maps varsayilan, anahtar gerekmez
+      androidApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
+    },
+  ],
+  [
+    "expo-location",
+    {
+      locationAlwaysAndWhenInUsePermission:
+        "Çiftlik konumunu belirlemek için konum erişimi gereklidir.",
+      locationWhenInUsePermission:
+        "Çiftlik konumunu belirlemek için konum erişimi gereklidir.",
+    },
+  ],
 ];
 
 // ── App version ──────────────────────────────────────────────────────

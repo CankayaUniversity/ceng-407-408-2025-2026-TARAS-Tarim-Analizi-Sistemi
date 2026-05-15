@@ -28,6 +28,7 @@ export interface StringDictionary {
     usernamePlaceholder: string;
     passwordPlaceholder: string;
     confirmPasswordPlaceholder: string;
+    farmNamePlaceholder: string;
     loginButton: string;
     registerButton: string;
     skipButton: string;
@@ -480,13 +481,60 @@ export interface StringDictionary {
     potCountLabel: string;
     cropLabel: string;
     createField: string;
+    creating: string;
     fieldCreated: string;
+    fieldCreateError: string;
     nameRequired: string;
     minPoints: string;
     minOneZone: string;
     potCountPositive: string;
     potCountMax: string;
     zoneNameRequired: string;
+  };
+
+  // Register Screen
+  register: {
+    stepUserInfo: string;
+    usernamePlaceholder: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    confirmPasswordPlaceholder: string;
+    roleLabel: string;
+    roleFarmer: string;
+    roleAdmin: string;
+    createAccountButton: string;
+    backToLogin: string;
+    connectingToServer: string;
+    registering: string;
+    errorEmptyFields: string;
+    errorInvalidEmail: string;
+    errorPasswordTooShort: string;
+    errorPasswordMismatch: string;
+    errorRegistrationFailed: string;
+    errorConnectionFailed: string;
+  };
+
+  // Empty Farm State / Create Farm
+  farm: {
+    addFarm: string;
+    farmNamePlaceholder: string;
+    createFarm: string;
+    creating: string;
+    farmCreated: string;
+    farmCreateError: string;
+    farmNameRequired: string;
+    selectLocation: string;
+    selectLocationHint: string;
+    latitude: string;
+    longitude: string;
+    altitude: string;
+    altitudeHint: string;
+    altitudeFetchFailed: string;
+    fetchingAltitude: string;
+    locationRequired: string;
+    altitudeRequired: string;
+    searchPlaceholder: string;
+    searchNoResults: string;
   };
 }
 
@@ -513,6 +561,7 @@ const tr: StringDictionary = {
     usernamePlaceholder: "Kullanıcı Adı",
     passwordPlaceholder: "Şifre",
     confirmPasswordPlaceholder: "Şifre Tekrar",
+    farmNamePlaceholder: "Çiftlik Adı",
     loginButton: "Giriş Yap",
     registerButton: "Kayıt Ol",
     skipButton: "Demo modu ile devam et",
@@ -955,13 +1004,56 @@ const tr: StringDictionary = {
     potCountLabel: "Saksı Sayısı",
     cropLabel: "Mahsul",
     createField: "Tarlayı Oluştur",
+    creating: "Oluşturuluyor...",
     fieldCreated: "Tarla başarıyla oluşturuldu!",
+    fieldCreateError: "Tarla oluşturulamadı",
     nameRequired: "Tarla adı zorunludur",
     minPoints: "En az 3 nokta gereklidir",
     minOneZone: "En az 1 bölge gereklidir",
     potCountPositive: "Saksı sayısı pozitif bir sayı olmalıdır",
     potCountMax: "En fazla 32 saksı eklenebilir",
     zoneNameRequired: "Bölge adı zorunludur",
+  },
+  register: {
+    stepUserInfo: "Hesap Bilgileri",
+    usernamePlaceholder: "Kullanıcı Adı",
+    emailPlaceholder: "E-posta",
+    passwordPlaceholder: "Şifre",
+    confirmPasswordPlaceholder: "Şifre Tekrar",
+    roleLabel: "Rol",
+    roleFarmer: "Çiftçi",
+    roleAdmin: "Yönetici",
+    createAccountButton: "Hesap Oluştur",
+    backToLogin: "Zaten hesabınız var mı? Giriş Yapın",
+    connectingToServer: "Sunucuya bağlanılıyor...",
+    registering: "Hesap oluşturuluyor...",
+    errorEmptyFields: "Lütfen tüm alanları doldurun",
+    errorInvalidEmail: "Geçerli bir e-posta adresi girin",
+    errorPasswordTooShort: "Şifre en az 8 karakter olmalıdır",
+    errorPasswordMismatch: "Şifreler eşleşmiyor",
+    errorRegistrationFailed: "Kayıt başarısız oldu",
+    errorConnectionFailed: "Sunucuya bağlanılamadı",
+  },
+  farm: {
+    addFarm: "Çiftlik Ekle",
+    farmNamePlaceholder: "Çiftlik Adı",
+    createFarm: "Çiftlik Oluştur",
+    creating: "Oluşturuluyor...",
+    farmCreated: "Çiftlik başarıyla oluşturuldu!",
+    farmCreateError: "Çiftlik oluşturulamadı",
+    farmNameRequired: "Çiftlik adı zorunludur",
+    selectLocation: "Konum Seçin",
+    selectLocationHint: "Haritada çiftlik konumuna dokunun",
+    latitude: "Enlem",
+    longitude: "Boylam",
+    altitude: "Yükseklik (m)",
+    altitudeHint: "Koordinat seçildikten sonra otomatik doldurulur",
+    altitudeFetchFailed: "Yükseklik otomatik alınamadı. Lütfen elle girin.",
+    fetchingAltitude: "Yükseklik alınıyor...",
+    locationRequired: "Haritadan konum seçmelisiniz",
+    altitudeRequired: "Yükseklik değeri gereklidir",
+    searchPlaceholder: "İl veya ilçe ara...",
+    searchNoResults: "Sonuç bulunamadı",
   },
 };
 
@@ -988,6 +1080,7 @@ const en: StringDictionary = {
     usernamePlaceholder: "Username",
     passwordPlaceholder: "Password",
     confirmPasswordPlaceholder: "Confirm Password",
+    farmNamePlaceholder: "Farm Name",
     loginButton: "Log In",
     registerButton: "Sign Up",
     skipButton: "Continue with Demo Mode",
@@ -1430,13 +1523,56 @@ const en: StringDictionary = {
     potCountLabel: "Pot Count",
     cropLabel: "Crop",
     createField: "Create Field",
+    creating: "Creating...",
     fieldCreated: "Field created successfully!",
+    fieldCreateError: "Failed to create field",
     nameRequired: "Field name is required",
     minPoints: "At least 3 points are required",
     minOneZone: "At least 1 zone is required",
     potCountPositive: "Pot count must be a positive number",
     potCountMax: "Maximum 32 pots allowed",
     zoneNameRequired: "Zone name is required",
+  },
+  register: {
+    stepUserInfo: "Account Details",
+    usernamePlaceholder: "Username",
+    emailPlaceholder: "Email",
+    passwordPlaceholder: "Password",
+    confirmPasswordPlaceholder: "Confirm Password",
+    roleLabel: "Role",
+    roleFarmer: "Farmer",
+    roleAdmin: "Admin",
+    createAccountButton: "Create Account",
+    backToLogin: "Already have an account? Log In",
+    connectingToServer: "Connecting to server...",
+    registering: "Creating account...",
+    errorEmptyFields: "Please fill in all required fields",
+    errorInvalidEmail: "Please enter a valid email address",
+    errorPasswordTooShort: "Password must be at least 8 characters",
+    errorPasswordMismatch: "Passwords do not match",
+    errorRegistrationFailed: "Registration failed",
+    errorConnectionFailed: "Could not connect to server",
+  },
+  farm: {
+    addFarm: "Add Farm",
+    farmNamePlaceholder: "Farm Name",
+    createFarm: "Create Farm",
+    creating: "Creating...",
+    farmCreated: "Farm created successfully!",
+    farmCreateError: "Failed to create farm",
+    farmNameRequired: "Farm name is required",
+    selectLocation: "Select Location",
+    selectLocationHint: "Tap on the map to pick farm location",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    altitude: "Altitude (m)",
+    altitudeHint: "Auto-filled after selecting a coordinate",
+    altitudeFetchFailed: "Could not fetch altitude automatically. Please enter it manually.",
+    fetchingAltitude: "Fetching altitude...",
+    locationRequired: "You must select a location on the map",
+    altitudeRequired: "Altitude value is required",
+    searchPlaceholder: "Search city or district...",
+    searchNoResults: "No results found",
   },
 };
 

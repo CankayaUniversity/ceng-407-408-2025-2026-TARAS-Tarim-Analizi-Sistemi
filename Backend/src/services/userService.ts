@@ -1,5 +1,6 @@
 import { prisma } from "../config/database";
 import bcrypt from "bcryptjs";
+import logger from "../utils/logger";
 
 export async function createUser(data: {
   username: string;
@@ -24,6 +25,48 @@ export async function createUser(data: {
       role: true,
     },
   });
+}
+
+export async function createUserWithFarm(data: {
+  username: string;
+  email: string;
+  password: string;
+  role_id?: number;
+  farmName: string;
+  farmLocation?: string;
+}) {
+  const hashedPassword = await bcrypt.hash(data.password, 12);
+
+  // Interactive transaction PrismaPg adapter ile baglanti timeout'una neden olabiliyor.
+  // Sirayla olustur, farm hatasi olursa user'i temizle.
+  const user = await prisma.user.create({
+    data: {
+      username: data.username,
+      email: data.email,
+      password_hash: hashedPassword,
+      role_id: data.role_id,
+      is_active: true,
+    },
+    include: { role: true },
+  });
+
+  try {
+    const farm = await prisma.farm.create({
+      data: {
+        user_id: user.user_id,
+        name: data.farmName,
+        ...(data.farmLocation ? { location_text: data.farmLocation } : {}),
+      },
+    });
+    logger.info(`Farm created: ${farm.farm_id} for user ${user.user_id}`);
+  } catch (farmError) {
+    logger.error(`Farm creation failed for user ${user.user_id}:`, farmError);
+    // Farm olusturulamazsa user'i da sil (manual rollback)
+    await prisma.user.delete({ where: { user_id: user.user_id } }).catch(() => {});
+    throw farmError;
+  }
+
+  return user;
 }
 
 export async function authenticateUser(username: string, password: string) {
@@ -120,6 +163,16 @@ export async function ensureFarmerRole() {
       description: "Farm owner with access to their own farms",
     },
   });
+}
+
+export async function getFarmerRoleId(): Promise<number | undefined> {
+  const role = await prisma.role.findUnique({ where: { role_name: "farmer" } });
+  return role?.role_id;
+}
+
+export async function getRoleIdByName(roleName: string): Promise<number | undefined> {
+  const role = await prisma.role.findUnique({ where: { role_name: roleName } });
+  return role?.role_id;
 }
 
 export async function getAllRoles() {
@@ -220,11 +273,14 @@ export async function getUserChatSessions(userId: string, limit: number = 10) {
 
 export default {
   createUser,
+  createUserWithFarm,
   authenticateUser,
   getUserProfile,
   updateUserPassword,
   ensureAdminRole,
   ensureFarmerRole,
+  getFarmerRoleId,
+  getRoleIdByName,
   getAllRoles,
   createAlert,
   markAlertAsRead,

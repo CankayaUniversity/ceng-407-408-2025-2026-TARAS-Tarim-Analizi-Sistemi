@@ -1,6 +1,7 @@
-// Auth gate + ana layout — loading/login/main arasinda gecis yapar
+// Auth gate + ana layout — loading/login/register/main arasinda gecis yapar
 // Tablar logged in iken mount'lu, chat overlay showChat iken ustte gozukuyor
 
+import { useState } from "react";
 import { View, Text, Platform } from "react-native";
 import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
@@ -9,7 +10,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useChatContext } from "../context/ChatContext";
-import { LoginScreen, DemoOnlyLoginScreen } from "../screens";
+import { LoginScreen, DemoOnlyLoginScreen, RegisterScreen } from "../screens";
 import { AppHeader } from "../components/AppHeader";
 import { AppTabs } from "./AppTabs";
 import { ChatBubbleLayer } from "../components/ChatBubbleLayer";
@@ -25,6 +26,7 @@ export const AppRouter = () => {
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
   const { showChat } = useChatContext();
+  const [authView, setAuthView] = useState<"login" | "register">("login");
 
   if (!isAuthReady) {
     return (
@@ -56,11 +58,18 @@ export const AppRouter = () => {
               onLoginSuccess={handleLogin}
               onSkip={handleSkip}
             />
+          ) : authView === "register" ? (
+            <RegisterScreen
+              theme={theme}
+              onRegisterSuccess={handleLogin}
+              onBackToLogin={() => setAuthView("login")}
+            />
           ) : (
             <LoginScreen
               theme={theme}
               onLoginSuccess={handleLogin}
               onSkip={handleSkip}
+              onGoToRegister={() => setAuthView("register")}
             />
           )
         ) : (
