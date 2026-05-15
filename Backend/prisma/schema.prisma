@@ -139,6 +139,9 @@ model Farm {
   user_id       String?     @db.Uuid
   name          String      @db.VarChar(100)
   location_text String?
+  latitude      Float?
+  longitude     Float?
+  altitude_m    Float?
   created_at    DateTime?   @default(now()) @db.Timestamptz(6)
   carbon_logs   CarbonLog[]
   user          User?       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
