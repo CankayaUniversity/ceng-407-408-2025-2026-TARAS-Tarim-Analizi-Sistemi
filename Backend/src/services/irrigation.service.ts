@@ -216,6 +216,133 @@ function calculateFollowupTimeFromActual(
 }
 
 
+// average sm
+
+async function getZoneLatestAverageReading(zoneId: string) {
+  const nodes = await prisma.sensorNode.findMany({
+    where: {
+      zone_id: zoneId,
+    },
+    select: {
+      node_id: true,
+    },
+  });
+
+  if (nodes.length === 0) {
+    throw new Error("No sensor node found for zone");
+  }
+
+  const latestReadings = await Promise.all(
+    nodes.map((node) =>
+      prisma.sensorReading.findFirst({
+        where: {
+          node_id: node.node_id,
+        },
+        orderBy: {
+          created_at: "desc",
+        },
+      })
+    )
+  );
+
+  const validReadings = latestReadings.filter(
+    (reading): reading is NonNullable<typeof reading> =>
+      reading !== null &&
+      reading.sm_percent !== null &&
+      reading.temperature !== null &&
+      reading.humidity !== null
+  );
+
+  if (validReadings.length === 0) {
+    throw new Error("No valid sensor reading found for zone");
+  }
+
+  const avgSm =
+    validReadings.reduce((sum, reading) => sum + reading.sm_percent!, 0) /
+    validReadings.length;
+
+  const avgTemperature =
+    validReadings.reduce((sum, reading) => sum + reading.temperature!, 0) /
+    validReadings.length;
+
+  const avgHumidity =
+    validReadings.reduce((sum, reading) => sum + reading.humidity!, 0) /
+    validReadings.length;
+
+  const latestCreatedAt = validReadings.reduce((latest, reading) => {
+    return reading.created_at > latest ? reading.created_at : latest;
+  }, validReadings[0].created_at);
+
+  return {
+    reading_count: validReadings.length,
+    node_count: nodes.length,
+    sm_percent: Number(avgSm.toFixed(2)),
+    temperature: Number(avgTemperature.toFixed(2)),
+    humidity: Number(avgHumidity.toFixed(2)),
+    created_at: latestCreatedAt,
+  };
+}
+
+
+
+async function getZoneAverageReadingAfter(zoneId: string, afterTime: Date) {
+  const nodes = await prisma.sensorNode.findMany({
+    where: {
+      zone_id: zoneId,
+    },
+    select: {
+      node_id: true,
+    },
+  });
+
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  const readings = await Promise.all(
+    nodes.map((node) =>
+      prisma.sensorReading.findFirst({
+        where: {
+          node_id: node.node_id,
+          created_at: {
+            gte: afterTime,
+          },
+          sm_percent: {
+            not: null,
+          },
+        },
+        orderBy: {
+          created_at: "asc",
+        },
+      })
+    )
+  );
+
+  const validReadings = readings.filter(
+    (reading): reading is NonNullable<typeof reading> =>
+      reading !== null && reading.sm_percent !== null
+  );
+
+  if (validReadings.length === 0) {
+    return null;
+  }
+
+  const avgSm =
+    validReadings.reduce((sum, reading) => sum + reading.sm_percent!, 0) /
+    validReadings.length;
+
+  const checkTime = validReadings.reduce((latest, reading) => {
+    return reading.created_at > latest ? reading.created_at : latest;
+  }, validReadings[0].created_at);
+
+  return {
+    reading_count: validReadings.length,
+    node_count: nodes.length,
+    result_reading_id: validReadings[0].id,
+    sm_percent: Number(avgSm.toFixed(2)),
+    check_time: checkTime,
+  };
+}
 
 export async function getIrrigationPreviewInput(zoneId: string) {
   const zone = await prisma.zone.findUnique({
@@ -247,31 +374,7 @@ export async function getIrrigationPreviewInput(zoneId: string) {
     throw new Error("No active planting found for zone");
   }
 
-  const node = await prisma.sensorNode.findFirst({
-    where: {
-      zone_id: zoneId,
-    },
-    orderBy: {
-      created_at: "asc",
-    },
-  });
-
-  if (!node) {
-    throw new Error("No sensor node found for zone");
-  }
-
-  const latestReading = await prisma.sensorReading.findFirst({
-    where: {
-      node_id: node.node_id,
-    },
-    orderBy: {
-      created_at: "desc",
-    },
-  });
-
-  if (!latestReading) {
-    throw new Error("No sensor reading found for zone");
-  }
+  const averageReading = await getZoneLatestAverageReading(zoneId);
 
   const fieldRow = {
     zone_id: zone.zone_id,
@@ -286,14 +389,14 @@ export async function getIrrigationPreviewInput(zoneId: string) {
     irrigation_gain_mm_per_10_min:zone.field.irrigation_gain_mm_per_10_min,
   };
 
-  const sensorRow = {
-    id: latestReading.id.toString(),
-    node_id: latestReading.node_id,
-    sm_percent: latestReading.sm_percent,
-    temperature: latestReading.temperature,
-    humidity: latestReading.humidity,
-    created_at: latestReading.created_at,
-  };
+ const sensorRow = {
+  id: "zone-average",
+  node_id: null,
+  sm_percent: averageReading.sm_percent,
+  temperature: averageReading.temperature,
+  humidity: averageReading.humidity,
+  created_at: averageReading.created_at,
+};
 
   const plantingRow = {
     planting_id: planting.planting_id,
@@ -307,7 +410,7 @@ export async function getIrrigationPreviewInput(zoneId: string) {
   return {
     zone_id: zone.zone_id,
     field_id: zone.field_id,
-    node_id: node.node_id,
+    node_id: null,
     fieldRow,
     sensorRow,
     plantingRow,
@@ -477,40 +580,22 @@ export async function processDueFollowups() {
       continue;
     }
 
-    const node = await prisma.sensorNode.findFirst({
-      where: {
-        zone_id: job.zone_id,
-      },
-      orderBy: {
-        created_at: "asc",
-      },
-    });
 
-    if (!node) {
-      continue;
-    }
 
-    if (!job.followup_check_time) {
-      continue;
-    }
+   if (!job.followup_check_time) {
+  continue;
+}
 
-    const resultReading = await prisma.sensorReading.findFirst({
-      where: {
-        node_id: node.node_id,
-        created_at: {
-          gte: job.followup_check_time,
-        },
-      },
-      orderBy: {
-        created_at: "asc",
-      },
-    });
+const followupReading = await getZoneAverageReadingAfter(
+  job.zone_id,
+  job.followup_check_time
+);
 
-    if (!resultReading || resultReading.sm_percent == null) {
-      continue;
-    }
+if (!followupReading) {
+  continue;
+}
 
-    const smAfterCheck = resultReading.sm_percent;
+    const smAfterCheck = followupReading.sm_percent;
     const smBefore = job.current_sm ?? 0;
     const predictedSmAfterCheck = job.predicted_sm_after_check ?? 0;
 
@@ -521,8 +606,8 @@ export async function processDueFollowups() {
       data: {
         job_id: job.job_id,
         zone_id: job.zone_id,
-        result_reading_id: resultReading.id,
-        check_time: resultReading.created_at ?? now,
+        result_reading_id: followupReading.result_reading_id,
+        check_time: followupReading.check_time ?? now,
         sm_after_check: smAfterCheck,
         sm_gain: smGain,
         prediction_error: predictionError,
@@ -1125,7 +1210,10 @@ function buildIrrigationJobData(
 
   return {
     zone_id: preview.zone_id,
-    trigger_reading_id: BigInt(preview.sensorRow.id),
+    trigger_reading_id:
+  preview.sensorRow.id !== "zone-average"
+    ? BigInt(preview.sensorRow.id)
+    : null,
     reasoning: output.reason,
     should_irrigate: output.should_irrigate,
     start_time: output.start_time,
@@ -1312,6 +1400,7 @@ export type FieldZoneLatestJob = {
     status: string | null;
     reasoning: string | null;
     water_amount_ml: number | null;
+    recommended_duration_min: number | null;
     start_time: Date | null;
     urgency_level: string | null;
   } | null;
@@ -1345,6 +1434,7 @@ export async function getLatestIrrigationJobsByField(
           status: true,
           reasoning: true,
           water_amount_ml: true,
+	  recommended_duration_min: true,
           start_time: true,
           urgency_level: true,
         },
@@ -1359,11 +1449,131 @@ export async function getLatestIrrigationJobsByField(
   }));
 }
 
+
+// without a recommendation
+
+export type CreateManualIrrigationActualInput = {
+  actual_start_time: Date;
+  actual_water_amount_ml?: number;
+  actual_duration_min?: number;
+};
+
 export type SubmitActualInput = {
   actual_water_amount_ml?: number;
   actual_start_time: Date;
   actual_duration_min?: number;
 };
+
+
+
+export async function createManualIrrigationActual(
+  zoneId: string,
+  userId: string,
+  input: CreateManualIrrigationActualInput
+) {
+  const zone = await prisma.zone.findUnique({
+    where: { zone_id: zoneId },
+    include: {
+      field: {
+        include: {
+          farm: true,
+        },
+      },
+    },
+  });
+
+  if (!zone || zone.field?.farm?.user_id !== userId) {
+    const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+    (err as any).status = 404;
+    throw err;
+  }
+
+  const environmentType = zone.field.environment_type;
+
+  if (environmentType === "pot") {
+    if (
+      input.actual_water_amount_ml == null ||
+      input.actual_water_amount_ml <= 0
+    ) {
+      const err = new Error(
+        "Pot manual irrigation requires actual_water_amount_ml."
+      );
+      (err as any).status = 400;
+      throw err;
+    }
+  }
+
+  if (environmentType === "greenhouse") {
+    if (
+      input.actual_duration_min == null ||
+      input.actual_duration_min <= 0
+    ) {
+      const err = new Error(
+        "Greenhouse manual irrigation requires actual_duration_min."
+      );
+      (err as any).status = 400;
+      throw err;
+    }
+  }
+
+  if (environmentType !== "pot" && environmentType !== "greenhouse") {
+    const err = new Error(
+      `Unsupported environment_type for manual irrigation actual: ${environmentType}`
+    );
+    (err as any).status = 400;
+    throw err;
+  }
+
+  const averageReading = await getZoneLatestAverageReading(zoneId);
+
+  const followupCheckTime = calculateFollowupTimeFromActual(
+    input.actual_start_time
+  );
+
+  const createdJob = await prisma.irrigationJob.create({
+    data: {
+      zone_id: zoneId,
+      status: "EXECUTED",
+      should_irrigate: true,
+      reasoning: "Manual irrigation recorded without recommendation.",
+      start_time: null,
+      actual_start_time: input.actual_start_time,
+      ...(input.actual_water_amount_ml != null
+        ? { actual_water_amount_ml: input.actual_water_amount_ml }
+        : {}),
+      ...(input.actual_duration_min != null
+        ? { actual_duration_min: input.actual_duration_min }
+        : {}),
+      followup_check_time: followupCheckTime,
+      current_sm: averageReading.sm_percent,
+      target_sm: null,
+      sm_deficit: 0,
+      predicted_sm_after_check: averageReading.sm_percent,
+      recommended_check_after_min: zone.field.default_check_after_min ?? 60,
+      water_amount_ml: 0,
+      recommended_duration_min: null,
+      urgency_level: "manual",
+    },
+    select: {
+      job_id: true,
+      zone_id: true,
+      status: true,
+      actual_water_amount_ml: true,
+      actual_duration_min: true,
+      actual_start_time: true,
+      followup_check_time: true,
+      current_sm: true,
+      reasoning: true,
+    },
+  });
+
+  return {
+    job: createdJob,
+    reading_summary: averageReading,
+  };
+}
+
+
 
 export async function submitIrrigationJobActual(
   jobId: string,
@@ -1517,6 +1727,7 @@ export async function getZoneIrrigationJobs(zoneId: string, userId: string) {
       status: true,
       should_irrigate: true,
       water_amount_ml: true,
+      recommended_duration_min: true,
       start_time: true,
       current_sm: true,
       target_sm: true,

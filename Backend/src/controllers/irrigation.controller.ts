@@ -9,6 +9,7 @@ import {
   getLatestIrrigationJobsByField,
   getZoneIrrigationJobs,
   submitIrrigationJobActual,
+  createManualIrrigationActual,
 } from "../services/irrigation.service";
 
 export const previewIrrigationInput = asyncHandler(
@@ -297,6 +298,131 @@ if (actual_water_amount_ml !== undefined && actual_water_amount_ml !== null) {
         });
         return;
       }
+      throw err;
+    }
+  },
+);
+
+
+
+export const createManualIrrigationActualHandler = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+
+    const zoneId = getStringParam(req.params.zone_id);
+    if (!zoneId) {
+      res.status(400).json({
+        success: false,
+        error: "Eksik parametre: 'zone_id' zorunludur.",
+      });
+      return;
+    }
+
+    const { actual_water_amount_ml, actual_start_time, actual_duration_min } =
+      req.body ?? {};
+
+    let actualWaterAmountMl: number | undefined = undefined;
+
+    if (actual_water_amount_ml !== undefined && actual_water_amount_ml !== null) {
+      if (
+        typeof actual_water_amount_ml !== "number" ||
+        !Number.isFinite(actual_water_amount_ml) ||
+        actual_water_amount_ml <= 0
+      ) {
+        res.status(400).json({
+          success: false,
+          error: "'actual_water_amount_ml' pozitif bir sayi olmalidir.",
+        });
+        return;
+      }
+
+      actualWaterAmountMl = actual_water_amount_ml;
+    }
+
+    let durationMin: number | undefined = undefined;
+
+    if (actual_duration_min !== undefined && actual_duration_min !== null) {
+      if (
+        typeof actual_duration_min !== "number" ||
+        !Number.isFinite(actual_duration_min) ||
+        actual_duration_min <= 0
+      ) {
+        res.status(400).json({
+          success: false,
+          error: "'actual_duration_min' pozitif bir sayi olmalidir.",
+        });
+        return;
+      }
+
+      durationMin = actual_duration_min;
+    }
+
+    if (
+      typeof actual_start_time !== "string" ||
+      actual_start_time.trim().length === 0
+    ) {
+      res.status(400).json({
+        success: false,
+        error: "'actual_start_time' ISO tarih dizgesi olmalidir.",
+      });
+      return;
+    }
+
+    const startTime = new Date(actual_start_time);
+
+    if (isNaN(startTime.getTime())) {
+      res.status(400).json({
+        success: false,
+        error: "'actual_start_time' gecerli bir tarih degil.",
+      });
+      return;
+    }
+
+    if (startTime.getTime() > Date.now() + 60_000) {
+      res.status(400).json({
+        success: false,
+        error: "'actual_start_time' gelecekte olamaz.",
+      });
+      return;
+    }
+
+    try {
+      const result = await createManualIrrigationActual(zoneId, userId, {
+        actual_start_time: startTime,
+        ...(actualWaterAmountMl != null
+          ? { actual_water_amount_ml: actualWaterAmountMl }
+          : {}),
+        ...(durationMin != null ? { actual_duration_min: durationMin } : {}),
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Manuel sulama kaydi olusturuldu.",
+        data: result,
+      });
+    } catch (err: any) {
+      const status = err?.status;
+
+      if (status === 404) {
+        res.status(404).json({
+          success: false,
+          error: "Bolge bulunamadi veya erisim izniniz yok.",
+        });
+        return;
+      }
+
+      if (status === 400) {
+        res.status(400).json({
+          success: false,
+          error: err.message,
+        });
+        return;
+      }
+
       throw err;
     }
   },

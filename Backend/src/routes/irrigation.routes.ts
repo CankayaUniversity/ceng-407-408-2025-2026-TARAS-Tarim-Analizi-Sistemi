@@ -6,6 +6,7 @@ import {
   getFieldIrrigationJobs,
   getZoneIrrigationJobsHandler,
   submitIrrigationJobOutcome,
+  createManualIrrigationActualHandler,
 } from "../controllers/irrigation.controller";
 
 
@@ -21,5 +22,6 @@ router.post("/run-all", runAllIrrigationJobs);
 router.get("/field/:field_id/jobs", getFieldIrrigationJobs);
 router.get("/zone/:zone_id/jobs", getZoneIrrigationJobsHandler);
 router.patch("/jobs/:job_id/actual", submitIrrigationJobOutcome);
+router.post("/zone/:zone_id/manual-actual", createManualIrrigationActualHandler);
 
 export default router;
