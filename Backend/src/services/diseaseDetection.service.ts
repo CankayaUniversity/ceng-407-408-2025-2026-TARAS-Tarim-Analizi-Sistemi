@@ -111,13 +111,15 @@ export async function submitDetectionRequest(
       finalFolderId = folderId;
     }
 
-    // capture_metadata.consent_dataset is the source of truth (mobile sets it
-    // via the Settings toggle). Default false: missing/malformed metadata is
-    // treated as "no consent" (conservative).
-    const datasetConsent =
-      captureMetadata != null &&
-      typeof captureMetadata === "object" &&
-      (captureMetadata as Record<string, unknown>).consent_dataset === true;
+    // User.dataset_consent is the source of truth (Settings toggle hits
+    // PATCH /api/auth/me/dataset-consent → server record). The capture_metadata
+    // blob's consent_dataset field is kept for client-side audit but no longer
+    // trusted for retention decisions.
+    const userRecord = await prisma.user.findUnique({
+      where: { user_id: userId },
+      select: { dataset_consent: true },
+    });
+    const datasetConsent = userRecord?.dataset_consent === true;
 
     const detection = await prisma.diseaseDetection.create({
       data: {
