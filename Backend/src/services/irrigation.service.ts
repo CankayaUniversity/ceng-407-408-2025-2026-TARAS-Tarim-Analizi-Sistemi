@@ -270,8 +270,8 @@ async function getZoneLatestAverageReading(zoneId: string) {
     validReadings.length;
 
   const latestCreatedAt = validReadings.reduce((latest, reading) => {
-    return reading.created_at > latest ? reading.created_at : latest;
-  }, validReadings[0].created_at);
+    return reading.created_at! > latest ? reading.created_at! : latest;
+  }, validReadings[0]!.created_at!);
 
   return {
     reading_count: validReadings.length,
@@ -332,13 +332,13 @@ async function getZoneAverageReadingAfter(zoneId: string, afterTime: Date) {
     validReadings.length;
 
   const checkTime = validReadings.reduce((latest, reading) => {
-    return reading.created_at > latest ? reading.created_at : latest;
-  }, validReadings[0].created_at);
+    return reading.created_at! > latest ? reading.created_at! : latest;
+  }, validReadings[0]!.created_at!);
 
   return {
     reading_count: validReadings.length,
     node_count: nodes.length,
-    result_reading_id: validReadings[0].id,
+    result_reading_id: validReadings[0]!.id,
     sm_percent: Number(avgSm.toFixed(2)),
     check_time: checkTime,
   };
