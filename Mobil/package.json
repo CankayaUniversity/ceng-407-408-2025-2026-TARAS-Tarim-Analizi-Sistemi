@@ -70,7 +70,8 @@
   },
   "overrides": {
     "hermes-compiler": "250829098.0.4",
-    "markdown-it": "14.1.1"
+    "markdown-it": "14.1.1",
+    "postcss": "^8.5.14"
   },
   "engines": {
     "node": ">=18"
