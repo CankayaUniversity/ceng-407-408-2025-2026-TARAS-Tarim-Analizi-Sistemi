@@ -143,6 +143,14 @@ export async function updateUserPassword(userId: string, newPassword: string) {
   });
 }
 
+export async function updateDatasetConsent(userId: string, consent: boolean) {
+  return prisma.user.update({
+    where: { user_id: userId },
+    data: { dataset_consent: consent },
+    select: { user_id: true, dataset_consent: true },
+  });
+}
+
 export async function ensureAdminRole() {
   return prisma.role.upsert({
     where: { role_name: "admin" },

@@ -164,10 +164,33 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
         last_login: profile.last_login,
         farms: profile.farms,
         unread_alerts: profile.alerts?.length || 0,
+        dataset_consent: profile.dataset_consent,
       },
     });
   } catch (error) {
     logger.error('Get profile error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+export async function updateDatasetConsent(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'User not authenticated' });
+      return;
+    }
+
+    const { consent } = req.body;
+    if (typeof consent !== 'boolean') {
+      res.status(400).json({ success: false, error: 'consent must be boolean' });
+      return;
+    }
+
+    const updated = await userService.updateDatasetConsent(userId, consent);
+    res.json({ success: true, data: { dataset_consent: updated.dataset_consent } });
+  } catch (error) {
+    logger.error('Update dataset consent error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -214,4 +237,4 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   }
 }
 
-export default { login, register, getProfile, changePassword };
+export default { login, register, getProfile, changePassword, updateDatasetConsent };
