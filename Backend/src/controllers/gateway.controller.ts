@@ -3,7 +3,7 @@ import { prisma } from "../config/database";
 import logger from "../utils/logger";
 import { getStringParam } from "../utils/requestHelpers";
 import { emitToGateway } from "../config/socket";
-import { uploadToS3, generatePresignedDownloadUrl } from "../services/s3.service";
+import { uploadToS3, getS3ObjectStream } from "../services/s3.service";
 
 // Erisim kontrolu — gateway verisini dondurur, basarisizsa null dondurur
 async function verifyGatewayAccess(
@@ -702,10 +702,11 @@ export async function triggerOtaUpdate(req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Presigned download URL olustur (1 saat gecerli)
-    const bucket = process.env.AWS_S3_BUCKET;
-    if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
-    const url = await generatePresignedDownloadUrl(bucket, fw.s3_key, 3600);
+    // Backend-served download URL (gateway TLS pins LE root for api.taras-app.com)
+    // S3'in Amazon Trust Services sertifika zincirini gateway dogrulayamiyor.
+    const publicUrl = process.env.AWS_PUBLIC_URL;
+    if (!publicUrl) throw new Error("AWS_PUBLIC_URL not configured");
+    const url = `${publicUrl.replace(/\/$/, "")}/api/gateway/firmware/download/${encodeURIComponent(fw.version)}`;
 
     // Gateway'e OTA komutu gonder
     emitToGateway(gatewayId, "gateway:ota_update", {
@@ -718,6 +719,78 @@ export async function triggerOtaUpdate(req: Request, res: Response): Promise<voi
   } catch (error) {
     logger.error("[GATEWAY] triggerOtaUpdate error:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Backend stream'i: gateway sadece LE rootu pinli, S3 cert chain Amazon Trust.
+export async function downloadFirmware(req: Request, res: Response): Promise<void> {
+  try {
+    const deviceKey = req.get("x-device-key");
+    if (!deviceKey || !UUID_RE.test(deviceKey)) {
+      res.status(401).json({ success: false, error: "Device key required" });
+      return;
+    }
+
+    const gateway = await prisma.gateway.findUnique({
+      where: { api_key: deviceKey },
+    });
+
+    if (!gateway) {
+      // Generic 401 — anahtarin gecerli olup olmadigini sizdirma
+      res.status(401).json({ success: false, error: "Invalid device key" });
+      return;
+    }
+
+    const version = getStringParam(req.params.version);
+    if (!version) {
+      res.status(400).json({ success: false, error: "Version required" });
+      return;
+    }
+
+    const fw = await prisma.gatewayFirmware.findUnique({ where: { version } });
+    if (!fw) {
+      res.status(404).json({ success: false, error: "Firmware version not found" });
+      return;
+    }
+
+    const bucket = process.env.AWS_S3_BUCKET;
+    if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
+
+    const { stream, contentLength, contentType } = await getS3ObjectStream(bucket, fw.s3_key);
+
+    res.setHeader("Content-Type", contentType || "application/octet-stream");
+    if (contentLength > 0) res.setHeader("Content-Length", String(contentLength));
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=gateway-${version}.bin`,
+    );
+
+    // Hata olursa response'i kapat
+    stream.on("error", (err) => {
+      logger.error(`[GATEWAY] Firmware stream error gw=${gateway.gateway_id} v=${version}:`, err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: "Stream failed" });
+      } else {
+        res.destroy(err);
+      }
+    });
+
+    stream.on("end", () => {
+      logger.info(
+        `[GATEWAY] Firmware download: gw=${gateway.gateway_id} v=${version} bytes=${contentLength}`,
+      );
+    });
+
+    stream.pipe(res);
+  } catch (error) {
+    logger.error("[GATEWAY] downloadFirmware error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    } else {
+      res.destroy();
+    }
   }
 }
 
@@ -762,4 +835,5 @@ export default {
   uploadFirmware,
   getLatestFirmware,
   triggerOtaUpdate,
+  downloadFirmware,
 };

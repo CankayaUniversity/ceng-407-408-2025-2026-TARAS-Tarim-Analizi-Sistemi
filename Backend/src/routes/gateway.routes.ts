@@ -9,6 +9,8 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 *
 // Gateway self-auth (api_key header, no JWT)
 router.post("/auth", gatewayController.authenticateGateway);
 
+router.get("/firmware/download/:version", gatewayController.downloadFirmware);
+
 // All routes below require JWT auth
 router.use(authenticateToken);
 
