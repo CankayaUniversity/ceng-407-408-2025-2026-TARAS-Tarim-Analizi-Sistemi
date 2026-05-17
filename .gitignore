@@ -146,4 +146,3 @@ Donanim/arduino ide/gateway/isrg_root_x1.h
 !taras_website/**/*.gif
 !taras_website/**/*.svg
 *.stackdump
-*.png
