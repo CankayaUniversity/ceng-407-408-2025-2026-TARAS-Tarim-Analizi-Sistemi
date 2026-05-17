@@ -137,7 +137,20 @@ export const SettingsScreen = memo(function SettingsScreen({
 
   useEffect(() => {
     (async () => {
-      const { loadDatasetConsent } = await import("../../utils/captureMetadata");
+      const { loadDatasetConsent, saveDatasetConsent } = await import(
+        "../../utils/captureMetadata"
+      );
+      try {
+        const { authAPI } = await import("../../utils/api");
+        const res = await authAPI.getProfile();
+        if (res.success && typeof res.data?.dataset_consent === "boolean") {
+          setDatasetConsent(res.data.dataset_consent);
+          await saveDatasetConsent(res.data.dataset_consent);
+          return;
+        }
+      } catch {
+        // Sunucu erisilemez — yerel cache'e dus
+      }
       setDatasetConsent(await loadDatasetConsent());
     })();
   }, []);
@@ -146,6 +159,16 @@ export const SettingsScreen = memo(function SettingsScreen({
     setDatasetConsent(next);
     const { saveDatasetConsent } = await import("../../utils/captureMetadata");
     await saveDatasetConsent(next);
+    try {
+      const { authAPI } = await import("../../utils/api");
+      const res = await authAPI.updateDatasetConsent(next);
+      if (!res.success) {
+        setDatasetConsent(!next);
+        await saveDatasetConsent(!next);
+      }
+    } catch {
+      // Offline — optimistic deger AsyncStorage'da, sonraki acilis senkron eder
+    }
   };
 
   const themeOptions: ThemeOption[] = [

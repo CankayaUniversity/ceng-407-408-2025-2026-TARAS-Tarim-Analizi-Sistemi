@@ -46,6 +46,7 @@ interface LoginData {
 interface ProfileData extends User {
   farms: any[];
   unread_alerts: number;
+  dataset_consent?: boolean;
 }
 
 interface SensorReading {
@@ -225,6 +226,16 @@ export const authAPI = {
 
   async getProfile(): Promise<ApiResponse<ProfileData>> {
     return authFetch("/auth/me");
+  },
+
+  async updateDatasetConsent(
+    consent: boolean,
+  ): Promise<ApiResponse<{ dataset_consent: boolean }>> {
+    return authFetch("/auth/me/dataset-consent", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ consent }),
+    });
   },
 
   async getStoredUser(): Promise<User | null> {
