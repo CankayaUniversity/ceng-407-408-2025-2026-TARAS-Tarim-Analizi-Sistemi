@@ -120,6 +120,7 @@ model User {
   is_active                Boolean?                @default(true)
   last_login               DateTime?               @db.Timestamptz(6)
   created_at               DateTime?               @default(now()) @db.Timestamptz(6)
+  dataset_consent          Boolean                 @default(true)
   alerts                   Alert[]
   chat_sessions            ChatSession[]
   disease_detections       DiseaseDetection[]
