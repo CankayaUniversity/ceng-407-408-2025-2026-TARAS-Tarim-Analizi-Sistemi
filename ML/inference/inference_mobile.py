@@ -17,7 +17,7 @@ import timm
 import torch
 
 HERE = Path(__file__).resolve().parent
-LABELS = json.loads((HERE.parent / "shared" / "labels.json").read_text())
+LABELS = json.loads((HERE / "labels.json").read_text())
 CLASSES = LABELS["classes"]
 MEAN = torch.tensor([0.485, 0.456, 0.406], dtype=torch.float32).view(3, 1, 1)
 STD  = torch.tensor([0.229, 0.224, 0.225], dtype=torch.float32).view(3, 1, 1)
