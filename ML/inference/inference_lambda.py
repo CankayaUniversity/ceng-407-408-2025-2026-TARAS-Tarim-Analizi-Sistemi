@@ -59,11 +59,14 @@ def _resolve_weights(profile_name: str | None = None) -> dict[str, float]:
 
 def get_models(device: str | None = None,
                weight_profile: str | None = None
-               ) -> list[tuple[str, torch.nn.Module, float]]:
-    """Load all ensemble members on first call. Returns [(name, model, weight), ...].
+               ) -> list[tuple[str, torch.nn.Module, float, int]]:
+    """Load all ensemble members on first call.
+    Returns [(name, model, weight, input_size), ...].
 
-    Lambda warm-start reuses the cache. torch.set_num_threads(1) because
-    Lambda's cheapest tier is 1 vCPU and more threads just contend.
+    Each member declares its own input_size + optional window_size in
+    ensemble_config.json — both must be passed to timm.create_model so the
+    state_dict shapes match (v26r_swin_s_384 was trained at 384/window=12,
+    not the swin_*_window7_224 baseline the arch name implies).
     """
     global _MODELS, _DEVICE
     if _MODELS is None:
@@ -73,30 +76,38 @@ def get_models(device: str | None = None,
         members = []
         for m in ENSEMBLE["members"]:
             ckpt = HERE / m["checkpoint"]
-            model = _load_member(ckpt, m["arch"], num_classes=14, device=_DEVICE)
+            input_size = int(m.get("input_size", 224))
+            window_size = m.get("window_size")
+            model = _load_member(
+                ckpt, m["arch"], num_classes=14, device=_DEVICE,
+                img_size=input_size if input_size != 224 else None,
+                window_size=window_size,
+            )
             w = float(weights.get(m["name"], 0.0))
-            members.append((m["name"], model, w))
+            members.append((m["name"], model, w, input_size))
         _MODELS = members
     return _MODELS
 
 
-def preprocess_pil(pil_img) -> torch.Tensor:
-    """PIL.Image -> torch.Tensor (1, 3, 224, 224) float32, ImageNet-normalised.
+def preprocess_pil(pil_img, input_size: int = 224) -> torch.Tensor:
+    """PIL.Image -> torch.Tensor (1, 3, input_size, input_size) float32, ImageNet-normalised.
 
-    Must match training-time preprocessing (see shared/preprocess.py).
+    Resize shorter side to int(input_size * 256/224), then center-crop to
+    input_size. Must match training-time preprocessing.
     """
     from PIL import Image
     if pil_img.mode != "RGB":
         pil_img = pil_img.convert("RGB")
+    resize_short = int(round(input_size * 256 / 224))
     w, h = pil_img.size
     if w < h:
-        new_w, new_h = 256, int(round(h * 256 / w))
+        new_w, new_h = resize_short, int(round(h * resize_short / w))
     else:
-        new_w, new_h = int(round(w * 256 / h)), 256
+        new_w, new_h = int(round(w * resize_short / h)), resize_short
     pil_img = pil_img.resize((new_w, new_h), Image.BILINEAR)
-    left = (new_w - 224) // 2
-    top  = (new_h - 224) // 2
-    pil_img = pil_img.crop((left, top, left + 224, top + 224))
+    left = (new_w - input_size) // 2
+    top  = (new_h - input_size) // 2
+    pil_img = pil_img.crop((left, top, left + input_size, top + input_size))
     arr = np.asarray(pil_img, dtype=np.float32) / 255.0
     t = torch.from_numpy(arr).permute(2, 0, 1)
     t = (t - MEAN) / STD
@@ -107,17 +118,18 @@ def preprocess_pil(pil_img) -> torch.Tensor:
 def predict(pil_img, use_tta: bool = True) -> dict:
     """Run the 3-way ensemble on a single PIL image. Returns top-1 + probabilities.
 
-    use_tta averages softmax over original + hflip per model: ~+0.5pp macro
-    for 2x forward time.
+    Each member preprocesses at its own input_size (v26r needs 384, others 224).
+    use_tta averages softmax over original + hflip per model: ~+0.5pp macro for
+    2x forward time.
     """
     members = get_models()
-    img = preprocess_pil(pil_img).to(_DEVICE)
-    img_pair = [img]
-    if use_tta:
-        img_pair.append(torch.flip(img, dims=[-1]))
-
     ensemble_probs = torch.zeros(1, 14, device=_DEVICE)
-    for name, model, weight in members:
+    for name, model, weight, input_size in members:
+        img = preprocess_pil(pil_img, input_size=input_size).to(_DEVICE)
+        img_pair = [img]
+        if use_tta:
+            img_pair.append(torch.flip(img, dims=[-1]))
+
         member_probs = torch.zeros(1, 14, device=_DEVICE)
         for x in img_pair:
             member_probs = member_probs + torch.softmax(model(x), dim=1)
@@ -138,6 +150,7 @@ def predict(pil_img, use_tta: bool = True) -> dict:
         ],
         "tta_applied": use_tta,
         "ensemble_members": [m[0] for m in members],
+        "input_sizes": [m[3] for m in members],
     }
 
 
