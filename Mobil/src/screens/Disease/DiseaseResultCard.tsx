@@ -22,6 +22,7 @@ import {
 } from "../../utils/api";
 import { spacing } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
+import { getDiseaseTargetLabel } from "../../utils/diseaseTargetLabels";
 
 interface DiseaseResultCardProps {
   detection: DiseaseDetection;
@@ -505,7 +506,7 @@ export const DiseaseResultCard = ({
   const isUncertain =
     detection.detected_disease != null &&
     (detection.confidence_status === "uncertain" ||
-      detection.detected_disease === "Uncertain");
+      detection.detected_disease === "UNCERTAIN");
 
   const topTier =
     !isUncertain && confidencePct != null
@@ -532,7 +533,7 @@ export const DiseaseResultCard = ({
           style={{ fontSize: 15 }}
           numberOfLines={1}
         >
-          {detection.detected_disease}
+          {getDiseaseTargetLabel(detection.detected_disease!, language)}
         </Text>
         {topTier && confidencePct != null && (
           <View

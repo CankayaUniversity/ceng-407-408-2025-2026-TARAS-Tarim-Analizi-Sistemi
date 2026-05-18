@@ -21,7 +21,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { spacing, s, vs, ms } from "../../utils/responsive";
 import { diseaseAPI, type DiseaseTrackingFolderDetail, type FolderDetectionDetail } from "../../utils/api";
-import { DISEASE_TARGET_LABELS } from "../../utils/diseaseTargetLabels";
+import { DISEASE_TARGET_LABELS, getDiseaseTargetLabel } from "../../utils/diseaseTargetLabels";
 import { PendingUpload } from "../../utils/pendingUploads";
 import { PendingUploadCard } from "./PendingUploadCard";
 
@@ -277,11 +277,12 @@ interface TimelineRowProps {
 const TimelineRow = ({ detection, theme, language, onPress }: TimelineRowProps) => {
   const date = formatDate(detection.uploaded_at, language);
   const disease = detection.detected_disease;
+  const diseaseLabel = disease ? getDiseaseTargetLabel(disease, language) : null;
   const conf = detection.confidence_score ?? detection.confidence;
   const confPct = conf != null ? Math.round(conf * 100) : null;
   const isFailed = detection.status === "FAILED";
   const isProcessing = detection.status !== "COMPLETED" && detection.status !== "FAILED";
-  const isUncertain = disease === "Uncertain" || (confPct != null && confPct < 50);
+  const isUncertain = disease === "UNCERTAIN" || (confPct != null && confPct < 50);
 
   return (
     <TouchableOpacity
@@ -317,7 +318,7 @@ const TimelineRow = ({ detection, theme, language, onPress }: TimelineRowProps) 
             ]}
             numberOfLines={1}
           >
-            {disease ?? "—"}
+            {diseaseLabel ?? "—"}
             {confPct != null && (
               <Text style={{ color: theme.textSecondary, fontWeight: "500" }}>  · {confPct}%</Text>
             )}

@@ -32,6 +32,7 @@ import {
   updatePendingError,
 } from "../../utils/pendingUploads";
 import { DiseaseScreenProps } from "./types";
+import { getDiseaseTargetLabel } from "../../utils/diseaseTargetLabels";
 import { spacing } from "../../utils/responsive";
 import { s, vs } from "../../utils/responsive";
 import { useScreenReset } from "../../hooks/useScreenReset";
@@ -797,7 +798,7 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
 
   const isUncertain =
     detection.confidence_status === "uncertain" ||
-    detection.detected_disease === "Uncertain";
+    detection.detected_disease === "UNCERTAIN";
 
   const topTier = confidencePct != null ? getConfidenceTier(confidencePct, theme) : null;
 
@@ -912,7 +913,7 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
               className="text-primary"
               style={{ flex: 1, fontSize: 22, fontWeight: "700" }}
             >
-              {detection.detected_disease}
+              {getDiseaseTargetLabel(detection.detected_disease!, language as "tr" | "en")}
             </Text>
             {confidencePct != null && topTier && (
               <View

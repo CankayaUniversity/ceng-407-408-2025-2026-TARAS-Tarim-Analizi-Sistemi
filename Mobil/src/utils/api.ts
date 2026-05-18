@@ -1039,7 +1039,7 @@ export interface DiseaseDetection {
   uploaded_at: string;
   processing_started_at: string | null;
   completed_at: string | null;
-  detected_disease: string | null;
+  detected_disease: DiseaseTarget | null;
   confidence: number | null;
   confidence_score: number | null;
   all_predictions: Record<string, number> | null;
@@ -1049,8 +1049,6 @@ export interface DiseaseDetection {
   user_feedback?: UserFeedback | null;
   feedback_at?: string | null;
   user_correction?: DiseaseCorrection | null;
-  // Lambda v5 uncertainty signal - optional, backend forwards if present.
-  // Mobile also falls back to detected_disease === "Uncertain" as a hint.
   confidence_status?: "confident" | "uncertain" | null;
   top_guess?: string | null;
   message_tr?: string | null;
@@ -1084,7 +1082,7 @@ export interface FolderDetectionSummary {
   status: DetectionStatus;
   uploaded_at: string;
   completed_at: string | null;
-  detected_disease: string | null;
+  detected_disease: DiseaseTarget | null;
   confidence: number | null;
   confidence_score: number | null;
   error_message: string | null;
@@ -1141,7 +1139,7 @@ export interface DiseaseTrackingFolderHistory {
     detectionId: string;
     uploadedAt: string;
     completedAt: string | null;
-    disease: string | null;
+    disease: DiseaseTarget | null;
     confidence: number | null;
     confidenceScore: number | null;
     allPredictions: Record<string, number> | null;

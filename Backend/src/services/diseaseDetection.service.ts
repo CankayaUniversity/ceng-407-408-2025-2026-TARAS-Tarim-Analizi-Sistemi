@@ -4,6 +4,7 @@ import { DetectionStatus, UserFeedback, DiseaseTarget, Prisma } from "../generat
 import { prisma } from "../config/database";
 import { uploadToS3, generatePresignedDownloadUrl, deleteFromS3 } from "./s3.service";
 import { getRecommendationsFor } from "./diseaseRecommendations";
+import { detectedDiseaseToTarget, diseaseTargetToKey } from "./diseaseTargetMap";
 import logger from "../utils/logger";
 
 // Thumbnail kontrati: mobile uretir, multipart 'thumbnail' alaninda gonderir.
@@ -29,7 +30,7 @@ interface DiseaseDetectionResult {
 }
 
 type DetectionRow = {
-  detected_disease: string | null;
+  detected_disease: DiseaseTarget | null;
   confidence_score: number | null;
   [k: string]: unknown;
 };
@@ -41,7 +42,7 @@ function serializeDetectionRow<T extends DetectionRow>(d: T): T & {
   return {
     ...d,
     confidence: conf != null ? conf * 100 : null,
-    recommendations: d.detected_disease ? getRecommendationsFor(d.detected_disease) : [],
+    recommendations: d.detected_disease ? getRecommendationsFor(diseaseTargetToKey(d.detected_disease)) : [],
   };
 }
 
@@ -274,6 +275,7 @@ export async function runDetectionPipeline(
   const payload: Record<string, unknown> = {
     s3_bucket: DISEASE_DETECTION_BUCKET,
     s3_key: s3Key,
+    tta: false,
   };
   if (cropName) payload.crop = cropName;
 
@@ -323,45 +325,37 @@ export async function runDetectionPipeline(
   }
 
   const result: DiseaseDetectionResult = JSON.parse(responsePayload.body);
+  const target = detectedDiseaseToTarget(result.top1);
   await prisma.diseaseDetection.update({
     where: { detection_id: detectionId },
     data: {
       status: DetectionStatus.COMPLETED,
       completed_at: new Date(),
-      detected_disease: result.top1,
+      detected_disease: target,
       confidence_score: result.top1_score,
       all_predictions: result.scores as any,
     },
   });
   logger.info(
-    `[DISEASE] ${result.top1} %${(result.top1_score * 100).toFixed(2)} ` +
+    `[DISEASE] ${target} %${(result.top1_score * 100).toFixed(2)} ` +
     `(backend=${duration}ms, lambda=${result.inference_ms}ms)`
   );
 
-  // Inference tamamlandi → consent kapilarsa orijinali simdi dusur. Thumbnail
-  // dokunulmaz; mobile UI hala thumbnail uzerinden goruntuler.
   await enforceConsentRetention(detectionId);
 
   // Folder auto-tag (best-effort) — folder hala UNCERTAIN'se ilk emin tespit
   // disease'i belirler. recordUserFeedback() sonradan override edebilir.
-  if (folderId && result.top1 !== "Uncertain") {
-    const mapped = DETECTED_DISEASE_TO_TARGET[result.top1];
-    if (mapped) {
-      const folder = await prisma.diseaseTrackingFolder.findUnique({
+  if (folderId && target && target !== "UNCERTAIN" && target !== "OTHER") {
+    const folder = await prisma.diseaseTrackingFolder.findUnique({
+      where: { folder_id: folderId },
+      select: { target_disease: true },
+    });
+    if (folder?.target_disease === "UNCERTAIN") {
+      await prisma.diseaseTrackingFolder.update({
         where: { folder_id: folderId },
-        select: { target_disease: true },
+        data: { target_disease: target },
       });
-      if (folder?.target_disease === "UNCERTAIN") {
-        await prisma.diseaseTrackingFolder.update({
-          where: { folder_id: folderId },
-          data: { target_disease: mapped },
-        });
-        logger.info(`[FOLDER] ${folderId} target=${mapped} (auto from detection ${detectionId})`);
-      }
-    } else {
-      logger.warn(
-        `[FOLDER] ${folderId} auto-tag skipped: detected_disease "${result.top1}" not in map`,
-      );
+      logger.info(`[FOLDER] ${folderId} target=${target} (auto from detection ${detectionId})`);
     }
   }
 }
@@ -924,34 +918,6 @@ const CROP_NAME_TO_ID: Record<string, string> = {
   Kabak: "squash",    kabak: "squash",    squash: "squash",
 };
 
-// Lambda v4 (display strings) ve v5 (lowercase snake) ciktilarini ayni map'te
-// tutuyoruz; eslenmeyen string -> folder auto-update atlanir, feedback yine kaydolur.
-const DETECTED_DISEASE_TO_TARGET: Record<string, DiseaseTarget> = {
-  // Lambda v5 (lowercase snake)
-  bacterial_spot: "BACTERIAL_SPOT",
-  corn_common_rust: "CORN_COMMON_RUST",
-  corn_gray_leaf_spot: "CORN_GRAY_LEAF_SPOT",
-  corn_northern_leaf_blight: "CORN_NORTHERN_LEAF_BLIGHT",
-  early_blight: "EARLY_BLIGHT",
-  healthy: "HEALTHY",
-  late_blight: "LATE_BLIGHT",
-  leaf_mold: "LEAF_MOLD",
-  mosaic_virus: "MOSAIC_VIRUS",
-  powdery_mildew: "POWDERY_MILDEW",
-  septoria_leaf_spot: "SEPTORIA_LEAF_SPOT",
-  spider_mites: "SPIDER_MITES",
-  target_spot: "TARGET_SPOT",
-  yellow_leaf_curl_virus: "YELLOW_LEAF_CURL_VIRUS",
-  // Lambda v4 display strings (production today)
-  "Tomato - Late Blight": "LATE_BLIGHT",
-  "Tomato - Leaf Mold": "LEAF_MOLD",
-  "Tomato - Septoria Leaf Spot": "SEPTORIA_LEAF_SPOT",
-  "Tomato - Spider Mites (Two-Spotted)": "SPIDER_MITES",
-  "Tomato - Healthy": "HEALTHY",
-  // "Tomato - Leaf Blight" → ambigu (Early/Late ayrimi yok), eslemiyoruz; folder
-  // hedef hastaligi sessizce guncellenmez ama feedback yine de kaydolur.
-};
-
 export async function recordUserFeedback(
   detectionId: string,
   userId: string,
@@ -984,16 +950,11 @@ export async function recordUserFeedback(
   if (
     detection.folder_id &&
     (feedback === "DEFINITELY_CORRECT" || feedback === "LIKELY_CORRECT") &&
-    detection.detected_disease
+    detection.detected_disease &&
+    detection.detected_disease !== "UNCERTAIN" &&
+    detection.detected_disease !== "OTHER"
   ) {
-    const mapped = DETECTED_DISEASE_TO_TARGET[detection.detected_disease];
-    if (mapped) {
-      folderTargetUpdate = mapped;
-    } else {
-      logger.warn(
-        `[FEEDBACK] cannot map detected_disease "${detection.detected_disease}" to DiseaseTarget — folder ${detection.folder_id} target_disease unchanged`,
-      );
-    }
+    folderTargetUpdate = detection.detected_disease;
   } else if (
     detection.folder_id &&
     feedback === "DEFINITELY_WRONG" &&

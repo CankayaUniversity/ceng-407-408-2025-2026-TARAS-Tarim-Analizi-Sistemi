@@ -8,7 +8,7 @@ import type {
   Zone,
 } from "../api";
 import type { CarbonLog, ActivityType, CarbonSummary } from "../../screens/CarbonFootprint/types";
-import { recommendationsFor } from "./demoStorage";
+import { recommendationsFor, mapDiseaseLabelToTarget } from "./demoStorage";
 
 type PolygonGenerator = () => FieldPolygon;
 
@@ -674,7 +674,7 @@ function makeDetection(
     uploaded_at: completedAt,
     processing_started_at: completedAt,
     completed_at: completedAt,
-    detected_disease: topLabel,
+    detected_disease: mapDiseaseLabelToTarget(topLabel) ?? "OTHER",
     confidence: topConf,
     confidence_score: topConf,
     all_predictions: allPreds,

@@ -495,7 +495,7 @@ model DiseaseDetection {
   uploaded_at           DateTime               @default(now()) @db.Timestamptz(6)
   processing_started_at DateTime?              @db.Timestamptz(6)
   completed_at          DateTime?              @db.Timestamptz(6)
-  detected_disease      String?                @db.VarChar(100)
+  detected_disease      DiseaseTarget?
   confidence_score      Float?
   all_predictions       Json?
   error_message         String?

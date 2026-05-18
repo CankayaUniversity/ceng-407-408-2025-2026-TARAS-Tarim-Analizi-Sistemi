@@ -219,7 +219,12 @@ export async function applyFeedback(
   await upsertDetection(detection);
 
   // Klasore bagli mi? Target disease'i auto-update et
-  if (feedback === "DEFINITELY_CORRECT" && detection.detected_disease) {
+  if (
+    feedback === "DEFINITELY_CORRECT" &&
+    detection.detected_disease &&
+    detection.detected_disease !== "UNCERTAIN" &&
+    detection.detected_disease !== "OTHER"
+  ) {
     const folders = await listFolders();
     for (const folder of folders) {
       const inFolder = folder.detections.some(
@@ -228,12 +233,9 @@ export async function applyFeedback(
       if (!inFolder) continue;
       if (folder.targetDisease !== "UNCERTAIN") continue;
 
-      const target = mapDiseaseLabelToTarget(detection.detected_disease);
-      if (target) {
-        folder.targetDisease = target;
-        folder.updatedAt = nowIso();
-        await upsertFolder(folder);
-      }
+      folder.targetDisease = detection.detected_disease;
+      folder.updatedAt = nowIso();
+      await upsertFolder(folder);
       break;
     }
   }
@@ -480,7 +482,7 @@ export async function seedIfEmpty(fields: FieldSummary[]): Promise<void> {
         uploaded_at: uploadedAt,
         processing_started_at: uploadedAt,
         completed_at: uploadedAt,
-        detected_disease: sample.label,
+        detected_disease: mapDiseaseLabelToTarget(sample.label) ?? "OTHER",
         confidence: sample.conf,
         confidence_score: sample.conf,
         all_predictions: buildSyntheticAllPreds(sample.label, sample.conf),
