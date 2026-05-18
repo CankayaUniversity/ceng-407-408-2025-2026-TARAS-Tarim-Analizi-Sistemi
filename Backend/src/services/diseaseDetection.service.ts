@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { DetectionStatus, UserFeedback, DiseaseTarget, Prisma } from "../generated/prisma";
 import { prisma } from "../config/database";
 import { uploadToS3, generatePresignedDownloadUrl, deleteFromS3 } from "./s3.service";
+import { getRecommendationsFor } from "./diseaseRecommendations";
 import logger from "../utils/logger";
 
 // Thumbnail kontrati: mobile uretir, multipart 'thumbnail' alaninda gonderir.
@@ -21,11 +22,10 @@ const DISEASE_DETECTION_BUCKET: string = process.env.AWS_S3_BUCKET;
 const LAMBDA_FUNCTION_NAME: string = process.env.LAMBDA_DISEASE_DETECTION_FUNCTION;
 
 interface DiseaseDetectionResult {
-  disease: string;
-  confidence: number;
-  confidence_score: number;
-  all_predictions: Record<string, number>;
-  recommendations: string[];
+  top1: string;                          // top-1 class (snake_case)
+  top1_score: number;                    // raw 0-1 probability
+  scores: Record<string, number>;        // full 14-class distribution, raw 0-1
+  inference_ms: number;                  // Lambda wall-clock, for telemetry
 }
 
 /**
@@ -306,19 +306,25 @@ export async function runDetectionPipeline(
   }
 
   const result: DiseaseDetectionResult = JSON.parse(responsePayload.body);
+  // Legacy DB columns: confidence (percent 0-100) and confidence_score (raw 0-1)
+  // store the same number two ways. New Lambda returns only top1_score (raw);
+  // we multiply for the percent column. See Task #14 — DB refactor to collapse.
   await prisma.diseaseDetection.update({
     where: { detection_id: detectionId },
     data: {
       status: DetectionStatus.COMPLETED,
       completed_at: new Date(),
-      detected_disease: result.disease,
-      confidence: result.confidence,
-      confidence_score: result.confidence_score,
-      all_predictions: result.all_predictions as any,
-      recommendations: result.recommendations as any,
+      detected_disease: result.top1,
+      confidence: result.top1_score * 100,
+      confidence_score: result.top1_score,
+      all_predictions: result.scores as any,
+      recommendations: getRecommendationsFor(result.top1) as any,
     },
   });
-  logger.info(`[DISEASE] ${result.disease} %${result.confidence} (${duration}ms)`);
+  logger.info(
+    `[DISEASE] ${result.top1} %${(result.top1_score * 100).toFixed(2)} ` +
+    `(backend=${duration}ms, lambda=${result.inference_ms}ms)`
+  );
 
   // Inference tamamlandi → consent kapilarsa orijinali simdi dusur. Thumbnail
   // dokunulmaz; mobile UI hala thumbnail uzerinden goruntuler.
@@ -326,8 +332,8 @@ export async function runDetectionPipeline(
 
   // Folder auto-tag (best-effort) — folder hala UNCERTAIN'se ilk emin tespit
   // disease'i belirler. recordUserFeedback() sonradan override edebilir.
-  if (folderId && result.disease !== "Uncertain") {
-    const mapped = DETECTED_DISEASE_TO_TARGET[result.disease];
+  if (folderId && result.top1 !== "Uncertain") {
+    const mapped = DETECTED_DISEASE_TO_TARGET[result.top1];
     if (mapped) {
       const folder = await prisma.diseaseTrackingFolder.findUnique({
         where: { folder_id: folderId },
@@ -342,7 +348,7 @@ export async function runDetectionPipeline(
       }
     } else {
       logger.warn(
-        `[FOLDER] ${folderId} auto-tag skipped: detected_disease "${result.disease}" not in map`,
+        `[FOLDER] ${folderId} auto-tag skipped: detected_disease "${result.top1}" not in map`,
       );
     }
   }
