@@ -348,7 +348,7 @@ export class ToolExecutor {
       select: {
         detection_id: true,
         detected_disease: true,
-        confidence: true,
+        confidence_score: true,
         status: true,
         uploaded_at: true,
         completed_at: true,
@@ -359,7 +359,7 @@ export class ToolExecutor {
       id: r.detection_id,
       disease: r.detected_disease ?? "unknown",
       confidence_pct:
-        r.confidence != null ? Math.round(r.confidence * 100) : null,
+        r.confidence_score != null ? Math.round(r.confidence_score * 100) : null,
       status: r.status,
       uploaded_at: r.uploaded_at.toISOString(),
       completed_at: r.completed_at?.toISOString() ?? null,

@@ -28,6 +28,23 @@ interface DiseaseDetectionResult {
   inference_ms: number;                  // Lambda wall-clock, for telemetry
 }
 
+type DetectionRow = {
+  detected_disease: string | null;
+  confidence_score: number | null;
+  [k: string]: unknown;
+};
+function serializeDetectionRow<T extends DetectionRow>(d: T): T & {
+  confidence: number | null;
+  recommendations: string[];
+} {
+  const conf = d.confidence_score;
+  return {
+    ...d,
+    confidence: conf != null ? conf * 100 : null,
+    recommendations: d.detected_disease ? getRecommendationsFor(d.detected_disease) : [],
+  };
+}
+
 /**
  * Submit a new disease detection request
  * Uploads original + mobile-provided thumbnail to S3, creates DB record,
@@ -306,19 +323,14 @@ export async function runDetectionPipeline(
   }
 
   const result: DiseaseDetectionResult = JSON.parse(responsePayload.body);
-  // Legacy DB columns: confidence (percent 0-100) and confidence_score (raw 0-1)
-  // store the same number two ways. New Lambda returns only top1_score (raw);
-  // we multiply for the percent column. See Task #14 — DB refactor to collapse.
   await prisma.diseaseDetection.update({
     where: { detection_id: detectionId },
     data: {
       status: DetectionStatus.COMPLETED,
       completed_at: new Date(),
       detected_disease: result.top1,
-      confidence: result.top1_score * 100,
       confidence_score: result.top1_score,
       all_predictions: result.scores as any,
-      recommendations: getRecommendationsFor(result.top1) as any,
     },
   });
   logger.info(
@@ -460,10 +472,8 @@ export async function getUserDetections(userId: string): Promise<any[]> {
         processing_started_at: true,
         completed_at: true,
         detected_disease: true,
-        confidence: true,
         confidence_score: true,
         all_predictions: true,
-        recommendations: true,
         error_message: true,
         user_feedback: true,
         feedback_at: true,
@@ -486,7 +496,7 @@ export async function getUserDetections(userId: string): Promise<any[]> {
           } catch { /* presigned URL olusturulamadi */ }
         }
         const { image_s3_key, thumbnail_s3_key, ...rest } = d;
-        return { ...rest, imageUrl };
+        return { ...serializeDetectionRow(rest), imageUrl };
       }),
     );
 
@@ -657,7 +667,6 @@ export async function getUserDiseaseTrackingFolders(userId: string): Promise<any
           uploaded_at: true,
           completed_at: true,
           detected_disease: true,
-          confidence: true,
           confidence_score: true,
           image_s3_key: true,
           thumbnail_s3_key: true,
@@ -690,7 +699,7 @@ export async function getUserDiseaseTrackingFolders(userId: string): Promise<any
           const { image_s3_key, thumbnail_s3_key, ...restDetection } = detection;
 
           return {
-            ...restDetection,
+            ...serializeDetectionRow(restDetection),
             imageUrl,
           };
         })
@@ -747,10 +756,8 @@ export async function getDiseaseTrackingFolderById(
           uploaded_at: true,
           completed_at: true,
           detected_disease: true,
-          confidence: true,
           confidence_score: true,
           all_predictions: true,
-          recommendations: true,
           image_s3_key: true,
           thumbnail_s3_key: true,
           error_message: true,
@@ -783,7 +790,7 @@ export async function getDiseaseTrackingFolderById(
       const { image_s3_key, thumbnail_s3_key, ...restDetection } = detection;
 
       return {
-        ...restDetection,
+        ...serializeDetectionRow(restDetection),
         imageUrl,
       };
     })
@@ -839,10 +846,8 @@ export async function getDiseaseTrackingFolderHistory(
           uploaded_at: true,
           completed_at: true,
           detected_disease: true,
-          confidence: true,
           confidence_score: true,
           all_predictions: true,
-          recommendations: true,
         },
       },
     },
@@ -864,16 +869,19 @@ export async function getDiseaseTrackingFolderHistory(
       zoneId: folder.planting.zone?.zone_id || null,
       zoneName: folder.planting.zone?.name || null,
     },
-    history: folder.detections.map((detection) => ({
-      detectionId: detection.detection_id,
-      uploadedAt: detection.uploaded_at,
-      completedAt: detection.completed_at,
-      disease: detection.detected_disease,
-      confidence: detection.confidence,
-      confidenceScore: detection.confidence_score,
-      allPredictions: detection.all_predictions,
-      recommendations: detection.recommendations,
-    })),
+    history: folder.detections.map((detection) => {
+      const decorated = serializeDetectionRow(detection);
+      return {
+        detectionId: detection.detection_id,
+        uploadedAt: detection.uploaded_at,
+        completedAt: detection.completed_at,
+        disease: detection.detected_disease,
+        confidence: decorated.confidence,
+        confidenceScore: detection.confidence_score,
+        allPredictions: detection.all_predictions,
+        recommendations: decorated.recommendations,
+      };
+    }),
   };
 }
 
