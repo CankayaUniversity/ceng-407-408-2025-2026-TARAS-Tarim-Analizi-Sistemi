@@ -285,6 +285,7 @@ export default {
   authenticateUser,
   getUserProfile,
   updateUserPassword,
+  updateDatasetConsent,
   ensureAdminRole,
   ensureFarmerRole,
   getFarmerRoleId,
