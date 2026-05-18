@@ -1,7 +1,7 @@
 // Hastalik tespit ekrani - analiz listesi ve kamera erisimi
 // Props: theme, permission, onRequestPermission, isActive
 
-import { memo, useState, useEffect, useRef } from "react";
+import { memo, useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -12,6 +12,10 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  FlatList,
+  Dimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
@@ -39,6 +43,8 @@ import { useScreenReset } from "../../hooks/useScreenReset";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { FocusableSection } from "../../components/FocusableSection";
+import { PressableDark } from "../../components/PressableDark";
+import { useTabBarPopOut } from "../../context/TabBarPopOutContext";
 import * as imageCache from "../../utils/imageCache";
 
 interface ParentDiseaseScreenProps extends DiseaseScreenProps {
@@ -54,6 +60,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
 }: ParentDiseaseScreenProps) {
   const { showPopup } = usePopupMessage();
   const { t, language } = useLanguage();
+  const { register: registerTabPopOut } = useTabBarPopOut();
   const [showCamera, setShowCamera] = useState(false);
   const [detections, setDetections] = useState<DiseaseDetection[]>([]);
   const [selectedDetection, setSelectedDetection] =
@@ -68,6 +75,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   const [showCreateFolder, setShowCreateFolder] = useState(false);
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [generalExpanded, setGeneralExpanded] = useState(true);
+  const [foldersExpanded, setFoldersExpanded] = useState(true);
   // Kamera acildiginda (folder detail FAB'den) hangi folder'a baglanmali
   const [cameraFolderContext, setCameraFolderContext] =
     useState<{ folderId: string; folderName: string } | null>(null);
@@ -76,6 +84,29 @@ export const DiseaseScreen = memo(function DiseaseScreen({
 
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [retryingPendingId, setRetryingPendingId] = useState<string | null>(null);
+
+  // Infinite scroll for general detections — start at 5, grow by 10 on bottom-reach
+  const DETECTION_INITIAL = 5;
+  const DETECTION_INCREMENT = 10;
+  const [visibleDetectionCount, setVisibleDetectionCount] = useState(DETECTION_INITIAL);
+  const visibleDetections = useMemo(
+    () => detections.slice(0, visibleDetectionCount),
+    [detections, visibleDetectionCount],
+  );
+  const hasMoreDetections = visibleDetectionCount < detections.length;
+
+  // Folder pager — 2 folders per swipe page
+  const FOLDERS_PER_PAGE = 2;
+  const folderPages = useMemo(() => {
+    const out: DiseaseTrackingFolder[][] = [];
+    for (let i = 0; i < folders.length; i += FOLDERS_PER_PAGE) {
+      out.push(folders.slice(i, i + FOLDERS_PER_PAGE));
+    }
+    return out;
+  }, [folders]);
+  // Full-window page width so adjacent pages can have inner padding gap during swipe
+  const folderPageWidth = Dimensions.get("window").width;
+  const [folderPage, setFolderPage] = useState(0);
 
   const refreshPending = async () => {
     try {
@@ -89,6 +120,56 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   useEffect(() => {
     refreshPending();
   }, []);
+
+  // Register a pop-out card-button on the disease tab. AppTabBar renders this
+  // absolutely above the leaf tab slot using its own flex layout, so the X is
+  // pixel-perfect on every device and the Y rides on top of the bar regardless
+  // of 3-button vs gesture nav, iOS home indicator, etc.
+  useEffect(() => {
+    return registerTabPopOut({
+      tabId: "disease",
+      // Bookmark shape — flush against the tab bar top, gently rounded top
+      // corners (matches the nav bar rounding), square bottom that melts into
+      // the surface below it.
+      render: () => (
+        <PressableDark
+          onPress={handleOpenGeneralCamera}
+          style={{
+            width: s(60),
+            paddingVertical: vs(12),
+            borderTopLeftRadius: s(10),
+            borderTopRightRadius: s(10),
+            backgroundColor: theme.success,
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+            elevation: 8,
+            shadowColor: theme.shadowColor,
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.18,
+            shadowRadius: 10,
+          }}
+        >
+          <Ionicons name="camera" size={30} color={theme.textOnPrimary} />
+        </PressableDark>
+      ),
+    });
+  }, [registerTabPopOut, theme]);
+
+  // Refresh / delete → clamp window down if list shrank, but never below the initial 5
+  useEffect(() => {
+    setVisibleDetectionCount((cur) =>
+      Math.min(Math.max(DETECTION_INITIAL, cur), Math.max(detections.length, DETECTION_INITIAL)),
+    );
+  }, [detections.length]);
+
+  const handleScrollNearBottom = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!hasMoreDetections) return;
+    const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+    if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 240) {
+      setVisibleDetectionCount((c) => Math.min(c + DETECTION_INCREMENT, detections.length));
+    }
+  };
 
   // Modeli arka planda yukle — kullanici Live mode'a gectiginde hazir olur
   // Singleton oldugu icin useLiveScan ikinci yukleme baslatmaz
@@ -419,6 +500,8 @@ export const DiseaseScreen = memo(function DiseaseScreen({
               flexGrow: 1,
             }}
             showsVerticalScrollIndicator={false}
+            onScroll={handleScrollNearBottom}
+            scrollEventThrottle={64}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -434,20 +517,32 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  marginBottom: vs(8),
+                  marginBottom: foldersExpanded ? vs(8) : 0,
                 }}
               >
-                <Text
-                  style={{
-                    color: theme.textSecondary,
-                    fontSize: 11,
-                    fontWeight: "700",
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
+                <TouchableOpacity
+                  onPress={() => setFoldersExpanded((v) => !v)}
+                  activeOpacity={0.8}
+                  hitSlop={8}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}
                 >
-                  {t.disease.foldersSectionTitle} {folders.length > 0 ? `(${folders.length})` : ""}
-                </Text>
+                  <Ionicons
+                    name={foldersExpanded ? "chevron-down" : "chevron-forward"}
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                  <Text
+                    style={{
+                      color: theme.textSecondary,
+                      fontSize: 11,
+                      fontWeight: "700",
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {t.disease.foldersSectionTitle} {folders.length > 0 ? `(${folders.length})` : ""}
+                  </Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => setShowCreateFolder(true)}
                   hitSlop={8}
@@ -470,7 +565,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                 </TouchableOpacity>
               </View>
 
-              {loadingFolders && folders.length === 0 ? (
+              {!foldersExpanded ? null : loadingFolders && folders.length === 0 ? (
                 <View style={{ paddingVertical: vs(16), alignItems: "center" }}>
                   <ActivityIndicator size="small" color={theme.primary} />
                 </View>
@@ -491,7 +586,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                     {t.disease.foldersEmpty}
                   </Text>
                 </View>
-              ) : (
+              ) : folderPages.length <= 1 ? (
                 folders.map((f) => (
                   <FolderCard
                     key={f.folderId}
@@ -500,31 +595,75 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                     onPress={() => handleOpenFolder(f.folderId)}
                   />
                 ))
+              ) : (
+                <View style={{ marginHorizontal: -spacing.md }}>
+                  <FlatList
+                    data={folderPages}
+                    keyExtractor={(_, i) => `folder-page-${i}`}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    snapToInterval={folderPageWidth}
+                    decelerationRate="fast"
+                    onMomentumScrollEnd={(e) =>
+                      setFolderPage(Math.round(e.nativeEvent.contentOffset.x / folderPageWidth))
+                    }
+                    renderItem={({ item: page }) => (
+                      <View style={{ width: folderPageWidth, paddingHorizontal: spacing.md }}>
+                        {page.map((f) => (
+                          <FolderCard
+                            key={f.folderId}
+                            folder={f}
+                            theme={theme}
+                            onPress={() => handleOpenFolder(f.folderId)}
+                          />
+                        ))}
+                      </View>
+                    )}
+                  />
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: 6,
+                      marginTop: 6,
+                    }}
+                  >
+                    {folderPages.map((_, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          width: i === folderPage ? 16 : 6,
+                          height: 6,
+                          borderRadius: 3,
+                          backgroundColor:
+                            i === folderPage ? theme.primary : theme.primary + "40",
+                        }}
+                      />
+                    ))}
+                  </View>
+                </View>
               )}
             </View>
 
             {/* ── GENERAL DETECTIONS SECTION ────────────────────── */}
-            <View
-              style={{
-                backgroundColor: theme.primary + "08",
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: theme.primary + "20",
-                padding: 10,
-                marginBottom: vs(8),
-              }}
-            >
+            <View style={{ marginBottom: vs(8) }}>
               <TouchableOpacity
                 onPress={() => setGeneralExpanded((v) => !v)}
                 activeOpacity={0.8}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "space-between",
+                  gap: 6,
                   marginBottom: generalExpanded ? vs(8) : 0,
                   paddingHorizontal: 2,
                 }}
               >
+                <Ionicons
+                  name={generalExpanded ? "chevron-down" : "chevron-forward"}
+                  size={18}
+                  color={theme.textSecondary}
+                />
                 <Text
                   style={{
                     color: theme.textSecondary,
@@ -536,11 +675,6 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                 >
                   {t.disease.generalSectionTitle} {detections.length > 0 ? `(${detections.length})` : ""}
                 </Text>
-                <Ionicons
-                  name={generalExpanded ? "chevron-up" : "chevron-down"}
-                  size={18}
-                  color={theme.textSecondary}
-                />
               </TouchableOpacity>
 
               <FocusableSection
@@ -579,60 +713,28 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                     </Text>
                   </View>
                 ) : (
-                  detections.map((detection) => (
-                    <DiseaseResultCard
-                      key={detection.detection_id}
-                      detection={detection}
-                      theme={theme}
-                      imageUrl={imageUrls[detection.detection_id]}
-                      onPress={() => setSelectedDetection(detection)}
-                      onDelete={() => handleDeleteDetection(detection.detection_id)}
-                    />
-                  ))
+                  <>
+                    {visibleDetections.map((detection) => (
+                      <DiseaseResultCard
+                        key={detection.detection_id}
+                        detection={detection}
+                        theme={theme}
+                        imageUrl={imageUrls[detection.detection_id]}
+                        onPress={() => setSelectedDetection(detection)}
+                        onDelete={() => handleDeleteDetection(detection.detection_id)}
+                      />
+                    ))}
+                    {hasMoreDetections && (
+                      <View style={{ paddingVertical: vs(10), alignItems: "center" }}>
+                        <ActivityIndicator size="small" color={theme.primary} />
+                      </View>
+                    )}
+                  </>
                 )}
               </FocusableSection>
             </View>
           </ScrollView>
 
-          <View
-            className="absolute"
-            style={{
-              left: 0,
-              right: 0,
-              bottom: vs(12),
-              alignItems: "center",
-            }}
-            pointerEvents="box-none"
-          >
-            <FocusableSection
-              id="addButton"
-              screen="disease"
-              theme={theme}
-              scrollMode="pulse-only"
-            >
-              <TouchableOpacity
-                onPress={handleOpenGeneralCamera}
-                activeOpacity={0.85}
-                style={{
-                  width: s(48),
-                  height: s(48),
-                  borderRadius: 24,
-                  backgroundColor: theme.accent,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderWidth: 2,
-                  borderColor: theme.background,
-                  elevation: 10,
-                  shadowColor: theme.shadowColor,
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 10,
-                }}
-              >
-                <Ionicons name="add" size={32} color={theme.textOnAccent} />
-              </TouchableOpacity>
-            </FocusableSection>
-          </View>
         </>
       )}
 
@@ -988,9 +1090,12 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
           </View>
         )}
 
-      {detection.status === "COMPLETED" &&
-        detection.recommendations &&
-        detection.recommendations.length > 0 && (
+      {(() => {
+        if (detection.status !== "COMPLETED" || !detection.recommendations) return null;
+        const recs =
+          (language === "tr" ? detection.recommendations.tr : detection.recommendations.en) ?? [];
+        if (recs.length === 0) return null;
+        return (
           <View
             className="surface-bg rounded-lg"
             style={{ padding: spacing.sm }}
@@ -998,13 +1103,14 @@ const DetailModalBody = ({ detection, theme, t, language, imageUrl }: DetailModa
             <Text className="text-secondary text-[11px] font-semibold mb-1">
               {t.disease.detailRecommendations}
             </Text>
-            {detection.recommendations.map((rec, i) => (
+            {recs.map((rec, i) => (
               <Text key={i} className="text-primary text-xs mb-0.5">
                 • {rec}
               </Text>
             ))}
           </View>
-        )}
+        );
+      })()}
 
       {detection.status === "COMPLETED" && (
         <View className="surface-bg rounded-lg" style={{ padding: spacing.sm }}>

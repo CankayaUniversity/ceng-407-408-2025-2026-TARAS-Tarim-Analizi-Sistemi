@@ -1,90 +1,56 @@
-// Hastalik sinifina karsilik gelen kullanici tavsiyeleri. Lambda inference'i
-// disease class adi dondururken Backend bu maptan ilgili tavsiyeleri alip
-// disease_detections.recommendations alanina yazar. Lambda'nin her cagrida
-// ayni stringi tekrar tekrar dondurmesi gereksiz — kaynak burada tek yerde.
+// Disease care recommendations — loaded once from disease_recommendation and
+// cached in memory (small set, ~120 rows). Returned bilingually so the mobile
+// client can pick the user's language without round-tripping back to the API.
+//
+// Reseed via: npx ts-node prisma/seed-disease-recommendations.ts
+// After reseeding, restart the backend (or call reloadRecommendations()).
 
-export const DISEASE_RECOMMENDATIONS: Record<string, string[]> = {
-  bacterial_spot: [
-    "Hastalikli yaprak ve meyveleri toplayip imha edin (kompost yapmayin).",
-    "Bakir bazli bakterisit (Bordo bulamaci) hafta arayla iki kez uygulayin.",
-    "Ustten sulamayi birakin, kok bolgesine damla sulama yapin.",
-    "Bitki aralarini seyrekleseterip hava sirkulasyonunu artirin.",
-  ],
-  corn_common_rust: [
-    "Yaprak altinda turuncu pustuller goruluyorsa erken mudahale edin.",
-    "Triazol grubu fungisit (tebukonazol) uygulayin.",
-    "Hasat sonrasi bitki artiklarini tarladan uzaklastirip yakin.",
-  ],
-  corn_gray_leaf_spot: [
-    "Bitki sirklarini havalandirin, sulamada yapraklari islatmayin.",
-    "Mancozeb veya azoksistrobin icerikli fungisit uygulayin.",
-    "Gelecek sezon misir ekmeyin (en az 2 yil munavebe).",
-  ],
-  corn_northern_leaf_blight: [
-    "Yaprakta 3-15 cm uzunlugunda zeytin yesili lezyonlar gorulurse hizli mudahale edin.",
-    "Strobilurin (azoksistrobin) veya triazol grubu fungisit uygulayin.",
-    "Sonraki ekiminizde dayanikli cesit secin, munavebe yapin.",
-  ],
-  early_blight: [
-    "Alt yapraklardaki halka sekilli kahverengi lekelere karsi hizli mudahale edin.",
-    "Chlorothalonil veya mancozeb bazli fungisit 7-10 gun arayla uygulayin.",
-    "Etkilenen yapraklari toplayip imha edin (kompost yapmayin).",
-    "Damla sulama kullanin, gece sulamasi yapmayin.",
-  ],
-  healthy: [
-    "Bitki saglikli gorunuyor. Mevcut sulama ve gubreleme programini surdurun.",
-  ],
-  late_blight: [
-    "ACIL: Hizla yayilan agir hastalik. Hastalikli kisimlari derhal toplayip imha edin.",
-    "Sistemik fungisit (metalaksil + mancozeb karisimi) uygulayin.",
-    "Bitki etrafindaki hava sirkulasyonunu artirin, alt yapraklari budayin.",
-    "Komsu bitkileri de kontrol edin, koruyucu sprey atin.",
-  ],
-  leaf_mold: [
-    "Sera kosullarinda nem orani %85'in altinda tutun.",
-    "Klorothalonil veya bakir bazli fungisit uygulayin.",
-    "Asagidan sulayin, bitki tepesinin nem almasini engelleyin.",
-  ],
-  mosaic_virus: [
-    "Virus hastaligi icin tedavi yoktur. Hastalikli bitkiyi sokup yakin.",
-    "Tutun urunu kullanan kisi bitkilere dokunmamali (TMV bulasici).",
-    "Aletleri %10'luk camasir suyu ile dezenfekte edin.",
-    "Yaprak biti gibi vektor boceklere karsi imidakloprid uygulayin.",
-  ],
-  powdery_mildew: [
-    "Yaprakta beyaz toz benzeri lekeler — erken mudahale sart.",
-    "Sulfur (kukurt) bazli fungisit veya potasyum bikarbonat uygulayin.",
-    "Bitkileri seyrekleseterin, sabah sulama yapin (aksam degil).",
-  ],
-  septoria_leaf_spot: [
-    "Kucuk gri merkezli yuvarlak lekeler — esik dusuk, hizli mudahale sart.",
-    "Mancozeb veya bakir bazli fungisit 10 gun arayla uygulayin.",
-    "Alt etkilenmis yapraklari kesip imha edin.",
-    "Damla sulama + malch kullanin, ustten sulamayi birakin.",
-  ],
-  spider_mites: [
-    "Yaprak altinda ince ag ve sari noktalar varsa kirmizi orumcek vardir.",
-    "Once basincli su ile yapraklari yikayin (mekanik mucadele).",
-    "Akarisit (abamektin) uygulayin, 7 gun sonra tekrar edin.",
-    "Dogal dusmanlari (avci akarlar) korumak icin genis spektrumlu ilaclardan kacinin.",
-  ],
-  target_spot: [
-    "Yaprak ve meyvelerde konsantrik halkalardan olusan kahverengi lekeler.",
-    "Azoksistrobin veya difenokonazol icerikli fungisit uygulayin.",
-    "Etkilenen kisimlari budayin, bahce hijyenini koruyun.",
-  ],
-  yellow_leaf_curl_virus: [
-    "Virus hastaligi — tedavi yok. Hastalikli bitkiyi sokerek imha edin.",
-    "Vektor beyazsinegi imidakloprid veya sari yapiskan tuzaklarla kontrol edin.",
-    "Fide doneminde tulbent gibi koruyucu ortu kullanin.",
-    "Sonraki ekimde TYLCV-toleranti cesit secin.",
-  ],
+import { prisma } from "../config/database";
+import { DiseaseTarget } from "../generated/prisma";
+import logger from "../utils/logger";
 
-  // Lambda 'Uncertain' donerse veya bilinmeyen bir sinif gelirse — bos.
-  // Backend folder auto-tag bu durumda zaten atlar.
-  Uncertain: [],
-};
+export interface BilingualRecommendations {
+  tr: string[];
+  en: string[];
+}
 
-export function getRecommendationsFor(disease: string): string[] {
-  return DISEASE_RECOMMENDATIONS[disease] ?? [];
+const EMPTY: BilingualRecommendations = { tr: [], en: [] };
+
+let cache: Partial<Record<DiseaseTarget, BilingualRecommendations>> | null = null;
+let loadPromise: Promise<void> | null = null;
+
+async function load(): Promise<void> {
+  const rows = await prisma.diseaseRecommendation.findMany({
+    orderBy: [{ disease_target: "asc" }, { language: "asc" }, { order_index: "asc" }],
+    select: { disease_target: true, language: true, text: true },
+  });
+  const next: Partial<Record<DiseaseTarget, BilingualRecommendations>> = {};
+  for (const r of rows) {
+    const slot = next[r.disease_target] ?? { tr: [], en: [] };
+    if (r.language === "tr") slot.tr.push(r.text);
+    else if (r.language === "en") slot.en.push(r.text);
+    next[r.disease_target] = slot;
+  }
+  cache = next;
+  logger.info(
+    `[RECOMMEND] cache rebuilt — ${rows.length} rows, ${Object.keys(next).length} diseases`,
+  );
+}
+
+// Kicked off at module import so the first API request doesn't wait.
+loadPromise = load().catch((err) => {
+  logger.error("[RECOMMEND] initial load failed:", err);
+});
+
+export async function reloadRecommendations(): Promise<void> {
+  loadPromise = load();
+  await loadPromise;
+}
+
+export function getRecommendationsFor(
+  disease: DiseaseTarget | null | undefined,
+): BilingualRecommendations {
+  if (!disease) return EMPTY;
+  if (!cache) return EMPTY; // first request before load resolves — safe fallback
+  return cache[disease] ?? EMPTY;
 }

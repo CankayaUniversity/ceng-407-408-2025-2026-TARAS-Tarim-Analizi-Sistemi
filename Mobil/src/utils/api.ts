@@ -1030,6 +1030,11 @@ export type DiseaseCorrection =
   | "YELLOW_LEAF_CURL_VIRUS"
   | "OTHER";
 
+export interface BilingualRecommendations {
+  tr: string[];
+  en: string[];
+}
+
 export interface DiseaseDetection {
   detection_id: string;
   user_id: string;
@@ -1043,7 +1048,7 @@ export interface DiseaseDetection {
   confidence: number | null;
   confidence_score: number | null;
   all_predictions: Record<string, number> | null;
-  recommendations: string[] | null;
+  recommendations: BilingualRecommendations | null;
   error_message: string | null;
   imageUrl?: string | null;
   user_feedback?: UserFeedback | null;
@@ -1092,7 +1097,7 @@ export interface FolderDetectionSummary {
 /** Detail varyantta ek alanlar (allPredictions + recommendations). */
 export interface FolderDetectionDetail extends FolderDetectionSummary {
   all_predictions?: Record<string, number> | null;
-  recommendations?: string[] | null;
+  recommendations?: BilingualRecommendations | null;
 }
 
 /** Klasore bagli planting bilgisi (response icinde nested). */
@@ -1143,7 +1148,7 @@ export interface DiseaseTrackingFolderHistory {
     confidence: number | null;
     confidenceScore: number | null;
     allPredictions: Record<string, number> | null;
-    recommendations: string[] | null;
+    recommendations: BilingualRecommendations | null;
   }>;
 }
 

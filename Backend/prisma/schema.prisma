@@ -521,6 +521,24 @@ model DiseaseDetection {
 }
 
 // =======================
+// DISEASE RECOMMENDATIONS
+// =======================
+// Per-disease care/treatment advice. Stored bilingually (tr, en); the API
+// returns both arrays and the client picks based on the user's language.
+
+model DiseaseRecommendation {
+  recommendation_id String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disease_target    DiseaseTarget
+  language          String        @db.VarChar(2)
+  order_index       Int
+  text              String
+
+  @@unique([disease_target, language, order_index])
+  @@index([disease_target])
+  @@map("disease_recommendation")
+}
+
+// =======================
 // FIRMWARE MANAGEMENT
 // =======================
 

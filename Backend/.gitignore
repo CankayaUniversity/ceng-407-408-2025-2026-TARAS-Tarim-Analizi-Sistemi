@@ -37,6 +37,7 @@ Thumbs.db
 # Prisma
 .prisma/
 src/generated/
+prisma/*.ts
 
 tests/
 *.tflite

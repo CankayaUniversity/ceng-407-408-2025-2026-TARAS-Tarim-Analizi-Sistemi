@@ -4,8 +4,8 @@ import { randomUUID } from "crypto";
 import { DetectionStatus, UserFeedback, DiseaseTarget, Prisma } from "../generated/prisma";
 import { prisma } from "../config/database";
 import { uploadToS3, generatePresignedDownloadUrl, deleteFromS3 } from "./s3.service";
-import { getRecommendationsFor } from "./diseaseRecommendations";
-import { detectedDiseaseToTarget, diseaseTargetToKey } from "./diseaseTargetMap";
+import { getRecommendationsFor, type BilingualRecommendations } from "./diseaseRecommendations";
+import { detectedDiseaseToTarget } from "./diseaseTargetMap";
 import logger from "../utils/logger";
 
 // Thumbnail kontrati: mobile uretir, multipart 'thumbnail' alaninda gonderir.
@@ -44,13 +44,13 @@ type DetectionRow = {
 };
 function serializeDetectionRow<T extends DetectionRow>(d: T): T & {
   confidence: number | null;
-  recommendations: string[];
+  recommendations: BilingualRecommendations;
 } {
   const conf = d.confidence_score;
   return {
     ...d,
     confidence: conf != null ? conf * 100 : null,
-    recommendations: d.detected_disease ? getRecommendationsFor(diseaseTargetToKey(d.detected_disease)) : [],
+    recommendations: getRecommendationsFor(d.detected_disease),
   };
 }
 
