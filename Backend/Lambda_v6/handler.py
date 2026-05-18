@@ -24,7 +24,7 @@ from PIL import Image
 # labels.json lives in /var/task/shared/ because inference_lambda resolves it
 # relative to its own dir (../shared/labels.json).
 sys.path.insert(0, "/var/task/code")
-from inference_lambda import predict, get_models  # type: ignore
+from inference_lambda import predict  # type: ignore
 
 log = logging.getLogger()
 log.setLevel(logging.INFO)
@@ -36,7 +36,7 @@ def lambda_handler(event, context):
     start = time.time()
     bucket = event.get("s3_bucket")
     key = event.get("s3_key")
-    use_tta = event.get("tta", True)
+    use_tta = event.get("tta", False)
 
     if not bucket or not key:
         return _err(400, "s3_bucket and s3_key required")
@@ -63,6 +63,7 @@ def lambda_handler(event, context):
         "top1_score": round(result["top1_confidence"], 4),
         "scores": {k: round(v, 4) for k, v in result["all_probs"].items()},
         "inference_ms": inference_ms,
+        "timings_ms": result.get("timings_ms"),
     }
     log.info(f"{body['top1']} ({body['top1_score']:.4f}) in {inference_ms}ms tta={use_tta}")
 

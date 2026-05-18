@@ -12,6 +12,7 @@ Lambda packaging:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -71,7 +72,7 @@ def get_models(device: str | None = None,
     global _MODELS, _DEVICE
     if _MODELS is None:
         _DEVICE = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        torch.set_num_threads(1)
+        torch.set_num_threads(int(os.environ.get("TORCH_NUM_THREADS") or (os.cpu_count() or 1)))
         weights = _resolve_weights(weight_profile)
         members = []
         for m in ENSEMBLE["members"]:
