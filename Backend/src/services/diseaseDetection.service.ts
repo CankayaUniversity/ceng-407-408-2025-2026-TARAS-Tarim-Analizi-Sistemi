@@ -1,4 +1,5 @@
 import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { randomUUID } from "crypto";
 import { DetectionStatus, UserFeedback, DiseaseTarget, Prisma } from "../generated/prisma";
 import { prisma } from "../config/database";
@@ -12,8 +13,15 @@ import logger from "../utils/logger";
 // compressForLocalCache (Mobil/src/utils/diseaseImageProcessing.ts) ile tek
 // "thumbnail nedir" tanimi paylasilir. Eksik/bos thumbnail = 400 reject.
 
+// requestTimeout = 200s > Lambda Timeout (180s) so SDK gives up before retrying forever
+// when the keep-alive socket wedges. connectionTimeout catches dead-broker scenarios fast.
 const lambdaClient = new LambdaClient({
   region: process.env.AWS_REGION,
+  maxAttempts: 2,
+  requestHandler: new NodeHttpHandler({
+    connectionTimeout: 5_000,
+    requestTimeout: 200_000,
+  }),
 });
 
 if (!process.env.AWS_S3_BUCKET) throw new Error("AWS_S3_BUCKET not configured");

@@ -19,6 +19,9 @@ import logger from "../utils/logger";
 const POLL_INTERVAL_MS = 30_000;
 const BATCH_SIZE = 5;
 const STRANDED_THRESHOLD_SEC = 300; // matches ATTEMPT_LEASE_SEC in service
+// Hard ceiling per row > Lambda timeout (180s) + SDK requestTimeout (200s) — defends
+// the isRunning flag against any await that silently never resolves.
+const PIPELINE_TIMEOUT_MS = 220_000;
 
 let isRunning = false;
 let timer: NodeJS.Timeout | null = null;
@@ -61,12 +64,19 @@ async function pickAndRun(): Promise<void> {
       // above ensures non-null, but TS can't track that across Prisma.
       if (!row.image_s3_key) continue;
       try {
-        await runDetectionPipeline(row.detection_id, row.image_s3_key, row.folder_id);
+        await Promise.race([
+          runDetectionPipeline(row.detection_id, row.image_s3_key, row.folder_id),
+          new Promise((_, rej) =>
+            setTimeout(() => rej(new Error("pipeline timeout")), PIPELINE_TIMEOUT_MS),
+          ),
+        ]);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error(`[DISEASE_QUEUE] runDetectionPipeline crashed for ${row.detection_id}: ${msg}`);
         // runDetectionPipeline already handles its own failures; the catch is
-        // a backstop for unexpected throws (e.g. Prisma connection lost mid-call).
+        // a backstop for unexpected throws (e.g. Prisma connection lost mid-call)
+        // or for the PIPELINE_TIMEOUT_MS race winner that prevents a wedged
+        // pipeline from locking isRunning forever.
       }
     }
   } catch (err) {
