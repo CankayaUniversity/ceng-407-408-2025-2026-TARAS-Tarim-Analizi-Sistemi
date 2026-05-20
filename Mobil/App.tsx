@@ -5,6 +5,14 @@ import "react-native-gesture-handler";
 import "./global.css";
 import "react-native-url-polyfill/auto";
 
+// react-native-screens v4 defaults freeze=ON (React Suspense). On Android +
+// Fabric this causes a popping screen's content to blank out the moment its
+// activityState transitions, before the native slide animation completes.
+// Disabling it globally keeps inactive screens fully rendered until they
+// actually unmount.
+import { enableFreeze } from "react-native-screens";
+enableFreeze(false);
+
 // Bilinen kutuphane uyarilari — uygulama islevselligini etkilemez
 import { LogBox } from "react-native";
 const SUPPRESSED = [
@@ -45,6 +53,7 @@ import { ThemeProvider } from "./src/context/ThemeContext";
 import { DashboardProvider } from "./src/context/DashboardContext";
 import { ChatProvider } from "./src/context/ChatContext";
 import { SectionFocusProvider } from "./src/context/SectionFocusContext";
+import { TabBarPopOutProvider } from "./src/context/TabBarPopOutContext";
 import { AppRouter } from "./src/navigation/AppRouter";
 
 export default function App() {
@@ -58,7 +67,9 @@ export default function App() {
                 <DashboardProvider>
                   <SectionFocusProvider>
                     <ChatProvider>
-                      <AppRouter />
+                      <TabBarPopOutProvider>
+                        <AppRouter />
+                      </TabBarPopOutProvider>
                     </ChatProvider>
                   </SectionFocusProvider>
                 </DashboardProvider>
