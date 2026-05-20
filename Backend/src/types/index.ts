@@ -176,6 +176,7 @@ export interface DashboardNode {
 export interface DashboardFieldData {
   polygon: PolygonData;
   nodes: DashboardNode[];
+  isPotField?: boolean;
 }
 
 export interface DashboardResponse {

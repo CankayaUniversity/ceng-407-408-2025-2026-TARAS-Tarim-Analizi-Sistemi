@@ -49,16 +49,52 @@ export async function checkFieldAccess(
   return field.farm.user_id === userId;
 }
 
+// Polygon centroid (shoelace formula) — zone'lar icin sentetik node konumu hesaplar
+function polygonCentroid(pts: [number, number][]): { x: number; z: number } {
+  const n = pts.length;
+  if (n < 3) {
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[1]);
+    return {
+      x: (Math.min(...xs) + Math.max(...xs)) / 2,
+      z: (Math.min(...zs) + Math.max(...zs)) / 2,
+    };
+  }
+  let area = 0;
+  let cx = 0;
+  let cz = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const pi = pts[i]!;
+    const pj = pts[j]!;
+    const cross = pi[0] * pj[1] - pj[0] * pi[1];
+    area += cross;
+    cx += (pi[0] + pj[0]) * cross;
+    cz += (pi[1] + pj[1]) * cross;
+  }
+  area /= 2;
+  if (Math.abs(area) < 1e-10) {
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[1]);
+    return {
+      x: (Math.min(...xs) + Math.max(...xs)) / 2,
+      z: (Math.min(...zs) + Math.max(...zs)) / 2,
+    };
+  }
+  const f = 1 / (6 * area);
+  return { x: cx * f, z: cz * f };
+}
+
 // get dashboard data for a field
 export async function getFieldDashboard(
   fieldId: string,
 ): Promise<DashboardResponse | null> {
-  // Tek sorguda tarla + node + son okuma + pending job bilgisi al
-  const [field, nodeRows, jobRows] = await Promise.all([
-    // 1) Tarla polygon verisi
+  // Tek sorguda tarla + node + son okuma + pending job + zone bilgisi al
+  const [field, nodeRows, jobRows, zoneRows] = await Promise.all([
+    // 1) Tarla polygon verisi + ortam tipi (sera / saksi)
     prisma.field.findUnique({
       where: { field_id: fieldId },
-      select: { field_id: true, polygon: true },
+      select: { field_id: true, polygon: true, environment_type: true },
     }),
     // 2) Node pozisyonlari + son okuma (DISTINCT ON ile tek sorgu)
     prisma.$queryRawUnsafe<{
@@ -92,6 +128,11 @@ export async function getFieldDashboard(
       },
       orderBy: { created_at: "asc" },
       select: { actual_start_time: true, created_at: true },
+    }),
+    // 4) Zone polygon'lari — sensor_node'u olmayan zone'lar icin sentetik node uretimi
+    prisma.zone.findMany({
+      where: { field_id: fieldId },
+      select: { zone_id: true, polygon: true },
     }),
   ]);
 
@@ -138,6 +179,26 @@ export async function getFieldDashboard(
     });
   }
 
+  // Sensor_node'u olmayan zone'lar icin sentetik node uret — zone centroid'inden.
+  // Boylece pot tarlalarda her zone bir saksi olarak, seralarda her zone bir
+  // Voronoi bolgesi olarak goruntulenebilir.
+  const coveredZoneIds = new Set(allNodes.map((n) => n.zone_id));
+  for (const zone of zoneRows) {
+    if (coveredZoneIds.has(zone.zone_id)) continue;
+    const poly = zone.polygon as { exterior?: [number, number][] } | null;
+    if (!poly?.exterior?.length) continue;
+    const center = polygonCentroid(poly.exterior);
+    allNodes.push({
+      id: `synth-${zone.zone_id}`,
+      zone_id: zone.zone_id,
+      x: center.x,
+      z: center.z,
+      moisture: 0,
+      airTemperature: 0,
+      airHumidity: 0,
+    });
+  }
+
   // calc averages
   const avgMoisture = readingCount > 0 ? totalMoisture / readingCount : 0;
   const avgTemperature = readingCount > 0 ? totalTemperature / readingCount : 0;
@@ -179,6 +240,17 @@ export async function getFieldDashboard(
     field: {
       polygon,
       nodes: allNodes,
+      // environment_type acikca set edilmisse onu kullan.
+      // NULL ise (eski kayitlar, dogrudan DB insert) zone geometrisinden cikar:
+      // Saksi wizard'i her zone icin 8 koseli (octagonal) polygon uretir.
+      isPotField:
+        field.environment_type === "POT_AREA" ||
+        (!field.environment_type &&
+          zoneRows.length > 0 &&
+          zoneRows.every((z) => {
+            const p = z.polygon as { exterior?: unknown[] } | null;
+            return p?.exterior?.length === 8;
+          })),
     },
   };
 }
