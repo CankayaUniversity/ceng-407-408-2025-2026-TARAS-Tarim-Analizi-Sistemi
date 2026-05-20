@@ -23,7 +23,7 @@ import { Theme } from "../../utils/theme";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useDashboard } from "../../context/DashboardContext";
-import { spacing, s, vs, ms } from "../../utils/responsive";
+import { spacing, vs, ms } from "../../utils/responsive";
 import { sensorAPI, diseaseAPI, type Zone, type DiseaseTrackingFolder } from "../../utils/api";
 
 const NAME_MAX_LENGTH = 150;
@@ -303,9 +303,9 @@ export const CreateFolderModal = ({ visible, theme, existingFolders, onClose, on
               ]}
             >
               {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={theme.textOnPrimary} />
               ) : (
-                <Text style={{ color: "#fff", fontWeight: "700", fontSize: ms(14, 0.3) }}>
+                <Text style={{ color: theme.textOnPrimary, fontWeight: "700", fontSize: ms(14, 0.3) }}>
                   {t.disease.folderCreateConfirm}
                 </Text>
               )}
@@ -316,8 +316,6 @@ export const CreateFolderModal = ({ visible, theme, existingFolders, onClose, on
     </Modal>
   );
 };
-
-void s;
 
 const styles = StyleSheet.create({
   center: {
