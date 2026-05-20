@@ -445,6 +445,16 @@ export interface StringDictionary {
     urgencyMedium: string;
     urgencyLow: string;
     lastIrrigation: string;
+    // Manual irrigation
+    manualIrrigation: string;
+    manualIrrigationDesc: string;
+    manualAmount: string;
+    manualDuration: string;
+    manualTime: string;
+    manualSaved: string;
+    manualSaveFailed: string;
+    enterDuration: string;
+    cancel: string;
   };
 
   // Add Field
@@ -969,6 +979,15 @@ const tr: StringDictionary = {
     urgencyMedium: "Orta",
     urgencyLow: "Düşük",
     lastIrrigation: "Son Sulama",
+    manualIrrigation: "Manuel Sulama",
+    manualIrrigationDesc: "Öneri olmadan sulama kaydı oluşturun",
+    manualAmount: "Sulama Miktarı (ml)",
+    manualDuration: "Sulama Süresi (dk)",
+    manualTime: "Sulama Zamanı",
+    manualSaved: "Manuel sulama kaydedildi!",
+    manualSaveFailed: "Manuel sulama kaydedilemedi",
+    enterDuration: "Süreyi girin",
+    cancel: "İptal",
   },
 
   addField: {
@@ -1488,6 +1507,15 @@ const en: StringDictionary = {
     urgencyMedium: "Medium",
     urgencyLow: "Low",
     lastIrrigation: "Last Irrigation",
+    manualIrrigation: "Manual Irrigation",
+    manualIrrigationDesc: "Log irrigation without a recommendation",
+    manualAmount: "Irrigation Amount (ml)",
+    manualDuration: "Irrigation Duration (min)",
+    manualTime: "Irrigation Time",
+    manualSaved: "Manual irrigation saved!",
+    manualSaveFailed: "Manual irrigation save failed",
+    enterDuration: "Enter duration",
+    cancel: "Cancel",
   },
 
   addField: {

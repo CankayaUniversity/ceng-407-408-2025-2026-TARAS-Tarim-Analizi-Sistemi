@@ -217,6 +217,11 @@ export const ColorPlane = memo(function ColorPlane({
     [fieldData],
   );
 
+  useEffect(() => {
+    console.log("[3D]", fieldData.isPotField ? "POT" : "GREENHOUSE",
+      "nodes:", nodes.length, "key:", fieldKey.slice(0, 24));
+  }, [fieldKey]);
+
   const meshRef = useRef<any>(null);
   const groupRef = useRef<any>(null);
   const rotationVelocityRef = useRef({ x: 0, y: 0 });
@@ -790,8 +795,28 @@ export const ColorPlane = memo(function ColorPlane({
 
   const GEOMETRY_DEPTH = 1.5;
   const POT_HEIGHT_LOCAL = 5.0; // local group units — pot height in field coordinate space
+  const POT_REF_SPACING = 12; // addFieldUtils spacing between pot centers
+
+  // Saksi olcek carpani — gercek node araligi / referans aralik (12).
+  // Wizard uretimi tarlalarda 1.0, daha buyuk koordinatli tarlalarda > 1.
+  const potScale = useMemo(() => {
+    if (!fieldData.isPotField || nodes.length < 2) return 1;
+    let minDist = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dz = nodes[i].z - nodes[j].z;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d > 0.01 && d < minDist) minDist = d;
+      }
+    }
+    return isFinite(minDist) ? minDist / POT_REF_SPACING : 1;
+  }, [nodes, fieldData.isPotField]);
+
+  const scaledPotHeight = POT_HEIGHT_LOCAL * potScale;
+  // Saksi tarlada: govde ustu (h) + toprak disk yuksekligi (0.3 * potScale)
   const geometrySurfaceY = fieldData.isPotField
-    ? POT_HEIGHT_LOCAL
+    ? scaledPotHeight + 0.3 * potScale
     : GEOMETRY_DEPTH / scale;
   const NODE_HEIGHT = geometrySurfaceY + 0.05;
 
@@ -801,7 +826,11 @@ export const ColorPlane = memo(function ColorPlane({
     z: centerZ - node.z,
   });
 
-  const pinLocalSize = PIN_WORLD_SIZE / scale;
+  // Pin boyutu: sera tarlalarda sabit dunya boyutu, saksi tarlalarda saksi ile orantili
+  // Pin basi yaricapi (pinLocalSize * 0.36) ≈ saksi yaricapinin %25'i (3.5 * potScale)
+  const pinLocalSize = fieldData.isPotField
+    ? 2.5 * potScale
+    : PIN_WORLD_SIZE / scale;
 
   // InstancedMesh refs — head/body/tip pin parcalari
   // 22+ ayri mesh yerine 3 draw call'da render edilir
@@ -809,6 +838,7 @@ export const ColorPlane = memo(function ColorPlane({
   const bodyInstRef = useRef<any>(null);
   const tipInstRef = useRef<any>(null);
   const potBodyInstRef = useRef<any>(null);
+  const potSoilInstRef = useRef<any>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tmpColor = useMemo(() => new THREE.Color(), []);
 
@@ -865,31 +895,50 @@ export const ColorPlane = memo(function ColorPlane({
     invalidate,
   ]);
 
-  // Saksi instance guncelleme — govde rengi dogrudan nemi gosterir
+  // Saksi instance guncelleme — govde + toprak yuzey
+  // potScale ile olceklenir: wizard tarlalarinda 1, buyuk koordinatli tarlalarda > 1
   useEffect(() => {
     if (!fieldData.isPotField) return;
     const body = potBodyInstRef.current;
+    const soil = potSoilInstRef.current;
     if (!body || nodes.length === 0) return;
+
+    const h = scaledPotHeight;
 
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const lx = node.x - centerX;
       const lz = centerZ - node.z;
       dummy.rotation.set(0, 0, 0);
-      dummy.scale.set(1, 1, 1);
-      dummy.position.set(lx, POT_HEIGHT_LOCAL / 2, lz);
+      dummy.scale.set(potScale, potScale, potScale);
+
+      // Saksi govdesi
+      dummy.position.set(lx, h / 2, lz);
       dummy.updateMatrix();
       body.setMatrixAt(i, dummy.matrix);
-      tmpColor.set(moistureToColor(node.moisture));
-      body.setColorAt(i, tmpColor);
+
+      // Toprak yuzey — saksi ustunde ince disk
+      // Geometri yuksekligi 0.3, merkez Y = h + 0.15*ps → alt yuz h, ust yuz h + 0.3*ps
+      if (soil) {
+        dummy.position.set(lx, h + 0.15 * potScale, lz);
+        dummy.updateMatrix();
+        soil.setMatrixAt(i, dummy.matrix);
+        tmpColor.set(moistureToColor(node.moisture));
+        soil.setColorAt(i, tmpColor);
+      }
     }
 
     body.instanceMatrix.needsUpdate = true;
-    if (body.instanceColor) body.instanceColor.needsUpdate = true;
+    if (soil) {
+      soil.instanceMatrix.needsUpdate = true;
+      if (soil.instanceColor) soil.instanceColor.needsUpdate = true;
+    }
     invalidate();
   }, [
     nodes,
     fieldData.isPotField,
+    potScale,
+    scaledPotHeight,
     centerX,
     centerZ,
     dummy,
@@ -994,16 +1043,29 @@ export const ColorPlane = memo(function ColorPlane({
         />
       </mesh>}
 
-      {/* Saksi tarla: birbirinden bagimsiz, esit boyutlu saksılar — renk nemi gosterir */}
+      {/* Saksi tarla: govde + toprak yuzey (nem renkli) */}
       {fieldData.isPotField && nodes.length > 0 && (
-        <instancedMesh
-          key={`pot-body-${nodes.length}`}
-          ref={potBodyInstRef}
-          args={[undefined, undefined, nodes.length]}
-        >
-          <cylinderGeometry args={[3.2, 2.2, POT_HEIGHT_LOCAL, 8]} />
-          <meshStandardMaterial roughness={0.75} metalness={0.0} vertexColors />
-        </instancedMesh>
+        <>
+          {/* Saksi govdesi — terracotta */}
+          <instancedMesh
+            key={`pot-body-${nodes.length}`}
+            ref={potBodyInstRef}
+            args={[undefined, undefined, nodes.length]}
+          >
+            <cylinderGeometry args={[3.5, 2.5, POT_HEIGHT_LOCAL, 16]} />
+            <meshStandardMaterial color="#C2784E" roughness={0.85} metalness={0.05} />
+          </instancedMesh>
+
+          {/* Toprak yuzey — saksi ustunde, nem renkli disk */}
+          <instancedMesh
+            key={`pot-soil-${nodes.length}`}
+            ref={potSoilInstRef}
+            args={[undefined, undefined, nodes.length]}
+          >
+            <cylinderGeometry args={[3.0, 3.0, 0.3, 16]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.9} metalness={0.0} />
+          </instancedMesh>
+        </>
       )}
 
       <ambientLight intensity={0.8} />

@@ -111,6 +111,19 @@ export const IrrigationDetailScreen = ({
   const [saveResult, setSaveResult] = useState<"success" | "error" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Manuel sulama form durumu
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualAmount, setManualAmount] = useState("");
+  const [manualDuration, setManualDuration] = useState("");
+  const [manualTime, setManualTime] = useState(new Date());
+  const [showManualDatePicker, setShowManualDatePicker] = useState(false);
+  const [showManualTimePicker, setShowManualTimePicker] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualSaveResult, setManualSaveResult] = useState<"success" | "error" | null>(null);
+  const [manualValidationError, setManualValidationError] = useState<string | null>(null);
+
+  const isPotField = dashboardData.field.isPotField === true;
+
   // Mevcut/beklenen is — en yeni PENDING+should_irrigate jobunu sec
   const pendingJob = useMemo(
     () =>
@@ -232,6 +245,93 @@ export const IrrigationDetailScreen = ({
     followedTime !== null &&
     (followedAmount === true ||
       (actualAmount.trim().length > 0 && parseFloat(actualAmount) > 0));
+
+  // Manuel sulama kaydet
+  const handleManualSave = useCallback(async () => {
+    setManualValidationError(null);
+
+    if (isPotField) {
+      const val = parseFloat(manualAmount);
+      if (!manualAmount.trim() || isNaN(val) || val <= 0) {
+        setManualValidationError(t.irrigation.amountInvalid);
+        return;
+      }
+    } else {
+      const val = parseFloat(manualDuration);
+      if (!manualDuration.trim() || isNaN(val) || val <= 0) {
+        setManualValidationError(t.irrigation.amountInvalid);
+        return;
+      }
+    }
+
+    if (manualTime.getTime() > Date.now() + 60_000) {
+      setManualValidationError(t.irrigation.amountInvalid);
+      return;
+    }
+
+    const zoneId = node.zone_id;
+    if (!zoneId) return;
+
+    setManualSaving(true);
+    setManualSaveResult(null);
+
+    const payload: {
+      actual_start_time: string;
+      actual_water_amount_ml?: number;
+      actual_duration_min?: number;
+    } = {
+      actual_start_time: manualTime.toISOString(),
+    };
+
+    if (isPotField) {
+      payload.actual_water_amount_ml = parseFloat(manualAmount);
+    } else {
+      payload.actual_duration_min = parseFloat(manualDuration);
+    }
+
+    console.log("[MANUAL_IRRIGATION] zone_id:", zoneId, "isPotField:", isPotField, "pendingJob:", !!pendingJob, "payload:", payload);
+
+    const res = await irrigationAPI.createManualActual(zoneId, payload);
+
+    console.log("[MANUAL_IRRIGATION] response:", res.success, res.data?.job?.job_id, res.data?.job?.status);
+
+    if (res.success) {
+      setManualSaveResult("success");
+      setManualAmount("");
+      setManualDuration("");
+      setManualValidationError(null);
+      await loadData();
+    } else {
+      setManualSaveResult("error");
+    }
+    setManualSaving(false);
+  }, [isPotField, manualAmount, manualDuration, manualTime, node.zone_id, pendingJob, loadData, t.irrigation.amountInvalid]);
+
+  // Manuel sulama DateTimePicker handler'lari
+  const onManualDateChange = (_: any, selected?: Date) => {
+    setShowManualDatePicker(false);
+    if (selected) {
+      const merged = new Date(manualTime);
+      merged.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+      setManualTime(merged);
+      if (Platform.OS === "android") {
+        setTimeout(() => setShowManualTimePicker(true), 300);
+      }
+    }
+  };
+
+  const onManualTimeChange = (_: any, selected?: Date) => {
+    setShowManualTimePicker(false);
+    if (selected) {
+      const merged = new Date(manualTime);
+      merged.setHours(selected.getHours(), selected.getMinutes());
+      setManualTime(merged);
+    }
+  };
+
+  const canManualSave = isPotField
+    ? manualAmount.trim().length > 0 && parseFloat(manualAmount) > 0
+    : manualDuration.trim().length > 0 && parseFloat(manualDuration) > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -742,6 +842,37 @@ export const IrrigationDetailScreen = ({
                   {t.irrigation.lastChecked}:{" "}
                   {formatDateTime(noActionJob.created_at, language)}
                 </Text>
+                {!showManualForm && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowManualForm(true);
+                      setManualSaveResult(null);
+                    }}
+                    style={{
+                      marginTop: spacing.sm,
+                      paddingVertical: spacing.sm,
+                      borderRadius: 10,
+                      borderWidth: 1.5,
+                      borderColor: theme.primary,
+                      backgroundColor: theme.primary + "12",
+                      alignItems: "center",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: s(6),
+                    }}
+                  >
+                    <MaterialIcons name="water-drop" size={16} color={theme.primary} />
+                    <Text
+                      style={{
+                        fontSize: ms(14, 0.3),
+                        fontWeight: "600",
+                        color: theme.primary,
+                      }}
+                    >
+                      {t.irrigation.manualIrrigation}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <View
@@ -771,6 +902,264 @@ export const IrrigationDetailScreen = ({
                 >
                   {t.irrigation.noActiveRecommendationSub}
                 </Text>
+                {!showManualForm && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowManualForm(true);
+                      setManualSaveResult(null);
+                    }}
+                    style={{
+                      marginTop: spacing.sm,
+                      paddingVertical: spacing.sm,
+                      paddingHorizontal: spacing.lg,
+                      borderRadius: 10,
+                      borderWidth: 1.5,
+                      borderColor: theme.primary,
+                      backgroundColor: theme.primary + "12",
+                      alignItems: "center",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: s(6),
+                    }}
+                  >
+                    <MaterialIcons name="water-drop" size={16} color={theme.primary} />
+                    <Text
+                      style={{
+                        fontSize: ms(14, 0.3),
+                        fontWeight: "600",
+                        color: theme.primary,
+                      }}
+                    >
+                      {t.irrigation.manualIrrigation}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Manuel sulama formu */}
+            {!pendingJob && showManualForm && (
+              <View
+                style={{
+                  backgroundColor: theme.surface,
+                  borderRadius: 14,
+                  padding: spacing.md,
+                  borderWidth: 1,
+                  borderColor: theme.primary + "30",
+                  marginTop: spacing.md,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: spacing.sm,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: ms(15, 0.3),
+                      fontWeight: "700",
+                      color: theme.textMain,
+                    }}
+                  >
+                    {t.irrigation.manualIrrigation}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowManualForm(false);
+                      setManualSaveResult(null);
+                      setManualValidationError(null);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: ms(13, 0.3),
+                        color: theme.textSecondary,
+                        fontWeight: "500",
+                      }}
+                    >
+                      {t.irrigation.cancel}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: spacing.md,
+                  }}
+                >
+                  {t.irrigation.manualIrrigationDesc}
+                </Text>
+
+                {/* Zaman secici */}
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
+                  }}
+                >
+                  {t.irrigation.manualTime}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowManualDatePicker(true)}
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: spacing.md,
+                  }}
+                >
+                  <Text style={{ fontSize: ms(15, 0.3), color: theme.textMain }}>
+                    {manualTime.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+
+                {showManualDatePicker && (
+                  <DateTimePicker
+                    value={manualTime}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onManualDateChange}
+                    maximumDate={new Date()}
+                  />
+                )}
+                {showManualTimePicker && (
+                  <DateTimePicker
+                    value={manualTime}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onManualTimeChange}
+                    is24Hour={true}
+                  />
+                )}
+                {Platform.OS === "ios" && showManualDatePicker && (
+                  <DateTimePicker
+                    value={manualTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={onManualTimeChange}
+                    is24Hour={true}
+                  />
+                )}
+
+                {/* Miktar veya sure girisi */}
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
+                  }}
+                >
+                  {isPotField ? t.irrigation.manualAmount : t.irrigation.manualDuration}
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: manualValidationError ? theme.danger : theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    fontSize: ms(16, 0.3),
+                    color: theme.textMain,
+                  }}
+                  value={isPotField ? manualAmount : manualDuration}
+                  onChangeText={(v) => {
+                    if (isPotField) {
+                      setManualAmount(v);
+                    } else {
+                      setManualDuration(v);
+                    }
+                    setManualValidationError(null);
+                  }}
+                  placeholder={isPotField ? t.irrigation.enterAmount : t.irrigation.enterDuration}
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="numeric"
+                />
+                {manualValidationError && (
+                  <Text
+                    style={{
+                      fontSize: ms(11, 0.3),
+                      color: theme.danger,
+                      marginTop: 4,
+                    }}
+                  >
+                    {manualValidationError}
+                  </Text>
+                )}
+
+                {/* Kaydet butonu */}
+                <TouchableOpacity
+                  onPress={handleManualSave}
+                  disabled={!canManualSave || manualSaving}
+                  style={{
+                    backgroundColor: canManualSave && !manualSaving ? theme.primary : theme.border,
+                    borderRadius: 12,
+                    paddingVertical: spacing.md,
+                    alignItems: "center",
+                    marginTop: spacing.lg,
+                  }}
+                >
+                  {manualSaving ? (
+                    <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                  ) : (
+                    <Text
+                      style={{
+                        fontSize: ms(15, 0.3),
+                        fontWeight: "700",
+                        color: canManualSave ? theme.textOnPrimary : theme.textMuted,
+                      }}
+                    >
+                      {t.irrigation.save}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                {/* Sonuc mesaji */}
+                {manualSaveResult === "success" && (
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      marginTop: spacing.sm,
+                      fontSize: ms(13, 0.3),
+                      color: theme.success,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {t.irrigation.manualSaved}
+                  </Text>
+                )}
+                {manualSaveResult === "error" && (
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      marginTop: spacing.sm,
+                      fontSize: ms(13, 0.3),
+                      color: theme.danger,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {t.irrigation.manualSaveFailed}
+                  </Text>
+                )}
               </View>
             )}
 
@@ -815,14 +1204,36 @@ export const IrrigationDetailScreen = ({
                     }}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: ms(12, 0.3),
-                          color: theme.textSecondary,
-                        }}
-                      >
-                        {formatDateTime(job.actual_start_time ?? job.start_time ?? job.created_at, language)}
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: s(6) }}>
+                        <Text
+                          style={{
+                            fontSize: ms(12, 0.3),
+                            color: theme.textSecondary,
+                          }}
+                        >
+                          {formatDateTime(job.actual_start_time ?? job.start_time ?? job.created_at, language)}
+                        </Text>
+                        {job.urgency_level === "manual" && (
+                          <View
+                            style={{
+                              backgroundColor: theme.info + "20",
+                              paddingHorizontal: s(6),
+                              paddingVertical: 1,
+                              borderRadius: 6,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: ms(10, 0.3),
+                                fontWeight: "600",
+                                color: theme.info,
+                              }}
+                            >
+                              {t.irrigation.manualIrrigation}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                       <Text
                         style={{
                           fontSize: ms(14, 0.3),
@@ -833,9 +1244,11 @@ export const IrrigationDetailScreen = ({
                       >
                         {job.actual_water_amount_ml != null
                           ? `${Math.round(job.actual_water_amount_ml)} ${t.irrigation.ml}`
-                          : job.water_amount_ml != null
-                            ? `${Math.round(job.water_amount_ml)} ${t.irrigation.ml}`
-                            : "—"}
+                          : job.actual_duration_min != null
+                            ? `${Math.round(job.actual_duration_min)} ${language === "tr" ? "dk" : "min"}`
+                            : job.water_amount_ml != null
+                              ? `${Math.round(job.water_amount_ml)} ${t.irrigation.ml}`
+                              : "—"}
                       </Text>
                     </View>
                     <Ionicons

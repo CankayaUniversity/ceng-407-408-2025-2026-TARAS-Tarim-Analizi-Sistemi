@@ -53,13 +53,13 @@ export const UserInfoStep = ({
   };
 
   return (
-    <View style={{ flex: 1, padding: s(20) }}>
+    <View className="w-full">
       {/* Header */}
       <Text
-        className="font-bold"
+        className="text-center font-bold"
         style={{
           fontSize: ms(20, 0.3),
-          marginBottom: vs(20),
+          marginBottom: vs(12),
           color: theme.textMain,
         }}
       >
@@ -69,14 +69,11 @@ export const UserInfoStep = ({
       {/* Error banner */}
       {error && (
         <View
+          className="w-full rounded-xl row mb-3"
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            borderRadius: 8,
             backgroundColor: theme.danger + "20",
             paddingVertical: vs(10),
             paddingHorizontal: s(16),
-            marginBottom: vs(16),
           }}
         >
           <MaterialCommunityIcons
@@ -101,11 +98,9 @@ export const UserInfoStep = ({
           paddingHorizontal: s(16),
           borderColor: theme.border,
           fontSize: ms(16, 0.3),
-          color: theme.textMain,
-          backgroundColor: theme.surface,
         }}
         placeholder={t.register.usernamePlaceholder}
-        placeholderTextColor={theme.textMuted}
+        placeholderTextColor={theme.textSecondary}
         value={state.username}
         onChangeText={(text) => {
           onUpdate({ username: text });
@@ -124,11 +119,9 @@ export const UserInfoStep = ({
           paddingHorizontal: s(16),
           borderColor: theme.border,
           fontSize: ms(16, 0.3),
-          color: theme.textMain,
-          backgroundColor: theme.surface,
         }}
         placeholder={t.register.emailPlaceholder}
-        placeholderTextColor={theme.textMuted}
+        placeholderTextColor={theme.textSecondary}
         value={state.email}
         onChangeText={(text) => {
           onUpdate({ email: text });
@@ -148,11 +141,9 @@ export const UserInfoStep = ({
           paddingHorizontal: s(16),
           borderColor: theme.border,
           fontSize: ms(16, 0.3),
-          color: theme.textMain,
-          backgroundColor: theme.surface,
         }}
         placeholder={t.register.passwordPlaceholder}
-        placeholderTextColor={theme.textMuted}
+        placeholderTextColor={theme.textSecondary}
         value={state.password}
         onChangeText={(text) => {
           onUpdate({ password: text });
@@ -170,11 +161,9 @@ export const UserInfoStep = ({
           paddingHorizontal: s(16),
           borderColor: theme.border,
           fontSize: ms(16, 0.3),
-          color: theme.textMain,
-          backgroundColor: theme.surface,
         }}
         placeholder={t.register.confirmPasswordPlaceholder}
-        placeholderTextColor={theme.textMuted}
+        placeholderTextColor={theme.textSecondary}
         value={state.confirmPassword}
         onChangeText={(text) => {
           onUpdate({ confirmPassword: text });
@@ -249,30 +238,22 @@ export const UserInfoStep = ({
 
       {/* Submit button */}
       <TouchableOpacity
+        className="w-full rounded-xl center mt-6"
         style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 12,
           backgroundColor: theme.primary,
           paddingVertical: vs(14),
           paddingHorizontal: s(24),
-          marginTop: vs(4),
           opacity: isLoading ? 0.6 : 1,
         }}
         onPress={handleSubmit}
-        activeOpacity={0.7}
         disabled={isLoading}
       >
         {isLoading ? (
           <ActivityIndicator color={theme.textOnPrimary} />
         ) : (
           <Text
-            style={{
-              fontSize: ms(16, 0.3),
-              color: theme.textOnPrimary,
-              fontWeight: "bold",
-            }}
+            className="text-center font-bold"
+            style={{ color: theme.textOnPrimary, fontSize: ms(16, 0.3) }}
           >
             {t.register.createAccountButton}
           </Text>
@@ -281,17 +262,13 @@ export const UserInfoStep = ({
 
       {/* Back to login */}
       <TouchableOpacity
-        style={{ marginTop: vs(16), alignItems: "center" }}
+        className="mt-4"
         onPress={onBack}
-        activeOpacity={0.7}
         disabled={isLoading}
       >
         <Text
-          style={{
-            fontSize: ms(14, 0.3),
-            color: theme.primary,
-            fontWeight: "600",
-          }}
+          className="text-center font-semibold"
+          style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
         >
           {t.register.backToLogin}
         </Text>
