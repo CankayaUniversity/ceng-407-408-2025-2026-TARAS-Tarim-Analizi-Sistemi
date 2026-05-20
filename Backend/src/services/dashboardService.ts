@@ -245,6 +245,7 @@ export async function getFieldDashboard(
       // Saksi wizard'i her zone icin 8 koseli (octagonal) polygon uretir.
       isPotField:
         field.environment_type === "POT_AREA" ||
+        field.environment_type === "pot" ||
         (!field.environment_type &&
           zoneRows.length > 0 &&
           zoneRows.every((z) => {
@@ -304,7 +305,7 @@ export async function createField(
   }
 
   const environmentType =
-    input.fieldType === "GREENHOUSE" ? "GREENHOUSE" : "POT_AREA";
+    input.fieldType === "GREENHOUSE" ? "greenhouse" : "pot";
 
   // create field + zones in a single transaction
   const field = await prisma.$transaction(async (tx) => {
