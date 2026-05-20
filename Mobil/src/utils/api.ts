@@ -1665,6 +1665,27 @@ export const irrigationAPI = {
     });
   },
 
+  // Manuel sulama kaydi olustur (oneri olmadan)
+  async createManualActual(
+    zoneId: string,
+    data: {
+      actual_start_time: string;
+      actual_water_amount_ml?: number;
+      actual_duration_min?: number;
+    },
+  ): Promise<ApiResponse<any>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (!token || isDemoToken(token)) {
+      return { success: true, data: { job: { job_id: "demo-manual", status: "EXECUTED", ...data } } };
+    }
+    console.log("[MANUAL_IRRIGATION] createManualActual zoneId:", zoneId, "payload:", data);
+    return authFetch(`/irrigation/zone/${zoneId}/manual-actual`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
   // Tarla bazinda tum zone onerilerini getir
   async getFieldRecommendations(
     fieldId: string,
