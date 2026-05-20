@@ -76,12 +76,13 @@ export const RegisterScreen = ({
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-porcelain dark:bg-carbonBlack"
+      className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
         contentContainerStyle={{
           flexGrow: 1,
+          justifyContent: "center",
           alignItems: "center",
           width: "100%",
           paddingVertical: 20,
@@ -92,9 +93,9 @@ export const RegisterScreen = ({
         bounces={false}
       >
         {theme.isDark ? (
-          <LogoDark width={160} height={160} />
+          <LogoDark width={220} height={220} />
         ) : (
-          <LogoLight width={160} height={160} />
+          <LogoLight width={220} height={220} />
         )}
 
         <UserInfoStep
