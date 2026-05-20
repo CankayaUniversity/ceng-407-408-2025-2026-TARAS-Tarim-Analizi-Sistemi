@@ -190,6 +190,7 @@ export const DiseaseCameraScreenExpoGo = ({
         onCancel={handleCancelPreview}
         onSend={handleSend}
         localResult={null}
+        folderContext={folderContext}
       />
     );
   }
@@ -402,7 +403,7 @@ const styles = StyleSheet.create({
   folderBannerClose: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.25)",

@@ -1,5 +1,5 @@
 // Router: Expo Go'da fallback, gercek build'de native implementasyon.
-// require() kosulluakukum yapilir, boylelikle Expo Go'da
+// require() kosullu yapilir, boylelikle Expo Go'da
 // react-native-vision-camera + react-native-fast-tflite modulleri YUKLENMEZ
 // (aksi halde TensorflowModule.install() / VisionCameraProxy native tarafi olmadigi icin crash).
 

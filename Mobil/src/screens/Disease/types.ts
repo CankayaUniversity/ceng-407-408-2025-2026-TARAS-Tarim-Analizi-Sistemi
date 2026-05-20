@@ -1,7 +1,6 @@
 import { Theme } from "../../types";
 import type { LocalInferenceResult } from "../../utils/diseaseInference";
-import type { LeafBox } from "../../utils/leafDetection";
-export type { LocalInferenceResult, LeafBox };
+export type { LocalInferenceResult };
 
 /** Demo modunda submitDetection'a tasinan ipuclari (uretim akisinda yok). */
 export interface DiseaseSubmissionExtras {
@@ -35,6 +34,6 @@ export interface PhotoPreviewProps {
   onCancel: () => void;
   onSend: () => void;
   localResult?: LocalInferenceResult | null;
-  /** Yaprak cascade aktifken son live frame'de tespit edilen kutu (debug overlay) */
-  leafBox?: LeafBox | null;
+  /** Klasor moduna aitse banner gosterilir; null = general */
+  folderContext?: { folderId: string; folderName: string } | null;
 }
