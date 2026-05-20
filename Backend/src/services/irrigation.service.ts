@@ -1489,8 +1489,10 @@ export async function createManualIrrigationActual(
   }
 
   const environmentType = zone.field.environment_type;
+  const isPot = environmentType === "pot" || environmentType === "POT_AREA";
+  const isGreenhouse = environmentType === "greenhouse" || environmentType === "GREENHOUSE";
 
-  if (environmentType === "pot") {
+  if (isPot) {
     if (
       input.actual_water_amount_ml == null ||
       input.actual_water_amount_ml <= 0
@@ -1503,7 +1505,7 @@ export async function createManualIrrigationActual(
     }
   }
 
-  if (environmentType === "greenhouse") {
+  if (isGreenhouse) {
     if (
       input.actual_duration_min == null ||
       input.actual_duration_min <= 0
@@ -1516,7 +1518,7 @@ export async function createManualIrrigationActual(
     }
   }
 
-  if (environmentType !== "pot" && environmentType !== "greenhouse") {
+  if (!isPot && !isGreenhouse) {
     const err = new Error(
       `Unsupported environment_type for manual irrigation actual: ${environmentType}`
     );
@@ -1524,7 +1526,13 @@ export async function createManualIrrigationActual(
     throw err;
   }
 
-  const averageReading = await getZoneLatestAverageReading(zoneId);
+  let averageReading: Awaited<ReturnType<typeof getZoneLatestAverageReading>> | null = null;
+  try {
+    averageReading = await getZoneLatestAverageReading(zoneId);
+  } catch {
+    // Zone may have no sensor nodes (e.g. pot fields with synthetic nodes).
+    // Sensor data is informational for manual irrigation — proceed without it.
+  }
 
   const followupCheckTime = calculateFollowupTimeFromActual(
     input.actual_start_time
@@ -1545,10 +1553,13 @@ export async function createManualIrrigationActual(
         ? { actual_duration_min: input.actual_duration_min }
         : {}),
       followup_check_time: followupCheckTime,
-      current_sm: averageReading.sm_percent,
+      // Pot fields use synthetic (visual-only) nodes with no sensor_node rows in DB,
+      // so getZoneLatestAverageReading may return null. current_sm is informational
+      // for manual irrigation — null is safe here; the Prisma schema allows Float?.
+      current_sm: averageReading?.sm_percent ?? null,
       target_sm: null,
       sm_deficit: 0,
-      predicted_sm_after_check: averageReading.sm_percent,
+      predicted_sm_after_check: averageReading?.sm_percent ?? null,
       recommended_check_after_min: zone.field.default_check_after_min ?? 60,
       water_amount_ml: 0,
       recommended_duration_min: null,
@@ -1612,8 +1623,10 @@ export async function submitIrrigationJobActual(
 
 
 const environmentType = job.zone?.field?.environment_type;
+const isPot = environmentType === "pot" || environmentType === "POT_AREA";
+const isGreenhouse = environmentType === "greenhouse" || environmentType === "GREENHOUSE";
 
-if (environmentType === "pot") {
+if (isPot) {
   if (
     input.actual_water_amount_ml == null ||
     input.actual_water_amount_ml <= 0
@@ -1628,7 +1641,7 @@ if (environmentType === "pot") {
 
 
 
-if (environmentType === "greenhouse") {
+if (isGreenhouse) {
   if (
     input.actual_duration_min == null ||
     input.actual_duration_min <= 0
@@ -1641,7 +1654,7 @@ if (environmentType === "greenhouse") {
   }
 }
 
-if (environmentType !== "pot" && environmentType !== "greenhouse") {
+if (!isPot && !isGreenhouse) {
   const err = new Error(
     `Unsupported environment_type for irrigation actuals: ${environmentType}`
   );
