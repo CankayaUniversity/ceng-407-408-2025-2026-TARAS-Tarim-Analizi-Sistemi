@@ -2,12 +2,14 @@
 // Props: theme, isDark, themeMode, onThemeModeChange, onLogout
 
 import { memo, useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Switch } from "react-native";
+import { View, Text, ScrollView, Switch, Alert } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Constants from "expo-constants";
 import { SettingsScreenProps, ThemeOption } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
 import { FocusableSection } from "../../components/FocusableSection";
+import { PressableDark } from "../../components/PressableDark";
+import { OptionButton } from "../../components/OptionButton";
 import { Language } from "../../utils/strings";
 import { Theme } from "../../utils/theme";
 import { s, vs, ms } from "../../utils/responsive";
@@ -37,55 +39,8 @@ interface SettingRowProps {
   theme: Theme;
 }
 
-interface OptionButtonProps {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-  theme: Theme;
-  icon?: string;
-  paddingV?: number;
-}
-
-const OptionButton = memo(function OptionButton({
-  label,
-  active,
-  onPress,
-  theme,
-  icon,
-  paddingV = 8,
-}: OptionButtonProps) {
-  return (
-    <TouchableOpacity
-      className="flex-1 center rounded-lg"
-      style={{
-        paddingHorizontal: icon ? 4 : 8,
-        paddingVertical: paddingV,
-        backgroundColor: active ? theme.primary : theme.surface,
-        borderWidth: active ? 2 : 1,
-        borderColor: active ? theme.primary : theme.border,
-      }}
-      onPress={onPress}
-    >
-      {icon && (
-        <MaterialCommunityIcons
-          name={icon as any}
-          size={16}
-          color={active ? theme.textOnPrimary : theme.primary}
-          style={{ marginBottom: 2 }}
-        />
-      )}
-      <Text
-        className="text-center font-semibold"
-        style={{
-          color: active ? theme.textOnPrimary : theme.textMain,
-          fontSize: icon ? 9 : 13,
-        }}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-});
+// Shared section vertical padding so every Settings row breathes the same way
+const SECTION_PADDING_V = 18;
 
 const SettingRow = memo(function SettingRow({
   icon,
@@ -94,11 +49,14 @@ const SettingRow = memo(function SettingRow({
   theme,
 }: SettingRowProps) {
   return (
-    <TouchableOpacity
-      className="row-between surface-bg rounded-lg mb-3"
-      style={{ paddingVertical: 16, paddingHorizontal: 16 }}
+    <PressableDark
+      className="row-between"
+      style={{
+        paddingVertical: vs(SECTION_PADDING_V),
+        borderBottomWidth: 1,
+        borderBottomColor: theme.border,
+      }}
       onPress={onPress}
-      activeOpacity={0.7}
     >
       <View className="row">
         <MaterialCommunityIcons
@@ -119,7 +77,7 @@ const SettingRow = memo(function SettingRow({
         size={20}
         color={theme.textSecondary}
       />
-    </TouchableOpacity>
+    </PressableDark>
   );
 });
 
@@ -155,7 +113,7 @@ export const SettingsScreen = memo(function SettingsScreen({
     })();
   }, []);
 
-  const handleToggleDatasetConsent = async (next: boolean) => {
+  const applyDatasetConsent = async (next: boolean) => {
     setDatasetConsent(next);
     const { saveDatasetConsent } = await import("../../utils/captureMetadata");
     await saveDatasetConsent(next);
@@ -171,6 +129,29 @@ export const SettingsScreen = memo(function SettingsScreen({
     }
   };
 
+  const handleToggleDatasetConsent = (next: boolean) => {
+    if (next) {
+      // Opt-in is harmless; apply immediately
+      void applyDatasetConsent(true);
+      return;
+    }
+    // Opt-out: confirm to avoid accidental taps
+    Alert.alert(
+      t.settings.datasetConsentDisableTitle,
+      t.settings.datasetConsentDisableMessage,
+      [
+        { text: t.common.cancel, style: "cancel" },
+        {
+          text: t.settings.datasetConsentDisableConfirm,
+          style: "destructive",
+          onPress: () => {
+            void applyDatasetConsent(false);
+          },
+        },
+      ],
+    );
+  };
+
   const themeOptions: ThemeOption[] = [
     {
       mode: "light",
@@ -181,19 +162,19 @@ export const SettingsScreen = memo(function SettingsScreen({
     { mode: "system", label: t.settings.themeSystem, icon: "cellphone" },
   ];
 
+  const sectionStyle = {
+    paddingVertical: vs(SECTION_PADDING_V),
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  } as const;
+
   return (
     <ScrollView
       ref={scrollViewRef}
       className="screen-bg"
-      style={{ paddingHorizontal: s(24), paddingTop: vs(24) }}
+      style={{ paddingHorizontal: s(24) }}
+      contentContainerStyle={{ paddingTop: vs(8), paddingBottom: vs(24) }}
     >
-      <Text
-        className="text-primary font-bold"
-        style={{ fontSize: ms(24, 0.3), marginBottom: vs(6) }}
-      >
-        {t.settings.title}
-      </Text>
-
       {/* Theme Mode */}
       <FocusableSection
         id="themeMode"
@@ -201,14 +182,7 @@ export const SettingsScreen = memo(function SettingsScreen({
         theme={theme}
         scrollViewRef={scrollViewRef}
       >
-        <View
-          className="mb-5"
-          style={{
-            paddingVertical: vs(20),
-            borderBottomWidth: 1,
-            borderBottomColor: theme.surface,
-          }}
-        >
+        <View style={sectionStyle}>
           <View className="row mb-3">
             <MaterialCommunityIcons
               name={isDark ? "moon-waning-crescent" : "white-balance-sunny"}
@@ -218,7 +192,7 @@ export const SettingsScreen = memo(function SettingsScreen({
             />
             <Text
               className="text-primary font-semibold"
-              style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
+              style={{ fontSize: ms(16, 0.3) }}
             >
               {t.settings.themeMode}
             </Text>
@@ -230,6 +204,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                 key={opt.mode}
                 label={opt.label}
                 icon={opt.icon}
+                layout="column"
                 active={themeMode === opt.mode}
                 onPress={() => onThemeModeChange(opt.mode)}
                 theme={theme}
@@ -246,14 +221,7 @@ export const SettingsScreen = memo(function SettingsScreen({
         theme={theme}
         scrollViewRef={scrollViewRef}
       >
-        <View
-          className="mb-5"
-          style={{
-            paddingVertical: vs(20),
-            borderBottomWidth: 1,
-            borderBottomColor: theme.surface,
-          }}
-        >
+        <View style={sectionStyle}>
           <View className="row mb-3">
             <MaterialCommunityIcons
               name="translate"
@@ -263,7 +231,7 @@ export const SettingsScreen = memo(function SettingsScreen({
             />
             <Text
               className="text-primary font-semibold"
-              style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
+              style={{ fontSize: ms(16, 0.3) }}
             >
               {t.settings.language}
             </Text>
@@ -295,14 +263,7 @@ export const SettingsScreen = memo(function SettingsScreen({
         theme={theme}
         scrollViewRef={scrollViewRef}
       >
-        <View
-          className="row-between"
-          style={{
-            paddingVertical: vs(14),
-            borderBottomWidth: 1,
-            borderBottomColor: theme.surface,
-          }}
-        >
+        <View className="row-between" style={sectionStyle}>
           <View className="row" style={{ flex: 1, marginRight: 12 }}>
             <MaterialCommunityIcons
               name="image-multiple-outline"
@@ -313,7 +274,7 @@ export const SettingsScreen = memo(function SettingsScreen({
             <View style={{ flex: 1 }}>
               <Text
                 className="text-primary font-semibold"
-                style={{ fontSize: ms(15, 0.3) }}
+                style={{ fontSize: ms(16, 0.3) }}
               >
                 {t.settings.datasetConsentTitle}
               </Text>
@@ -321,7 +282,8 @@ export const SettingsScreen = memo(function SettingsScreen({
                 style={{
                   color: theme.textSecondary,
                   fontSize: ms(12, 0.3),
-                  marginTop: 2,
+                  marginTop: 4,
+                  lineHeight: ms(16, 0.3),
                 }}
               >
                 {t.settings.datasetConsentSubtitle}
@@ -362,12 +324,14 @@ export const SettingsScreen = memo(function SettingsScreen({
         theme={theme}
         scrollViewRef={scrollViewRef}
       >
-        <TouchableOpacity
-          className="row justify-center rounded-xl mt-6"
+        <PressableDark
+          className="row justify-center rounded-xl"
           style={{
             backgroundColor: theme.danger,
             paddingVertical: vs(12),
             paddingHorizontal: s(24),
+            marginTop: vs(24),
+            overflow: "hidden",
           }}
           onPress={onLogout}
         >
@@ -382,7 +346,7 @@ export const SettingsScreen = memo(function SettingsScreen({
           >
             {t.settings.logout}
           </Text>
-        </TouchableOpacity>
+        </PressableDark>
       </FocusableSection>
 
       {/* Surum bilgisi */}
@@ -390,7 +354,6 @@ export const SettingsScreen = memo(function SettingsScreen({
         className="text-center"
         style={{
           marginTop: vs(20),
-          marginBottom: vs(12),
           fontSize: ms(11, 0.3),
           color: theme.textSecondary,
           opacity: 0.6,

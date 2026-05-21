@@ -30,6 +30,7 @@ const plugins = [
   // (ordering + REMOVE-ON-SDK56 gate plugin icinde)
   ["./plugins/withTarasAndroid.js", { useHermesV1 }],
   "@react-native-community/datetimepicker",
+  "expo-sharing",
   [
     "react-native-maps",
     {

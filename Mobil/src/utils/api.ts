@@ -75,6 +75,7 @@ export interface ZoneDetailsData {
   adaptive_config: {
     current_kc: number;
     target_sm_percent: number;
+    critical_sm_percent?: number;
   } | null;
   active_plantings: Array<{
     crop_name: string;
@@ -336,7 +337,7 @@ export const sensorAPI = {
         data: {
           zone_id: zoneId,
           name: "Bölge 1",
-          adaptive_config: { current_kc: 1.05, target_sm_percent: 60 },
+          adaptive_config: { current_kc: 1.05, target_sm_percent: 60, critical_sm_percent: 30 },
           active_plantings: [{ crop_name: "Domates", growth_stage: "vegetative" }],
           recent_kc_calibrations: [],
         },
