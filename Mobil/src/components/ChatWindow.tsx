@@ -301,7 +301,7 @@ export const ChatWindow = ({
                 style={{
                   width: s(28),
                   height: s(28),
-                  borderRadius: 14,
+                  borderRadius: 10,
                   backgroundColor: hasInput ? theme.primary : "transparent",
                   marginBottom: 1,
                 }}

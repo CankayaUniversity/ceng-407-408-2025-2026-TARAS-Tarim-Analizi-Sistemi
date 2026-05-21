@@ -115,7 +115,7 @@ export const FocusableSection = ({
         {
           borderWidth: 2,
           borderColor,
-          borderRadius: 14,
+          borderRadius: 10,
           margin: -2,
         },
         style,

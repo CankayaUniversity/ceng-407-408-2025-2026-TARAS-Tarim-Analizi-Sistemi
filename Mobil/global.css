@@ -12,7 +12,7 @@
     @apply flex-1 bg-porcelain dark:bg-carbonBlack;
   }
   .surface-bg {
-    @apply bg-whiteSmoke dark:bg-[#252221];
+    @apply bg-surfaceLight dark:bg-surfaceDark;
   }
   .center {
     @apply items-center justify-center;

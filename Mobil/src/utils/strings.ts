@@ -69,6 +69,7 @@ export interface StringDictionary {
   disease: {
     noAnalysisYet: string;
     noAnalysisSubtitle: string;
+    takePhotoButton: string;
     loadingResults: string;
     errorLoadingResults: string;
     sentForAnalysis: string;
@@ -141,6 +142,7 @@ export interface StringDictionary {
     foldersSectionTitle: string;
     foldersEmpty: string;
     generalSectionTitle: string;
+    showMore: string;
     folderCreateButton: string;
     folderCreateTitle: string;
     folderCreateHelper: string;
@@ -218,9 +220,13 @@ export interface StringDictionary {
     pullToRefresh: string;
     last72Hours: string;
     table: string;
+    charts: string;
     temperature: string;
+    temperatureShort: string;
     humidity: string;
+    humidityShort: string;
     soilMoisture: string;
+    soilMoistureShort: string;
     shareCSV: string;
     sensorData: string;
     total: string;
@@ -242,6 +248,29 @@ export interface StringDictionary {
     hours: string;
     dateTime: string;
     rawMoisture: string;
+    // Yeni: filtre menusu + multi-series + tablo
+    filters: string;
+    timeRange: string;
+    metrics: string;
+    zones: string;
+    selectAll: string;
+    applyFilters: string;
+    resetFilters: string;
+    aggregationMode: string;
+    modePerNode: string;
+    modePerZone: string;
+    modeFieldAvg: string;
+    allHidden: string;
+    // Stats header (table view)
+    summary: string;
+    avg: string;
+    min: string;
+    max: string;
+    readings: string;
+    // Range dropdown
+    custom: string;
+    // Zone select-all toggle
+    selectNone: string;
   };
 
   // Bottom navigation bar
@@ -265,6 +294,9 @@ export interface StringDictionary {
     languageEnglish: string;
     datasetConsentTitle: string;
     datasetConsentSubtitle: string;
+    datasetConsentDisableTitle: string;
+    datasetConsentDisableMessage: string;
+    datasetConsentDisableConfirm: string;
     logout: string;
   };
 
@@ -611,6 +643,7 @@ const tr: StringDictionary = {
   disease: {
     noAnalysisYet: "Henüz analiz yok",
     noAnalysisSubtitle: "Yaprak fotoğrafı çekerek hastalık tespiti başlatın",
+    takePhotoButton: "Fotoğraf çek",
     loadingResults: "Yükleniyor...",
     errorLoadingResults: "Hata: Sonuçlar yüklenemedi",
     sentForAnalysis:
@@ -685,6 +718,7 @@ const tr: StringDictionary = {
     foldersSectionTitle: "Takip Klasörleri",
     foldersEmpty: "Henüz aktif klasör yok. Bir hastalığı zamanla takip etmek için klasör oluşturun.",
     generalSectionTitle: "Genel Tespitler",
+    showMore: "daha göster",
     folderCreateButton: "Yeni",
     folderCreateTitle: "Takip Klasörü Oluştur",
     folderCreateHelper: "Bölge seçin",
@@ -756,21 +790,25 @@ const tr: StringDictionary = {
     noFieldSelected: "Tarla seçilmedi",
     loadingSensorData: "Sensör verileri yükleniyor...",
     loadFailed: "Veri Yüklenemedi",
-    noDataYet: "Bu tarla için henüz veri bulunmuyor",
+    noDataYet: "Henüz veri yok",
     connectionError: "Bağlantı hatası: ",
     unknownError: "Bilinmeyen hata",
     pullToRefresh: "Yenilemek için aşağı çekin",
     last72Hours: "Son 72 Saat",
     table: "Tablo",
+    charts: "Grafikler",
     temperature: "Sıcaklık (°C)",
+    temperatureShort: "Sıcaklık",
     humidity: "Nem (%)",
+    humidityShort: "Nem",
     soilMoisture: "Toprak Nemi (%)",
+    soilMoistureShort: "Toprak Nemi",
     shareCSV: "CSV Paylaş",
     sensorData: "Sensör Verileri",
     total: "Toplam",
     showing: "Gösterilen",
     time: "Zaman",
-    node: "Node",
+    node: "Düğüm",
     interpolated: "Ara Değerli",
     pointsOf: "nokta",
     points: "nokta",
@@ -786,6 +824,25 @@ const tr: StringDictionary = {
     hours: "Saat",
     dateTime: "Tarih/Saat",
     rawMoisture: "Ham Nem",
+    filters: "Filtreler",
+    timeRange: "Zaman Aralığı",
+    metrics: "Ölçümler",
+    zones: "Bölgeler",
+    selectAll: "Tümünü Seç",
+    applyFilters: "Uygula",
+    resetFilters: "Sıfırla",
+    aggregationMode: "Gruplama",
+    modePerNode: "Düğüm Bazında",
+    modePerZone: "Bölge Ortalaması",
+    modeFieldAvg: "Tarla Ortalaması",
+    allHidden: "Tüm seriler gizli — efsane çiplerine dokunarak açın",
+    summary: "Özet",
+    avg: "Ort",
+    min: "Min",
+    max: "Maks",
+    readings: "okuma",
+    custom: "Özel…",
+    selectNone: "Hiçbiri",
   },
 
   nav: {
@@ -806,7 +863,10 @@ const tr: StringDictionary = {
     languageTurkish: "Türkçe",
     languageEnglish: "English",
     datasetConsentTitle: "TARAS'ı geliştirmeye yardım et",
-    datasetConsentSubtitle: "Çektiğin yaprak fotoğrafları gelecekteki model eğitiminde kullanılabilir. İstediğin zaman kapatabilirsin.",
+    datasetConsentSubtitle: "İzin verirsen, analize gönderdiğin fotoğraflar sonuçlarımızı iyileştirmek için kullanılabilir.",
+    datasetConsentDisableTitle: "Emin misin?",
+    datasetConsentDisableMessage: "Bundan sonra gönderdiğin fotoğraflar TARAS'ı iyileştirmek için kullanılmayacak. Daha önce gönderilenler için verdiğin izin geçerliliğini korur.",
+    datasetConsentDisableConfirm: "Kapat",
     logout: "Çıkış Yap",
   },
 
@@ -1140,6 +1200,7 @@ const en: StringDictionary = {
   disease: {
     noAnalysisYet: "No analysis yet",
     noAnalysisSubtitle: "Take a leaf photo to start disease detection",
+    takePhotoButton: "Take photo",
     loadingResults: "Loading...",
     errorLoadingResults: "Error: Could not load results",
     sentForAnalysis:
@@ -1213,6 +1274,7 @@ const en: StringDictionary = {
     foldersSectionTitle: "Tracking Folders",
     foldersEmpty: "No active folders yet. Create one to track a disease over time.",
     generalSectionTitle: "General Detections",
+    showMore: "more",
     folderCreateButton: "New",
     folderCreateTitle: "Create Tracking Folder",
     folderCreateHelper: "Select a zone",
@@ -1284,15 +1346,19 @@ const en: StringDictionary = {
     noFieldSelected: "No field selected",
     loadingSensorData: "Loading sensor data...",
     loadFailed: "Load Failed",
-    noDataYet: "No data available for this field yet",
+    noDataYet: "No data yet",
     connectionError: "Connection error: ",
     unknownError: "Unknown error",
     pullToRefresh: "Pull down to refresh",
     last72Hours: "Last 72 Hours",
     table: "Table",
+    charts: "Charts",
     temperature: "Temperature (°C)",
+    temperatureShort: "Temperature",
     humidity: "Humidity (%)",
+    humidityShort: "Humidity",
     soilMoisture: "Soil Moisture (%)",
+    soilMoistureShort: "Soil Moisture",
     shareCSV: "Share CSV",
     sensorData: "Sensor Data",
     total: "Total",
@@ -1314,6 +1380,25 @@ const en: StringDictionary = {
     hours: "Hours",
     dateTime: "Date/Time",
     rawMoisture: "Raw Moisture",
+    filters: "Filters",
+    timeRange: "Time Range",
+    metrics: "Metrics",
+    zones: "Zones",
+    selectAll: "Select All",
+    applyFilters: "Apply",
+    resetFilters: "Reset",
+    aggregationMode: "Grouping",
+    modePerNode: "Per Node",
+    modePerZone: "Zone Average",
+    modeFieldAvg: "Field Average",
+    allHidden: "All series hidden — tap legend chips to show",
+    summary: "Summary",
+    avg: "Avg",
+    min: "Min",
+    max: "Max",
+    readings: "readings",
+    custom: "Custom…",
+    selectNone: "None",
   },
 
   nav: {
@@ -1334,7 +1419,10 @@ const en: StringDictionary = {
     languageTurkish: "Türkçe",
     languageEnglish: "English",
     datasetConsentTitle: "Help improve TARAS",
-    datasetConsentSubtitle: "Your leaf photos may be used to train future disease-detection models. You can turn this off anytime.",
+    datasetConsentSubtitle: "If you allow it, photos you upload for analysis may be used to improve our results.",
+    datasetConsentDisableTitle: "Are you sure?",
+    datasetConsentDisableMessage: "From now on, photos you upload won't be used to improve TARAS. Photos you've already sent keep the consent you gave at the time.",
+    datasetConsentDisableConfirm: "Turn off",
     logout: "Log Out",
   },
 

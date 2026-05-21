@@ -65,5 +65,11 @@ module.exports = {
     porcelain:   '#FFFDF8',
     whiteSmoke:  '#F5F5F5',
     carbonBlack: '#1A1A1A',
+
+    // Semantic surface tokens — keep in sync with `light.surface` / `dark.surface`
+    // in colors.ts. Referenced by .surface-bg / .card / .input-field utilities
+    // in global.css. Update both files together.
+    surfaceLight: '#F0EDE5',     // ~5% darker porcelain, no olive cast
+    surfaceDark:  '#252221',     // ~6% lighter than carbonBlack, no olive cast
   },
 };

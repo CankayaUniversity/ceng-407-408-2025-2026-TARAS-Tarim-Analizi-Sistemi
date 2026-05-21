@@ -542,7 +542,7 @@ export const CreateFarmScreen = ({
                     latitude: selectedLat,
                     longitude: selectedLng,
                   }}
-                  pinColor="#4CAF50"
+                  pinColor={theme.primary}
                 />
               )}
             </MapView>

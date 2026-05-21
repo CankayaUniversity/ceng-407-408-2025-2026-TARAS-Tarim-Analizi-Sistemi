@@ -100,7 +100,7 @@ export const DemoOnlyLoginScreen = ({
             style={{
               flex: 1,
               backgroundColor: theme.primary,
-              borderRadius: 14,
+              borderRadius: 10,
               paddingVertical: vs(18),
               paddingHorizontal: s(12),
               alignItems: "center",
@@ -136,7 +136,7 @@ export const DemoOnlyLoginScreen = ({
                 backgroundColor: "transparent",
                 borderWidth: 2,
                 borderColor: theme.primary,
-                borderRadius: 14,
+                borderRadius: 10,
                 paddingVertical: vs(16),
                 paddingHorizontal: s(12),
                 alignItems: "center",

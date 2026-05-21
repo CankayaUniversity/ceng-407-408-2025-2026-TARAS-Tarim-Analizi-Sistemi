@@ -1,10 +1,7 @@
-// Context → TimetableScreen prop bridge
+// Cizelge ekrani container — yeni ekran kendi hook'larini kullanir,
+// burada sadece export amaclidir (geri uyumluluk icin)
 import { TimetableScreen } from "../";
-import { useTheme } from "../../context/ThemeContext";
-import { useDashboard } from "../../context/DashboardContext";
 
 export const TimetableContainer = () => {
-  const { theme } = useTheme();
-  const { selectedFieldId } = useDashboard();
-  return <TimetableScreen theme={theme} selectedFieldId={selectedFieldId} />;
+  return <TimetableScreen />;
 };

@@ -413,7 +413,7 @@ export const IrrigationDetailScreen = ({
             <View
               style={{
                 backgroundColor: theme.surface,
-                borderRadius: 14,
+                borderRadius: 10,
                 padding: spacing.md,
                 borderWidth: 1,
                 borderColor: theme.primary + "20",
@@ -797,7 +797,7 @@ export const IrrigationDetailScreen = ({
               <View
                 style={{
                   backgroundColor: theme.surface,
-                  borderRadius: 14,
+                  borderRadius: 10,
                   padding: spacing.md,
                   borderWidth: 1,
                   borderColor: theme.success + "40",
@@ -1311,3 +1311,4 @@ const SummaryRow = ({
     </Text>
   </View>
 );
+

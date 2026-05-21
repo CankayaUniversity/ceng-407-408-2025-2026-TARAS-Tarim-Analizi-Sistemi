@@ -250,7 +250,7 @@ export const HomeScreen = memo(({
               flex: 1,
               marginLeft: -spacing.sm,
               marginRight: -spacing.sm,
-              borderRadius: 14,
+              borderRadius: 10,
             },
           ]}
         >
