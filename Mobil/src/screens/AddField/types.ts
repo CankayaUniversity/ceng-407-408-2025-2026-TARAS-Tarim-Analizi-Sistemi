@@ -3,7 +3,7 @@
 
 import type { Theme } from "../../utils/theme";
 
-export type FieldType = "GREENHOUSE" | "POT_AREA";
+export type FieldType = "greenhouse" | "pot";
 
 export type ZoneType = "POLYGON" | "POT";
 

@@ -613,7 +613,7 @@ export const dashboardAPI = {
   createField: async (payload: {
     fieldName: string;
     cropName?: string;
-    fieldType: "GREENHOUSE" | "POT_AREA";
+    fieldType: "greenhouse" | "pot";
     polygon: { exterior: [number, number][]; holes?: [number, number][][] };
     area: number;
     zones: {

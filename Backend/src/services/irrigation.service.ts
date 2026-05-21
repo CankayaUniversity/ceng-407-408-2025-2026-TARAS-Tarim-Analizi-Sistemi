@@ -825,7 +825,8 @@ async function getCalibrationForZone(
   zoneId: string,
   environmentType: string | null
 ): Promise<CalibrationResult> {
-  if (environmentType === "greenhouse") {
+  // "outdoor" tipi henuz ayri implemente edilmedi — gecici olarak sera gibi davranir.
+  if (environmentType === "greenhouse" || environmentType === "outdoor") {
     return getGreenhouseCalibrationForZone(zoneId);
   }
 
@@ -1031,7 +1032,8 @@ function buildRecommendationFromPreview(
   }
 
 
-if (field.environment_type === "greenhouse") {
+// "outdoor" tipi henuz ayri implemente edilmedi — gecici olarak sera gibi davranir.
+if (field.environment_type === "greenhouse" || field.environment_type === "outdoor") {
   return {
     resolvedGrowthStage,
     recommendationTime,
@@ -1489,8 +1491,8 @@ export async function createManualIrrigationActual(
   }
 
   const environmentType = zone.field.environment_type;
-  const isPot = environmentType === "pot" || environmentType === "POT_AREA";
-  const isGreenhouse = environmentType === "greenhouse" || environmentType === "GREENHOUSE";
+  const isPot = environmentType === "pot";
+  const isGreenhouse = environmentType === "greenhouse" || environmentType === "outdoor";
 
   if (isPot) {
     if (
@@ -1623,8 +1625,8 @@ export async function submitIrrigationJobActual(
 
 
 const environmentType = job.zone?.field?.environment_type;
-const isPot = environmentType === "pot" || environmentType === "POT_AREA";
-const isGreenhouse = environmentType === "greenhouse" || environmentType === "GREENHOUSE";
+const isPot = environmentType === "pot";
+const isGreenhouse = environmentType === "greenhouse" || environmentType === "outdoor";
 
 if (isPot) {
   if (

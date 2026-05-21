@@ -25,7 +25,7 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
   const { dataSource } = useAuth();
   const [creating, setCreating] = useState(false);
 
-  const isGreenhouse = state.fieldType === "GREENHOUSE";
+  const isGreenhouse = state.fieldType === "greenhouse";
   const zoneCount = isGreenhouse ? state.zones.length : state.potCount;
 
   const handleCreate = async () => {
@@ -57,7 +57,7 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
         const res = await dashboardAPI.createField({
           fieldName: state.fieldName,
           cropName: state.cropName || undefined,
-          fieldType: state.fieldType as "GREENHOUSE" | "POT_AREA",
+          fieldType: state.fieldType as "greenhouse" | "pot",
           polygon: { exterior: isGreenhouse ? state.outerPolygon : fieldData.polygon.exterior },
           area: Math.round(area),
           zones: zonesPayload,

@@ -115,10 +115,10 @@ export async function createField(
       return;
     }
 
-    if (fieldType !== "GREENHOUSE" && fieldType !== "POT_AREA") {
+    if (fieldType !== "greenhouse" && fieldType !== "pot") {
       res.status(400).json({
         success: false,
-        error: "fieldType must be GREENHOUSE or POT_AREA",
+        error: "fieldType must be greenhouse or pot",
       });
       return;
     }

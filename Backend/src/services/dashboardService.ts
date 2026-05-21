@@ -244,7 +244,6 @@ export async function getFieldDashboard(
       // NULL ise (eski kayitlar, dogrudan DB insert) zone geometrisinden cikar:
       // Saksi wizard'i her zone icin 8 koseli (octagonal) polygon uretir.
       isPotField:
-        field.environment_type === "POT_AREA" ||
         field.environment_type === "pot" ||
         (!field.environment_type &&
           zoneRows.length > 0 &&
@@ -281,7 +280,7 @@ export async function getFieldInventory(userId: string) {
 interface CreateFieldInput {
   fieldName: string;
   cropName?: string;
-  fieldType: "GREENHOUSE" | "POT_AREA";
+  fieldType: "greenhouse" | "pot";
   polygon: { exterior: [number, number][]; holes?: [number, number][][] };
   area: number;
   zones: {
@@ -304,8 +303,7 @@ export async function createField(
     throw new Error("NO_FARM");
   }
 
-  const environmentType =
-    input.fieldType === "GREENHOUSE" ? "greenhouse" : "pot";
+  const environmentType = input.fieldType;
 
   // create field + zones in a single transaction
   const field = await prisma.$transaction(async (tx) => {

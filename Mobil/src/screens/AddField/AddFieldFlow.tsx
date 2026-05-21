@@ -1,5 +1,5 @@
 // Tarla ekleme adim makinesi — AddGatewayFlow pattern'ini takip eder
-// fieldType'a gore GREENHOUSE veya POT_AREA akisina yonlendirir
+// fieldType'a gore greenhouse veya pot akisina yonlendirir
 
 import { useState, useCallback } from "react";
 import type { Theme } from "../../utils/theme";
@@ -46,7 +46,7 @@ export const AddFieldFlow = ({
         goToStep("fieldInfo");
         break;
       case "fieldInfo":
-        if (state.fieldType === "GREENHOUSE") {
+        if (state.fieldType === "greenhouse") {
           goToStep("greenhousePolygon");
         } else {
           goToStep("potCount");
@@ -90,7 +90,7 @@ export const AddFieldFlow = ({
         goToStep("fieldInfo");
         break;
       case "preview":
-        if (state.fieldType === "GREENHOUSE") {
+        if (state.fieldType === "greenhouse") {
           goToStep("greenhouseZones");
         } else {
           goToStep("potCount");

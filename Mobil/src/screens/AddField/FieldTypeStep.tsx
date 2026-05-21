@@ -39,7 +39,7 @@ export const FieldTypeStep = ({ theme, onUpdate, onNext }: StepProps) => {
           shadowOpacity: 0.1,
           shadowRadius: 3,
         }}
-        onPress={() => handleSelect("GREENHOUSE")}
+        onPress={() => handleSelect("greenhouse")}
         activeOpacity={0.7}
       >
         <View
@@ -94,7 +94,7 @@ export const FieldTypeStep = ({ theme, onUpdate, onNext }: StepProps) => {
           shadowOpacity: 0.1,
           shadowRadius: 3,
         }}
-        onPress={() => handleSelect("POT_AREA")}
+        onPress={() => handleSelect("pot")}
         activeOpacity={0.7}
       >
         <View
