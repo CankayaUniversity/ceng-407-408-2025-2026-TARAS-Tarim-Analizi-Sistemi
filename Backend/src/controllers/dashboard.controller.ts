@@ -16,7 +16,8 @@ export async function getFields(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const fields = await dashboardService.getUserFields(userId);
+    const farmId = req.query.farm_id as string | undefined;
+    const fields = await dashboardService.getUserFields(userId, farmId);
 
     res.status(200).json({
       success: true,
@@ -105,7 +106,7 @@ export async function createField(
       return;
     }
 
-    const { fieldName, cropName, fieldType, polygon, area, zones } = req.body;
+    const { fieldName, cropName, fieldType, polygon, area, zones, farmId } = req.body;
 
     if (!fieldName || !fieldType || !polygon || area == null || !zones) {
       res.status(400).json({
@@ -130,6 +131,7 @@ export async function createField(
       polygon,
       area,
       zones,
+      farmId,
     });
 
     res.status(201).json({
@@ -262,10 +264,22 @@ export async function getElevation(
   }
 }
 
+// list available crops
+export async function getCrops(_req: Request, res: Response): Promise<void> {
+  try {
+    const crops = await dashboardService.getCropList();
+    res.status(200).json({ success: true, data: crops });
+  } catch (error) {
+    logger.error("Get crops error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
 export default {
   getFields,
   getFieldDashboard,
   createField,
   createFarm,
   getElevation,
+  getCrops,
 };

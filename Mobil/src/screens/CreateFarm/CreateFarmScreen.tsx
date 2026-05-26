@@ -27,7 +27,7 @@ import { s, vs, ms } from "../../utils/responsive";
 
 interface CreateFarmScreenProps {
   theme: any;
-  onFarmCreated: () => void;
+  onFarmCreated: (farmId: string) => void;
   onBack: () => void;
 }
 
@@ -250,9 +250,9 @@ export const CreateFarmScreen = ({
       });
       setIsCreating(false);
 
-      if (res.success) {
+      if (res.success && res.data) {
         showPopup(t.farm.farmCreated);
-        onFarmCreated();
+        onFarmCreated(res.data.farm_id);
       } else {
         console.log("[CREATE_FARM] fail:", res.error);
         showPopup(res.error || t.farm.farmCreateError);
@@ -290,8 +290,8 @@ export const CreateFarmScreen = ({
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <MaterialCommunityIcons
-              name="arrow-left"
-              size={24}
+              name={Platform.OS === "ios" ? "chevron-down" : "arrow-left"}
+              size={Platform.OS === "ios" ? 28 : 24}
               color={theme.textMain}
             />
           </TouchableOpacity>

@@ -1,25 +1,20 @@
-// Context → HomeScreen prop bridge
-// Ciftlik yoksa EmptyFarmState, ciftlik varsa normal HomeScreen gosterir
+// Context → HomeStack bridge
+// Ciftlik yoksa EmptyFarmState, ciftlik varsa HomeStack (NativeStack navigator) gosterir
 import { useState } from "react";
 import { Modal } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
-import { HomeScreen } from "../";
 import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { EmptyFarmState, CreateFarmScreen } from "../CreateFarm";
+import { HomeStack } from "../Home/HomeStack";
 
 export const HomeContainer = () => {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const {
-    dashboardData,
-    refreshing,
-    refresh,
     initialLoadDone,
     hasFarms,
     notifyFarmCreated,
   } = useDashboard();
-  const isFocused = useIsFocused();
   const [showCreateFarm, setShowCreateFarm] = useState(false);
 
   // Ciftlik yoksa bos state goster
@@ -43,9 +38,9 @@ export const HomeContainer = () => {
             >
               <CreateFarmScreen
                 theme={theme}
-                onFarmCreated={async () => {
+                onFarmCreated={async (farmId: string) => {
                   setShowCreateFarm(false);
-                  await notifyFarmCreated();
+                  await notifyFarmCreated(farmId);
                 }}
                 onBack={() => setShowCreateFarm(false)}
               />
@@ -56,14 +51,5 @@ export const HomeContainer = () => {
     );
   }
 
-  return (
-    <HomeScreen
-      theme={theme}
-      isDark={isDark}
-      dashboardData={dashboardData}
-      refreshing={refreshing}
-      onRefresh={refresh}
-      isActive={isFocused}
-    />
-  );
+  return <HomeStack />;
 };

@@ -11,5 +11,6 @@ router.post('/fields', dashboardController.createField);
 router.get('/fields/:fieldId', dashboardController.getFieldDashboard);
 router.post('/farms', dashboardController.createFarm);
 router.get('/elevation', dashboardController.getElevation);
+router.get('/crops', dashboardController.getCrops);
 
 export default router;

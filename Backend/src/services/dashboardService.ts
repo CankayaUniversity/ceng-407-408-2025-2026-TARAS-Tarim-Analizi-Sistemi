@@ -6,10 +6,13 @@ import {
   PolygonData,
 } from "../types";
 
-// get all fields for a user
-export async function getUserFields(userId: string): Promise<FieldListItem[]> {
+// get all fields for a user, optionally filtered by farm_id
+export async function getUserFields(userId: string, farmId?: string): Promise<FieldListItem[]> {
   const farms = await prisma.farm.findMany({
-    where: { user_id: userId },
+    where: {
+      user_id: userId,
+      ...(farmId ? { farm_id: farmId } : {}),
+    },
     include: {
       fields: {
         select: {
@@ -26,6 +29,7 @@ export async function getUserFields(userId: string): Promise<FieldListItem[]> {
       id: field.field_id,
       name: field.name,
       area: field.area ?? 0,
+      farm_id: farm.farm_id,
     })),
   );
 }
@@ -286,16 +290,18 @@ interface CreateFieldInput {
   zones: {
     name: string;
     polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+    cropId?: number;
+    plantingDate?: string; // ISO date string (YYYY-MM-DD)
   }[];
+  farmId?: string;
 }
 
 export async function createField(
   userId: string,
   input: CreateFieldInput,
 ): Promise<FieldListItem> {
-  // find the user's farm (each user has exactly one)
   const farm = await prisma.farm.findFirst({
-    where: { user_id: userId },
+    where: { user_id: userId, ...(input.farmId ? { farm_id: input.farmId } : {}) },
     select: { farm_id: true },
   });
 
@@ -305,7 +311,7 @@ export async function createField(
 
   const environmentType = input.fieldType;
 
-  // create field + zones in a single transaction
+  // create field + zones + plantings in a single transaction
   const field = await prisma.$transaction(async (tx) => {
     const newField = await tx.field.create({
       data: {
@@ -319,13 +325,32 @@ export async function createField(
     });
 
     if (input.zones.length > 0) {
-      await tx.zone.createMany({
+      const createdZones = await tx.zone.createManyAndReturn({
         data: input.zones.map((z) => ({
           field_id: newField.field_id,
           name: z.name,
           polygon: z.polygon,
         })),
+        select: { zone_id: true, name: true },
       });
+
+      // create planting records for zones that have crop/planting info
+      const plantingData = createdZones
+        .map((cz) => {
+          const inputZone = input.zones.find((iz) => iz.name === cz.name);
+          if (!inputZone?.plantingDate) return null;
+          return {
+            zone_id: cz.zone_id,
+            crop_id: inputZone.cropId ?? null,
+            planting_date: new Date(inputZone.plantingDate),
+            is_active: true,
+          };
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+
+      if (plantingData.length > 0) {
+        await tx.planting.createMany({ data: plantingData });
+      }
     }
 
     return newField;
@@ -335,6 +360,7 @@ export async function createField(
     id: field.field_id,
     name: field.name,
     area: field.area ?? 0,
+    farm_id: farm.farm_id,
   };
 }
 
@@ -398,6 +424,21 @@ export async function getElevation(
   return data.elevation[0]!;
 }
 
+// list all available crops
+export async function getCropList() {
+  return prisma.cropDetail.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      crop_id: true,
+      name: true,
+      default_kc: true,
+      growth_days: true,
+      optimal_sm_min: true,
+      optimal_sm_max: true,
+    },
+  });
+}
+
 export default {
   getUserFields,
   checkFieldAccess,
@@ -406,4 +447,5 @@ export default {
   createField,
   createFarm,
   getElevation,
+  getCropList,
 };

@@ -89,34 +89,7 @@ export const FieldInfoStep = ({ theme, state, onUpdate, onNext }: StepProps) => 
         />
       </View>
 
-      {/* Mahsul tipi */}
-      <View style={{ marginBottom: vs(16) }}>
-        <Text
-          className="text-secondary font-semibold"
-          style={{ fontSize: ms(13, 0.3), marginBottom: vs(6), color: theme.textSecondary }}
-        >
-          {t.addField.cropName}
-        </Text>
-        <TextInput
-          className="rounded-[10px] border"
-          style={{
-            paddingVertical: vs(12),
-            paddingHorizontal: s(16),
-            borderWidth: 1,
-            borderRadius: 10,
-            borderColor: theme.border,
-            fontSize: ms(15, 0.3),
-            color: theme.textMain,
-            backgroundColor: theme.surface,
-          }}
-          placeholder={t.addField.cropNamePlaceholder}
-          placeholderTextColor={theme.textMuted}
-          value={state.cropName}
-          onChangeText={(text) => onUpdate({ cropName: text })}
-          autoCapitalize="sentences"
-          autoCorrect={false}
-        />
-      </View>
+      {/* Mahsul tipi — PlantingStep'e taşındı */}
 
       {/* Ileri butonu */}
       <TouchableOpacity

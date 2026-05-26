@@ -3,11 +3,10 @@
 
 import { useState, useCallback } from "react";
 import type { Theme } from "../../utils/theme";
-import { FieldTypeStep } from "./FieldTypeStep";
-import { FieldInfoStep } from "./FieldInfoStep";
+import { FieldSetupStep } from "./FieldSetupStep";
 import { GreenhousePolygonStep } from "./GreenhousePolygonStep";
 import { GreenhouseZonesStep } from "./GreenhouseZonesStep";
-import { PotCountStep } from "./PotCountStep";
+import { PlantingStep } from "./PlantingStep";
 import { PreviewStep } from "./PreviewStep";
 import { INITIAL_WIZARD_STATE } from "./types";
 import type { WizardState, WizardStep } from "./types";
@@ -17,12 +16,14 @@ interface AddFieldFlowProps {
   theme: Theme;
   onStepChange: (step: WizardStep) => void;
   onBack: () => void;
+  goBackRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 export const AddFieldFlow = ({
   theme,
   onStepChange,
   onBack,
+  goBackRef,
 }: AddFieldFlowProps) => {
   const [step, setStep] = useState<WizardStep>("fieldType");
   const [state, setState] = useState<WizardState>({ ...INITIAL_WIZARD_STATE });
@@ -43,30 +44,23 @@ export const AddFieldFlow = ({
   const handleNext = useCallback(() => {
     switch (step) {
       case "fieldType":
-        goToStep("fieldInfo");
-        break;
-      case "fieldInfo":
         if (state.fieldType === "greenhouse") {
           goToStep("greenhousePolygon");
         } else {
-          goToStep("potCount");
+          setState((prev) => ({ ...prev, zones: generatePotZones(prev.potCount) }));
+          goToStep("planting");
         }
         break;
       case "greenhousePolygon":
         goToStep("greenhouseZones");
         break;
       case "greenhouseZones":
+        goToStep("planting");
+        break;
+      case "planting":
         goToStep("preview");
         break;
-      case "potCount": {
-        // prev.potCount kullan — onUpdate ile setState ayni tick'te calisir,
-        // closure'daki state.potCount henuz guncellenmemis olabilir.
-        setState((prev) => ({ ...prev, zones: generatePotZones(prev.potCount) }));
-        goToStep("preview");
-        break;
-      }
       case "preview":
-        // Preview'da olusturma PreviewStep icinde yapilir
         break;
     }
   }, [step, state.fieldType, goToStep]);
@@ -77,27 +71,27 @@ export const AddFieldFlow = ({
       case "fieldType":
         onBack();
         break;
-      case "fieldInfo":
-        goToStep("fieldType");
-        break;
       case "greenhousePolygon":
-        goToStep("fieldInfo");
+        goToStep("fieldType");
         break;
       case "greenhouseZones":
         goToStep("greenhousePolygon");
         break;
-      case "potCount":
-        goToStep("fieldInfo");
-        break;
-      case "preview":
+      case "planting":
         if (state.fieldType === "greenhouse") {
           goToStep("greenhouseZones");
         } else {
-          goToStep("potCount");
+          goToStep("fieldType");
         }
+        break;
+      case "preview":
+        goToStep("planting");
         break;
     }
   }, [step, state.fieldType, goToStep, onBack]);
+
+  // Header'daki geri butonunun bu fonksiyonu cagirabilmesi icin ref'e bagla
+  if (goBackRef) goBackRef.current = handleBack;
 
   const stepProps = {
     theme,
@@ -109,16 +103,16 @@ export const AddFieldFlow = ({
 
   switch (step) {
     case "fieldType":
-      return <FieldTypeStep {...stepProps} />;
-    case "fieldInfo":
-      return <FieldInfoStep {...stepProps} />;
+      return <FieldSetupStep {...stepProps} />;
     case "greenhousePolygon":
       return <GreenhousePolygonStep {...stepProps} />;
     case "greenhouseZones":
       return <GreenhouseZonesStep {...stepProps} />;
-    case "potCount":
-      return <PotCountStep {...stepProps} />;
+    case "planting":
+      return <PlantingStep {...stepProps} />;
     case "preview":
       return <PreviewStep {...stepProps} />;
+    default:
+      return <FieldSetupStep {...stepProps} />;
   }
 };

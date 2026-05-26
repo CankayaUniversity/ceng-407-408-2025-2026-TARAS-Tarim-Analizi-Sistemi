@@ -13,12 +13,13 @@ export interface ZoneDraft {
   zoneType: ZoneType;
   polygonPoints: [number, number][];
   potIndex?: number;
+  cropId?: number;
+  plantingDate?: string; // ISO date string (YYYY-MM-DD)
 }
 
 export interface WizardState {
   fieldType: FieldType | null;
   fieldName: string;
-  cropName: string;
   outerPolygon: [number, number][];
   zones: ZoneDraft[];
   potCount: number;
@@ -29,13 +30,13 @@ export type WizardStep =
   | "fieldInfo"
   | "greenhousePolygon"
   | "greenhouseZones"
+  | "planting"
   | "potCount"
   | "preview";
 
 export const INITIAL_WIZARD_STATE: WizardState = {
   fieldType: null,
   fieldName: "",
-  cropName: "",
   outerPolygon: [],
   zones: [],
   potCount: 0,

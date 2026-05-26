@@ -145,7 +145,7 @@ export const FolderDetailScreen = ({ route, navigation }: FolderDetailScreenProp
   if (loading || !folder) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <CompactStackHeader title="" />
+        <CompactStackHeader title="" dismissStyle />
         <View style={styles.loadingCenter}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
@@ -172,6 +172,7 @@ export const FolderDetailScreen = ({ route, navigation }: FolderDetailScreenProp
       <CompactStackHeader
         title={folder.name}
         subtitle={subtitleForHeader}
+        dismissStyle
         rightAction={{
           icon: "archive-outline",
           onPress: handleDeactivate,

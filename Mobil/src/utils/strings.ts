@@ -63,6 +63,9 @@ export interface StringDictionary {
     dataSourceAWS: string;
     dataSourceDemo: string;
     lastReading: string;
+    noFieldsTitle: string;
+    noFieldsSubtitle: string;
+    addField: string;
   };
 
   // Disease Screen
@@ -285,6 +288,29 @@ export interface StringDictionary {
   // Settings Screen
   settings: {
     title: string;
+    account: string;
+    role: string;
+    roleFarmer: string;
+    roleAdmin: string;
+    roleUser: string;
+    farmManagement: string;
+    activeFarm: string;
+    noFarmSelected: string;
+    noFarmCreated: string;
+    fieldsConnected: string;
+    createNewFarm: string;
+    deleteFarm: string;
+    deleteFarmConfirmTitle: string;
+    deleteFarmConfirmMessage: string;
+    deleteField: string;
+    deleteFieldConfirmTitle: string;
+    deleteFieldConfirmMessage: string;
+    deleteConfirm: string;
+    fieldManagement: string;
+    noFields: string;
+    hardwareSubtitle: string;
+    appPreferences: string;
+    privacySection: string;
     themeMode: string;
     themeLight: string;
     themeDark: string;
@@ -294,6 +320,15 @@ export interface StringDictionary {
     languageEnglish: string;
     datasetConsentTitle: string;
     datasetConsentSubtitle: string;
+    editProfile: string;
+    editProfileTitle: string;
+    usernameLabel: string;
+    emailLabel: string;
+    passwordLabel: string;
+    passwordPlaceholder: string;
+    saveChanges: string;
+    profileUpdated: string;
+    profileUpdateFailed: string;
     datasetConsentDisableTitle: string;
     datasetConsentDisableMessage: string;
     datasetConsentDisableConfirm: string;
@@ -476,7 +511,11 @@ export interface StringDictionary {
     urgencyHigh: string;
     urgencyMedium: string;
     urgencyLow: string;
+    urgencyCritical: string;
     lastIrrigation: string;
+    irrigationRecommended: string;
+    whyRecommended: string;
+    defaultReasoning: string;
     // Manual irrigation
     manualIrrigation: string;
     manualIrrigationDesc: string;
@@ -485,6 +524,14 @@ export interface StringDictionary {
     manualTime: string;
     manualSaved: string;
     manualSaveFailed: string;
+    recommendButton: string;
+    recommendationRunning: string;
+    recommendationGenerated: string;
+    recommendationFailed: string;
+    noZonesFound: string;
+    noPlantingError: string;
+    zonesSuccess: string;
+    zonesFailed: string;
     enterDuration: string;
     cancel: string;
   };
@@ -532,6 +579,18 @@ export interface StringDictionary {
     potCountPositive: string;
     potCountMax: string;
     zoneNameRequired: string;
+    splitZonesHint: string;
+    splitFailed: string;
+    cancelSplit: string;
+    selectSecondPoint: string;
+    plantingTitle: string;
+    plantingHint: string;
+    plantingDateLabel: string;
+    plantingDateRequired: string;
+    selectCrop: string;
+    selectDate: string;
+    noCrops: string;
+    growthDays: string;
   };
 
   // Register Screen
@@ -638,6 +697,9 @@ const tr: StringDictionary = {
     dataSourceAWS: "AWS",
     dataSourceDemo: "DEMO",
     lastReading: "Son okuma",
+    noFieldsTitle: "Bu çiftlikte henüz tarla yok",
+    noFieldsSubtitle: "Başlamak için yeni bir tarla ekleyin",
+    addField: "Tarla Ekle",
   },
 
   disease: {
@@ -850,11 +912,34 @@ const tr: StringDictionary = {
     timetable: "Çizelge",
     home: "Ana Sayfa",
     disease: "Hastalık",
-    settings: "Ayarlar",
+    settings: "Hesap",
   },
 
   settings: {
-    title: "Ayarlar",
+    title: "Hesap",
+    account: "Hesap",
+    role: "Rol",
+    roleFarmer: "Çiftçi",
+    roleAdmin: "Yönetici",
+    roleUser: "Kullanıcı",
+    farmManagement: "Farm Yönetimi",
+    activeFarm: "Aktif Farm",
+    noFarmSelected: "Henüz farm seçilmedi",
+    noFarmCreated: "Henüz farm oluşturulmadı",
+    fieldsConnected: "tarla bağlı",
+    createNewFarm: "Yeni Farm Oluştur",
+    deleteFarm: "Farmı Sil",
+    deleteFarmConfirmTitle: "Farmı Sil",
+    deleteFarmConfirmMessage: "Bu farm ve tüm tarlalar kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    deleteField: "Tarlayı Sil",
+    deleteFieldConfirmTitle: "Tarlayı Sil",
+    deleteFieldConfirmMessage: "Bu tarla kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    deleteConfirm: "Sil",
+    fieldManagement: "Tarla Yönetimi",
+    noFields: "Bu farmda henüz tarla yok",
+    hardwareSubtitle: "Sensör ve gateway bağlantılarını yönet",
+    appPreferences: "Uygulama Ayarları",
+    privacySection: "Gizlilik ve Katkı",
     themeMode: "Tema Modu",
     themeLight: "Açık",
     themeDark: "Koyu",
@@ -864,6 +949,15 @@ const tr: StringDictionary = {
     languageEnglish: "English",
     datasetConsentTitle: "TARAS'ı geliştirmeye yardım et",
     datasetConsentSubtitle: "İzin verirsen, analize gönderdiğin fotoğraflar sonuçlarımızı iyileştirmek için kullanılabilir.",
+    editProfile: "Düzenle",
+    editProfileTitle: "Profili Düzenle",
+    usernameLabel: "Kullanıcı Adı",
+    emailLabel: "E-posta",
+    passwordLabel: "Yeni Şifre",
+    passwordPlaceholder: "Değiştirmek istemiyorsan boş bırak",
+    saveChanges: "Kaydet",
+    profileUpdated: "Profil güncellendi",
+    profileUpdateFailed: "Profil güncellenemedi",
     datasetConsentDisableTitle: "Emin misin?",
     datasetConsentDisableMessage: "Bundan sonra gönderdiğin fotoğraflar TARAS'ı iyileştirmek için kullanılmayacak. Daha önce gönderilenler için verdiğin izin geçerliliğini korur.",
     datasetConsentDisableConfirm: "Kapat",
@@ -1038,6 +1132,10 @@ const tr: StringDictionary = {
     urgencyHigh: "Yüksek",
     urgencyMedium: "Orta",
     urgencyLow: "Düşük",
+    urgencyCritical: "Kritik",
+    irrigationRecommended: "sulama öneriliyor",
+    whyRecommended: "Neden önerildi?",
+    defaultReasoning: "Toprak nemi hedef seviyenin altında olduğu için sulama önerildi. Miktar, bölge kalibrasyonuna göre hesaplandı.",
     lastIrrigation: "Son Sulama",
     manualIrrigation: "Manuel Sulama",
     manualIrrigationDesc: "Öneri olmadan sulama kaydı oluşturun",
@@ -1046,6 +1144,14 @@ const tr: StringDictionary = {
     manualTime: "Sulama Zamanı",
     manualSaved: "Manuel sulama kaydedildi!",
     manualSaveFailed: "Manuel sulama kaydedilemedi",
+    recommendButton: "Sulama Öner",
+    recommendationRunning: "Hesaplanıyor...",
+    recommendationGenerated: "Sulama önerileri oluşturuldu",
+    recommendationFailed: "Öneri oluşturulamadı",
+    noZonesFound: "Bu tarlada bölge bulunamadı",
+    noPlantingError: "Bölgelerde aktif ekim kaydı yok. Önce ekim ekleyin.",
+    zonesSuccess: "bölge başarılı",
+    zonesFailed: "başarısız",
     enterDuration: "Süreyi girin",
     cancel: "İptal",
   },
@@ -1092,6 +1198,18 @@ const tr: StringDictionary = {
     potCountPositive: "Saksı sayısı pozitif bir sayı olmalıdır",
     potCountMax: "En fazla 32 saksı eklenebilir",
     zoneNameRequired: "Bölge adı zorunludur",
+    splitZonesHint: "Bölmek istediğiniz iki noktaya dokunun",
+    splitFailed: "Bölme başarısız — farklı noktalar seçin",
+    cancelSplit: "İptal",
+    selectSecondPoint: "İkinci noktayı seçin",
+    plantingTitle: "Ekim Bilgileri",
+    plantingHint: "Her bölge için mahsul ve ekim tarihini girin",
+    plantingDateLabel: "Ekim Tarihi",
+    plantingDateRequired: "Tüm bölgelerde ekim tarihi zorunludur",
+    selectCrop: "Mahsul seçin (opsiyonel)",
+    selectDate: "Tarih seçin",
+    noCrops: "Henüz mahsul tanımlanmamış",
+    growthDays: "gün",
   },
   register: {
     stepUserInfo: "Hesap Bilgileri",
@@ -1195,6 +1313,9 @@ const en: StringDictionary = {
     dataSourceAWS: "AWS",
     dataSourceDemo: "DEMO",
     lastReading: "Last reading",
+    noFieldsTitle: "No fields in this farm yet",
+    noFieldsSubtitle: "Add a new field to get started",
+    addField: "Add Field",
   },
 
   disease: {
@@ -1406,11 +1527,34 @@ const en: StringDictionary = {
     timetable: "Schedule",
     home: "Home",
     disease: "Disease",
-    settings: "Settings",
+    settings: "Account",
   },
 
   settings: {
-    title: "Settings",
+    title: "Account",
+    account: "Account",
+    role: "Role",
+    roleFarmer: "Farmer",
+    roleAdmin: "Admin",
+    roleUser: "User",
+    farmManagement: "Farm Management",
+    activeFarm: "Active Farm",
+    noFarmSelected: "No farm selected",
+    noFarmCreated: "No farm created yet",
+    fieldsConnected: "fields connected",
+    createNewFarm: "Create New Farm",
+    deleteFarm: "Delete Farm",
+    deleteFarmConfirmTitle: "Delete Farm",
+    deleteFarmConfirmMessage: "This farm and all its fields will be permanently deleted. This action cannot be undone.",
+    deleteField: "Delete Field",
+    deleteFieldConfirmTitle: "Delete Field",
+    deleteFieldConfirmMessage: "This field will be permanently deleted. This action cannot be undone.",
+    deleteConfirm: "Delete",
+    fieldManagement: "Field Management",
+    noFields: "No fields in this farm yet",
+    hardwareSubtitle: "Manage sensor and gateway connections",
+    appPreferences: "App Preferences",
+    privacySection: "Privacy & Improvement",
     themeMode: "Theme Mode",
     themeLight: "Light",
     themeDark: "Dark",
@@ -1420,6 +1564,15 @@ const en: StringDictionary = {
     languageEnglish: "English",
     datasetConsentTitle: "Help improve TARAS",
     datasetConsentSubtitle: "If you allow it, photos you upload for analysis may be used to improve our results.",
+    editProfile: "Edit",
+    editProfileTitle: "Edit Profile",
+    usernameLabel: "Username",
+    emailLabel: "Email",
+    passwordLabel: "New Password",
+    passwordPlaceholder: "Leave blank to keep current",
+    saveChanges: "Save",
+    profileUpdated: "Profile updated",
+    profileUpdateFailed: "Failed to update profile",
     datasetConsentDisableTitle: "Are you sure?",
     datasetConsentDisableMessage: "From now on, photos you upload won't be used to improve TARAS. Photos you've already sent keep the consent you gave at the time.",
     datasetConsentDisableConfirm: "Turn off",
@@ -1594,6 +1747,10 @@ const en: StringDictionary = {
     urgencyHigh: "High",
     urgencyMedium: "Medium",
     urgencyLow: "Low",
+    urgencyCritical: "Critical",
+    irrigationRecommended: "irrigation recommended",
+    whyRecommended: "Why recommended?",
+    defaultReasoning: "Irrigation was recommended because soil moisture is below the target level. The amount was calculated based on zone calibration.",
     lastIrrigation: "Last Irrigation",
     manualIrrigation: "Manual Irrigation",
     manualIrrigationDesc: "Log irrigation without a recommendation",
@@ -1602,6 +1759,14 @@ const en: StringDictionary = {
     manualTime: "Irrigation Time",
     manualSaved: "Manual irrigation saved!",
     manualSaveFailed: "Manual irrigation save failed",
+    recommendButton: "Recommend Irrigation",
+    recommendationRunning: "Calculating...",
+    recommendationGenerated: "Irrigation recommendations generated",
+    recommendationFailed: "Failed to generate recommendations",
+    noZonesFound: "No zones found in this field",
+    noPlantingError: "No active planting in zones. Add a planting first.",
+    zonesSuccess: "zones succeeded",
+    zonesFailed: "failed",
     enterDuration: "Enter duration",
     cancel: "Cancel",
   },
@@ -1648,6 +1813,18 @@ const en: StringDictionary = {
     potCountPositive: "Pot count must be a positive number",
     potCountMax: "Maximum 32 pots allowed",
     zoneNameRequired: "Zone name is required",
+    splitZonesHint: "Tap two points to split a zone",
+    splitFailed: "Split failed — try different points",
+    cancelSplit: "Cancel",
+    selectSecondPoint: "Select second point",
+    plantingTitle: "Planting Info",
+    plantingHint: "Set crop and planting date for each zone",
+    plantingDateLabel: "Planting Date",
+    plantingDateRequired: "Planting date is required for all zones",
+    selectCrop: "Select crop (optional)",
+    selectDate: "Select date",
+    noCrops: "No crops defined yet",
+    growthDays: "days",
   },
   register: {
     stepUserInfo: "Account Details",

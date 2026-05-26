@@ -21,7 +21,7 @@ import type { StepProps } from "./types";
 export const PreviewStep = ({ theme, state }: StepProps) => {
   const { t } = useLanguage();
   const { showPopup } = usePopupMessage();
-  const { addLocalField, refreshFields } = useDashboard();
+  const { addLocalField, refreshFields, selectedFarmId } = useDashboard();
   const { dataSource } = useAuth();
   const [creating, setCreating] = useState(false);
 
@@ -44,6 +44,8 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
       const zonesPayload = state.zones.map((z) => ({
         name: z.name,
         polygon: { exterior: z.polygonPoints },
+        cropId: z.cropId,
+        plantingDate: z.plantingDate,
       }));
 
       // Demo modda lokal kaydet, gercek modda backend'e gonder
@@ -56,11 +58,11 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
       } else {
         const res = await dashboardAPI.createField({
           fieldName: state.fieldName,
-          cropName: state.cropName || undefined,
           fieldType: state.fieldType as "greenhouse" | "pot",
           polygon: { exterior: isGreenhouse ? state.outerPolygon : fieldData.polygon.exterior },
           area: Math.round(area),
           zones: zonesPayload,
+          farmId: selectedFarmId ?? undefined,
         });
 
         if (res.success && res.data) {
@@ -77,11 +79,16 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
     }
   };
 
+  const zoneColors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#00BCD4", "#795548", "#607D8B"];
+
   return (
-    <View style={{ flex: 1, padding: s(20) }}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ padding: s(20) }}
+      showsVerticalScrollIndicator={false}
+    >
       <Text
-        className="text-primary font-bold"
-        style={{ fontSize: ms(20, 0.3), marginBottom: vs(20), color: theme.textMain }}
+        style={{ fontSize: ms(20, 0.3), marginBottom: vs(20), color: theme.textMain, fontWeight: "bold" }}
       >
         {t.addField.preview}
       </Text>
@@ -89,131 +96,61 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
       {/* Ozet kartlari */}
       <View
         style={{
-          padding: s(16),
-          gap: vs(12),
-          marginBottom: vs(24),
-          backgroundColor: theme.surface,
-          borderRadius: 12,
+          padding: s(16), gap: vs(12), marginBottom: vs(16),
+          backgroundColor: theme.surface, borderRadius: 12,
         }}
       >
-        <SummaryRow
-          theme={theme}
-          label={t.addField.fieldNameLabel}
-          value={state.fieldName}
-        />
+        <SummaryRow theme={theme} label={t.addField.fieldNameLabel} value={state.fieldName} />
         <SummaryRow
           theme={theme}
           label={t.addField.fieldTypeLabel}
           value={isGreenhouse ? t.addField.greenhouse : t.addField.potArea}
         />
-        {state.cropName.trim() !== "" && (
-          <SummaryRow
-            theme={theme}
-            label={t.addField.cropLabel}
-            value={state.cropName}
-          />
-        )}
         <SummaryRow
           theme={theme}
           label={isGreenhouse ? t.addField.zoneCountLabel : t.addField.potCountLabel}
           value={String(zoneCount)}
         />
-
-        {/* Sera bolge isimleri */}
-        {isGreenhouse && state.zones.length > 0 && (
-          <View style={{ marginTop: vs(4) }}>
-            {state.zones.map((zone) => (
-              <Text
-                key={zone.id}
-                style={{ fontSize: ms(13, 0.3), marginLeft: s(4), color: theme.textSecondary }}
-              >
-                {"• "}
-                {zone.name} ({zone.polygonPoints.length} {t.addField.minPoints.split(" ")[2]})
-              </Text>
-            ))}
-          </View>
-        )}
-
-        {/* Saksı alani: görsel grid */}
-        {!isGreenhouse && state.zones.length > 0 && (          <View style={{ marginTop: vs(4) }}>
-            <Text
-              style={{ fontSize: ms(12, 0.3), color: theme.textSecondary, marginBottom: vs(8) }}
-            >
-              {state.zones.length} saksı bağımsız zone olarak oluşturulacak
-            </Text>
-            <ScrollView
-              horizontal={false}
-              showsVerticalScrollIndicator={false}
-              style={{ maxHeight: vs(200) }}
-              contentContainerStyle={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: s(8),
-              }}
-            >
-              {state.zones.map((zone, i) => (
-                <View
-                  key={zone.id}
-                  style={{
-                    width: s(56),
-                    alignItems: "center",
-                  }}
-                >
-                  {/* Saksı gövdesi */}
-                  <View
-                    style={{
-                      width: s(44),
-                      height: s(40),
-                      backgroundColor: theme.primary,
-                      borderRadius: 6,
-                      borderBottomLeftRadius: 10,
-                      borderBottomRightRadius: 10,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <MaterialCommunityIcons
-                      name="flower-tulip-outline"
-                      size={s(18)}
-                      color={theme.textOnPrimary}
-                    />
-                  </View>
-                  {/* Taban */}
-                  <View
-                    style={{
-                      width: s(34),
-                      height: vs(5),
-                      backgroundColor: theme.primary + "bb",
-                      borderBottomLeftRadius: 4,
-                      borderBottomRightRadius: 4,
-                    }}
-                  />
-                  <Text
-                    style={{
-                      fontSize: ms(10, 0.3),
-                      color: theme.textSecondary,
-                      marginTop: vs(3),
-                    }}
-                  >
-                    {i + 1}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        )}
       </View>
+
+      {/* Zone detaylari — ekim bilgileriyle */}
+      {state.zones.length > 0 && (
+        <View style={{ marginBottom: vs(16) }}>
+          {state.zones.map((zone, i) => {
+            const color = zoneColors[i % zoneColors.length];
+            return (
+              <View
+                key={zone.id}
+                style={{
+                  flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                  paddingVertical: vs(10), paddingHorizontal: s(12), marginBottom: vs(6),
+                  backgroundColor: theme.surface, borderRadius: 8,
+                  borderLeftWidth: 4, borderLeftColor: color,
+                }}
+              >
+                <Text style={{ fontSize: ms(14, 0.3), fontWeight: "600", color: theme.textMain }}>
+                  {zone.name}
+                </Text>
+                <View style={{ alignItems: "flex-end" }}>
+                  {zone.plantingDate && (
+                    <Text style={{ fontSize: ms(12, 0.3), color: theme.textSecondary }}>
+                      {new Date(zone.plantingDate).toLocaleDateString("tr-TR")}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {/* Olustur butonu */}
       <TouchableOpacity
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
           borderRadius: 12,
           backgroundColor: creating ? theme.primary + "88" : theme.primary,
-          paddingVertical: vs(14),
-          paddingHorizontal: s(24),
+          paddingVertical: vs(14), paddingHorizontal: s(24),
         }}
         onPress={handleCreate}
         activeOpacity={0.7}
@@ -223,43 +160,28 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
           <ActivityIndicator size="small" color={theme.textOnPrimary} style={{ marginRight: s(8) }} />
         ) : (
           <MaterialCommunityIcons
-            name="check-circle"
-            size={20}
-            color={theme.textOnPrimary}
+            name="check-circle" size={20} color={theme.textOnPrimary}
             style={{ marginRight: s(8) }}
           />
         )}
-        <Text
-          style={{ fontSize: ms(16, 0.3), color: theme.textOnPrimary, fontWeight: 'bold' }}
-        >
+        <Text style={{ fontSize: ms(16, 0.3), color: theme.textOnPrimary, fontWeight: 'bold' }}>
           {creating ? t.addField.creating : t.addField.createField}
         </Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 };
 
-// Ozet satirlari
 const SummaryRow = ({
-  label,
-  value,
-  theme,
+  label, value, theme,
 }: {
-  label: string;
-  value: string;
-  theme: any;
+  label: string; value: string; theme: any;
 }) => (
   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-    <Text
-      className="text-secondary font-semibold"
-      style={{ fontSize: ms(13, 0.3), color: theme.textSecondary }}
-    >
+    <Text style={{ fontSize: ms(13, 0.3), color: theme.textSecondary, fontWeight: "600" }}>
       {label}
     </Text>
-    <Text
-      className="text-primary font-medium"
-      style={{ fontSize: ms(14, 0.3), maxWidth: "60%", textAlign: "right", color: theme.textMain }}
-    >
+    <Text style={{ fontSize: ms(14, 0.3), maxWidth: "60%", textAlign: "right", color: theme.textMain }}>
       {value}
     </Text>
   </View>

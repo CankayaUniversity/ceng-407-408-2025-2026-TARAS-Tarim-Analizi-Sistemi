@@ -144,6 +144,7 @@ export interface FieldListItem {
   id: string;
   name: string;
   area: number;
+  farm_id: string;
 }
 
 export interface DashboardWeather {

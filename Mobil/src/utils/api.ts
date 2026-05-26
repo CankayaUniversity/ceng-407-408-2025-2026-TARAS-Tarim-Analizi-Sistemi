@@ -229,6 +229,16 @@ export const authAPI = {
     return authFetch("/auth/me");
   },
 
+  async updateProfile(
+    data: { username?: string; email?: string; password?: string },
+  ): Promise<ApiResponse<{ username: string; email: string }>> {
+    return authFetch("/auth/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
   async updateDatasetConsent(
     consent: boolean,
   ): Promise<ApiResponse<{ dataset_consent: boolean }>> {
@@ -523,6 +533,7 @@ export interface FieldSummary {
   id: string;
   name: string;
   area: number;
+  farm_id?: string;
 }
 
 export interface DashboardData {
@@ -540,7 +551,7 @@ export const ERR_UNAUTHENTICATED = "UNAUTHENTICATED";
 
 // Dashboard verileri
 export const dashboardAPI = {
-  getFields: async (): Promise<FieldSummary[]> => {
+  getFields: async (farmId?: string): Promise<FieldSummary[]> => {
     const token = await secureGet(TOKEN_KEY);
 
     // Demo modu: explicit demo token (login ekranindan "skip" veya demo user ile)
@@ -554,7 +565,10 @@ export const dashboardAPI = {
       throw new Error(ERR_UNAUTHENTICATED);
     }
 
-    const res = await authFetch<FieldSummary[]>("/dashboard/fields");
+    const url = farmId
+      ? `/dashboard/fields?farm_id=${encodeURIComponent(farmId)}`
+      : "/dashboard/fields";
+    const res = await authFetch<FieldSummary[]>(url);
     if (res.success && res.data) {
       console.log("[DASHBOARD] fields:", res.data.length);
       return res.data;
@@ -612,14 +626,16 @@ export const dashboardAPI = {
 
   createField: async (payload: {
     fieldName: string;
-    cropName?: string;
     fieldType: "greenhouse" | "pot";
     polygon: { exterior: [number, number][]; holes?: [number, number][][] };
     area: number;
     zones: {
       name: string;
       polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+      cropId?: number;
+      plantingDate?: string;
     }[];
+    farmId?: string;
   }): Promise<ApiResponse<FieldSummary>> => {
     const token = await secureGet(TOKEN_KEY);
 
@@ -706,6 +722,22 @@ export const dashboardAPI = {
     throw new Error(res.error || "Failed to create farm");
   },
 
+  getCrops: async (): Promise<ApiResponse<{
+    crop_id: number;
+    name: string;
+    default_kc: number | null;
+    growth_days: number | null;
+    optimal_sm_min: number | null;
+    optimal_sm_max: number | null;
+  }[]>> => {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return { success: true, data: [] };
+    }
+    if (!token) throw new Error(ERR_UNAUTHENTICATED);
+    return authFetch("/dashboard/crops");
+  },
+
   getElevation: async (
     latitude: number,
     longitude: number,
@@ -724,6 +756,40 @@ export const dashboardAPI = {
     return authFetch<{ altitude_m: number }>(
       `/dashboard/elevation?latitude=${latitude}&longitude=${longitude}`,
     );
+  },
+
+  deleteFarm: async (farmId: string): Promise<ApiResponse<{ message: string }>> => {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return { success: true, data: { message: "Demo: farm silindi" } };
+    }
+    if (!token) throw new Error(ERR_UNAUTHENTICATED);
+    const res = await authFetch<{ message: string }>(
+      `/dashboard/farms/${encodeURIComponent(farmId)}`,
+      { method: "DELETE" },
+    );
+    if (res.success) return res;
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to delete farm");
+  },
+
+  deleteField: async (fieldId: string): Promise<ApiResponse<{ message: string }>> => {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return { success: true, data: { message: "Demo: tarla silindi" } };
+    }
+    if (!token) throw new Error(ERR_UNAUTHENTICATED);
+    const res = await authFetch<{ message: string }>(
+      `/dashboard/fields/${encodeURIComponent(fieldId)}`,
+      { method: "DELETE" },
+    );
+    if (res.success) return res;
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to delete field");
   },
 
   // Logout sirasinda cagrilir — userlar arasi cache leak'ini onler
@@ -1580,6 +1646,7 @@ export interface IrrigationJob {
   status: string;
   should_irrigate: boolean;
   water_amount_ml: number | null;
+  recommended_duration_min: number | null;
   start_time: string | null;
   current_sm: number | null;
   target_sm: number | null;
@@ -1614,6 +1681,7 @@ function generateDemoIrrigationJobs(zoneIndex: number): IrrigationJob[] {
       status: i === 0 ? "PENDING" : "EXECUTED",
       should_irrigate: true,
       water_amount_ml: Math.round(150 + r * 150),
+      recommended_duration_min: Math.round(5 + r * 20),
       start_time: date.toISOString(),
       current_sm: Math.round(30 + r * 25),
       target_sm: Math.round(55 + r * 15),
@@ -1658,7 +1726,7 @@ export const irrigationAPI = {
   // Gercek sulama degerlerini guncelle
   async updateJobActual(
     jobId: string,
-    data: { actual_water_amount_ml?: number; actual_start_time?: string },
+    data: { actual_water_amount_ml?: number; actual_start_time?: string; actual_duration_min?: number },
   ): Promise<ApiResponse<IrrigationJob>> {
     const token = await secureGet(TOKEN_KEY);
     if (!token || isDemoToken(token)) {
@@ -1703,6 +1771,11 @@ export const irrigationAPI = {
     return authFetch<IrrigationZoneRecommendation[]>(
       `/irrigation/field/${fieldId}/recommendations`,
     );
+  },
+
+  // Tarla bazinda tum zone sulama islerini getir
+  async getFieldJobs(fieldId: string): Promise<ApiResponse<IrrigationJob[]>> {
+    return authFetch<IrrigationJob[]>(`/irrigation/field/${fieldId}/jobs`);
   },
 
   // Zone icin sulama isi olustur (mevcut backend endpoint)

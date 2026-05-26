@@ -31,6 +31,8 @@ export interface CompactStackHeaderProps {
   onBack?: () => void;
   /** Hide the back chevron. Defaults to true. */
   showBack?: boolean;
+  /** pageSheet sunumunda iOS'te chevron-down gosterir. */
+  dismissStyle?: boolean;
 }
 
 export const CompactStackHeader = ({
@@ -39,6 +41,7 @@ export const CompactStackHeader = ({
   rightAction = null,
   onBack,
   showBack = true,
+  dismissStyle = false,
 }: CompactStackHeaderProps) => {
   const { theme } = useTheme();
   const navigation = useNavigation();
@@ -88,8 +91,8 @@ export const CompactStackHeader = ({
             accessibilityLabel="back"
           >
             <Ionicons
-              name={Platform.OS === "ios" ? "chevron-back" : "arrow-back"}
-              size={22}
+              name={dismissStyle && Platform.OS === "ios" ? "chevron-down" : Platform.OS === "ios" ? "chevron-back" : "arrow-back"}
+              size={dismissStyle && Platform.OS === "ios" ? 26 : 22}
               color={theme.textMain}
             />
           </TouchableOpacity>
@@ -125,10 +128,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   bar: {
-    height: 40,
+    height: 44,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: spacing.xs,
+    paddingHorizontal: spacing.md,
   },
   iconSlot: {
     width: 36,

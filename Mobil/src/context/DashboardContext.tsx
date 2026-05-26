@@ -1,4 +1,4 @@
-// Dashboard context — fields, secili tarla, dashboardData, refresh logic
+// Dashboard context — farms, fields, secili farm/tarla, dashboardData, refresh logic
 // AuthContext'i okuyor: isLoggedIn + dataSource degisince veri yukluyor
 
 import React, {
@@ -10,6 +10,7 @@ import React, {
   useState,
 } from "react";
 import { AppState } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   dashboardAPI,
   gatewayAPI,
@@ -21,7 +22,20 @@ import {
 import { getDemoFields, generateDemoDashboardData } from "../utils/demo/demoData";
 import { useAuth } from "./AuthContext";
 
+const SELECTED_FARM_KEY = "selected_farm_id";
+
+export interface FarmInfo {
+  farm_id: string;
+  name: string;
+}
+
 interface DashboardContextValue {
+  // Farm
+  farms: FarmInfo[];
+  selectedFarmId: string | null;
+  selectedFarm: FarmInfo | null;
+  setSelectedFarmId: (farmId: string) => void;
+  // Fields
   fields: FieldSummary[];
   selectedFieldId: string | null;
   dashboardData: DashboardData | null;
@@ -36,13 +50,21 @@ interface DashboardContextValue {
   setFieldSelectorOpen: (open: boolean) => void;
   setAddFieldModalOpen: (open: boolean) => void;
   addLocalField: (summary: FieldSummary, data: DashboardData) => void;
-  notifyFarmCreated: () => Promise<void>;
+  notifyFarmCreated: (farmId: string) => Promise<void>;
+  deleteFarm: (farmId: string) => Promise<void>;
+  deleteField: (fieldId: string) => Promise<void>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
 
 export const DashboardProvider = ({ children }: { children: React.ReactNode }) => {
   const { isAuthReady, isLoggedIn, dataSource, handleLogout } = useAuth();
+
+  // Farm state
+  const [farms, setFarms] = useState<FarmInfo[]>([]);
+  const [selectedFarmId, setSelectedFarmIdRaw] = useState<string | null>(null);
+
+  // Field / dashboard state
   const [fields, setFields] = useState<FieldSummary[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -53,12 +75,14 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [hasFarms, setHasFarms] = useState(false);
 
-  // Auth hatalarini logout'a cevirir. Diger hatalarda mevcut datayi BOZMAZ —
-  // bir refresh basarisiz olursa user son bilinen iyi datayi gormeye devam eder
-  // (eskiden silently demo'ya dusuyordu, real ve demo veri karisiyordu).
+  const selectedFarm = useMemo(
+    () => farms.find((f) => f.farm_id === selectedFarmId) ?? null,
+    [farms, selectedFarmId],
+  );
+
+  // ── Dashboard yükleme ──────────────────────────────────────────────────────
   const loadDashboardForField = useCallback(
     async (fieldId: string, isDemo: boolean) => {
-      // Lokal olusturulmus tarla varsa ondan yukle (backend'e gitmeden)
       const localData = localFields.get(fieldId);
       if (localData) {
         setDashboardData(localData);
@@ -80,26 +104,78 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
           return;
         }
         console.log("[DASHBOARD] load fail:", msg);
-        // Network hatasi: stale datayi koru. Initial load'sa zaten null kalir,
-        // UI spinner gosterir. Mid-session hatasi olursa son data kalir.
       }
     },
     [handleLogout, localFields],
   );
 
-  // isLoggedIn / dataSource degisince veri yukle. Mode gecisinde stale datayi
-  // (eski user'in datasi, demo'dan kalan, vb.) anlik olarak temizleriz —
-  // boylece HomeScreen UI bir an icin yanlis polygon goremez.
+  // ── Secili farm'a gore field'lari yukle ────────────────────────────────────
+  const loadFieldsForFarm = useCallback(
+    async (farmId: string | null, isDemo: boolean) => {
+      if (isDemo) {
+        const demoFields = getDemoFields();
+        setFields(demoFields);
+        if (demoFields.length > 0) {
+          setSelectedFieldId(demoFields[0].id);
+          await loadDashboardForField(demoFields[0].id, true);
+        } else {
+          setSelectedFieldId(null);
+          setDashboardData(null);
+        }
+        return;
+      }
+
+      try {
+        const raw = await dashboardAPI.getFields(farmId ?? undefined);
+        // Sadece secili farm'a ait field'lari goster
+        const fieldsData = farmId ? raw.filter((f) => f.farm_id === farmId) : raw;
+        setFields(fieldsData);
+        if (fieldsData.length > 0) {
+          setSelectedFieldId(fieldsData[0].id);
+          await loadDashboardForField(fieldsData[0].id, false);
+        } else {
+          setSelectedFieldId(null);
+          setDashboardData(null);
+        }
+      } catch (err: any) {
+        const msg = err?.message ?? "";
+        if (msg === ERR_AUTH_EXPIRED || msg === ERR_UNAUTHENTICATED) {
+          await handleLogout();
+          return;
+        }
+        console.log("[DASHBOARD] loadFieldsForFarm fail:", msg);
+      }
+    },
+    [loadDashboardForField, handleLogout],
+  );
+
+  // ── Persist + set selectedFarmId ───────────────────────────────────────────
+  const setSelectedFarmId = useCallback(
+    (farmId: string) => {
+      setSelectedFarmIdRaw(farmId);
+      AsyncStorage.setItem(SELECTED_FARM_KEY, farmId).catch(() => {});
+      // Farm degisince field'lari yeniden yukle
+      setFields([]);
+      setSelectedFieldId(null);
+      setDashboardData(null);
+      loadFieldsForFarm(farmId, dataSource === "demo");
+    },
+    [dataSource, loadFieldsForFarm],
+  );
+
+  // ── Initial load: farms → selectedFarm → fields → dashboard ───────────────
   useEffect(() => {
     if (!isAuthReady) return;
 
     let cancelled = false;
     (async () => {
       if (dataSource === "demo") {
-        // Demo modu: explicit demo (skip-login veya demo user ile). Demo data dogru.
-        const demoFields = getDemoFields();
+        const demoFarms: FarmInfo[] = [{ farm_id: "demo-farm", name: "Demo Çiftliği" }];
         if (cancelled) return;
+        setFarms(demoFarms);
         setHasFarms(true);
+        setSelectedFarmIdRaw(demoFarms[0].farm_id);
+        const demoFields = getDemoFields();
         setFields(demoFields);
         if (demoFields.length > 0) {
           setSelectedFieldId(demoFields[0].id);
@@ -113,31 +189,46 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       }
 
       if (isLoggedIn && dataSource === "aws") {
-        // Gercek user: ASLA demo'ya dusme. Yeni state'i fetch'ten once
-        // temizle ki "demo polygon → real polygon" gecisi olmasin.
         setFields([]);
         setSelectedFieldId(null);
         setDashboardData(null);
         setHasFarms(false);
+        setFarms([]);
+        setSelectedFarmIdRaw(null);
         setInitialLoadDone(false);
         try {
-          // Once ciftlikleri kontrol et
+          // 1. Farm'ları çek
           const farmsRes = await gatewayAPI.getFarms();
           if (cancelled) return;
-          const userHasFarms = farmsRes.success && farmsRes.data && farmsRes.data.length > 0;
-          setHasFarms(!!userHasFarms);
+          const farmList: FarmInfo[] =
+            farmsRes.success && farmsRes.data ? farmsRes.data : [];
+          setFarms(farmList);
+          const userHasFarms = farmList.length > 0;
+          setHasFarms(userHasFarms);
 
           if (!userHasFarms) {
-            // Ciftlik yok — bos state, UI "Ciftlik Ekle" gosterir
             setInitialLoadDone(true);
             return;
           }
 
-          // Ciftlik var — tarlalari yukle
-          const fieldsData = await dashboardAPI.getFields();
+          // 2. Kayıtlı farm'ı yükle veya ilk farm'ı seç
+          let farmId: string;
+          const storedFarmId = await AsyncStorage.getItem(SELECTED_FARM_KEY);
+          if (storedFarmId && farmList.some((f) => f.farm_id === storedFarmId)) {
+            farmId = storedFarmId;
+          } else {
+            farmId = farmList[0].farm_id;
+            AsyncStorage.setItem(SELECTED_FARM_KEY, farmId).catch(() => {});
+          }
           if (cancelled) return;
-          if (fieldsData && fieldsData.length > 0) {
-            setFields(fieldsData);
+          setSelectedFarmIdRaw(farmId);
+
+          // 3. Seçili farm'ın field'larını yükle
+          const rawFields = await dashboardAPI.getFields(farmId);
+          if (cancelled) return;
+          const fieldsData = rawFields.filter((f) => f.farm_id === farmId);
+          setFields(fieldsData);
+          if (fieldsData.length > 0) {
             setSelectedFieldId(fieldsData[0].id);
             await loadDashboardForField(fieldsData[0].id, false);
           }
@@ -151,17 +242,17 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
             return;
           }
           console.log("[DASHBOARD] init fail:", msg);
-          // Network hatasi: state bos kalir, UI spinner gosterir, user
-          // pull-to-refresh ile yeniden deneyebilir.
           setInitialLoadDone(true);
         }
         return;
       }
 
-      // Logged out: state'i temizle (defensive)
+      // Logged out
       setFields([]);
       setSelectedFieldId(null);
       setDashboardData(null);
+      setFarms([]);
+      setSelectedFarmIdRaw(null);
       setHasFarms(false);
       setInitialLoadDone(false);
     })();
@@ -171,8 +262,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     };
   }, [isAuthReady, isLoggedIn, dataSource, loadDashboardForField, handleLogout]);
 
-  // AppState: foreground'a gelince AWS verilerini refresh et. Hata olursa
-  // mevcut data korunur (loadDashboardForField icindeki defansif catch).
+  // AppState: foreground'a gelince AWS verilerini refresh et
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active" && selectedFieldId && dataSource === "aws") {
@@ -198,12 +288,12 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     setRefreshing(false);
   }, [selectedFieldId, dataSource, loadDashboardForField]);
 
-  // Tarla listesini sunucudan yeniden yukle, istege bagli olarak belirli tarlayi sec
   const refreshFields = useCallback(
     async (selectFieldId?: string) => {
       if (dataSource === "demo") return;
       try {
-        const fieldsData = await dashboardAPI.getFields();
+        const raw = await dashboardAPI.getFields(selectedFarmId ?? undefined);
+        const fieldsData = selectedFarmId ? raw.filter((f) => f.farm_id === selectedFarmId) : raw;
         setFields(fieldsData);
         const targetId = selectFieldId || selectedFieldId;
         if (targetId && fieldsData.some((f) => f.id === targetId)) {
@@ -221,16 +311,85 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
         }
       }
     },
-    [dataSource, selectedFieldId, loadDashboardForField, handleLogout],
+    [dataSource, selectedFieldId, selectedFarmId, loadDashboardForField, handleLogout],
   );
 
-  // Ciftlik olusturulduktan sonra cagrilir — hasFarms guncelle, tarlalari yenile
-  const notifyFarmCreated = useCallback(async () => {
-    setHasFarms(true);
-    await refreshFields();
-  }, [refreshFields]);
+  const deleteFarm = useCallback(async (farmId: string) => {
+    try {
+      await dashboardAPI.deleteFarm(farmId);
+    } catch (err: any) {
+      const msg = err?.message ?? "";
+      if (msg === ERR_AUTH_EXPIRED || msg === ERR_UNAUTHENTICATED) {
+        await handleLogout();
+        return;
+      }
+      throw err;
+    }
+    // Local state'i guncelle
+    setFarms((prev) => {
+      const next = prev.filter((f) => f.farm_id !== farmId);
+      if (selectedFarmId === farmId) {
+        const nextFarm = next[0] ?? null;
+        const nextId = nextFarm?.farm_id ?? null;
+        setSelectedFarmIdRaw(nextId);
+        if (nextId) {
+          AsyncStorage.setItem(SELECTED_FARM_KEY, nextId).catch(() => {});
+          loadFieldsForFarm(nextId, dataSource === "demo");
+        } else {
+          setFields([]);
+          setSelectedFieldId(null);
+          setDashboardData(null);
+          setHasFarms(false);
+        }
+      }
+      return next;
+    });
+  }, [selectedFarmId, dataSource, loadFieldsForFarm, handleLogout]);
 
-  // Lokal tarla ekle — frontend-only, session boyunca gecerli
+  const deleteField = useCallback(async (fieldId: string) => {
+    try {
+      await dashboardAPI.deleteField(fieldId);
+    } catch (err: any) {
+      const msg = err?.message ?? "";
+      if (msg === ERR_AUTH_EXPIRED || msg === ERR_UNAUTHENTICATED) {
+        await handleLogout();
+        return;
+      }
+      throw err;
+    }
+    setFields((prev) => {
+      const next = prev.filter((f) => f.id !== fieldId);
+      if (selectedFieldId === fieldId) {
+        const nextField = next[0] ?? null;
+        setSelectedFieldId(nextField?.id ?? null);
+        if (nextField) {
+          loadDashboardForField(nextField.id, dataSource === "demo");
+        } else {
+          setDashboardData(null);
+        }
+      }
+      return next;
+    });
+  }, [selectedFieldId, dataSource, loadDashboardForField, handleLogout]);
+
+  const notifyFarmCreated = useCallback(async (farmId: string) => {
+    // Yeni farm'ı seç
+    setSelectedFarmIdRaw(farmId);
+    AsyncStorage.setItem(SELECTED_FARM_KEY, farmId).catch(() => {});
+    // Yeni farm bos — field yok
+    setFields([]);
+    setSelectedFieldId(null);
+    setDashboardData(null);
+    setHasFarms(true);
+    // Farm listesini arka planda yenile
+    try {
+      const farmsRes = await gatewayAPI.getFarms();
+      if (farmsRes.success && farmsRes.data) {
+        setFarms(farmsRes.data);
+      }
+    } catch { /* noop */ }
+  }, []);
+
   const addLocalField = useCallback(
     (summary: FieldSummary, data: DashboardData) => {
       localFields.set(summary.id, data);
@@ -245,6 +404,10 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
 
   const value = useMemo(
     () => ({
+      farms,
+      selectedFarmId,
+      selectedFarm,
+      setSelectedFarmId,
       fields,
       selectedFieldId,
       dashboardData,
@@ -260,8 +423,14 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       setAddFieldModalOpen,
       addLocalField,
       notifyFarmCreated,
+      deleteFarm,
+      deleteField,
     }),
     [
+      farms,
+      selectedFarmId,
+      selectedFarm,
+      setSelectedFarmId,
       fields,
       selectedFieldId,
       dashboardData,
@@ -275,6 +444,8 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       refreshFields,
       addLocalField,
       notifyFarmCreated,
+      deleteFarm,
+      deleteField,
     ],
   );
 

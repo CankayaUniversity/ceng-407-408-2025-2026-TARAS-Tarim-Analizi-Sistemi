@@ -16,8 +16,9 @@ import {
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useDashboard } from "../../context/DashboardContext";
 import { FocusableSection } from "../../components/FocusableSection";
-import { carbonAPI, gatewayAPI } from "../../utils/api";
+import { carbonAPI } from "../../utils/api";
 import { spacing } from "../../utils/responsive";
 import type {
   CarbonFootprintScreenProps,
@@ -57,10 +58,10 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
 }: CarbonFootprintScreenProps) {
   const { t } = useLanguage();
   const { showPopup } = usePopupMessage();
+  const { selectedFarmId: farmId } = useDashboard();
   const scrollRef = useRef<ScrollView>(null);
 
   // veri state'leri
-  const [farmId, setFarmId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activityTypes, setActivityTypes] = useState<Record<string, ActivityType[]>>({});
@@ -76,27 +77,21 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ciftlik bilgisini ve verileri yukle
+  // verileri yukle — farmId context'ten geliyor
   const loadInitialData = async (): Promise<void> => {
+    if (!farmId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
-      // ciftlik id'sini al
-      const farmsRes = await gatewayAPI.getFarms();
-      if (!farmsRes.success || !farmsRes.data?.length) {
-        console.log("[CARBON] no farms found");
-        setIsLoading(false);
-        return;
-      }
-
-      const fId = farmsRes.data[0].farm_id;
-      setFarmId(fId);
-      console.log("[CARBON] farm:", fId.slice(0, 8));
+      console.log("[CARBON] farm:", farmId.slice(0, 8));
 
       // verileri paralel yukle
       const [typesRes, summaryRes, logsRes] = await Promise.all([
         carbonAPI.getActivityTypes(),
-        carbonAPI.getSummary(fId),
-        carbonAPI.getLogs(fId),
+        carbonAPI.getSummary(farmId),
+        carbonAPI.getLogs(farmId),
       ]);
 
       if (typesRes.success && typesRes.data) {
@@ -136,12 +131,10 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
     }
   };
 
-  // ilk mount'ta verileri yukle
+  // farmId degisince verileri yukle
   useEffect(() => {
-    if (!farmId) {
-      loadInitialData();
-    }
-  }, []);
+    loadInitialData();
+  }, [farmId]);
 
   // yeni log kaydet
   const handleSubmit = async (): Promise<void> => {

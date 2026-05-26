@@ -7,6 +7,7 @@ import { NodeInfo } from "../../components/ColorPlane";
 import { IrrigationSuggestion } from "./types";
 import { useLanguage } from "../../context/LanguageContext";
 import { ms, s, spacing } from "../../utils/responsive";
+import { getUrgencyColor, getUrgencyLabel } from "../../utils/labels";
 
 interface FeaturedZoneCardProps {
   theme: Theme;
@@ -66,17 +67,6 @@ const formatCardTime = (iso: string | null, language: string): string => {
   });
 };
 
-// Aciliyet seviyesine göre tema rengi
-const urgencyColor = (
-  level: IrrigationSuggestion["urgency_level"],
-  theme: Theme,
-): string => {
-  if (level === "high") return theme.danger;
-  if (level === "medium") return theme.warning;
-  if (level === "low") return theme.success;
-  return theme.primary;
-};
-
 // Küçük renkli rozet — HIGH / MEDIUM / LOW
 const UrgencyBadge = ({
   level,
@@ -87,7 +77,7 @@ const UrgencyBadge = ({
   label: string;
   theme: Theme;
 }) => {
-  const color = urgencyColor(level, theme);
+  const color = theme[getUrgencyColor(level)];
   return (
     <View
       style={{
@@ -129,15 +119,11 @@ export const FeaturedZoneCard = ({
 
   const moisture = Math.round(node.moisture);
   const accentCol = pendingSuggestion
-    ? urgencyColor(pendingSuggestion.urgency_level, theme)
+    ? theme[getUrgencyColor(pendingSuggestion.urgency_level)]
     : theme.primary;
 
-  const urgencyLabel = pendingSuggestion?.urgency_level === "high"
-    ? t.irrigation.urgencyHigh
-    : pendingSuggestion?.urgency_level === "medium"
-    ? t.irrigation.urgencyMedium
-    : pendingSuggestion?.urgency_level === "low"
-    ? t.irrigation.urgencyLow
+  const urgencyLabelText = pendingSuggestion?.urgency_level
+    ? getUrgencyLabel(pendingSuggestion.urgency_level, t.irrigation)
     : null;
 
   return (
@@ -194,10 +180,10 @@ export const FeaturedZoneCard = ({
           {pendingSuggestion ? (
             /* Öneri varsa: aciliyet rozeti + chevron */
             <View style={{ flexDirection: "row", alignItems: "center", gap: s(6) }}>
-              {urgencyLabel && (
+              {urgencyLabelText && (
                 <UrgencyBadge
                   level={pendingSuggestion.urgency_level}
-                  label={urgencyLabel}
+                  label={urgencyLabelText}
                   theme={theme}
                 />
               )}

@@ -1,4 +1,4 @@
-// Yeniden kullanilabilir SVG polygon editoru — dokunarak nokta yerlestirme
+// SVG polygon editoru — grid snap, nearest-edge insertion, point dragging
 // viewBox 0-100 koordinat alaninda calisir (FieldPolygon ile uyumlu)
 
 import { useState, useCallback, useRef } from "react";
@@ -36,6 +36,7 @@ interface PolygonCanvasProps {
 const CANVAS_PADDING = 5;
 const GRID_STEP = 10;
 const POINT_RADIUS = 3;
+const DRAG_THRESHOLD = 8; // SVG biriminde, bir noktaya ne kadar yakin tiklayinca surukleme baslar
 
 export const PolygonCanvas = ({
   theme,
@@ -48,8 +49,9 @@ export const PolygonCanvas = ({
   const { t } = useLanguage();
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const containerRef = useRef<View>(null);
+  const dragIndexRef = useRef<number | null>(null);
+  const isDraggingRef = useRef(false);
 
-  // Default bounds: 0-100 (FieldPolygon koordinat alani)
   const bounds = viewBounds ?? {
     minX: 0 - CANVAS_PADDING,
     maxX: 100 + CANVAS_PADDING,
@@ -65,22 +67,131 @@ export const PolygonCanvas = ({
     setContainerSize({ width, height });
   }, []);
 
-  // Dokunma → koordinat donusumu
-  const handleTouch = useCallback(
-    (e: GestureResponderEvent) => {
-      if (containerSize.width === 0 || containerSize.height === 0) return;
-
+  // Dokunma konumundan SVG koordinatina donusum + grid snap
+  const touchToCoord = useCallback(
+    (e: GestureResponderEvent): [number, number] | null => {
+      if (containerSize.width === 0 || containerSize.height === 0) return null;
       const { locationX, locationY } = e.nativeEvent;
       const x = bounds.minX + (locationX / containerSize.width) * viewWidth;
       const y = bounds.minY + (locationY / containerSize.height) * viewHeight;
 
-      // Koordinati 0-100 arasinda sinirla
-      const clampedX = Math.round(Math.max(0, Math.min(100, x)) * 10) / 10;
-      const clampedY = Math.round(Math.max(0, Math.min(100, y)) * 10) / 10;
+      // Grid'e snap
+      const snappedX = Math.round(x / GRID_STEP) * GRID_STEP;
+      const snappedY = Math.round(y / GRID_STEP) * GRID_STEP;
 
-      onPointsChange([...points, [clampedX, clampedY]]);
+      // 0-100 arasi sinirla
+      const clampedX = Math.max(0, Math.min(100, snappedX));
+      const clampedY = Math.max(0, Math.min(100, snappedY));
+
+      return [clampedX, clampedY];
     },
-    [containerSize, bounds, viewWidth, viewHeight, points, onPointsChange],
+    [containerSize, bounds, viewWidth, viewHeight],
+  );
+
+  // En yakin noktanin indeksini bul (drag icin)
+  const findNearestPointIndex = useCallback(
+    (coord: [number, number]): number | null => {
+      let minDist = Infinity;
+      let bestIdx: number | null = null;
+      for (let i = 0; i < points.length; i++) {
+        const dx = points[i][0] - coord[0];
+        const dy = points[i][1] - coord[1];
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < minDist) {
+          minDist = dist;
+          bestIdx = i;
+        }
+      }
+      return minDist <= DRAG_THRESHOLD ? bestIdx : null;
+    },
+    [points],
+  );
+
+  // 3+ noktadan sonra yeni noktanin hangi kenara en yakin oldugunu bul
+  const findNearestEdgeIndex = useCallback(
+    (coord: [number, number]): number => {
+      let minDist = Infinity;
+      let bestEdge = points.length - 1; // default: son kenar
+      const n = points.length;
+      for (let i = 0; i < n; i++) {
+        const a = points[i];
+        const b = points[(i + 1) % n];
+        const dist = pointToSegmentDist(coord, a, b);
+        if (dist < minDist) {
+          minDist = dist;
+          bestEdge = i;
+        }
+      }
+      return bestEdge;
+    },
+    [points],
+  );
+
+  // Touch basla — surukleme mi yeni nokta mi karar ver
+  const handleResponderGrant = useCallback(
+    (e: GestureResponderEvent) => {
+      const coord = touchToCoord(e);
+      if (!coord) return;
+
+      const nearIdx = findNearestPointIndex(coord);
+      if (nearIdx !== null) {
+        // Mevcut noktaya yakin → surukleme modu
+        dragIndexRef.current = nearIdx;
+        isDraggingRef.current = true;
+      } else {
+        dragIndexRef.current = null;
+        isDraggingRef.current = false;
+      }
+    },
+    [touchToCoord, findNearestPointIndex],
+  );
+
+  // Surukleme hareketi
+  const handleResponderMove = useCallback(
+    (e: GestureResponderEvent) => {
+      if (!isDraggingRef.current || dragIndexRef.current === null) return;
+      const coord = touchToCoord(e);
+      if (!coord) return;
+
+      const newPoints = [...points];
+      newPoints[dragIndexRef.current] = coord;
+      onPointsChange(newPoints);
+    },
+    [touchToCoord, points, onPointsChange],
+  );
+
+  // Touch bitti — surukleme degilse yeni nokta ekle
+  const handleResponderRelease = useCallback(
+    (e: GestureResponderEvent) => {
+      if (isDraggingRef.current) {
+        // Surukleme bitti, son konuma birak
+        const coord = touchToCoord(e);
+        if (coord && dragIndexRef.current !== null) {
+          const newPoints = [...points];
+          newPoints[dragIndexRef.current] = coord;
+          onPointsChange(newPoints);
+        }
+        isDraggingRef.current = false;
+        dragIndexRef.current = null;
+        return;
+      }
+
+      // Yeni nokta ekle
+      const coord = touchToCoord(e);
+      if (!coord) return;
+
+      if (points.length < 3) {
+        // Ilk 3 nokta: sona ekle
+        onPointsChange([...points, coord]);
+      } else {
+        // 3+ nokta: en yakin kenara ekle
+        const edgeIdx = findNearestEdgeIndex(coord);
+        const newPoints = [...points];
+        newPoints.splice(edgeIdx + 1, 0, coord);
+        onPointsChange(newPoints);
+      }
+    },
+    [touchToCoord, points, onPointsChange, findNearestEdgeIndex],
   );
 
   const handleUndo = useCallback(() => {
@@ -105,7 +216,10 @@ export const PolygonCanvas = ({
         ref={containerRef}
         onLayout={onLayout}
         onStartShouldSetResponder={() => true}
-        onResponderRelease={handleTouch}
+        onMoveShouldSetResponder={() => true}
+        onResponderGrant={handleResponderGrant}
+        onResponderMove={handleResponderMove}
+        onResponderRelease={handleResponderRelease}
         style={{
           width: "100%",
           aspectRatio: viewWidth / viewHeight,
@@ -156,6 +270,24 @@ export const PolygonCanvas = ({
                   />
                 );
               },
+            )}
+
+            {/* Grid kesisim noktalari */}
+            {Array.from(
+              { length: Math.floor(100 / GRID_STEP) + 1 },
+              (_, row) =>
+                Array.from(
+                  { length: Math.floor(100 / GRID_STEP) + 1 },
+                  (_, col) => (
+                    <Circle
+                      key={`gp-${row}-${col}`}
+                      cx={col * GRID_STEP}
+                      cy={row * GRID_STEP}
+                      r={0.6}
+                      fill={theme.textMuted + "60"}
+                    />
+                  ),
+                ),
             )}
 
             {/* Kilitli dis sinir (sera bolge editoru) */}
@@ -314,7 +446,32 @@ export const PolygonCanvas = ({
   );
 };
 
-// Basit centroid hesabi (label icin)
+// ── Yardimci fonksiyonlar ──────────────────────────────────────────────────────
+
+/** Nokta → dogru parcasi mesafesi */
+function pointToSegmentDist(
+  p: [number, number],
+  a: [number, number],
+  b: [number, number],
+): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) {
+    const ex = p[0] - a[0];
+    const ey = p[1] - a[1];
+    return Math.sqrt(ex * ex + ey * ey);
+  }
+  let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const projX = a[0] + t * dx;
+  const projY = a[1] + t * dy;
+  const ex = p[0] - projX;
+  const ey = p[1] - projY;
+  return Math.sqrt(ex * ex + ey * ey);
+}
+
+/** Basit centroid hesabi (label icin) */
 function getCentroid(pts: [number, number][]): [number, number] {
   const n = pts.length;
   if (n === 0) return [50, 50];

@@ -63,6 +63,7 @@ export const DiseaseDetailScreen = ({ route, navigation }: DiseaseDetailScreenPr
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <CompactStackHeader
         title={t.disease.detailTitle}
+        dismissStyle
         rightAction={{
           icon: "trash-outline",
           onPress: confirmDelete,

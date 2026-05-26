@@ -6,8 +6,8 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  StyleSheet,
 } from "react-native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { useThree } from "@react-three/fiber/native";
 import { ColorPlane, NodeInfo, computeFieldKey } from "../../components/ColorPlane";
 import { usePlaneWarmupOverlay } from "../../hooks/usePlaneWarmupOverlay";
@@ -20,7 +20,6 @@ import { IrrigationSuggestion } from "./types";
 import { spacing } from "../../utils/responsive";
 import { WelcomeHeader } from "./WelcomeHeader";
 import { FeaturedZoneCard } from "./FeaturedZoneCard";
-import { IrrigationDetailScreen } from "../Irrigation/IrrigationDetailScreen";
 import { Safe3DCanvas } from "../../components/Safe3DCanvas";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { useState } from "react";
@@ -96,7 +95,6 @@ export const HomeScreen = memo(({
   onRefresh,
 }: HomeScreenProps) => {
   const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
 
   // Sulama verisi — secili zone icin
   const [pendingSuggestion, setPendingSuggestion] = useState<IrrigationSuggestion | null>(null);
@@ -141,9 +139,7 @@ export const HomeScreen = memo(({
   const canvasStyle = useMemo(() => ({ flex: 1 }), []);
 
   useScreenReset(isActive, {
-    onDeactivate: () => {
-      setShowDetail(false);
-    },
+    onDeactivate: () => {},
   });
 
   // Real field data only — placeholder yok. ColorPlane sadece valid polygon ile
@@ -211,10 +207,20 @@ export const HomeScreen = memo(({
     if (node) setSelectedNode(node);
   }, []);
 
-  // FeaturedZoneCard tiklamasi — detay ekranini ac
+  // FeaturedZoneCard tiklamasi — IrrigationDetail stack screen'ine git
+  const navigation = useNavigation<any>();
   const handleOpenDetail = useCallback(() => {
-    if (selectedNode && dashboardData) setShowDetail(true);
-  }, [selectedNode, dashboardData]);
+    if (selectedNode && dashboardData) {
+      navigation.navigate("IrrigationDetail", { node: selectedNode, nodeIndex });
+    }
+  }, [selectedNode, dashboardData, nodeIndex, navigation]);
+
+  // IrrigationDetail'den donunce sulama verilerini yenile
+  useFocusEffect(
+    useCallback(() => {
+      setIrrigationRefreshKey((k) => k + 1);
+    }, []),
+  );
 
   return (
     <View className="flex-1 relative" style={{ backgroundColor: theme.background }}>
@@ -308,21 +314,6 @@ export const HomeScreen = memo(({
         </View>
       </View>
 
-      {/* Sulama detay overlay */}
-      {showDetail && selectedNode && dashboardData && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.background, zIndex: 200 }]}>
-          <IrrigationDetailScreen
-            node={selectedNode}
-            nodeIndex={nodeIndex}
-            dashboardData={dashboardData}
-            theme={theme}
-            onBack={() => {
-              setShowDetail(false);
-              setIrrigationRefreshKey((k) => k + 1);
-            }}
-          />
-        </View>
-      )}
     </View>
   );
 });

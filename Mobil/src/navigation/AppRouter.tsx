@@ -76,14 +76,14 @@ export const AppRouter = () => {
           <>
             <View
               className="flex-1"
-              style={{ display: showChat ? "none" : "flex" }}
+              style={{ display: showChat && Platform.OS !== "ios" ? "none" : "flex" }}
             >
               <AppHeader />
               <AppTabs />
               <ChatBubbleLayer />
               <DraggableAIButtonLayer />
             </View>
-            {showChat && <ChatOverlay />}
+            {Platform.OS === "ios" ? <ChatOverlay /> : showChat ? <ChatOverlay /> : null}
           </>
         )}
       </View>

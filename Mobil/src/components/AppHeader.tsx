@@ -36,6 +36,18 @@ export const AppHeader = () => {
   const { t } = useLanguage();
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
+
+  // Ayarlar sekmesinde field selector'i gizle
+  const [hideFieldSelector, setHideFieldSelector] = React.useState(false);
+  React.useEffect(() => {
+    const { navigationRef } = require("../navigation/navigationRef");
+    const update = () => {
+      const name = navigationRef.getCurrentRoute()?.name;
+      setHideFieldSelector(name === "settings");
+    };
+    const unsub = navigationRef.addListener("state", update);
+    return unsub;
+  }, []);
   const notificationsButtonSize = getProfileButtonSize(headerDims.logoSize);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
 
@@ -166,9 +178,11 @@ export const AppHeader = () => {
         )}
       </View>
 
-      <View className="flex-1 relative" style={{ marginHorizontal: spacing.sm }}>
-        {fieldSelectorJSX}
-      </View>
+      {!hideFieldSelector && (
+        <View className="flex-1 relative" style={{ marginHorizontal: spacing.sm }}>
+          {fieldSelectorJSX}
+        </View>
+      )}
 
       <View className="row gap-2" style={{ marginRight: headerDims.elementGap }}>
         <NotificationsButton

@@ -1,7 +1,7 @@
-// Tarla ekleme modali — HardwareSetupModal pattern'ini takip eder
-// Tam ekran modal, primary header bar, geri/kapat butonlari
+// Tarla ekleme modali — pageSheet (iOS) / fullScreen (Android)
+// Baslik + AddFieldFlow wizard
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -31,17 +31,17 @@ const getStepTitle = (
 ): string => {
   switch (step) {
     case "fieldType":
-      return t.addField.selectFieldType;
-    case "fieldInfo":
-      return t.addField.fieldName;
+      return t.addField.addNewField;
     case "greenhousePolygon":
       return t.addField.drawBoundary;
     case "greenhouseZones":
       return t.addField.drawZones;
-    case "potCount":
-      return t.addField.potCount;
+    case "planting":
+      return t.addField.plantingTitle || "Ekim Bilgileri";
     case "preview":
       return t.addField.preview;
+    default:
+      return t.addField.addNewField;
   }
 };
 
@@ -52,6 +52,7 @@ export const AddFieldModal = ({
 }: AddFieldModalProps) => {
   const { t } = useLanguage();
   const [currentStep, setCurrentStep] = useState<WizardStep>("fieldType");
+  const goBackRef = useRef<(() => void) | null>(null);
 
   // Modal kapanirken state sifirla
   const handleClose = useCallback(() => {
@@ -59,12 +60,21 @@ export const AddFieldModal = ({
     onClose();
   }, [onClose]);
 
+  // Header geri butonu: ilk adimda modal'i kapat, digerlerinde onceki adima don
+  const handleHeaderBack = useCallback(() => {
+    if (currentStep === "fieldType") {
+      handleClose();
+    } else if (goBackRef.current) {
+      goBackRef.current();
+    }
+  }, [currentStep, handleClose]);
+
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="fullScreen"
-      onRequestClose={handleClose}
+      presentationStyle={Platform.OS === "ios" ? "pageSheet" : "fullScreen"}
+      onRequestClose={handleHeaderBack}
     >
       <SafeAreaView
         style={{
@@ -78,33 +88,37 @@ export const AddFieldModal = ({
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            backgroundColor: theme.primary,
             paddingHorizontal: s(16),
-            paddingVertical: vs(14),
+            paddingTop: vs(8),
+            paddingBottom: vs(12),
+            borderBottomWidth: 1,
+            borderBottomColor: theme.divider,
           }}
         >
           <TouchableOpacity
-            onPress={handleClose}
-            style={{ width: s(40), height: s(40), alignItems: 'center', justifyContent: 'center' }}
+            onPress={handleHeaderBack}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <MaterialCommunityIcons
-              name={currentStep === "fieldType" ? "close" : "arrow-left"}
-              size={24}
-              color={theme.textOnPrimary}
+              name={Platform.OS === "ios"
+                ? "chevron-down"
+                : (currentStep === "fieldType" ? "close" : "arrow-left")}
+              size={Platform.OS === "ios" ? 28 : 24}
+              color={theme.textMain}
             />
           </TouchableOpacity>
 
           <Text
-            style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: ms(18, 0.3), color: theme.textOnPrimary }}
+            style={{
+              fontWeight: '700',
+              fontSize: ms(18, 0.3),
+              color: theme.textMain,
+              marginLeft: s(12),
+            }}
             numberOfLines={1}
           >
             {getStepTitle(currentStep, t)}
           </Text>
-
-          {/* Sag taraf bosluk (header simetrik olsun) */}
-          <View style={{ width: s(40) }} />
         </View>
 
         {/* Icerik */}
@@ -113,6 +127,7 @@ export const AddFieldModal = ({
             theme={theme}
             onStepChange={setCurrentStep}
             onBack={handleClose}
+            goBackRef={goBackRef}
           />
         </View>
       </SafeAreaView>
