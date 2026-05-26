@@ -73,6 +73,8 @@ type RecommendationOutput = {
   current_sm: number;
   target_sm: number | null;
   sm_deficit: number;
+  estimated_eto_mm_day?: number;
+  etc_mm_day?: number;
 };
 
 
@@ -145,24 +147,100 @@ function getGreenhouseKc(growthStage: string): number | null {
 }
 
 
-function estimateGreenhouseEtoMmPerDay(
-  temperature: number,
-  humidity: number
-): number {
+function estimateGreenhouseEtoMmPerDay(input: {
+  tMin: number;
+  tMax: number;
+  tMean: number;
+  humidity: number;
+  latitude: number;
+  altitudeM: number;
+  date: Date;
+}): number {
+  const { tMin, tMax, tMean, humidity, latitude, altitudeM, date } = input;
+
+  const dayOfYear = Math.floor(
+    (Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
+      Date.UTC(date.getUTCFullYear(), 0, 0)) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  const latRad = (Math.PI / 180) * latitude;
+  const dr = 1 + 0.033 * Math.cos((2 * Math.PI * dayOfYear) / 365);
+  const solarDeclination =
+    0.409 * Math.sin((2 * Math.PI * dayOfYear) / 365 - 1.39);
+
+  const acosInput = clamp(
+  -Math.tan(latRad) * Math.tan(solarDeclination),
+  -1,
+  1
+);
+
+const sunsetHourAngle = Math.acos(acosInput);
+
+  const gsc = 0.0820;
+
+  const ra =
+    ((24 * 60) / Math.PI) *
+    gsc *
+    dr *
+    (sunsetHourAngle * Math.sin(latRad) * Math.sin(solarDeclination) +
+      Math.cos(latRad) *
+        Math.cos(solarDeclination) *
+        Math.sin(sunsetHourAngle));
+
+  const pressure = 101.3 * Math.pow((293 - 0.0065 * altitudeM) / 293, 5.26);
+  const psychrometricConstant = 0.000665 * pressure;
+
+  const saturationVaporPressureTmax =
+    0.6108 * Math.exp((17.27 * tMax) / (tMax + 237.3));
+  const saturationVaporPressureTmin =
+    0.6108 * Math.exp((17.27 * tMin) / (tMin + 237.3));
+
   const saturationVaporPressure =
-    0.6108 * Math.exp((17.27 * temperature) / (temperature + 237.3));
+    (saturationVaporPressureTmax + saturationVaporPressureTmin) / 2;
 
   const actualVaporPressure = saturationVaporPressure * (humidity / 100);
-  const vpd = Math.max(0, saturationVaporPressure - actualVaporPressure);
 
-  const baseEto = 2.0;
-  const tempFactor = Math.max(0, temperature - 20) * 0.08;
-  const vpdFactor = vpd * 0.6;
+  const delta =
+    (4098 *
+      (0.6108 * Math.exp((17.27 * tMean) / (tMean + 237.3)))) /
+    Math.pow(tMean + 237.3, 2);
 
-  return clamp(baseEto + tempFactor + vpdFactor, 1.0, 6.0);
+  const windSpeed = 0.5;
+
+  const temperatureRange = Math.max(0.1, tMax - tMin);
+  const rs = 0.16 * Math.sqrt(temperatureRange) * ra;
+
+  const rso = (0.75 + 2e-5 * altitudeM) * ra;
+  const rns = (1 - 0.23) * rs;
+
+  const sigma = 4.903e-9;
+  const tMaxK = tMax + 273.16;
+  const tMinK = tMin + 273.16;
+
+  const cloudinessFactor = clamp(rs / rso, 0.3, 1.0);
+
+  const rnl =
+    sigma *
+    ((Math.pow(tMaxK, 4) + Math.pow(tMinK, 4)) / 2) *
+    (0.34 - 0.14 * Math.sqrt(actualVaporPressure)) *
+    (1.35 * cloudinessFactor - 0.35);
+
+  const rn = rns - rnl;
+  const soilHeatFlux = 0;
+
+  const eto =
+    (0.408 * delta * (rn - soilHeatFlux) +
+      psychrometricConstant *
+        (900 / (tMean + 273)) *
+        windSpeed *
+        (saturationVaporPressure - actualVaporPressure)) /
+    (delta + psychrometricConstant * (1 + 0.34 * windSpeed));
+
+  return clamp(eto, 0.5, 7.0);
 }
 
-// Tam FAO değil, bizim MVP için
+
 
 
 function applyGreenhouseDurationLimits(durationMin: number): number {
@@ -269,7 +347,42 @@ async function getZoneLatestAverageReading(zoneId: string) {
     validReadings.reduce((sum, reading) => sum + reading.humidity!, 0) /
     validReadings.length;
 
+
+const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+const last24hReadings = await prisma.sensorReading.findMany({
+  where: {
+    node_id: {
+      in: nodes.map((node) => node.node_id),
+    },
+    created_at: {
+      gte: since24h,
+    },
+    temperature: {
+      not: null,
+    },
+  },
+  select: {
+    temperature: true,
+  },
+});
+
+const temperatures24h = last24hReadings
+  .map((reading) => reading.temperature)
+  .filter((value): value is number => value !== null);
+
+const minTemperature24h =
+  temperatures24h.length > 0
+    ? Math.min(...temperatures24h)
+    : avgTemperature;
+
+const maxTemperature24h =
+  temperatures24h.length > 0
+    ? Math.max(...temperatures24h)
+    : avgTemperature;
+
   const latestCreatedAt = validReadings.reduce((latest, reading) => {
+
     return reading.created_at! > latest ? reading.created_at! : latest;
   }, validReadings[0]!.created_at!);
 
@@ -280,6 +393,8 @@ async function getZoneLatestAverageReading(zoneId: string) {
     temperature: Number(avgTemperature.toFixed(2)),
     humidity: Number(avgHumidity.toFixed(2)),
     created_at: latestCreatedAt,
+    min_temperature_24h: Number(minTemperature24h.toFixed(2)),
+    max_temperature_24h: Number(maxTemperature24h.toFixed(2)),
   };
 }
 
@@ -346,11 +461,15 @@ async function getZoneAverageReadingAfter(zoneId: string, afterTime: Date) {
 
 export async function getIrrigationPreviewInput(zoneId: string) {
   const zone = await prisma.zone.findUnique({
-    where: { zone_id: zoneId },
-    include: {
-      field: true,
+  where: { zone_id: zoneId },
+  include: {
+    field: {
+      include: {
+        farm: true,
+      },
     },
-  });
+  },
+});
 
   if (!zone) {
     throw new Error("Zone not found");
@@ -387,6 +506,9 @@ export async function getIrrigationPreviewInput(zoneId: string) {
     irrigation_gain_mm_per_100ml: zone.field.irrigation_gain_mm_per_100ml,
     default_check_after_min: zone.field.default_check_after_min ?? 60,
     irrigation_gain_mm_per_10_min:zone.field.irrigation_gain_mm_per_10_min,
+    latitude: zone.field.farm?.latitude,
+    longitude: zone.field.farm?.longitude,
+    altitude_m: zone.field.farm?.altitude_m,
   };
 
  const sensorRow = {
@@ -395,6 +517,8 @@ export async function getIrrigationPreviewInput(zoneId: string) {
   sm_percent: averageReading.sm_percent,
   temperature: averageReading.temperature,
   humidity: averageReading.humidity,
+  min_temperature_24h: averageReading.min_temperature_24h,
+  max_temperature_24h: averageReading.max_temperature_24h,
   created_at: averageReading.created_at,
 };
 
@@ -429,8 +553,11 @@ export async function getIrrigationPythonPayload(zoneId: string) {
       irrigation_mode: preview.fieldRow.irrigation_mode,
       ml_per_sm_percent: preview.fieldRow.ml_per_sm_percent,
       sm_percent_per_100ml: preview.fieldRow.sm_percent_per_100ml,
-      irrigation_gain_mm_per_100ml: preview.fieldRow.irrigation_gain_mm_per_100ml,
+      irrigation_gain_mm_per_100ml:          preview.fieldRow.irrigation_gain_mm_per_100ml,
       default_check_after_min: preview.fieldRow.default_check_after_min,
+latitude: preview.fieldRow.latitude,
+longitude: preview.fieldRow.longitude,
+altitude_m: preview.fieldRow.altitude_m,
      irrigation_gain_mm_per_10_min:
   preview.fieldRow.irrigation_gain_mm_per_10_min,
     },
@@ -700,8 +827,26 @@ async function getPotCalibrationForZone(zoneId: string): Promise<CalibrationResu
     }
 
     const smPercentPer100ml = (smGain / waterAmount) * 100;
-    effectValues.push(smPercentPer100ml);
+const mlPerSmPercent = waterAmount / smGain;
 
+// Pot calibration outlier filter
+// Normal observed values are around 7-11 ml per 1% SM.
+// Values like 33 are likely bad followups/sensor mismatch.
+if (mlPerSmPercent < 4 || mlPerSmPercent > 15) {
+  console.warn("[Pot Calibration] Ignored outlier followup", {
+    zoneId,
+    jobId: followup.job_id,
+    waterAmount,
+    smBefore,
+    smAfter,
+    smGain,
+    mlPerSmPercent,
+    smPercentPer100ml,
+  });
+  continue;
+}
+
+effectValues.push(smPercentPer100ml);
     if (predictionError != null) {
       predictionErrors.push(predictionError);
     }
@@ -826,7 +971,7 @@ async function getCalibrationForZone(
   environmentType: string | null
 ): Promise<CalibrationResult> {
   // "outdoor" tipi henuz ayri implemente edilmedi — gecici olarak sera gibi davranir.
-  if (environmentType === "greenhouse" || environmentType === "outdoor") {
+  if (environmentType === "greenhouse") {
     return getGreenhouseCalibrationForZone(zoneId);
   }
 
@@ -922,18 +1067,36 @@ function buildGreenhouseRecommendation(
     };
   }
 
-  const estimatedEto = estimateGreenhouseEtoMmPerDay(
-    sensor.temperature,
-    sensor.humidity
+  if (
+  field.latitude == null ||
+  field.altitude_m == null ||
+  sensor.min_temperature_24h == null ||
+  sensor.max_temperature_24h == null
+) {
+  throw new Error(
+    "Greenhouse ET0 setup missing: latitude, altitude_m, min_temperature_24h, and max_temperature_24h are required."
   );
+}
+
+const estimatedEto = estimateGreenhouseEtoMmPerDay({
+  tMin: sensor.min_temperature_24h,
+  tMax: sensor.max_temperature_24h,
+  tMean: sensor.temperature,
+  humidity: sensor.humidity,
+  latitude: field.latitude,
+  altitudeM: field.altitude_m,
+  date: recommendationTime,
+});
 
   const etc = estimatedEto * greenhouseKc;
-  const baseMmFromEtc = etc / 24;
+const hourlyEtcMm = etc / 24;
 
-  const smDeficit = Math.max(0, target_sm - sensor.sm_percent);
-  const deficitAdjustmentMm = smDeficit * 0.5;
+const smDeficit = Math.max(0, target_sm - sensor.sm_percent);
 
-  const requiredWaterMm = baseMmFromEtc + deficitAdjustmentMm;
+const etoPressureMultiplier = clamp(estimatedEto / 3.5, 0.75, 1.25);
+const deficitAdjustmentMm = smDeficit * 0.18 * etoPressureMultiplier;
+
+const requiredWaterMm = hourlyEtcMm + deficitAdjustmentMm;
 
   let durationMin =
     (requiredWaterMm / field.irrigation_gain_mm_per_10_min) * 10;
@@ -965,10 +1128,14 @@ function buildGreenhouseRecommendation(
     followup_check_time: null,
     urgency_level: urgency,
     reason:
-      "Irrigation is recommended based on greenhouse Kc, simplified ET0, soil moisture deficit, and irrigation duration calibration.",
+  `Irrigation is recommended using FAO-inspired ET0 (${estimatedEto.toFixed(
+    2
+  )} mm/day), crop coefficient, soil moisture deficit, and irrigation duration calibration.`,
     current_sm: sensor.sm_percent,
     target_sm,
     sm_deficit: Number(smDeficit.toFixed(2)),
+estimated_eto_mm_day: Number(estimatedEto.toFixed(2)),
+etc_mm_day: Number(etc.toFixed(2)),
   };
 }
 
@@ -1033,7 +1200,7 @@ function buildRecommendationFromPreview(
 
 
 // "outdoor" tipi henuz ayri implemente edilmedi — gecici olarak sera gibi davranir.
-if (field.environment_type === "greenhouse" || field.environment_type === "outdoor") {
+if (field.environment_type === "greenhouse") {
   return {
     resolvedGrowthStage,
     recommendationTime,
