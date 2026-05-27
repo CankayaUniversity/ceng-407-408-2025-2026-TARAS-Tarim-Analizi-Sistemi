@@ -5,14 +5,22 @@ import {
   DashboardNode,
   PolygonData,
 } from "../types";
+import { getAccessibleFarmIds, resolveFieldAccess } from "./accessService";
 
-// get all fields for a user, optionally filtered by farm_id
+// get all fields the user can access (owned + stakeholder), optionally filtered by farm_id
 export async function getUserFields(userId: string, farmId?: string): Promise<FieldListItem[]> {
+  // Sahibi olunan + paydas olarak erisilen ciftlikler. farmId verilirse erisim dogrulanir.
+  const accessibleIds = await getAccessibleFarmIds(userId);
+  const allowedIds = farmId
+    ? accessibleIds.includes(farmId)
+      ? [farmId]
+      : []
+    : accessibleIds;
+
+  if (allowedIds.length === 0) return [];
+
   const farms = await prisma.farm.findMany({
-    where: {
-      user_id: userId,
-      ...(farmId ? { farm_id: farmId } : {}),
-    },
+    where: { farm_id: { in: allowedIds } },
     include: {
       fields: {
         select: {
@@ -34,23 +42,13 @@ export async function getUserFields(userId: string, farmId?: string): Promise<Fi
   );
 }
 
-// check if user owns this field
+// Bu tarlaya OKUMA erisimi var mi? Sahibi (owner) VEYA paydasi (stakeholder).
+// Yalnizca okuma uclari + LLM sohbet araclari bunu cagirir; yazma yollari owner kontrolu yapar.
 export async function checkFieldAccess(
   userId: string,
   fieldId: string,
 ): Promise<boolean> {
-  const field = await prisma.field.findUnique({
-    where: { field_id: fieldId },
-    include: {
-      farm: true,
-    },
-  });
-
-  if (!field?.farm) {
-    return false;
-  }
-
-  return field.farm.user_id === userId;
+  return (await resolveFieldAccess(userId, fieldId)) !== null;
 }
 
 // Polygon centroid (shoelace formula) — zone'lar icin sentetik node konumu hesaplar
@@ -278,6 +276,18 @@ export async function getFieldInventory(userId: string) {
       },
     },
   });
+}
+
+// Kullanici meta — LLM kontekstine isim + rol enjekte etmek icin (Part B).
+export async function getUserMeta(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { user_id: userId },
+    select: { username: true, role: { select: { role_name: true } } },
+  });
+  return {
+    username: user?.username ?? null,
+    role: user?.role?.role_name ?? null,
+  };
 }
 
 // create a new field with zones under the user's farm

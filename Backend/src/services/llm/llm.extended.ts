@@ -6,7 +6,8 @@ import { getSessionHistory } from "../chatMemory.service";
 import { anthropic, ANTHROPIC_MODEL, CACHED_SYSTEM_PROMPT, buildPerRequestContext } from "./anthropic.service";
 import { TOOL_DEFINITIONS } from "./toolDefinitions";
 import { ToolExecutor } from "./toolExecutor";
-import { getFieldInventory } from "../dashboardService";
+import { getFieldInventory, getUserMeta } from "../dashboardService";
+import { getFieldContextForLLM } from "../tarasData.service";
 import {
   groqClient,
   GROQ_MODEL,
@@ -30,6 +31,31 @@ const LOOP_TIMEOUT_MS = 30000;
 const HAIKU_MAX_TOKENS = 8000;
 const HAIKU_THINKING_BUDGET = 5000;
 
+// Part B icin ortak baglam getirici: envanter + kullanici meta (isim/rol) +
+// [SELECTED] tarlanin canli zone degerleri (motor-turevli hedef/Kc/kritik).
+// export: _smoke_layer2.ts dev scripti gercek fonksiyonu cagirabilsin diye.
+export async function fetchLLMContext(userId: string, fieldId: string) {
+  const [inventory, userMeta, selectedCtx] = await Promise.all([
+    getFieldInventory(userId),
+    getUserMeta(userId),
+    getFieldContextForLLM(fieldId),
+  ]);
+  const selectedZones =
+    selectedCtx && !("error" in selectedCtx)
+      ? selectedCtx.bolgeler.map((b) => ({
+          zone_id: b.zone_id,
+          name: b.bolge_adi,
+          crop: b.ekin,
+          stage: b.buyume_evresi,
+          current_sm: b.mevcut_durum.toprak_nemi_yuzde,
+          target_sm: b.sistem_esikleri.hedef_nem_yuzde,
+          critical_sm: b.sistem_esikleri.kritik_nem_yuzde,
+          kc: b.sistem_esikleri.kc,
+        }))
+      : null;
+  return { inventory, userMeta, selectedZones };
+}
+
 // ===== ANTHROPIC (HAIKU 4.5) =====
 
 /**
@@ -44,9 +70,9 @@ export const generateAdvisory = async (
 ): Promise<string> => {
   try {
     const start = Date.now();
-    const [history, inventory] = await Promise.all([
+    const [history, ctx] = await Promise.all([
       getSessionHistory(sessionId),
-      getFieldInventory(userId),
+      fetchLLMContext(userId, fieldId),
     ]);
 
     logger.debug(`[LLM] gecmis: ${history.length} mesaj, sorgu: ${userMessage.slice(0, 60)}...`);
@@ -60,7 +86,7 @@ export const generateAdvisory = async (
     ];
 
     const executor = new ToolExecutor(userId, fieldId);
-    const result = await runToolLoop(messages, inventory, fieldId, executor);
+    const result = await runToolLoop(messages, ctx, fieldId, executor);
 
     const duration = Date.now() - start;
     logger.debug(`[LLM] yanit: ${duration}ms, ${result.length} karakter`);
@@ -83,12 +109,12 @@ export const generateAdvisoryStream = async (
   sessionId: string,
   onChunk: (text: string) => void,
   onStatus?: (status: string) => void,
-  onNavigate?: (screen: string, section: string | null) => void,
+  onNavigate?: (screen: string, section: string | null, zoneId?: string) => void,
 ): Promise<string> => {
   const start = Date.now();
-  const [history, inventory] = await Promise.all([
+  const [history, ctx] = await Promise.all([
     getSessionHistory(sessionId),
-    getFieldInventory(userId),
+    fetchLLMContext(userId, fieldId),
   ]);
 
   logger.debug(`[LLM] "${userMessage.slice(0, 50)}..." (gecmis: ${history.length})`);
@@ -103,7 +129,7 @@ export const generateAdvisoryStream = async (
 
   const executor = new ToolExecutor(userId, fieldId);
   executor.onNavigate = onNavigate;
-  const systemMessages = buildSystemMessages(inventory, fieldId);
+  const systemMessages = buildSystemMessages(ctx, fieldId);
   const deadline = Date.now() + LOOP_TIMEOUT_MS;
 
   let iteration = 0;
@@ -208,14 +234,14 @@ const stripChannelTokens = (text: string): string =>
 function buildGroqMessages(
   userMessage: string,
   history: { role: string; content: string }[],
-  inventory: Awaited<ReturnType<typeof getFieldInventory>>,
+  ctx: Awaited<ReturnType<typeof fetchLLMContext>>,
   fieldId: string,
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
   return [
     { role: "system", content: GROQ_SYSTEM_PROMPT },
     {
       role: "system",
-      content: buildPerRequestContext(inventory, fieldId, new Date()),
+      content: buildPerRequestContext(ctx.inventory, fieldId, new Date(), ctx.userMeta, ctx.selectedZones),
     },
     ...history.map((msg) => ({
       role: (msg.role === "user" ? "user" : "assistant") as "user" | "assistant",
@@ -306,14 +332,14 @@ export const generateAdvisoryGroq = async (
 ): Promise<string> => {
   try {
     const start = Date.now();
-    const [history, inventory] = await Promise.all([
+    const [history, ctx] = await Promise.all([
       getSessionHistory(sessionId),
-      getFieldInventory(userId),
+      fetchLLMContext(userId, fieldId),
     ]);
 
     logger.debug(`[LLM-GROQ] gecmis: ${history.length} mesaj, sorgu: ${userMessage.slice(0, 60)}...`);
 
-    const messages = buildGroqMessages(userMessage, history, inventory, fieldId);
+    const messages = buildGroqMessages(userMessage, history, ctx, fieldId);
     const executor = new ToolExecutor(userId, fieldId);
     const result = await runGroqToolLoop(messages, executor);
 
@@ -333,18 +359,18 @@ export const generateAdvisoryStreamGroq = async (
   sessionId: string,
   onChunk: (text: string) => void,
   onStatus?: (status: string) => void,
-  onNavigate?: (screen: string, section: string | null) => void,
+  onNavigate?: (screen: string, section: string | null, zoneId?: string) => void,
 ): Promise<string> => {
   try {
     const start = Date.now();
-    const [history, inventory] = await Promise.all([
+    const [history, ctx] = await Promise.all([
       getSessionHistory(sessionId),
-      getFieldInventory(userId),
+      fetchLLMContext(userId, fieldId),
     ]);
 
     logger.debug(`[LLM-GROQ] "${userMessage.slice(0, 50)}..." (gecmis: ${history.length})`);
 
-    const messages = buildGroqMessages(userMessage, history, inventory, fieldId);
+    const messages = buildGroqMessages(userMessage, history, ctx, fieldId);
     const executor = new ToolExecutor(userId, fieldId);
     executor.onNavigate = onNavigate;
 
@@ -372,7 +398,7 @@ export const generateAdvisoryStreamGroq = async (
 // ===== YARDIMCI =====
 
 function buildSystemMessages(
-  inventory: Awaited<ReturnType<typeof getFieldInventory>>,
+  ctx: Awaited<ReturnType<typeof fetchLLMContext>>,
   fieldId: string,
 ): Anthropic.MessageCreateParams["system"] {
   return [
@@ -383,18 +409,18 @@ function buildSystemMessages(
     },
     {
       type: "text",
-      text: buildPerRequestContext(inventory, fieldId, new Date()),
+      text: buildPerRequestContext(ctx.inventory, fieldId, new Date(), ctx.userMeta, ctx.selectedZones),
     },
   ];
 }
 
 async function runToolLoop(
   messages: Anthropic.MessageParam[],
-  inventory: Awaited<ReturnType<typeof getFieldInventory>>,
+  ctx: Awaited<ReturnType<typeof fetchLLMContext>>,
   fieldId: string,
   executor: ToolExecutor,
 ): Promise<string> {
-  const systemMessages = buildSystemMessages(inventory, fieldId);
+  const systemMessages = buildSystemMessages(ctx, fieldId);
   const deadline = Date.now() + LOOP_TIMEOUT_MS;
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {

@@ -1,7 +1,7 @@
 import { Client } from "pg";
 import { prisma } from "../config/database";
 
-const TOMATO_POT_RULES = {
+export const TOMATO_POT_RULES = {
   thresholds_by_stage: {
     seedling: {
       rec_sm_min: 45,
@@ -43,7 +43,7 @@ const TOMATO_POT_RULES = {
 
 
 // KCLER
-const TOMATO_GREENHOUSE_RULES = {
+export const TOMATO_GREENHOUSE_RULES = {
   kc_by_stage: {
     seedling: 0.6,
     vegetative: 0.85,
@@ -56,6 +56,37 @@ const TOMATO_GREENHOUSE_RULES = {
     max_duration_min: 120,
   },
 } as const;
+
+// LLM/context katmani icin paylasilan okuma API'si: buyume evresi → motorun
+// (TOMATO_POT_RULES + TOMATO_GREENHOUSE_RULES) GERCEKTEN kullandigi target/critical/Kc.
+// MOTORLA AYNI davranir: (1) ekine bakmaz — motor da crop branch'i yok, MVP'de tum
+// ekinlere domates kurallari uygulanir; (2) growth_stage yoksa resolveGrowthStage ile
+// planting_date'ten evre turetir. Evre cozulemezse (ikisi de yoksa) null → cagiran
+// ZoneDetail'e duser (motorun "growth_stage cannot be determined" throw'una karsilik gelir).
+export type StageAgronomy = { target_sm: number; critical_sm: number; kc: number };
+
+export function getStageAgronomy(
+  growthStage: string | null | undefined,
+  plantingDate: Date | null | undefined,
+  now: Date,
+): StageAgronomy | null {
+  const resolved = resolveGrowthStage(
+    { growth_stage: growthStage ?? null, planting_date: plantingDate ?? null },
+    now,
+  );
+  if (!resolved) return null;
+  const stage = resolved.trim().toLowerCase();
+  const th =
+    TOMATO_POT_RULES.thresholds_by_stage[
+      stage as keyof typeof TOMATO_POT_RULES.thresholds_by_stage
+    ];
+  if (!th) return null;
+  const kc =
+    TOMATO_GREENHOUSE_RULES.kc_by_stage[
+      stage as keyof typeof TOMATO_GREENHOUSE_RULES.kc_by_stage
+    ];
+  return { target_sm: th.target_sm, critical_sm: th.critical_min, kc: kc ?? 1.0 };
+}
 
 
 type RecommendationOutput = {
@@ -108,10 +139,10 @@ function getGrowthStageFromPlantingDate(
 
 
 
-function resolveGrowthStage(
+export function resolveGrowthStage(
   plantingRow: {
     growth_stage: string | null;
-    planting_date: Date;
+    planting_date: Date | null;
   },
   currentTime: Date
 ): string | null {
