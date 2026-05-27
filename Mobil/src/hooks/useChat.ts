@@ -44,9 +44,14 @@ export interface PendingBubble {
 interface PendingNavigate {
   screen: string;
   section: string | null;
+  zoneId?: string;
 }
 
-export type NavigateHandler = (screen: string, section: string | null) => void;
+export type NavigateHandler = (
+  screen: string,
+  section: string | null,
+  zoneId?: string,
+) => void;
 
 export interface ChatSessionSummary {
   session_id: string;
@@ -302,12 +307,12 @@ export const useChat = (
       setIsLoading(false);
 
       if (pendingNavigateRef.current) {
-        const { screen, section } = pendingNavigateRef.current;
+        const { screen, section, zoneId } = pendingNavigateRef.current;
         const bubbleText = accumulated || "Ekrana yönlendirildiniz.";
         pendingNavigateRef.current = null;
-        onNavigate(screen, section);
+        onNavigate(screen, section, zoneId);
         setPendingBubble({ text: bubbleText, screen, section });
-        console.log("[CHAT] navigasyon:", screen, section ?? "-");
+        console.log("[CHAT] navigasyon:", screen, section ?? "-", zoneId ?? "-");
       }
     };
 
@@ -328,6 +333,7 @@ export const useChat = (
             status?: string;
             navigate?: string;
             section?: string | null;
+            zone_id?: string;
           };
 
           if (parsed.navigate) {
@@ -340,6 +346,10 @@ export const useChat = (
                   typeof parsed.section === "string" && parsed.section.length > 0
                     ? parsed.section
                     : null,
+                zoneId:
+                  typeof parsed.zone_id === "string" && parsed.zone_id.length > 0
+                    ? parsed.zone_id
+                    : undefined,
               };
             }
           }

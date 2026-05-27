@@ -109,16 +109,20 @@ export const getTarasAdviceStream = asyncHandler(
           userId, field_id, message, currentSessionId,
           (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
           (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
-          (screen: string, section: string | null) =>
-            res.write(`data: ${JSON.stringify({ navigate: screen, section })}\n\n`),
+          (screen: string, section: string | null, zoneId?: string) =>
+            res.write(
+              `data: ${JSON.stringify({ navigate: screen, section, ...(zoneId ? { zone_id: zoneId } : {}) })}\n\n`,
+            ),
         );
       } else if (useAgenticGroq) {
         fullText = await ext.generateAdvisoryStreamGroq(
           userId, field_id, message, currentSessionId,
           (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
           (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
-          (screen: string, section: string | null) =>
-            res.write(`data: ${JSON.stringify({ navigate: screen, section })}\n\n`),
+          (screen: string, section: string | null, zoneId?: string) =>
+            res.write(
+              `data: ${JSON.stringify({ navigate: screen, section, ...(zoneId ? { zone_id: zoneId } : {}) })}\n\n`,
+            ),
         );
       } else {
         const fieldContext = await getFieldContextForLLM(field_id);

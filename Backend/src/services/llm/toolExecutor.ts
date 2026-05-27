@@ -71,7 +71,11 @@ export class ToolExecutor {
   private readonly userId: string;
   public readonly fieldId: string;
   private callCount = 0;
-  public onNavigate?: (screen: string, section: string | null) => void;
+  public onNavigate?: (
+    screen: string,
+    section: string | null,
+    zoneId?: string,
+  ) => void;
 
   constructor(userId: string, fieldId: string) {
     this.userId = userId;
@@ -119,6 +123,12 @@ export class ToolExecutor {
       case "navigate_to_section":
         return this.handleNavigateSection(
           input.target as string,
+          input.reason as string,
+        );
+
+      case "highlight_zone":
+        return this.handleHighlightZone(
+          input.zone_id as string,
           input.reason as string,
         );
 
@@ -191,6 +201,30 @@ export class ToolExecutor {
     return {
       success: true,
       data: { navigated: target, screen, section, reason },
+    };
+  }
+
+  // Belirli bir zone'u home 3D gorunumunde vurgula — secip baglanti cizgisi cizdirir
+  private async handleHighlightZone(
+    zoneId: string,
+    reason: string,
+  ): Promise<ToolResult> {
+    if (!zoneId) {
+      return { success: false, error: "zone_id zorunludur" };
+    }
+    if (!(await this.checkZoneAccess(zoneId))) {
+      return { success: false, error: "Bu bölgeye erişim yetkiniz yok" };
+    }
+    // Zone vurgulama eventini SSE uzerinden istemciye gonder — home.fieldVisualization
+    this.onNavigate?.("home", "fieldVisualization", zoneId);
+    return {
+      success: true,
+      data: {
+        highlighted: zoneId,
+        screen: "home",
+        section: "fieldVisualization",
+        reason,
+      },
     };
   }
 

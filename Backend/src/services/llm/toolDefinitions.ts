@@ -36,7 +36,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "navigate_to_section",
     description:
-      "Open a specific section of the TARAS mobile app. Use SPARINGLY — only when SEEING genuinely helps the user more than text would. The mobile app will switch to the target tab, scroll the section into view, and pulse its border. After calling this tool, your final text reply is rendered as a small toast bubble on top of the target screen — keep that reply to ONE short sentence (<=140 characters). Do NOT navigate when a data tool already gives you the answer in numbers — a one-sentence text reply is usually better.",
+      "Open a specific section of the TARAS mobile app: it switches to the target tab, scrolls the section into view, and pulses its border. Your final text reply is then rendered as a small toast bubble on top of that screen (the system prompt governs when to navigate and the toast length). Provide the <screen>.<section> target (one of the enum values) and a one-line reason.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -53,6 +53,26 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
         },
       },
       required: ["target", "reason"],
+    },
+  },
+  {
+    name: "highlight_zone",
+    description:
+      "Point at a specific zone on the Home screen's 3D field view: switches to the Home tab, focuses the field visualization, selects the given zone, and draws a connector line from that zone up to its sensor/irrigation data card. The zone must belong to the user's currently viewed field. Your final text reply is rendered as a small toast bubble on top of the Home screen (the system prompt governs when to use this and the toast length). Provide zone_id and a one-line reason.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        zone_id: {
+          type: "string",
+          description: "The zone_id of the zone to highlight on the 3D field view.",
+        },
+        reason: {
+          type: "string",
+          description:
+            "One short sentence explaining why highlighting this zone answers the user's question.",
+        },
+      },
+      required: ["zone_id", "reason"],
     },
   },
   {

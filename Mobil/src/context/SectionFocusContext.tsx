@@ -15,11 +15,13 @@ export interface FocusRequest {
   screen: ScreenType;
   section: string;
   nonce: number;
+  // Opsiyonel — home.fieldVisualization icin vurgulanacak zone (LLM highlight_zone)
+  zoneId?: string;
 }
 
 interface SectionFocusContextValue {
   focus: FocusRequest | null;
-  requestFocus: (screen: ScreenType, section: string) => void;
+  requestFocus: (screen: ScreenType, section: string, zoneId?: string) => void;
   clearFocus: () => void;
 }
 
@@ -36,10 +38,10 @@ export const SectionFocusProvider = ({
   const nonceRef = useRef(0);
 
   const requestFocus = useCallback(
-    (screen: ScreenType, section: string) => {
+    (screen: ScreenType, section: string, zoneId?: string) => {
       nonceRef.current += 1;
-      console.log("[FOCUS] request:", screen, section, "#", nonceRef.current);
-      setFocus({ screen, section, nonce: nonceRef.current });
+      console.log("[FOCUS] request:", screen, section, zoneId ?? "-", "#", nonceRef.current);
+      setFocus({ screen, section, nonce: nonceRef.current, zoneId });
     },
     [],
   );

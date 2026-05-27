@@ -94,7 +94,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   // LLM'den gelen tab navigasyonu — login → logout, diger → navigationRef
   // Section varsa ayrica SectionFocus odak istegi de tetiklenir
   const handleLLMNavigate = useCallback(
-    (target: string, section: string | null) => {
+    (target: string, section: string | null, zoneId?: string) => {
       if (target === "login") {
         void handleLogout();
         return;
@@ -103,10 +103,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         navigationRef.navigate(target as keyof TabParamList);
       }
       if (section) {
-        // Tab gecisi tamamlandiktan sonra focus iste
+        // Tab gecisi tamamlandiktan sonra focus iste — zoneId varsa zone vurgusu da
         focusTaskRef.current?.cancel();
         focusTaskRef.current = InteractionManager.runAfterInteractions(() => {
-          requestFocus(target as ScreenType, section);
+          requestFocus(target as ScreenType, section, zoneId);
         });
       }
     },
