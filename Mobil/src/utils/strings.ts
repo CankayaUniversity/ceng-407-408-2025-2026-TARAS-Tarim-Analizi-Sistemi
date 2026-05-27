@@ -66,6 +66,14 @@ export interface StringDictionary {
     noFieldsTitle: string;
     noFieldsSubtitle: string;
     addField: string;
+    fieldOverview: string;
+    tapZoneHint: string;
+    irrigation: string;
+    now: string;
+    unitMin: string;
+    unitHr: string;
+    unitDay: string;
+    lastUpdated: string;
   };
 
   // Disease Screen
@@ -700,6 +708,14 @@ const tr: StringDictionary = {
     noFieldsTitle: "Bu çiftlikte henüz tarla yok",
     noFieldsSubtitle: "Başlamak için yeni bir tarla ekleyin",
     addField: "Tarla Ekle",
+    fieldOverview: "Tarla Geneli",
+    tapZoneHint: "Detay için bir bölge seçin",
+    irrigation: "Sulama",
+    now: "Şimdi",
+    unitMin: "dk",
+    unitHr: "sa",
+    unitDay: "g",
+    lastUpdated: "Son güncelleme",
   },
 
   disease: {
@@ -1316,6 +1332,14 @@ const en: StringDictionary = {
     noFieldsTitle: "No fields in this farm yet",
     noFieldsSubtitle: "Add a new field to get started",
     addField: "Add Field",
+    fieldOverview: "Field Overview",
+    tapZoneHint: "Tap a zone for details",
+    irrigation: "Irrigation",
+    now: "Now",
+    unitMin: "m",
+    unitHr: "h",
+    unitDay: "d",
+    lastUpdated: "Last updated",
   },
 
   disease: {

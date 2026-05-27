@@ -16,6 +16,7 @@ import {
   calculatePolygonCentroid,
 } from "../utils/fieldPlaceholder";
 import { palette } from "../styles/colors";
+import type { SharedValue } from "react-native-reanimated";
 const THREE: any = require("three");
 
 const LIGHT_COLORS = [
@@ -61,6 +62,19 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
   };
 };
 
+// rgb'yi grinin tonuna dogru harmanla (doygunlugu azalt) — t=0 ayni, t=1 tam gri
+const desatRgb = (
+  c: { r: number; g: number; b: number },
+  t: number,
+): { r: number; g: number; b: number } => {
+  const gray = (c.r + c.g + c.b) / 3;
+  return {
+    r: c.r + (gray - c.r) * t,
+    g: c.g + (gray - c.g) * t,
+    b: c.b + (gray - c.b) * t,
+  };
+};
+
 const INITIAL_ROTATION_Y = Math.PI / 4;
 const MIN_TILT = 0;
 const MAX_TILT = Math.PI / 4;
@@ -76,21 +90,31 @@ const TAP_DISTANCE_THRESHOLD = 10;
 const TAP_TIME_THRESHOLD = 300;
 const PIN_WORLD_SIZE = 0.5;
 
-// Nem → renk: soilMoisture paleti — kuru (#ccecff) → yasli (#002033)
-const moistureToColor = (m: number): string => {
+// Nem → renk: tema-uyumlu soilMoisture paleti. Connector balonu + cizgi + plane zone'lari + pinler kullanir.
+// AYDINLIK: acik→koyu. KARANLIK: koyu zeminde goz almasin diye doygun orta tonlar (kuru ucu beyaz DEGIL).
+export const moistureToColor = (m: number, isDark = false): string => {
   const clamped = Math.max(0, Math.min(100, m));
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const rgbToHex = (r: number, g: number, b: number) =>
     "#" +
     [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
 
-  // Kuru: soilMoisture[100] → Hafif: soilMoisture[300] → Nemli: soilMoisture[600] → Doygun: soilMoisture[900]
-  const stops = [
-    hexToRgb(palette.soilMoisture[100]), // 0%  — kuru, cok acik mavi
-    hexToRgb(palette.soilMoisture[300]), // 33% — hafif nem, acik mavi
-    hexToRgb(palette.soilMoisture[600]), // 67% — nemli, orta mavi
-    hexToRgb(palette.soilMoisture[900]), // 100% — doygun, derin lacivert
-  ];
+  // KARANLIK: tum skala MAT (dusuk doygunluk) + koyu zemine uygun. Kuru uc en mat/solgun → "ideal"den
+  // ayrik (yetersiz sulama). Nem arttikca ton KOYULASIR (acik mat mavi → koyu mat mavi), hepsi az doygun.
+  // AYDINLIK: orijinal acik→koyu (100→900) skala — acik zeminde dogru kontrast.
+  const stops = isDark
+    ? [
+        desatRgb(hexToRgb(palette.soilMoisture[400]), 0.55), // 0%  — kuru: en mat/solgun, ideal'den ayrik
+        desatRgb(hexToRgb(palette.soilMoisture[500]), 0.35), // 33% — mat
+        desatRgb(hexToRgb(palette.soilMoisture[700]), 0.4), // 67% — mat + daha koyu
+        desatRgb(hexToRgb(palette.soilMoisture[800]), 0.4), // 100% — mat + en koyu
+      ]
+    : [
+        hexToRgb(palette.soilMoisture[100]), // 0%  — kuru, cok acik mavi
+        hexToRgb(palette.soilMoisture[300]), // 33% — hafif nem, acik mavi
+        hexToRgb(palette.soilMoisture[600]), // 67% — nemli, orta mavi
+        hexToRgb(palette.soilMoisture[900]), // 100% — doygun, derin lacivert
+      ];
 
   const t = clamped / 100;
   const seg = Math.min(2, Math.floor(t * 3));
@@ -138,6 +162,13 @@ function calculateCameraConfig(scale: number): CameraConfig {
   return { position: [0, cameraY, baseDistance], fov };
 }
 
+// Secili zone merkezinin canvas icindeki konumu — 0..1 fraction (sol-ust orijin)
+export interface ZoneScreenPos {
+  fx: number;
+  fy: number;
+  visible: boolean;
+}
+
 interface ColorPlaneProps {
   fieldData: FieldData;
   isDark?: boolean;
@@ -146,6 +177,8 @@ interface ColorPlaneProps {
   selectedNodeId?: string | null;
   onCameraConfigChange?: (config: CameraConfig) => void;
   onPlaneReady?: () => void;
+  // Secili zone'un ekran fraction'i — her frame yazilir, ConnectorOverlay okur
+  zonePosSV?: SharedValue<ZoneScreenPos>;
 }
 
 interface Position {
@@ -208,6 +241,7 @@ export const ColorPlane = memo(function ColorPlane({
   selectedNodeId: externalSelectedNodeId,
   onCameraConfigChange,
   onPlaneReady,
+  zonePosSV,
 }: ColorPlaneProps) {
   const COLORS = isDark ? DARK_COLORS : LIGHT_COLORS;
   const nodes = fieldData.nodes;
@@ -276,10 +310,14 @@ export const ColorPlane = memo(function ColorPlane({
     onCameraConfigChange?.(config);
   }, [fieldData, bounds, scale, centerX, centerZ, nodes, onCameraConfigChange]);
 
-  const { invalidate, gl } = useThree();
+  const { invalidate, gl, camera } = useThree();
 
   const invalidateRef = useRef(invalidate);
   invalidateRef.current = invalidate;
+
+  // Secili zone'u ekran fraction'ina projekte etmek icin — tekrar kullanilabilir vektor
+  const projVec = useMemo<any>(() => new THREE.Vector3(), []);
+  const lastZoneEmitRef = useRef({ fx: -1, fy: -1, visible: false });
 
   const lutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -419,6 +457,38 @@ export const ColorPlane = memo(function ColorPlane({
       if (!selectionAppliedRef.current && selectedNodeIdRef.current) {
         selectionAppliedRef.current = true;
         applySelectionRef.current(selectedNodeIdRef.current);
+      }
+    }
+
+    // Secili zone merkezini ekran fraction'ina projekte et — ConnectorOverlay tail'i okur.
+    // Sadece konum gercekten degisince yaz (idle frame'lerde UI thread'i bombalamamak icin).
+    if (zonePosSV && groupRef.current) {
+      const selId = selectedNodeIdRef.current;
+      const node = selId ? nodes.find((n) => n.id === selId) : null;
+      if (node) {
+        // Bu frame'in rotation'i matrixWorld'e islensin (matrisler normalde render'da guncellenir)
+        groupRef.current.updateWorldMatrix(true, false);
+        const pos = getNodeLocalPosition(node);
+        projVec.set(pos.x, pos.y, pos.z);
+        groupRef.current.localToWorld(projVec); // yerel → dunya (scale + rotation)
+        projVec.project(camera); // dunya → NDC [-1, 1]
+        const fx = projVec.x * 0.5 + 0.5;
+        const fy = -projVec.y * 0.5 + 0.5;
+        const visible =
+          Math.abs(projVec.x) <= 1 && Math.abs(projVec.y) <= 1 && projVec.z <= 1;
+        const last = lastZoneEmitRef.current;
+        if (
+          visible !== last.visible ||
+          Math.abs(fx - last.fx) > 0.001 ||
+          Math.abs(fy - last.fy) > 0.001
+        ) {
+          lastZoneEmitRef.current = { fx, fy, visible };
+          zonePosSV.value = { fx, fy, visible };
+        }
+      } else if (lastZoneEmitRef.current.visible) {
+        const last = lastZoneEmitRef.current;
+        lastZoneEmitRef.current = { fx: last.fx, fy: last.fy, visible: false };
+        zonePosSV.value = { fx: last.fx, fy: last.fy, visible: false };
       }
     }
 
@@ -661,7 +731,7 @@ export const ColorPlane = memo(function ColorPlane({
       nodeColors.push(
         N === 0
           ? { r: 60, g: 110, b: 90 }
-          : hexToRgb(moistureToColor(n.moisture)),
+          : hexToRgb(moistureToColor(n.moisture, isDark)),
       );
     }
 
@@ -725,7 +795,7 @@ export const ColorPlane = memo(function ColorPlane({
     }
     bakeLUT();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldKey]);
+  }, [fieldKey, isDark]); // isDark → tema degisince LUT yeniden bake (nem renkleri tema-uyumlu)
 
   // Debounced bake — ayni field icinde node mutasyonlari (moisture) icin
   // socket spam'ini koalese eder. fieldKey degisince sync layout effect zaten
@@ -852,7 +922,7 @@ export const ColorPlane = memo(function ColorPlane({
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const pos = getNodeLocalPosition(node);
-      tmpColor.set(moistureToColor(node.moisture));
+      tmpColor.set(moistureToColor(node.moisture, isDark));
 
       // Pin basi (sphere, rotasyon yok)
       dummy.position.set(pos.x, pos.y + pinLocalSize * 1.1, pos.z);
@@ -923,7 +993,7 @@ export const ColorPlane = memo(function ColorPlane({
         dummy.position.set(lx, h + 0.15 * potScale, lz);
         dummy.updateMatrix();
         soil.setMatrixAt(i, dummy.matrix);
-        tmpColor.set(moistureToColor(node.moisture));
+        tmpColor.set(moistureToColor(node.moisture, isDark));
         soil.setColorAt(i, tmpColor);
       }
     }
@@ -944,6 +1014,7 @@ export const ColorPlane = memo(function ColorPlane({
     dummy,
     tmpColor,
     invalidate,
+    isDark,
   ]);
 
   // applySelectionRef guncelleme + disaridan gelen secim uygulama
