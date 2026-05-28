@@ -1,7 +1,7 @@
 // Adim 4a: Sera bolge bolme — dis sinir icinde cizgi cekerek zone ayirma
 // Kullanici iki nokta secer, sistem zone'u ikiye boler
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -56,15 +56,18 @@ export const GreenhouseZonesStep = ({
   const viewHeight = bounds.maxY - bounds.minY;
 
   // Ilk acilista boundary'den tek zone olustur
-  if (state.zones.length === 0 && state.outerPolygon.length >= 3) {
-    const initialZone: ZoneDraft = {
-      id: generateId(),
-      name: `${t.addField.zoneNamePlaceholder.replace("örn. ", "").replace("e.g. ", "")} 1`,
-      zoneType: "POLYGON",
-      polygonPoints: [...state.outerPolygon],
-    };
-    onUpdate({ zones: [initialZone] });
-  }
+  useEffect(() => {
+    if (state.zones.length === 0 && state.outerPolygon.length >= 3) {
+      const initialZone: ZoneDraft = {
+        id: generateId(),
+        name: `${t.addField.zoneNamePlaceholder.replace("örn. ", "").replace("e.g. ", "")} 1`,
+        zoneType: "POLYGON",
+        polygonPoints: [...state.outerPolygon],
+      };
+      onUpdate({ zones: [initialZone] });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -186,11 +189,6 @@ export const GreenhouseZonesStep = ({
       style={{ flex: 1, padding: s(20) }}
       keyboardShouldPersistTaps="handled"
     >
-      <Text
-        style={{ fontSize: ms(20, 0.3), marginBottom: vs(4), color: theme.textMain, fontWeight: "bold" }}
-      >
-        {t.addField.drawZones}
-      </Text>
       <Text
         style={{ fontSize: ms(13, 0.3), marginBottom: vs(16), color: theme.textSecondary }}
       >

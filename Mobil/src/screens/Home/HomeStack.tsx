@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useIsFocused } from "@react-navigation/native";
-import { View, Text } from "react-native";
+import { View, Text, ActivityIndicator } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
@@ -34,9 +34,17 @@ const Stack = createNativeStackNavigator<HomeStackParamList>();
 // (HomeContainer'daki ayni kapsam; HomeStack icinde ayri screen olarak yasatilir)
 const HomeMainScreen = () => {
   const { theme, isDark } = useTheme();
-  const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen } = useDashboard();
+  const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen, initialLoadDone } = useDashboard();
   const { t } = useLanguage();
   const isFocused = useIsFocused();
+
+  if (!initialLoadDone) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
 
   if (fields.length === 0) {
     return (

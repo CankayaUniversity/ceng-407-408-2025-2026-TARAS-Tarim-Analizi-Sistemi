@@ -3,7 +3,7 @@
 //        username, email, role, farms, fields, hasFarms, onCreateFarm
 
 import { memo, useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, ScrollView, Switch, Alert, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, ScrollView, Switch, Alert, TouchableOpacity, ActivityIndicator, Modal, Platform, SafeAreaView, StatusBar } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Constants from "expo-constants";
 import { SettingsScreenProps, ThemeOption } from "./types";
@@ -11,6 +11,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { FocusableSection } from "../../components/FocusableSection";
 import { PressableDark } from "../../components/PressableDark";
 import { OptionButton } from "../../components/OptionButton";
+import { OptionDropdown } from "../../components/OptionDropdown";
 import { Language } from "../../utils/strings";
 import { Theme } from "../../utils/theme";
 import { s, vs, ms } from "../../utils/responsive";
@@ -151,7 +152,6 @@ export const SettingsScreen = memo(function SettingsScreen({
   const { language, setLanguage, t } = useLanguage();
   const scrollViewRef = useRef<ScrollView>(null);
   const [datasetConsent, setDatasetConsent] = useState<boolean>(true);
-  const [farmDropdownOpen, setFarmDropdownOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editUsername, setEditUsername] = useState(username);
   const [editEmail, setEditEmail] = useState(email ?? "");
@@ -250,6 +250,7 @@ export const SettingsScreen = memo(function SettingsScreen({
 
   const [deletingFarmId, setDeletingFarmId] = useState<string | null>(null);
   const [deletingFieldId, setDeletingFieldId] = useState<string | null>(null);
+  const [farmManageOpen, setFarmManageOpen] = useState(false);
 
   const handleDeleteFarm = (farmId: string, farmName: string) => {
     Alert.alert(
@@ -311,12 +312,13 @@ export const SettingsScreen = memo(function SettingsScreen({
   const fieldCount = fields.length;
 
   return (
-    <ScrollView
-      ref={scrollViewRef}
-      className="screen-bg"
-      style={{ paddingHorizontal: s(20) }}
-      contentContainerStyle={{ paddingTop: vs(12), paddingBottom: vs(32) }}
-    >
+    <>
+      <ScrollView
+        ref={scrollViewRef}
+        className="screen-bg"
+        style={{ paddingHorizontal: s(20) }}
+        contentContainerStyle={{ paddingTop: vs(12), paddingBottom: vs(32) }}
+      >
       {/* ── 1. Profil Basligi ── */}
       <FocusableSection
         id="account"
@@ -552,172 +554,58 @@ export const SettingsScreen = memo(function SettingsScreen({
         scrollViewRef={scrollViewRef}
       >
         <View style={{ gap: vs(8) }}>
-          {/* Farm dropdown */}
-          <PressableDark
-            style={{
-              backgroundColor: theme.surface,
-              borderRadius: 12,
-              paddingVertical: vs(14),
-              paddingHorizontal: s(14),
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-            onPress={() => farms.length > 0 && setFarmDropdownOpen(!farmDropdownOpen)}
-          >
-            <View
-              style={{
-                width: s(36),
-                height: s(36),
-                borderRadius: s(10),
-                backgroundColor: theme.primary + "12",
-                alignItems: "center",
-                justifyContent: "center",
-                marginRight: s(12),
-              }}
-            >
-              <MaterialCommunityIcons
-                name="barn"
-                size={20}
-                color={theme.primary}
+          {/* Farm secici — OptionDropdown + yonetim butonu */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: s(8) }}>
+            {farms.length > 0 ? (
+              <OptionDropdown
+                theme={theme}
+                label={t.settings.activeFarm}
+                value={selectedFarmId ?? ""}
+                options={farms.map((f) => ({ value: f.farm_id, label: f.name, icon: "barn" }))}
+                onChange={onSelectFarm}
+                displayLabel={activeFarm?.name ?? t.settings.noFarmSelected}
+                style={{ flex: 1 }}
               />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
+            ) : (
+              <View
                 style={{
-                  fontSize: ms(11, 0.3),
-                  color: theme.textMuted,
-                  fontWeight: "500",
+                  flex: 1,
+                  height: 44,
+                  backgroundColor: theme.surface,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  justifyContent: "center",
+                  paddingHorizontal: s(12),
                 }}
               >
-                {t.settings.activeFarm}
-              </Text>
-              <Text
-                style={{
-                  fontSize: ms(15, 0.3),
-                  fontWeight: "600",
-                  color: activeFarm
-                    ? theme.textMain
-                    : theme.textMuted,
-                  marginTop: 1,
-                }}
-              >
-                {activeFarm
-                  ? activeFarm.name
-                  : hasFarms
-                    ? t.settings.noFarmSelected
-                    : t.settings.noFarmCreated}
-              </Text>
-              {activeFarm && fieldCount > 0 ? (
-                <Text
-                  style={{
-                    fontSize: ms(11, 0.3),
-                    color: theme.textSecondary,
-                    marginTop: 2,
-                  }}
-                >
-                  {fieldCount} {t.settings.fieldsConnected}
+                <Text style={{ fontSize: ms(13, 0.3), color: theme.textMuted }}>
+                  {t.settings.noFarmCreated}
                 </Text>
-              ) : null}
-            </View>
-            {farms.length > 1 && (
-              <MaterialCommunityIcons
-                name={farmDropdownOpen ? "chevron-up" : "chevron-down"}
-                size={20}
-                color={theme.textMuted}
-              />
+              </View>
             )}
-          </PressableDark>
-
-          {/* Farm listesi — dropdown acik */}
-          {farmDropdownOpen && farms.length > 0 && (
-            <View
-              style={{
-                backgroundColor: theme.surface,
-                borderRadius: 12,
-                overflow: "hidden",
-                borderWidth: 1,
-                borderColor: theme.primary + "20",
-              }}
-            >
-              {farms.map((farm, idx) => {
-                // Dropdown'da her farm'in field sayisini gostermek icin
-                // (fields sadece aktif farm'a ait, diger farm'lar icin sayi yok)
-                const fc = farm.farm_id === activeFarm?.farm_id ? fields.length : 0;
-                const isActive = farm.farm_id === activeFarm?.farm_id;
-                return (
-                <PressableDark
-                  key={farm.farm_id}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: vs(12),
-                    paddingHorizontal: s(14),
-                    borderBottomWidth: idx < farms.length - 1 ? 1 : 0,
-                    borderBottomColor: theme.divider,
-                  }}
-                  onPress={() => {
-                    onSelectFarm(farm.farm_id);
-                    setFarmDropdownOpen(false);
-                  }}
-                >
-                  <MaterialCommunityIcons
-                    name="barn"
-                    size={16}
-                    color={isActive ? theme.primary : theme.textMuted}
-                    style={{ marginRight: s(10) }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontSize: ms(14, 0.3),
-                        fontWeight: isActive ? "600" : "400",
-                        color: isActive ? theme.primary : theme.textMain,
-                      }}
-                    >
-                      {farm.name}
-                    </Text>
-                    {fc > 0 && (
-                      <Text
-                        style={{
-                          fontSize: ms(11, 0.3),
-                          color: theme.textSecondary,
-                          marginTop: 1,
-                        }}
-                      >
-                        {fc} {t.settings.fieldsConnected}
-                      </Text>
-                    )}
-                  </View>
-                  {isActive && (
-                    <MaterialCommunityIcons
-                      name="check"
-                      size={18}
-                      color={theme.primary}
-                      style={{ marginRight: s(4) }}
-                    />
-                  )}
-                  {deletingFarmId === farm.farm_id ? (
-                    <ActivityIndicator size="small" color={theme.danger} />
-                  ) : (
-                    <TouchableOpacity
-                      onPress={(e) => {
-                        e.stopPropagation?.();
-                        handleDeleteFarm(farm.farm_id, farm.name);
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <MaterialCommunityIcons
-                        name="trash-can-outline"
-                        size={18}
-                        color={theme.danger}
-                      />
-                    </TouchableOpacity>
-                  )}
-                </PressableDark>
-                );
-              })}
-            </View>
-          )}
+            {farms.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setFarmManageOpen(true)}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  backgroundColor: theme.surface,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="dots-vertical"
+                  size={20}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+          </View>
 
           {/* Yeni farm olustur */}
           <PressableDark
@@ -1077,6 +965,145 @@ export const SettingsScreen = memo(function SettingsScreen({
       >
         {APP_NAME} v{APP_VERSION} ({APP_BUILD})
       </Text>
-    </ScrollView>
+      </ScrollView>
+
+      {/* ── Farm yonetim modali ── */}
+      <Modal
+        visible={farmManageOpen}
+        animationType="slide"
+        presentationStyle={Platform.OS === "ios" ? "pageSheet" : "fullScreen"}
+        onRequestClose={() => setFarmManageOpen(false)}
+      >
+        <SafeAreaView
+          style={{
+            flex: 1,
+            backgroundColor: theme.background,
+            paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
+          }}
+        >
+          {/* Header */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: s(16),
+              paddingTop: vs(8),
+              paddingBottom: vs(12),
+              borderBottomWidth: 1,
+              borderBottomColor: theme.divider,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => setFarmManageOpen(false)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons
+                name={Platform.OS === "ios" ? "chevron-down" : "close"}
+                size={Platform.OS === "ios" ? 28 : 24}
+                color={theme.textMain}
+              />
+            </TouchableOpacity>
+            <Text
+              style={{
+                flex: 1,
+                fontWeight: "700",
+                fontSize: ms(18, 0.3),
+                color: theme.textMain,
+                marginLeft: s(12),
+              }}
+              numberOfLines={1}
+            >
+              {t.settings.farmManagement}
+            </Text>
+            <View style={{ width: s(24) }} />
+          </View>
+
+          {/* Farm listesi */}
+          <ScrollView
+            contentContainerStyle={{ padding: s(16) }}
+            bounces={false}
+          >
+            <View
+              style={{
+                backgroundColor: theme.surface,
+                borderRadius: 12,
+                overflow: "hidden",
+                borderWidth: 1,
+                borderColor: theme.divider,
+              }}
+            >
+              {farms.map((farm, idx) => {
+                const isActive = farm.farm_id === activeFarm?.farm_id;
+                const fc = isActive ? fieldCount : 0;
+                return (
+                  <View
+                    key={farm.farm_id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: vs(12),
+                      paddingHorizontal: s(14),
+                      borderBottomWidth: idx < farms.length - 1 ? 1 : 0,
+                      borderBottomColor: theme.divider,
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name="barn"
+                      size={16}
+                      color={isActive ? theme.primary : theme.textMuted}
+                      style={{ marginRight: s(10) }}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={{
+                          fontSize: ms(14, 0.3),
+                          fontWeight: isActive ? "600" : "400",
+                          color: isActive ? theme.primary : theme.textMain,
+                        }}
+                      >
+                        {farm.name}
+                      </Text>
+                      {isActive && fc > 0 && (
+                        <Text
+                          style={{
+                            fontSize: ms(11, 0.3),
+                            color: theme.textSecondary,
+                            marginTop: 1,
+                          }}
+                        >
+                          {fc} {t.settings.fieldsConnected}
+                        </Text>
+                      )}
+                    </View>
+                    {isActive && (
+                      <MaterialCommunityIcons
+                        name="check"
+                        size={18}
+                        color={theme.primary}
+                        style={{ marginRight: s(4) }}
+                      />
+                    )}
+                    {deletingFarmId === farm.farm_id ? (
+                      <ActivityIndicator size="small" color={theme.danger} />
+                    ) : (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteFarm(farm.farm_id, farm.name)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <MaterialCommunityIcons
+                          name="trash-can-outline"
+                          size={18}
+                          color={theme.danger}
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    </>
   );
 });

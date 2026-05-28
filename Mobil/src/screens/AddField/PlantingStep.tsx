@@ -97,11 +97,6 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
       showsVerticalScrollIndicator={false}
     >
       <Text
-        style={{ fontSize: ms(20, 0.3), marginBottom: vs(4), color: theme.textMain, fontWeight: "bold" }}
-      >
-        {t.addField.plantingTitle || "Ekim Bilgileri"}
-      </Text>
-      <Text
         style={{ fontSize: ms(13, 0.3), marginBottom: vs(16), color: theme.textSecondary }}
       >
         {t.addField.plantingHint || "Her bölge için mahsul ve ekim tarihini girin"}
@@ -202,28 +197,7 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
         );
       })}
 
-      {/* iOS: DatePicker modal */}
-      {Platform.OS === "ios" && datePickerZoneId && (
-        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: s(16), marginBottom: vs(16) }}>
-          <DateTimePicker
-            value={tempDate}
-            mode="date"
-            display="spinner"
-            onChange={handleDateChange}
-          />
-          <TouchableOpacity
-            style={{
-              alignSelf: "center", paddingVertical: vs(8), paddingHorizontal: s(24),
-              backgroundColor: theme.primary, borderRadius: 8, marginTop: vs(8),
-            }}
-            onPress={() => setDatePickerZoneId(null)}
-          >
-            <Text style={{ fontSize: ms(14, 0.3), color: theme.textOnPrimary, fontWeight: "600" }}>
-              {t.addField.next || "Tamam"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
+
 
       {/* Ileri butonu */}
       <TouchableOpacity
@@ -240,6 +214,53 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
         </Text>
         <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textOnPrimary} style={{ marginLeft: s(4) }} />
       </TouchableOpacity>
+
+      {/* iOS: DatePicker popup modal */}
+      {Platform.OS === "ios" && (
+        <Modal
+          visible={datePickerZoneId !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDatePickerZoneId(null)}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: s(32) }}
+            activeOpacity={1}
+            onPress={() => setDatePickerZoneId(null)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={{ backgroundColor: theme.surface, borderRadius: 16, overflow: "hidden" }}>
+                <View style={{ padding: s(16), borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                  <Text style={{ fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain }}>
+                    {t.addField.plantingDateLabel || "Ekim Tarihi"}
+                  </Text>
+                </View>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  style={{ width: "100%" }}
+                />
+                <TouchableOpacity
+                  style={{
+                    margin: s(16),
+                    paddingVertical: vs(12),
+                    backgroundColor: theme.primary,
+                    borderRadius: 10,
+                    alignItems: "center",
+                  }}
+                  onPress={() => setDatePickerZoneId(null)}
+                >
+                  <Text style={{ fontSize: ms(15, 0.3), color: theme.textOnPrimary, fontWeight: "700" }}>
+                    {t.addField.next || "Tamam"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
       {/* Crop picker modal */}
       <Modal

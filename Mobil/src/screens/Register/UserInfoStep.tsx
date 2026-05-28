@@ -54,18 +54,6 @@ export const UserInfoStep = ({
 
   return (
     <View className="w-full">
-      {/* Header */}
-      <Text
-        className="text-center font-bold"
-        style={{
-          fontSize: ms(20, 0.3),
-          marginBottom: vs(12),
-          color: theme.textMain,
-        }}
-      >
-        {t.register.stepUserInfo}
-      </Text>
-
       {/* Error banner */}
       {error && (
         <View

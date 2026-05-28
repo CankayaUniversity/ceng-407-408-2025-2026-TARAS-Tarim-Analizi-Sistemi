@@ -35,12 +35,6 @@ export const GreenhousePolygonStep = ({
   return (
     <View style={{ flex: 1, padding: s(20) }}>
       <Text
-        className="text-primary font-bold"
-        style={{ fontSize: ms(20, 0.3), marginBottom: vs(4), color: theme.textMain }}
-      >
-        {t.addField.drawBoundary}
-      </Text>
-      <Text
         className="text-secondary"
         style={{ fontSize: ms(13, 0.3), marginBottom: vs(16), color: theme.textSecondary }}
       >

@@ -1,7 +1,7 @@
 // Donanim kurulum modali - gateway ve sensor ekleme akislari
-// Props: visible, theme, onClose
+// AddFieldModal tasarim diline uygun — beyaz header, pageSheet (iOS)
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -34,35 +34,25 @@ export const HardwareSetupModal = ({
   const { t } = useLanguage();
   const [view, setView] = useState<ViewType>("menu");
 
-  // Geri tusuna basildiginda menu veya kapat
-  const handleBack = (): void => {
-    if (view === "menu") {
-      handleClose();
-    } else {
-      setView("menu");
-    }
-  };
-
-  // Modal kapanirken state sifirla
-  const handleClose = (): void => {
+  const handleClose = useCallback((): void => {
     setView("menu");
     onClose();
-  };
+  }, [onClose]);
 
-  // Alt akis tamamlandiginda menuye don
-  const handleFlowComplete = (): void => {
+  const handleBack = useCallback((): void => {
+    if (view === "menu") handleClose();
+    else setView("menu");
+  }, [view, handleClose]);
+
+  const handleFlowComplete = useCallback((): void => {
     setView("menu");
-  };
+  }, []);
 
-  // Baslik metni
   const getTitle = (): string => {
     switch (view) {
-      case "gateway":
-        return t.hardware.addGateway;
-      case "sensor":
-        return t.hardware.addSensorNode;
-      default:
-        return t.hardware.title;
+      case "gateway": return t.hardware.addGateway;
+      case "sensor":  return t.hardware.addSensorNode;
+      default:        return t.hardware.title;
     }
   };
 
@@ -70,161 +60,152 @@ export const HardwareSetupModal = ({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="fullScreen"
+      presentationStyle={Platform.OS === "ios" ? "pageSheet" : "fullScreen"}
       onRequestClose={handleBack}
     >
       <SafeAreaView
-        className="screen-bg"
         style={{
+          flex: 1,
+          backgroundColor: theme.background,
           paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
         }}
       >
-        {/* Header */}
+        {/* Header — AddFieldModal ile ayni stil */}
         <View
-          className="row-between"
           style={{
-            backgroundColor: theme.primary,
+            flexDirection: "row",
+            alignItems: "center",
             paddingHorizontal: s(16),
-            paddingVertical: vs(14),
+            paddingTop: vs(8),
+            paddingBottom: vs(12),
+            borderBottomWidth: 1,
+            borderBottomColor: theme.divider,
           }}
         >
           <TouchableOpacity
             onPress={handleBack}
-            className="center"
-            style={{ width: s(40), height: s(40) }}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <MaterialCommunityIcons
-              name={view === "menu" ? "close" : "arrow-left"}
-              size={24}
-              color={theme.textOnPrimary}
+              name={
+                Platform.OS === "ios"
+                  ? view === "menu" ? "chevron-down" : "arrow-left"
+                  : view === "menu" ? "close" : "arrow-left"
+              }
+              size={Platform.OS === "ios" ? 28 : 24}
+              color={theme.textMain}
             />
           </TouchableOpacity>
 
           <Text
-            className="flex-1 text-center font-bold"
-            style={{ fontSize: ms(18, 0.3), color: theme.textOnPrimary }}
+            style={{
+              flex: 1,
+              fontWeight: "700",
+              fontSize: ms(18, 0.3),
+              color: theme.textMain,
+              marginLeft: s(12),
+            }}
             numberOfLines={1}
           >
             {getTitle()}
           </Text>
 
-          <TouchableOpacity
-            onPress={handleClose}
-            className="center"
-            style={{ width: s(40), height: s(40) }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            {view !== "menu" ? (
-              <MaterialCommunityIcons name="close" size={24} color={theme.textOnPrimary} />
-            ) : (
-              <View style={{ width: s(24) }} />
-            )}
-          </TouchableOpacity>
+          {view !== "menu" ? (
+            <TouchableOpacity
+              onPress={handleClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MaterialCommunityIcons name="close" size={22} color={theme.textSecondary} />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: s(22) }} />
+          )}
         </View>
 
         {/* Icerik */}
-        <View className="screen-bg">
+        <View style={{ flex: 1, backgroundColor: theme.background }}>
           {view === "menu" && (
-            <View style={{ padding: s(20), gap: s(16) }}>
+            <View style={{ padding: s(20), gap: s(12) }}>
               {/* Gateway Ekle */}
               <TouchableOpacity
-                className="row surface-bg rounded-xl"
                 style={{
-                  padding: s(16),
-                  elevation: 2,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: s(14),
+                  backgroundColor: theme.surface,
+                  borderRadius: 12,
+                  elevation: 1,
                   shadowColor: theme.shadowColor,
                   shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
+                  shadowOpacity: 0.08,
                   shadowRadius: 3,
                 }}
                 onPress={() => setView("gateway")}
                 activeOpacity={0.7}
               >
                 <View
-                  className="center rounded-xl"
                   style={{
-                    width: s(56),
-                    height: s(56),
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 10,
+                    width: s(48),
+                    height: s(48),
                     backgroundColor: theme.primary + "20",
-                    marginRight: s(16),
+                    marginRight: s(14),
                   }}
                 >
-                  <MaterialCommunityIcons
-                    name="access-point"
-                    size={32}
-                    color={theme.primary}
-                  />
+                  <MaterialCommunityIcons name="access-point" size={26} color={theme.primary} />
                 </View>
-                <View className="flex-1">
-                  <Text
-                    className="text-primary font-bold"
-                    style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
-                  >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: ms(15, 0.3), fontWeight: "700", color: theme.textMain, marginBottom: vs(3) }}>
                     {t.hardware.addGateway}
                   </Text>
-                  <Text
-                    className="text-secondary"
-                    style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3) }}
-                  >
+                  <Text style={{ fontSize: ms(12, 0.3), lineHeight: ms(17, 0.3), color: theme.textSecondary }}>
                     {t.hardware.addGatewayDesc}
                   </Text>
                 </View>
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={24}
-                  color={theme.textSecondary}
-                />
+                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textSecondary} />
               </TouchableOpacity>
 
               {/* Sensor Node Ekle */}
               <TouchableOpacity
-                className="row surface-bg rounded-xl"
                 style={{
-                  padding: s(16),
-                  elevation: 2,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  padding: s(14),
+                  backgroundColor: theme.surface,
+                  borderRadius: 12,
+                  elevation: 1,
                   shadowColor: theme.shadowColor,
                   shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.1,
+                  shadowOpacity: 0.08,
                   shadowRadius: 3,
                 }}
                 onPress={() => setView("sensor")}
                 activeOpacity={0.7}
               >
                 <View
-                  className="center rounded-xl"
                   style={{
-                    width: s(56),
-                    height: s(56),
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: 10,
+                    width: s(48),
+                    height: s(48),
                     backgroundColor: theme.primary + "20",
-                    marginRight: s(16),
+                    marginRight: s(14),
                   }}
                 >
-                  <MaterialCommunityIcons
-                    name="thermometer-lines"
-                    size={32}
-                    color={theme.primary}
-                  />
+                  <MaterialCommunityIcons name="thermometer-lines" size={26} color={theme.primary} />
                 </View>
-                <View className="flex-1">
-                  <Text
-                    className="text-primary font-bold"
-                    style={{ fontSize: ms(16, 0.3), marginBottom: vs(4) }}
-                  >
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: ms(15, 0.3), fontWeight: "700", color: theme.textMain, marginBottom: vs(3) }}>
                     {t.hardware.addSensorNode}
                   </Text>
-                  <Text
-                    className="text-secondary"
-                    style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3) }}
-                  >
+                  <Text style={{ fontSize: ms(12, 0.3), lineHeight: ms(17, 0.3), color: theme.textSecondary }}>
                     {t.hardware.addSensorNodeDesc}
                   </Text>
                 </View>
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={24}
-                  color={theme.textSecondary}
-                />
+                <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textSecondary} />
               </TouchableOpacity>
             </View>
           )}
