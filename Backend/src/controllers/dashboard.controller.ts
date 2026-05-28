@@ -264,6 +264,68 @@ export async function getElevation(
   }
 }
 
+// delete a farm
+export async function deleteFarm(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Authentication required" });
+      return;
+    }
+
+    const farmId = getStringParam(req.params.farmId);
+    if (!farmId) {
+      res.status(400).json({ success: false, error: "Farm ID is required" });
+      return;
+    }
+
+    await dashboardService.deleteFarm(userId, farmId);
+    res.json({ success: true, data: { message: "Farm deleted successfully" } });
+  } catch (error: any) {
+    if (error.message === "FARM_NOT_FOUND") {
+      res.status(404).json({ success: false, error: "Farm not found" });
+      return;
+    }
+    if (error.message === "FARM_NOT_OWNED") {
+      res.status(403).json({ success: false, error: "You do not have permission to delete this farm" });
+      return;
+    }
+    logger.error("Delete farm error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+// delete a field
+export async function deleteField(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Authentication required" });
+      return;
+    }
+
+    const fieldId = getStringParam(req.params.fieldId);
+    if (!fieldId) {
+      res.status(400).json({ success: false, error: "Field ID is required" });
+      return;
+    }
+
+    await dashboardService.deleteField(userId, fieldId);
+    res.json({ success: true, data: { message: "Field deleted successfully" } });
+  } catch (error: any) {
+    if (error.message === "FIELD_NOT_FOUND") {
+      res.status(404).json({ success: false, error: "Field not found" });
+      return;
+    }
+    if (error.message === "FIELD_NOT_OWNED") {
+      res.status(403).json({ success: false, error: "You do not have permission to delete this field" });
+      return;
+    }
+    logger.error("Delete field error:", error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
 // list available crops
 export async function getCrops(_req: Request, res: Response): Promise<void> {
   try {
@@ -280,6 +342,8 @@ export default {
   getFieldDashboard,
   createField,
   createFarm,
+  deleteFarm,
+  deleteField,
   getElevation,
   getCrops,
 };

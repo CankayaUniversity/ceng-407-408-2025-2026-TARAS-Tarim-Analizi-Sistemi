@@ -195,6 +195,57 @@ export async function updateDatasetConsent(req: Request, res: Response): Promise
   }
 }
 
+export async function updateProfile(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'User not authenticated' });
+      return;
+    }
+
+    const { username, email, password } = req.body;
+
+    if (!username && !email && !password) {
+      res.status(400).json({ success: false, error: 'At least one field (username, email, password) is required' });
+      return;
+    }
+
+    if (username !== undefined && !username.trim()) {
+      res.status(400).json({ success: false, error: 'Username cannot be empty' });
+      return;
+    }
+
+    if (email !== undefined) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        res.status(400).json({ success: false, error: 'Invalid email format' });
+        return;
+      }
+    }
+
+    if (password !== undefined && password.length < 8) {
+      res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+      return;
+    }
+
+    const updated = await userService.updateUserProfile(userId, {
+      username: username?.trim(),
+      email,
+      password,
+    });
+
+    logger.info(`Profile updated for user: ${userId}`);
+    res.json({ success: true, data: updated });
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      res.status(400).json({ success: false, error: 'Bu kullanıcı adı veya e-posta zaten kullanımda' });
+      return;
+    }
+    logger.error('Update profile error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
 export async function changePassword(req: Request, res: Response): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
@@ -237,4 +288,4 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   }
 }
 
-export default { login, register, getProfile, changePassword, updateDatasetConsent };
+export default { login, register, getProfile, updateProfile, changePassword, updateDatasetConsent };

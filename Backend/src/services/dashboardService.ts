@@ -449,6 +449,30 @@ export async function getCropList() {
   });
 }
 
+export async function deleteFarm(userId: string, farmId: string): Promise<void> {
+  const farm = await prisma.farm.findUnique({
+    where: { farm_id: farmId },
+    select: { user_id: true },
+  });
+
+  if (!farm) throw new Error("FARM_NOT_FOUND");
+  if (farm.user_id !== userId) throw new Error("FARM_NOT_OWNED");
+
+  await prisma.farm.delete({ where: { farm_id: farmId } });
+}
+
+export async function deleteField(userId: string, fieldId: string): Promise<void> {
+  const field = await prisma.field.findUnique({
+    where: { field_id: fieldId },
+    include: { farm: { select: { user_id: true } } },
+  });
+
+  if (!field || !field.farm) throw new Error("FIELD_NOT_FOUND");
+  if (field.farm.user_id !== userId) throw new Error("FIELD_NOT_OWNED");
+
+  await prisma.field.delete({ where: { field_id: fieldId } });
+}
+
 export default {
   getUserFields,
   checkFieldAccess,
@@ -456,6 +480,8 @@ export default {
   getFieldInventory,
   createField,
   createFarm,
+  deleteFarm,
+  deleteField,
   getElevation,
   getCropList,
 };

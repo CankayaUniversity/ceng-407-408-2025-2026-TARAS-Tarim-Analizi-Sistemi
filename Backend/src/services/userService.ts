@@ -151,6 +151,25 @@ export async function updateDatasetConsent(userId: string, consent: boolean) {
   });
 }
 
+export async function updateUserProfile(
+  userId: string,
+  data: { username?: string; email?: string; password?: string },
+) {
+  const updateData: Record<string, unknown> = {};
+
+  if (data.username) updateData.username = data.username;
+  if (data.email) updateData.email = data.email;
+  if (data.password) {
+    updateData.password_hash = await bcrypt.hash(data.password, 12);
+  }
+
+  return prisma.user.update({
+    where: { user_id: userId },
+    data: updateData,
+    select: { username: true, email: true },
+  });
+}
+
 export async function ensureAdminRole() {
   return prisma.role.upsert({
     where: { role_name: "admin" },
@@ -285,6 +304,7 @@ export default {
   authenticateUser,
   getUserProfile,
   updateUserPassword,
+  updateUserProfile,
   updateDatasetConsent,
   ensureAdminRole,
   ensureFarmerRole,
