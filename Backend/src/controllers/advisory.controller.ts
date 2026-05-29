@@ -263,3 +263,38 @@ export const getChatHistory = asyncHandler(
     }
   },
 );
+
+// Bir sohbet oturumunu sil — kullanici yalnizca KENDI oturumlarini silebilir.
+// Mesajlar + oturum atomik silinir (FK cascade tanimli olmasa bile guvenli).
+export const deleteChatSession = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    const sessionId = req.params.sessionId as string;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+    if (!sessionId) {
+      res.status(400).json({ success: false, error: "session_id gerekli." });
+      return;
+    }
+
+    const owned = await prisma.chatSession.findFirst({
+      where: { session_id: sessionId, user_id: userId },
+      select: { session_id: true },
+    });
+    if (!owned) {
+      res.status(404).json({ success: false, error: "Sohbet bulunamadı." });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.chatMessage.deleteMany({ where: { session_id: sessionId } }),
+      prisma.chatSession.deleteMany({ where: { session_id: sessionId, user_id: userId } }),
+    ]);
+
+    logger.debug(`[CHAT] session silindi: ${sessionId.slice(0, 8)}... user=${userId.slice(0, 8)}...`);
+    res.status(200).json({ success: true });
+  },
+);
