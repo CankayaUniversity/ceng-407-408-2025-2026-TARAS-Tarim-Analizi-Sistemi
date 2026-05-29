@@ -17,6 +17,12 @@ export interface SensorNode {
   moisture: number;
   airTemperature: number;
   airHumidity: number;
+  // Bu zone'da kayitli sensor sayisi. Pin'ler bu sayiya gore zone merkezine
+  // yayilir (1=ortada, 3=ucgen...). 0 → pin yok. Eski veride yoksa 1 varsayilir.
+  sensorCount?: number;
+  // Pin yayma yaricapi (field birimi) — backend zone extent'inden hesaplar.
+  // Yoksa (demo/eski veri) frontend pin boyuna gore fallback kullanir.
+  spreadRadius?: number;
 }
 
 export interface FieldData {

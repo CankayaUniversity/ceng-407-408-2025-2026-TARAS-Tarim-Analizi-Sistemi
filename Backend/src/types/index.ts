@@ -172,6 +172,11 @@ export interface DashboardNode {
   moisture: number;
   airTemperature: number;
   airHumidity: number;
+  // Zone'da kayitli sensor node sayisi — frontend pin'leri buna gore yayar (0 ise pin yok).
+  sensorCount: number;
+  // Pin yayma yaricapi (field/dunya birimi) — zone extent'inin orani. Frontend
+  // N-gen halka yaricapi olarak kullanir; yoksa pin boyuna gore fallback hesaplar.
+  spreadRadius: number;
 }
 
 export interface DashboardFieldData {

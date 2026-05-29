@@ -48,6 +48,12 @@ const PULSE_SHARPNESS = 1.0;
 const PULSE_BRIGHTNESS_EDGE = 0.05;
 const PULSE_BRIGHTNESS_CENTER = 0.2;
 
+// Pin yayilimi — zone'daki sensor sayisi >1 ise pin'ler merkez etrafinda duzgun
+// cokgen (2=cizgi, 3=ucgen, 4=kare...) seklinde dizilir. Halka yaricapi pin boyuna
+// orantili (sera) ya da saksi ustune oturacak sekilde (saksi). Konum saklanmadigi
+// icin gercek yer degil — "bu zone'da N sensor var" gosterimi.
+const PIN_RING_FACTOR = 1.3;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LUT_SIZE = 128;
@@ -133,7 +139,10 @@ export type NodeInfo = SensorNode;
 // Field kimlik anahtari — polygon + node topolojisini ozetler.
 // Snapshot staleness kontrolu icin HomeScreen ile ortak kullanilir.
 export const computeFieldKey = (fieldData: FieldData): string => {
-  const nodeIds = fieldData.nodes.map((n) => n.id).join(",");
+  // sensorCount key'e dahil — pin sayisi degisince snapshot/remount invalidate olsun.
+  const nodeIds = fieldData.nodes
+    .map((n) => `${n.id}:${n.sensorCount ?? 1}`)
+    .join(",");
   const polygonHash = fieldData.polygon.exterior
     .slice(0, 3)
     .flat()
@@ -902,6 +911,43 @@ export const ColorPlane = memo(function ColorPlane({
     ? 2.5 * potScale
     : PIN_WORLD_SIZE / scale;
 
+  // Backend spreadRadius yoksa (demo/eski veri) kullanilan yayilim yaricapi
+  // (grup-yerel birim). Saksi: toprak diski (≈3.0*potScale) icinde. Sera: pin boyuna orantili.
+  const fallbackSpreadRadius = fieldData.isPotField
+    ? 1.1 * potScale
+    : pinLocalSize * PIN_RING_FACTOR;
+
+  // Pin yerlesimleri — her zone temsilci node'u icin sensorCount kadar pin uretir.
+  // 1 → merkez; N>1 → merkez etrafinda duzgun N-gen halka (ust noktadan baslar).
+  // Halka yaricapi: backend node.spreadRadius (zone extent orani) varsa onu, yoksa
+  // pin boyuna gore fallback. sensorCount yoksa (eski veri) 1; 0 → pin yok.
+  const pinPlacements = useMemo(() => {
+    const out: { node: NodeInfo; x: number; z: number }[] = [];
+    for (const node of nodes) {
+      const count = node.sensorCount ?? 1;
+      if (count <= 0) continue;
+      const baseX = node.x - centerX;
+      const baseZ = centerZ - node.z;
+      if (count === 1) {
+        out.push({ node, x: baseX, z: baseZ });
+      } else {
+        const ring =
+          node.spreadRadius && node.spreadRadius > 0
+            ? node.spreadRadius
+            : fallbackSpreadRadius;
+        for (let k = 0; k < count; k++) {
+          const ang = (2 * Math.PI * k) / count - Math.PI / 2;
+          out.push({
+            node,
+            x: baseX + Math.cos(ang) * ring,
+            z: baseZ + Math.sin(ang) * ring,
+          });
+        }
+      }
+    }
+    return out;
+  }, [nodes, centerX, centerZ, fallbackSpreadRadius]);
+
   // InstancedMesh refs — head/body/tip pin parcalari
   // 22+ ayri mesh yerine 3 draw call'da render edilir
   const headInstRef = useRef<any>(null);
@@ -912,20 +958,22 @@ export const ColorPlane = memo(function ColorPlane({
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tmpColor = useMemo(() => new THREE.Color(), []);
 
-  // Node konum/renk degisiminde matrix + instanceColor guncelle
+  // Pin konum/renk degisiminde matrix + instanceColor guncelle.
+  // Artik node basina degil, PIN basina (pinPlacements) — cok-sensorlu zone'da
+  // ayni zone icin birden cok pin matrix slot'u olur.
   useEffect(() => {
     const head = headInstRef.current;
     const body = bodyInstRef.current;
     const tip = tipInstRef.current;
-    if (!head || !body || !tip || nodes.length === 0) return;
+    if (!head || !body || !tip || pinPlacements.length === 0) return;
 
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      const pos = getNodeLocalPosition(node);
-      tmpColor.set(moistureToColor(node.moisture, isDark));
+    for (let i = 0; i < pinPlacements.length; i++) {
+      const p = pinPlacements[i];
+      const y = NODE_HEIGHT;
+      tmpColor.set(moistureToColor(p.node.moisture, isDark));
 
       // Pin basi (sphere, rotasyon yok)
-      dummy.position.set(pos.x, pos.y + pinLocalSize * 1.1, pos.z);
+      dummy.position.set(p.x, y + pinLocalSize * 1.1, p.z);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
@@ -933,14 +981,14 @@ export const ColorPlane = memo(function ColorPlane({
       head.setColorAt(i, tmpColor);
 
       // Pin govdesi (cone, ters cevrilmis)
-      dummy.position.set(pos.x, pos.y + pinLocalSize * 0.2, pos.z);
+      dummy.position.set(p.x, y + pinLocalSize * 0.2, p.z);
       dummy.rotation.set(Math.PI, 0, 0);
       dummy.updateMatrix();
       body.setMatrixAt(i, dummy.matrix);
       body.setColorAt(i, tmpColor);
 
       // Pin ucu (cone, ters cevrilmis)
-      dummy.position.set(pos.x, pos.y - pinLocalSize * 0.7, pos.z);
+      dummy.position.set(p.x, y - pinLocalSize * 0.7, p.z);
       dummy.updateMatrix();
       tip.setMatrixAt(i, dummy.matrix);
       tip.setColorAt(i, tmpColor);
@@ -955,14 +1003,13 @@ export const ColorPlane = memo(function ColorPlane({
 
     invalidate();
   }, [
-    nodes,
+    pinPlacements,
     pinLocalSize,
-    centerX,
-    centerZ,
-    scale,
+    NODE_HEIGHT,
     dummy,
     tmpColor,
     invalidate,
+    isDark,
   ]);
 
   // Saksi instance guncelleme — govde + toprak yuzey
@@ -1150,13 +1197,13 @@ export const ColorPlane = memo(function ColorPlane({
         color={currentColor}
       />
 
-      {nodes.length > 0 && (
+      {pinPlacements.length > 0 && (
         <>
-          {/* Pin basi - tum nodelar tek draw call */}
+          {/* Pin basi - tum pinler tek draw call */}
           <instancedMesh
-            key={`head-${nodes.length}-${pinLocalSize}`}
+            key={`head-${pinPlacements.length}-${pinLocalSize}`}
             ref={headInstRef}
-            args={[undefined, undefined, nodes.length]}
+            args={[undefined, undefined, pinPlacements.length]}
           >
             <sphereGeometry args={[pinLocalSize * 0.36, 8, 6]} />
             <meshStandardMaterial
@@ -1166,11 +1213,11 @@ export const ColorPlane = memo(function ColorPlane({
             />
           </instancedMesh>
 
-          {/* Pin govdesi - tum nodelar tek draw call */}
+          {/* Pin govdesi - tum pinler tek draw call */}
           <instancedMesh
-            key={`body-${nodes.length}-${pinLocalSize}`}
+            key={`body-${pinPlacements.length}-${pinLocalSize}`}
             ref={bodyInstRef}
-            args={[undefined, undefined, nodes.length]}
+            args={[undefined, undefined, pinPlacements.length]}
           >
             <coneGeometry args={[pinLocalSize * 0.24, pinLocalSize * 1.4, 8]} />
             <meshStandardMaterial
@@ -1180,11 +1227,11 @@ export const ColorPlane = memo(function ColorPlane({
             />
           </instancedMesh>
 
-          {/* Pin ucu - tum nodelar tek draw call */}
+          {/* Pin ucu - tum pinler tek draw call */}
           <instancedMesh
-            key={`tip-${nodes.length}-${pinLocalSize}`}
+            key={`tip-${pinPlacements.length}-${pinLocalSize}`}
             ref={tipInstRef}
-            args={[undefined, undefined, nodes.length]}
+            args={[undefined, undefined, pinPlacements.length]}
           >
             <coneGeometry args={[pinLocalSize * 0.08, pinLocalSize * 0.8, 6]} />
             <meshStandardMaterial
@@ -1196,20 +1243,18 @@ export const ColorPlane = memo(function ColorPlane({
         </>
       )}
 
-      {/* Dokunma alanlari - per-node mesh, neredeyse gorunmez (opacity 0.001) */}
-      {nodes.map((node) => {
-        const pos = getNodeLocalPosition(node);
-        return (
-          <mesh
-            key={`touch-${node.id}`}
-            position={[pos.x, pos.y + pinLocalSize * 0.4, pos.z]}
-            onPointerDown={handleNodePointerDown(node)}
-          >
-            <sphereGeometry args={[pinLocalSize * 1.2, 8, 6]} />
-            <meshBasicMaterial transparent opacity={0.001} depthTest={false} />
-          </mesh>
-        );
-      })}
+      {/* Dokunma alanlari - pin basina mesh, neredeyse gorunmez (opacity 0.001).
+          Ayni zone'un her pini o zone'u secer (handleNodePointerDown(p.node)). */}
+      {pinPlacements.map((p, i) => (
+        <mesh
+          key={`touch-${p.node.id}-${i}`}
+          position={[p.x, NODE_HEIGHT + pinLocalSize * 0.4, p.z]}
+          onPointerDown={handleNodePointerDown(p.node)}
+        >
+          <sphereGeometry args={[pinLocalSize * 1.2, 8, 6]} />
+          <meshBasicMaterial transparent opacity={0.001} depthTest={false} />
+        </mesh>
+      ))}
     </group>
   );
 });

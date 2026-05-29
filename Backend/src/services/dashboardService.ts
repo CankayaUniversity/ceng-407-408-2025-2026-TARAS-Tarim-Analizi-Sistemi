@@ -145,26 +145,49 @@ export async function getFieldDashboard(
     return null;
   }
 
-  // Sensor verilerini topla
-  const allNodes: DashboardNode[] = [];
+  // Sensor verilerini topla — node bazli DEGIL, ZONE bazli.
+  // sn.x/z saklanmadigi icin (hep null → 0,0'a cokuyordu) konum artik HER ZAMAN
+  // zone polygon centroid'inden gelir. Her zone tek bir temsilci node uretir
+  // (Voronoi hucresi + saksi + pin tabani); sensorCount = zone'daki kayitli sensor
+  // sayisi, frontend pin'leri buna gore yayar (0 ise pin gostermez).
   let totalMoisture = 0;
   let totalTemperature = 0;
   let totalHumidity = 0;
   let readingCount = 0;
   let latestReadingTime: Date | null = null;
 
+  // Zone bazinda topla: okuma ortalamasi (sadece okumasi olan sensorler) + sensor sayisi
+  interface ZoneAgg {
+    sumMoisture: number;
+    sumTemperature: number;
+    sumHumidity: number;
+    readingCount: number;
+    sensorCount: number;
+  }
+  const zoneAgg = new Map<string, ZoneAgg>();
   for (const node of nodeRows) {
-    const moisture = node.sm_percent ?? 0;
-    const temperature = node.temperature ?? 0;
-    const humidity = node.humidity ?? 0;
-    const hasReading = node.sm_percent != null;
-
-    if (hasReading) {
+    const agg =
+      zoneAgg.get(node.zone_id) ?? {
+        sumMoisture: 0,
+        sumTemperature: 0,
+        sumHumidity: 0,
+        readingCount: 0,
+        sensorCount: 0,
+      };
+    agg.sensorCount += 1;
+    if (node.sm_percent != null) {
+      const moisture = node.sm_percent;
+      const temperature = node.temperature ?? 0;
+      const humidity = node.humidity ?? 0;
+      agg.sumMoisture += moisture;
+      agg.sumTemperature += temperature;
+      agg.sumHumidity += humidity;
+      agg.readingCount += 1;
+      // Tarla geneli ortalama — sensor bazli (onceki davranisla ayni)
       totalMoisture += moisture;
       totalTemperature += temperature;
       totalHumidity += humidity;
       readingCount++;
-
       if (
         node.created_at &&
         (!latestReadingTime || node.created_at > latestReadingTime)
@@ -172,35 +195,41 @@ export async function getFieldDashboard(
         latestReadingTime = node.created_at;
       }
     }
-
-    allNodes.push({
-      id: node.node_id,
-      zone_id: node.zone_id,
-      x: node.x ?? 0,
-      z: node.z ?? 0,
-      moisture,
-      airTemperature: temperature,
-      airHumidity: humidity,
-    });
+    zoneAgg.set(node.zone_id, agg);
   }
 
-  // Sensor_node'u olmayan zone'lar icin sentetik node uret — zone centroid'inden.
-  // Boylece pot tarlalarda her zone bir saksi olarak, seralarda her zone bir
-  // Voronoi bolgesi olarak goruntulenebilir.
-  const coveredZoneIds = new Set(allNodes.map((n) => n.zone_id));
+  // Her zone icin tek temsilci node — centroid konumu + zone ortalama okumasi + sensor sayisi.
+  // Sensoru olmayan zone: sensorCount=0 (pin yok) ama hucre/saksi yine cizilir (moisture=0).
+  const allNodes: DashboardNode[] = [];
+  let totalSensorCount = 0;
   for (const zone of zoneRows) {
-    if (coveredZoneIds.has(zone.zone_id)) continue;
     const poly = zone.polygon as { exterior?: [number, number][] } | null;
     if (!poly?.exterior?.length) continue;
     const center = polygonCentroid(poly.exterior);
+    // Pin yayma yaricapi — zone'un kisa kenarinin %28'i (field/dunya birimi).
+    // Pin'ler hucre/saksi icinde kalir; buyuk zone genis, kucuk zone dar yayilim
+    // (oranli). Tek sensorde kullanilmaz (ortalanir).
+    const xs = poly.exterior.map((p) => p[0]);
+    const zs = poly.exterior.map((p) => p[1]);
+    const minDim = Math.min(
+      Math.max(...xs) - Math.min(...xs),
+      Math.max(...zs) - Math.min(...zs),
+    );
+    const spreadRadius = 0.28 * minDim;
+    const agg = zoneAgg.get(zone.zone_id);
+    const sensorCount = agg?.sensorCount ?? 0;
+    const rc = agg?.readingCount ?? 0;
+    totalSensorCount += sensorCount;
     allNodes.push({
-      id: `synth-${zone.zone_id}`,
+      id: `zone-${zone.zone_id}`,
       zone_id: zone.zone_id,
       x: center.x,
       z: center.z,
-      moisture: 0,
-      airTemperature: 0,
-      airHumidity: 0,
+      moisture: rc > 0 ? agg!.sumMoisture / rc : 0,
+      airTemperature: rc > 0 ? agg!.sumTemperature / rc : 0,
+      airHumidity: rc > 0 ? agg!.sumHumidity / rc : 0,
+      sensorCount,
+      spreadRadius,
     });
   }
 
@@ -237,7 +266,7 @@ export async function getFieldDashboard(
     },
     sensors: {
       soilMoisture: Number(avgMoisture.toFixed(0)),
-      nodeCount: allNodes.length,
+      nodeCount: totalSensorCount,
       lastReadingTime: latestReadingTime
         ? latestReadingTime.toISOString()
         : null,
