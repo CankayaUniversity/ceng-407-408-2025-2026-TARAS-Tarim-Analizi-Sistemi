@@ -9,6 +9,9 @@ export interface FieldPolygon {
 export interface SensorNode {
   id: string;
   zone_id?: string;
+  // Zone'un gercek adi (ornek "Sera 1"). Backend dashboard'da henuz yok — DashboardContext
+  // zone_id -> zone_name haritasiyla cozuluyor. Backend gonderirse buradan otomatik akar.
+  zone_name?: string;
   x: number;
   z: number;
   moisture: number;

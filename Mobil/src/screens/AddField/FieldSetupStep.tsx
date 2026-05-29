@@ -1,11 +1,16 @@
 // Birlesik adim: tarla tipi + isim + (saksi ise) saksi sayisi
-// Tek sayfada tum temel bilgileri toplar
+// Tek sayfada tum temel bilgileri toplar. StepScaffold + FormInput ile kanonik gorunum;
+// saksi sayisi blogu yumusak (FadeInDown) girer — eskiden anlik "pat" diye beliriyordu.
 
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import Animated, { FadeInDown, FadeOut, LinearTransition } from "react-native-reanimated";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "../../context/LanguageContext";
 import { s, vs, ms } from "../../utils/responsive";
+import { ActionButton } from "../../components/ActionButton";
+import { StepScaffold } from "./components/StepScaffold";
+import { FormInput } from "./components/FormInput";
 import type { StepProps, FieldType } from "./types";
 
 const MAX_POTS = 32;
@@ -50,38 +55,19 @@ export const FieldSetupStep = ({ theme, state, onUpdate, onNext }: StepProps) =>
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: s(20), paddingBottom: vs(40) }}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
+    <StepScaffold
+      theme={theme}
+      error={error}
+      footer={
+        <ActionButton
+          theme={theme}
+          label={t.addField.next}
+          trailingIcon="chevron-right"
+          onPress={handleNext}
+        />
+      }
     >
-      {/* Hata */}
-      {error && (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            borderRadius: 10,
-            backgroundColor: theme.danger + "15",
-            paddingVertical: vs(10),
-            paddingHorizontal: s(14),
-            marginBottom: vs(16),
-          }}
-        >
-          <MaterialCommunityIcons
-            name="alert-circle"
-            size={18}
-            color={theme.danger}
-            style={{ marginRight: s(8) }}
-          />
-          <Text style={{ flex: 1, fontSize: ms(13, 0.3), color: theme.danger }}>
-            {error}
-          </Text>
-        </View>
-      )}
-
-      {/* Tarla tipi secimi */}
+      {/* Tarla tipi secimi — segment kontrol (CTA degil), oldugu gibi korunur */}
       <Text
         style={{
           fontSize: ms(13, 0.3),
@@ -134,109 +120,41 @@ export const FieldSetupStep = ({ theme, state, onUpdate, onNext }: StepProps) =>
         })}
       </View>
 
-      {/* Tarla adi */}
-      <Text
-        style={{
-          fontSize: ms(13, 0.3),
-          fontWeight: "600",
-          color: theme.textSecondary,
-          marginBottom: vs(6),
-        }}
-      >
-        {t.addField.fieldNameLabel}
-      </Text>
-      <TextInput
-        style={{
-          paddingVertical: vs(12),
-          paddingHorizontal: s(16),
-          borderWidth: 1,
-          borderRadius: 10,
-          borderColor: theme.border,
-          fontSize: ms(15, 0.3),
-          color: theme.textMain,
-          backgroundColor: theme.surface,
-          marginBottom: vs(16),
-        }}
-        placeholder={t.addField.fieldNamePlaceholder}
-        placeholderTextColor={theme.textMuted}
-        value={state.fieldName}
-        onChangeText={(text) => {
-          onUpdate({ fieldName: text });
-          if (error) setError(null);
-        }}
-        autoCapitalize="sentences"
-        autoCorrect={false}
-      />
-
-      {/* Saksi sayisi — sadece pot seciliyse */}
-      {selectedType === "pot" && (
-        <>
-          <Text
-            style={{
-              fontSize: ms(13, 0.3),
-              fontWeight: "600",
-              color: theme.textSecondary,
-              marginBottom: vs(6),
-            }}
-          >
-            {t.addField.potCountLabel}
-          </Text>
-          <TextInput
-            style={{
-              paddingVertical: vs(12),
-              paddingHorizontal: s(16),
-              borderWidth: 1,
-              borderRadius: 10,
-              borderColor: theme.border,
-              fontSize: ms(15, 0.3),
-              color: theme.textMain,
-              backgroundColor: theme.surface,
-              marginBottom: vs(16),
-            }}
-            placeholder={t.addField.potCountPlaceholder}
-            placeholderTextColor={theme.textMuted}
-            value={potText}
-            onChangeText={(text) => {
-              setPotText(text.replace(/[^0-9]/g, ""));
-              if (error) setError(null);
-            }}
-            keyboardType="number-pad"
-            maxLength={2}
-          />
-        </>
-      )}
-
-      {/* Ileri butonu */}
-      <TouchableOpacity
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 12,
-          backgroundColor: theme.primary,
-          paddingVertical: vs(14),
-          paddingHorizontal: s(24),
-          marginTop: vs(4),
-        }}
-        onPress={handleNext}
-        activeOpacity={0.7}
-      >
-        <Text
-          style={{
-            fontSize: ms(16, 0.3),
-            color: theme.textOnPrimary,
-            fontWeight: "bold",
+      {/* Tarla adi + (saksi ise) saksi sayisi. layout=LinearTransition: pot blogu girip
+          cikinca alttaki alanlar yumusak kayar (anlik atlama yok). */}
+      <Animated.View layout={LinearTransition.duration(180)} style={{ gap: vs(16) }}>
+        <FormInput
+          theme={theme}
+          label={t.addField.fieldNameLabel}
+          placeholder={t.addField.fieldNamePlaceholder}
+          value={state.fieldName}
+          onChangeText={(text) => {
+            onUpdate({ fieldName: text });
+            if (error) setError(null);
           }}
-        >
-          {t.addField.next}
-        </Text>
-        <MaterialCommunityIcons
-          name="chevron-right"
-          size={20}
-          color={theme.textOnPrimary}
-          style={{ marginLeft: s(4) }}
+          autoCapitalize="sentences"
+          autoCorrect={false}
         />
-      </TouchableOpacity>
-    </ScrollView>
+        {selectedType === "pot" ? (
+          <Animated.View
+            entering={FadeInDown.duration(180)}
+            exiting={FadeOut.duration(120)}
+          >
+            <FormInput
+              theme={theme}
+              label={t.addField.potCountLabel}
+              placeholder={t.addField.potCountPlaceholder}
+              value={potText}
+              onChangeText={(text) => {
+                setPotText(text.replace(/[^0-9]/g, ""));
+                if (error) setError(null);
+              }}
+              keyboardType="number-pad"
+              maxLength={2}
+            />
+          </Animated.View>
+        ) : null}
+      </Animated.View>
+    </StepScaffold>
   );
 };

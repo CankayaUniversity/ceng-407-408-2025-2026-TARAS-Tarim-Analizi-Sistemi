@@ -1,22 +1,27 @@
 // Adim: Her zone icin mahsul secimi ve ekim tarihi
-// CropDetail listesini backend'den ceker, zone bazli atama yapar
+// CropDetail listesini backend'den ceker, zone bazli atama yapar.
 
 import { useState, useEffect } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   Platform,
   Modal,
-  FlatList,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "../../context/LanguageContext";
 import { dashboardAPI } from "../../utils/api";
 import { s, vs, ms } from "../../utils/responsive";
+import { OptionDropdown } from "../../components/OptionDropdown";
+import { ActionButton } from "../../components/ActionButton";
+import { StepScaffold } from "./components/StepScaffold";
 import type { StepProps, ZoneDraft } from "./types";
+
+// Mahsul adlarini ilk harfi buyuk goster (DB'de kucuk harf geliyor). Turkce locale-aware.
+const capitalizeCrop = (name: string): string =>
+  name.length > 0 ? name[0]!.toLocaleUpperCase("tr") + name.slice(1) : name;
 
 interface CropItem {
   crop_id: number;
@@ -37,9 +42,6 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
   const [datePickerZoneId, setDatePickerZoneId] = useState<string | null>(null);
   const [tempDate, setTempDate] = useState(new Date());
 
-  // Crop picker state
-  const [cropPickerZoneId, setCropPickerZoneId] = useState<string | null>(null);
-
   useEffect(() => {
     dashboardAPI.getCrops().then((res) => {
       if (res.success && res.data) setCrops(res.data);
@@ -52,11 +54,6 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
         z.id === zoneId ? { ...z, ...partial } : z,
       ),
     });
-  };
-
-  const handleSelectCrop = (zoneId: string, crop: CropItem) => {
-    updateZone(zoneId, { cropId: crop.crop_id });
-    setCropPickerZoneId(null);
   };
 
   const handleDateChange = (_: any, selectedDate?: Date) => {
@@ -82,48 +79,35 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
     onNext();
   };
 
-  const getCropName = (cropId?: number) => {
-    if (!cropId) return null;
-    return crops.find((c) => c.crop_id === cropId)?.name ?? null;
-  };
+  // Mahsul dropdown secenekleri — ilk secenek "Temizle" (mahsul opsiyonel; value 0 = sentinel/yok).
+  const cropOptions = [
+    { value: 0, label: t.addField.clearAll },
+    ...crops.map((c) => ({
+      value: c.crop_id,
+      label: capitalizeCrop(c.name),
+      subtitle: c.growth_days ? `${c.growth_days} ${t.addField.growthDays}` : undefined,
+    })),
+  ];
 
   const zoneColors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#00BCD4", "#795548", "#607D8B"];
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: s(20), paddingBottom: vs(40) }}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
+    <StepScaffold
+      theme={theme}
+      subtitle={t.addField.plantingHint || "Her bölge için mahsul ve ekim tarihini girin"}
+      error={error}
+      footer={
+        <ActionButton
+          theme={theme}
+          label={t.addField.next}
+          trailingIcon="chevron-right"
+          onPress={handleNext}
+        />
+      }
     >
-      <Text
-        style={{ fontSize: ms(20, 0.3), marginBottom: vs(4), color: theme.textMain, fontWeight: "bold" }}
-      >
-        {t.addField.plantingTitle || "Ekim Bilgileri"}
-      </Text>
-      <Text
-        style={{ fontSize: ms(13, 0.3), marginBottom: vs(16), color: theme.textSecondary }}
-      >
-        {t.addField.plantingHint || "Her bölge için mahsul ve ekim tarihini girin"}
-      </Text>
-
-      {error && (
-        <View
-          style={{
-            flexDirection: "row", alignItems: "center", borderRadius: 10,
-            backgroundColor: theme.danger + "15",
-            paddingVertical: vs(10), paddingHorizontal: s(14), marginBottom: vs(16),
-          }}
-        >
-          <MaterialCommunityIcons name="alert-circle" size={18} color={theme.danger} style={{ marginRight: s(8) }} />
-          <Text style={{ flex: 1, fontSize: ms(13, 0.3), color: theme.danger }}>{error}</Text>
-        </View>
-      )}
-
       {/* Zone kartlari */}
       {state.zones.map((zone, i) => {
         const color = zoneColors[i % zoneColors.length];
-        const cropName = getCropName(zone.cropId);
 
         return (
           <View
@@ -138,28 +122,22 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
               {zone.name}
             </Text>
 
-            {/* Mahsul secimi */}
+            {/* Mahsul secimi — universal OptionDropdown. value 0 = sentinel (mahsul yok). */}
             <Text style={{ fontSize: ms(12, 0.3), fontWeight: "600", color: theme.textSecondary, marginBottom: vs(4) }}>
-              {t.addField.cropLabel || "Mahsul"}
+              {t.addField.cropLabel}
             </Text>
-            <TouchableOpacity
-              style={{
-                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                paddingVertical: vs(12), paddingHorizontal: s(14),
-                borderWidth: 1, borderRadius: 10, borderColor: theme.border,
-                backgroundColor: theme.background, marginBottom: vs(12),
-              }}
-              onPress={() => setCropPickerZoneId(zone.id)}
-              activeOpacity={0.7}
-            >
-              <Text style={{
-                fontSize: ms(14, 0.3),
-                color: cropName ? theme.textMain : theme.textMuted,
-              }}>
-                {cropName ?? (t.addField.selectCrop || "Mahsul seçin (opsiyonel)")}
-              </Text>
-              <MaterialCommunityIcons name="chevron-down" size={20} color={theme.textSecondary} />
-            </TouchableOpacity>
+            <OptionDropdown
+              theme={theme}
+              label={t.addField.cropLabel}
+              showLabel={false}
+              value={zone.cropId ?? 0}
+              options={cropOptions}
+              onChange={(v) => updateZone(zone.id, { cropId: v === 0 ? undefined : v })}
+              disabled={loadingCrops}
+              displayLabel={zone.cropId ? undefined : t.addField.selectCrop}
+              style={{ marginBottom: vs(12) }}
+              statusBarTranslucent
+            />
 
             {/* Ekim tarihi */}
             <Text style={{ fontSize: ms(12, 0.3), fontWeight: "600", color: theme.textSecondary, marginBottom: vs(4) }}>
@@ -169,7 +147,7 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
               style={{
                 flexDirection: "row", alignItems: "center", justifyContent: "space-between",
                 paddingVertical: vs(12), paddingHorizontal: s(14),
-                borderWidth: 1, borderRadius: 10, borderColor: theme.border,
+                borderWidth: 1, borderRadius: 12, borderColor: theme.border,
                 backgroundColor: theme.background,
               }}
               onPress={() => {
@@ -189,7 +167,7 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
               <MaterialCommunityIcons name="calendar" size={20} color={theme.textSecondary} />
             </TouchableOpacity>
 
-            {/* Android: inline DatePicker */}
+            {/* Android: inline DatePicker (native dialog — kendi animasyonu var) */}
             {Platform.OS === "android" && datePickerZoneId === zone.id && (
               <DateTimePicker
                 value={tempDate}
@@ -202,125 +180,52 @@ export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
         );
       })}
 
-      {/* iOS: DatePicker modal */}
-      {Platform.OS === "ios" && datePickerZoneId && (
-        <View style={{ backgroundColor: theme.surface, borderRadius: 12, padding: s(16), marginBottom: vs(16) }}>
-          <DateTimePicker
-            value={tempDate}
-            mode="date"
-            display="spinner"
-            onChange={handleDateChange}
-          />
+      {/* iOS: DatePicker popup modal (uzaktan gelen tasarim) */}
+      {Platform.OS === "ios" && (
+        <Modal
+          visible={datePickerZoneId !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDatePickerZoneId(null)}
+        >
           <TouchableOpacity
-            style={{
-              alignSelf: "center", paddingVertical: vs(8), paddingHorizontal: s(24),
-              backgroundColor: theme.primary, borderRadius: 8, marginTop: vs(8),
-            }}
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: s(32) }}
+            activeOpacity={1}
             onPress={() => setDatePickerZoneId(null)}
           >
-            <Text style={{ fontSize: ms(14, 0.3), color: theme.textOnPrimary, fontWeight: "600" }}>
-              {t.addField.next || "Tamam"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Ileri butonu */}
-      <TouchableOpacity
-        style={{
-          flexDirection: "row", alignItems: "center", justifyContent: "center",
-          borderRadius: 12, backgroundColor: theme.primary,
-          paddingVertical: vs(14), paddingHorizontal: s(24), marginTop: vs(4),
-        }}
-        onPress={handleNext}
-        activeOpacity={0.7}
-      >
-        <Text style={{ fontSize: ms(16, 0.3), color: theme.textOnPrimary, fontWeight: "bold" }}>
-          {t.addField.next}
-        </Text>
-        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textOnPrimary} style={{ marginLeft: s(4) }} />
-      </TouchableOpacity>
-
-      {/* Crop picker modal */}
-      <Modal
-        visible={cropPickerZoneId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setCropPickerZoneId(null)}
-      >
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: s(32) }}
-          activeOpacity={1}
-          onPress={() => setCropPickerZoneId(null)}
-        >
-          <View style={{ backgroundColor: theme.surface, borderRadius: 16, maxHeight: "60%", overflow: "hidden" }}>
-            <View style={{ padding: s(16), borderBottomWidth: 1, borderBottomColor: theme.divider }}>
-              <Text style={{ fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain }}>
-                {t.addField.selectCrop || "Mahsul Seçin"}
-              </Text>
-            </View>
-
-            {loadingCrops ? (
-              <Text style={{ padding: s(20), textAlign: "center", color: theme.textSecondary }}>...</Text>
-            ) : crops.length === 0 ? (
-              <Text style={{ padding: s(20), textAlign: "center", color: theme.textSecondary }}>
-                {t.addField.noCrops || "Henüz mahsul tanımlanmamış"}
-              </Text>
-            ) : (
-              <FlatList
-                data={crops}
-                keyExtractor={(item) => String(item.crop_id)}
-                renderItem={({ item }) => {
-                  const selected = cropPickerZoneId
-                    ? state.zones.find((z) => z.id === cropPickerZoneId)?.cropId === item.crop_id
-                    : false;
-                  return (
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                        paddingVertical: vs(14), paddingHorizontal: s(16),
-                        borderBottomWidth: 1, borderBottomColor: theme.divider,
-                        backgroundColor: selected ? theme.primary + "10" : "transparent",
-                      }}
-                      onPress={() => cropPickerZoneId && handleSelectCrop(cropPickerZoneId, item)}
-                    >
-                      <View>
-                        <Text style={{ fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, textTransform: "capitalize" }}>
-                          {item.name}
-                        </Text>
-                        {item.growth_days && (
-                          <Text style={{ fontSize: ms(11, 0.3), color: theme.textSecondary, marginTop: vs(2) }}>
-                            {item.growth_days} {t.addField.growthDays || "gün"}
-                          </Text>
-                        )}
-                      </View>
-                      {selected && (
-                        <MaterialCommunityIcons name="check" size={20} color={theme.primary} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                }}
-              />
-            )}
-
-            {/* Secim kaldir butonu */}
-            <TouchableOpacity
-              style={{
-                paddingVertical: vs(14), paddingHorizontal: s(16),
-                borderTopWidth: 1, borderTopColor: theme.divider,
-              }}
-              onPress={() => {
-                if (cropPickerZoneId) updateZone(cropPickerZoneId, { cropId: undefined });
-                setCropPickerZoneId(null);
-              }}
-            >
-              <Text style={{ fontSize: ms(14, 0.3), color: theme.textSecondary, textAlign: "center" }}>
-                {t.addField.clearAll || "Temizle"}
-              </Text>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={{ backgroundColor: theme.surface, borderRadius: 16, overflow: "hidden" }}>
+                <View style={{ padding: s(16), borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                  <Text style={{ fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain }}>
+                    {t.addField.plantingDateLabel || "Ekim Tarihi"}
+                  </Text>
+                </View>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  style={{ width: "100%" }}
+                />
+                <TouchableOpacity
+                  style={{
+                    margin: s(16),
+                    paddingVertical: vs(12),
+                    backgroundColor: theme.primary,
+                    borderRadius: 12,
+                    alignItems: "center",
+                  }}
+                  onPress={() => setDatePickerZoneId(null)}
+                >
+                  <Text style={{ fontSize: ms(15, 0.3), color: theme.textOnPrimary, fontWeight: "700" }}>
+                    {t.addField.next || "Tamam"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-    </ScrollView>
+          </TouchableOpacity>
+        </Modal>
+      )}
+    </StepScaffold>
   );
 };

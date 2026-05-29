@@ -1,5 +1,7 @@
 // Adim 4a: Sera bolge bolme — dis sinir icinde cizgi cekerek zone ayirma
-// Kullanici iki nokta secer, sistem zone'u ikiye boler
+// Kullanici iki nokta secer, sistem zone'u ikiye boler.
+// Canvas TAP tabanli (onResponderRelease) — ScrollView'u tolere eder (StepScaffold scroll=true).
+// Yeni bolunen zone'lar + iptal butonu reanimated ile yumusak girer.
 
 import { useState, useCallback, useRef } from "react";
 import {
@@ -7,10 +9,15 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   LayoutChangeEvent,
   GestureResponderEvent,
 } from "react-native";
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  LinearTransition,
+} from "react-native-reanimated";
 import Svg, {
   Polygon as SvgPolygon,
   Circle,
@@ -20,6 +27,8 @@ import Svg, {
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useLanguage } from "../../context/LanguageContext";
 import { s, vs, ms } from "../../utils/responsive";
+import { ActionButton } from "../../components/ActionButton";
+import { StepScaffold } from "./components/StepScaffold";
 import { generateId, splitPolygon, findZoneForPoint } from "./addFieldUtils";
 import type { StepProps, ZoneDraft } from "./types";
 
@@ -182,45 +191,21 @@ export const GreenhouseZonesStep = ({
   const zoneColors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#00BCD4", "#795548", "#607D8B"];
 
   return (
-    <ScrollView
-      style={{ flex: 1, padding: s(20) }}
-      keyboardShouldPersistTaps="handled"
+    <StepScaffold
+      theme={theme}
+      title={t.addField.drawZones}
+      subtitle={t.addField.splitZonesHint || "Bölmek istediğiniz iki noktaya dokunun"}
+      error={error}
+      footer={
+        <ActionButton
+          theme={theme}
+          label={t.addField.next}
+          trailingIcon="chevron-right"
+          onPress={handleNext}
+          disabled={state.zones.length === 0}
+        />
+      }
     >
-      <Text
-        style={{ fontSize: ms(20, 0.3), marginBottom: vs(4), color: theme.textMain, fontWeight: "bold" }}
-      >
-        {t.addField.drawZones}
-      </Text>
-      <Text
-        style={{ fontSize: ms(13, 0.3), marginBottom: vs(16), color: theme.textSecondary }}
-      >
-        {t.addField.splitZonesHint || "Bölmek istediğiniz iki noktaya dokunun"}
-      </Text>
-
-      {error && (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            borderRadius: 8,
-            backgroundColor: theme.danger + "20",
-            paddingVertical: vs(10),
-            paddingHorizontal: s(16),
-            marginBottom: vs(12),
-          }}
-        >
-          <MaterialCommunityIcons
-            name="alert-circle"
-            size={18}
-            color={theme.danger}
-            style={{ marginRight: s(8) }}
-          />
-          <Text style={{ flex: 1, fontSize: ms(13, 0.3), color: theme.danger }}>
-            {error}
-          </Text>
-        </View>
-      )}
-
       {/* SVG Canvas — zone bolme */}
       <View
         onLayout={onLayout}
@@ -305,23 +290,28 @@ export const GreenhouseZonesStep = ({
         )}
       </View>
 
-      {/* Aksiyonlar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: vs(12), gap: s(12), justifyContent: "center" }}>
+      {/* Aksiyonlar — iptal butonu splitStart ile yumusak girer/cikar, undo kayar */}
+      <Animated.View
+        layout={LinearTransition.duration(180)}
+        style={{ flexDirection: 'row', alignItems: 'center', marginTop: vs(12), gap: s(12), justifyContent: "center" }}
+      >
         {splitStart && (
-          <TouchableOpacity
-            style={{
-              flexDirection: 'row', alignItems: 'center', borderRadius: 8,
-              paddingVertical: vs(8), paddingHorizontal: s(14),
-              backgroundColor: theme.danger + "15", borderWidth: 1, borderColor: theme.danger,
-            }}
-            onPress={handleCancelSplit}
-            activeOpacity={0.7}
-          >
-            <MaterialCommunityIcons name="close" size={16} color={theme.danger} style={{ marginRight: s(4) }} />
-            <Text style={{ fontSize: ms(13, 0.3), color: theme.danger }}>
-              {t.addField.cancelSplit || "İptal"}
-            </Text>
-          </TouchableOpacity>
+          <Animated.View entering={FadeIn.duration(150)} exiting={FadeOut.duration(120)}>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row', alignItems: 'center', borderRadius: 8,
+                paddingVertical: vs(8), paddingHorizontal: s(14),
+                backgroundColor: theme.danger + "15", borderWidth: 1, borderColor: theme.danger,
+              }}
+              onPress={handleCancelSplit}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons name="close" size={16} color={theme.danger} style={{ marginRight: s(4) }} />
+              <Text style={{ fontSize: ms(13, 0.3), color: theme.danger }}>
+                {t.addField.cancelSplit || "İptal"}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
         )}
         <TouchableOpacity
           style={{
@@ -339,7 +329,7 @@ export const GreenhouseZonesStep = ({
             {t.addField.undoPoint}
           </Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       {/* Durum gostergesi */}
       <Text style={{ fontSize: ms(12, 0.3), marginTop: vs(8), textAlign: 'center', color: theme.textSecondary }}>
@@ -348,15 +338,16 @@ export const GreenhouseZonesStep = ({
           : `${state.zones.length} ${t.addField.zoneCountLabel.toLowerCase()}`}
       </Text>
 
-      {/* Zone listesi — isim duzenleme */}
+      {/* Zone listesi — isim duzenleme; yeni bolunen zone yumusak girer, liste reflow eder */}
       {state.zones.length > 0 && (
-        <View style={{ marginTop: vs(16) }}>
+        <Animated.View layout={LinearTransition.duration(180)} style={{ marginTop: vs(16) }}>
           {state.zones.map((zone, i) => {
             const color = zoneColors[i % zoneColors.length];
             const isEditing = editingZoneId === zone.id;
             return (
-              <View
+              <Animated.View
                 key={zone.id}
+                entering={FadeInDown.duration(180)}
                 style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
                   paddingVertical: vs(10), paddingHorizontal: s(12), marginBottom: vs(8),
@@ -396,30 +387,12 @@ export const GreenhouseZonesStep = ({
                     <MaterialCommunityIcons name="pencil-outline" size={18} color={theme.textSecondary} />
                   </TouchableOpacity>
                 )}
-              </View>
+              </Animated.View>
             );
           })}
-        </View>
+        </Animated.View>
       )}
-
-      {/* Ileri butonu */}
-      <TouchableOpacity
-        style={{
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 12, backgroundColor: theme.primary,
-          paddingVertical: vs(14), paddingHorizontal: s(24),
-          marginTop: vs(20), marginBottom: vs(40),
-          opacity: state.zones.length === 0 ? 0.5 : 1,
-        }}
-        onPress={handleNext}
-        activeOpacity={0.7}
-      >
-        <Text style={{ fontSize: ms(16, 0.3), color: theme.textOnPrimary, fontWeight: 'bold' }}>
-          {t.addField.next}
-        </Text>
-        <MaterialCommunityIcons name="chevron-right" size={20} color={theme.textOnPrimary} style={{ marginLeft: s(4) }} />
-      </TouchableOpacity>
-    </ScrollView>
+    </StepScaffold>
   );
 };
 

@@ -1,15 +1,16 @@
 // Son adim: Ozet ve olusturma — tarla bilgilerini gosterir, onayla butonu
-// Backend API cagirarak tarlayi veritabanina kaydeder
+// Backend API cagirarak tarlayi veritabanina kaydeder.
 
 import { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { View, Text } from "react-native";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { useAuth } from "../../context/AuthContext";
 import { dashboardAPI } from "../../utils/api";
 import { s, vs, ms } from "../../utils/responsive";
+import { ActionButton } from "../../components/ActionButton";
+import { StepScaffold } from "./components/StepScaffold";
 import {
   generateGreenhouseFieldData,
   generatePotFieldData,
@@ -82,17 +83,19 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
   const zoneColors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#00BCD4", "#795548", "#607D8B"];
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ padding: s(20) }}
-      showsVerticalScrollIndicator={false}
+    <StepScaffold
+      theme={theme}
+      title={t.addField.preview}
+      footer={
+        <ActionButton
+          theme={theme}
+          label={t.addField.createField}
+          icon="check-circle"
+          loading={creating}
+          onPress={handleCreate}
+        />
+      }
     >
-      <Text
-        style={{ fontSize: ms(20, 0.3), marginBottom: vs(20), color: theme.textMain, fontWeight: "bold" }}
-      >
-        {t.addField.preview}
-      </Text>
-
       {/* Ozet kartlari */}
       <View
         style={{
@@ -115,7 +118,7 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
 
       {/* Zone detaylari — ekim bilgileriyle */}
       {state.zones.length > 0 && (
-        <View style={{ marginBottom: vs(16) }}>
+        <View>
           {state.zones.map((zone, i) => {
             const color = zoneColors[i % zoneColors.length];
             return (
@@ -143,32 +146,7 @@ export const PreviewStep = ({ theme, state }: StepProps) => {
           })}
         </View>
       )}
-
-      {/* Olustur butonu */}
-      <TouchableOpacity
-        style={{
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 12,
-          backgroundColor: creating ? theme.primary + "88" : theme.primary,
-          paddingVertical: vs(14), paddingHorizontal: s(24),
-        }}
-        onPress={handleCreate}
-        activeOpacity={0.7}
-        disabled={creating}
-      >
-        {creating ? (
-          <ActivityIndicator size="small" color={theme.textOnPrimary} style={{ marginRight: s(8) }} />
-        ) : (
-          <MaterialCommunityIcons
-            name="check-circle" size={20} color={theme.textOnPrimary}
-            style={{ marginRight: s(8) }}
-          />
-        )}
-        <Text style={{ fontSize: ms(16, 0.3), color: theme.textOnPrimary, fontWeight: 'bold' }}>
-          {creating ? t.addField.creating : t.addField.createField}
-        </Text>
-      </TouchableOpacity>
-    </ScrollView>
+    </StepScaffold>
   );
 };
 

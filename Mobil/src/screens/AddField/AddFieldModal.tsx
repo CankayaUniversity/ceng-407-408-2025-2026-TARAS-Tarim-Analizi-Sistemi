@@ -1,20 +1,11 @@
-// Tarla ekleme modali — pageSheet (iOS) / fullScreen (Android)
-// Baslik + AddFieldFlow wizard
+// Tarla ekleme modali — FullScreenModal (buyuk baslik) uzerine
+// Baslik = adim adi, caption + ilerleme cubugu = wizard adimi, AddFieldFlow icerik
 
 import { useState, useCallback, useRef } from "react";
-import {
-  View,
-  Text,
-  Modal,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  Platform,
-} from "react-native";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { View } from "react-native";
 import { Theme } from "../../types";
 import { useLanguage } from "../../context/LanguageContext";
-import { s, vs, ms } from "../../utils/responsive";
+import { FullScreenModal } from "../../components/FullScreenModal";
 import { AddFieldFlow } from "./AddFieldFlow";
 import type { WizardStep } from "./types";
 
@@ -50,8 +41,9 @@ export const AddFieldModal = ({
   theme,
   onClose,
 }: AddFieldModalProps) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [currentStep, setCurrentStep] = useState<WizardStep>("fieldType");
+  const [progress, setProgress] = useState({ current: 1, total: 5 });
   const goBackRef = useRef<(() => void) | null>(null);
 
   // Modal kapanirken state sifirla
@@ -60,77 +52,49 @@ export const AddFieldModal = ({
     onClose();
   }, [onClose]);
 
-  // Header geri butonu: ilk adimda modal'i kapat, digerlerinde onceki adima don
-  const handleHeaderBack = useCallback(() => {
+  // Header geri chevron'u — yalnizca ilk adim disinda gosterilir, onceki adima doner.
+  const handleStepBack = useCallback(() => {
+    goBackRef.current?.();
+  }, []);
+
+  // Android geri / required: ilk adimda kapat, digerlerinde adim geri.
+  const handleRequestClose = useCallback(() => {
     if (currentStep === "fieldType") {
       handleClose();
-    } else if (goBackRef.current) {
-      goBackRef.current();
+    } else {
+      goBackRef.current?.();
     }
   }, [currentStep, handleClose]);
 
+  const handleProgress = useCallback((current: number, total: number) => {
+    setProgress({ current, total });
+  }, []);
+
+  const caption =
+    language === "tr"
+      ? `Adım ${progress.current}/${progress.total}`
+      : `Step ${progress.current} of ${progress.total}`;
+
   return (
-    <Modal
+    <FullScreenModal
       visible={visible}
-      animationType="slide"
-      presentationStyle={Platform.OS === "ios" ? "pageSheet" : "fullScreen"}
-      onRequestClose={handleHeaderBack}
+      theme={theme}
+      onRequestClose={handleRequestClose}
+      title={getStepTitle(currentStep, t)}
+      caption={caption}
+      progress={progress.current / progress.total}
+      onBack={currentStep === "fieldType" ? undefined : handleStepBack}
+      onClose={handleClose}
     >
-      <SafeAreaView
-        style={{
-          flex: 1,
-          backgroundColor: theme.background,
-          paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
-        }}
-      >
-        {/* Header */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: s(16),
-            paddingTop: vs(8),
-            paddingBottom: vs(12),
-            borderBottomWidth: 1,
-            borderBottomColor: theme.divider,
-          }}
-        >
-          <TouchableOpacity
-            onPress={handleHeaderBack}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialCommunityIcons
-              name={Platform.OS === "ios"
-                ? "chevron-down"
-                : (currentStep === "fieldType" ? "close" : "arrow-left")}
-              size={Platform.OS === "ios" ? 28 : 24}
-              color={theme.textMain}
-            />
-          </TouchableOpacity>
-
-          <Text
-            style={{
-              fontWeight: '700',
-              fontSize: ms(18, 0.3),
-              color: theme.textMain,
-              marginLeft: s(12),
-            }}
-            numberOfLines={1}
-          >
-            {getStepTitle(currentStep, t)}
-          </Text>
-        </View>
-
-        {/* Icerik */}
-        <View style={{ flex: 1, backgroundColor: theme.background }}>
-          <AddFieldFlow
-            theme={theme}
-            onStepChange={setCurrentStep}
-            onBack={handleClose}
-            goBackRef={goBackRef}
-          />
-        </View>
-      </SafeAreaView>
-    </Modal>
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <AddFieldFlow
+          theme={theme}
+          onStepChange={setCurrentStep}
+          onProgress={handleProgress}
+          onBack={handleClose}
+          goBackRef={goBackRef}
+        />
+      </View>
+    </FullScreenModal>
   );
 };
