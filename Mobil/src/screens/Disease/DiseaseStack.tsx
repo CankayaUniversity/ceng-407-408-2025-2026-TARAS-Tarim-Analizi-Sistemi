@@ -7,6 +7,7 @@ import { Platform, View } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useTheme } from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 import type { DiseaseDetection } from "../../utils/api";
 import { DiseaseScreen } from "./DiseaseScreen";
 import { DiseaseDetailScreen } from "./DiseaseDetailScreen";
@@ -39,10 +40,12 @@ interface DiseaseStackProps {
 
 export const DiseaseStack = ({ hasCameraPermission, onRequestPermission }: DiseaseStackProps) => {
   const { theme } = useTheme();
+  // Paydas (stakeholder) salt-okunur: kamera/tespit ekleme butonu gizlenir
+  const { isStakeholder } = useAuth();
 
   return (
     <View style={{ flex: 1 }}>
-      <DiseaseCameraButton />
+      {!isStakeholder && <DiseaseCameraButton />}
       <Stack.Navigator
       screenOptions={{
         headerStyle: { backgroundColor: theme.background },

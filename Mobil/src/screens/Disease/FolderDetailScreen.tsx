@@ -10,7 +10,6 @@ import {
   Text,
   ScrollView,
   RefreshControl,
-  Alert,
   StyleSheet,
   ActivityIndicator,
 } from "react-native";
@@ -19,6 +18,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../../context/ThemeContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useConfirm } from "../../context/ConfirmContext";
+import { useAuth } from "../../context/AuthContext";
+import { useDashboard } from "../../context/DashboardContext";
 import { spacing, vs, ms } from "../../utils/responsive";
 import {
   diseaseAPI,
@@ -42,6 +44,10 @@ export const FolderDetailScreen = ({ route, navigation }: FolderDetailScreenProp
   const { theme } = useTheme();
   const { t, language } = useLanguage();
   const { showPopup } = usePopupMessage();
+  const confirm = useConfirm();
+  // Paydas (stakeholder): salt-okunur, ciftlik-kapsamli okuma
+  const { isStakeholder } = useAuth();
+  const { selectedFarmId } = useDashboard();
 
   const [folder, setFolder] = useState<DiseaseTrackingFolderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,7 +60,10 @@ export const FolderDetailScreen = ({ route, navigation }: FolderDetailScreenProp
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       try {
-        const res = await diseaseAPI.getFolderDetail(folderId);
+        const res = await diseaseAPI.getFolderDetail(
+          folderId,
+          isStakeholder ? selectedFarmId ?? undefined : undefined,
+        );
         if (res.success && res.data) {
           setFolder(res.data);
         } else {
@@ -68,7 +77,7 @@ export const FolderDetailScreen = ({ route, navigation }: FolderDetailScreenProp
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [folderId],
+    [folderId, isStakeholder, selectedFarmId],
   );
 
   const refreshPending = useCallback(async () => {
@@ -81,33 +90,28 @@ export const FolderDetailScreen = ({ route, navigation }: FolderDetailScreenProp
     refreshPending();
   }, [fetchFolder, refreshPending]);
 
-  const handleDeactivate = useCallback(() => {
+  const handleDeactivate = useCallback(async () => {
     if (!folder) return;
-    Alert.alert(
-      t.disease.folderDeactivateTitle,
-      t.disease.folderDeactivateConfirmation.replace("{name}", folder.name),
-      [
-        { text: t.common.cancel, style: "cancel" },
-        {
-          text: t.disease.folderDeactivateConfirm,
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await diseaseAPI.deactivateFolder(folderId);
-              if (res.success) {
-                showPopup(t.disease.folderDeactivateSuccess);
-                navigation.goBack();
-              } else {
-                showPopup(res.error ?? t.disease.folderDeactivateError);
-              }
-            } catch {
-              showPopup(t.disease.folderDeactivateError);
-            }
-          },
-        },
-      ],
-    );
-  }, [folder, folderId, t, showPopup, navigation]);
+    const ok = await confirm({
+      title: t.disease.folderDeactivateTitle,
+      message: t.disease.folderDeactivateConfirmation.replace("{name}", folder.name),
+      confirmLabel: t.disease.folderDeactivateConfirm,
+      cancelLabel: t.common.cancel,
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const res = await diseaseAPI.deactivateFolder(folderId);
+      if (res.success) {
+        showPopup(t.disease.folderDeactivateSuccess);
+        navigation.goBack();
+      } else {
+        showPopup(res.error ?? t.disease.folderDeactivateError);
+      }
+    } catch {
+      showPopup(t.disease.folderDeactivateError);
+    }
+  }, [folder, folderId, t, showPopup, navigation, confirm]);
 
   const subtitleForHeader = useMemo(() => {
     if (!folder) return undefined;

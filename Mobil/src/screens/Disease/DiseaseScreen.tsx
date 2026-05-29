@@ -12,7 +12,6 @@ import {
   Modal,
   FlatList,
   Dimensions,
-  Alert,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
@@ -35,11 +34,14 @@ import {
   updatePendingError,
 } from "../../utils/pendingUploads";
 import { DiseaseScreenProps } from "./types";
-import { spacing, vs } from "../../utils/responsive";
+import { spacing, vs, TAB_H_PADDING } from "../../utils/responsive";
 import type { DiseaseListScreenProps } from "./DiseaseStack";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useAuth } from "../../context/AuthContext";
+import { useDashboard } from "../../context/DashboardContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import { FocusableSection } from "../../components/FocusableSection";
 import * as imageCache from "../../utils/imageCache";
 
@@ -56,6 +58,10 @@ export const DiseaseScreen = memo(function DiseaseScreen({
 }: ParentDiseaseScreenProps) {
   const { showPopup } = usePopupMessage();
   const { t } = useLanguage();
+  const confirm = useConfirm();
+  // Paydas (stakeholder): yalnizca secili ciftligin klasorlerini gorur (salt-okunur).
+  const { isStakeholder } = useAuth();
+  const { selectedFarmId } = useDashboard();
   const navigation = useNavigation<DiseaseListScreenProps["navigation"]>();
   const route = useRoute<DiseaseListScreenProps["route"]>();
   const [showCamera, setShowCamera] = useState(false);
@@ -196,7 +202,9 @@ export const DiseaseScreen = memo(function DiseaseScreen({
     if (pollCancelledRef.current) return;
     if (!silent) setLoadingFolders(true);
     try {
-      const res = await diseaseAPI.getFolders();
+      const res = await diseaseAPI.getFolders(
+        isStakeholder ? selectedFarmId ?? undefined : undefined,
+      );
       if (pollCancelledRef.current) return;
       if (res.success && res.data) {
         setFolders(res.data);
@@ -245,6 +253,15 @@ export const DiseaseScreen = memo(function DiseaseScreen({
 
     // Folders'i paralel cek — bekleme zinciri yok
     fetchFolders(mode === "silent");
+
+    // Paydas: klasorsuz (genel) tespitler ciftlige baglanamaz, backend reddeder —
+    // yalnizca folders gosterilir, genel liste atlanir.
+    if (isStakeholder) {
+      setDetections([]);
+      if (mode === "pull") setRefreshing(false);
+      else if (mode === "initial") setLoading(false);
+      return;
+    }
 
     try {
       const response = await diseaseAPI.getAllDetections();
@@ -456,34 +473,33 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   };
 
   const handleDeleteDetection = async (detectionId: string) => {
-    Alert.alert(t.disease.deleteTitle, t.disease.deleteConfirmation, [
-      { text: t.common.cancel, style: "cancel" },
-      {
-        text: t.common.delete,
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const response = await diseaseAPI.deleteDetection(detectionId);
-            if (response.success) {
-              setDetections((prev) =>
-                prev.filter((d) => d.detection_id !== detectionId),
-              );
-              imageCache.deleteLocal(detectionId).catch(() => {});
-              setImageUrls((prev) => {
-                const next = { ...prev };
-                delete next[detectionId];
-                return next;
-              });
-              showPopup(t.disease.deletedSuccessfully);
-            } else {
-              showPopup(response.error || t.disease.errorDeleting);
-            }
-          } catch {
-            showPopup(t.disease.errorDeleting);
-          }
-        },
-      },
-    ]);
+    const ok = await confirm({
+      title: t.disease.deleteTitle,
+      message: t.disease.deleteConfirmation,
+      confirmLabel: t.common.delete,
+      cancelLabel: t.common.cancel,
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      const response = await diseaseAPI.deleteDetection(detectionId);
+      if (response.success) {
+        setDetections((prev) =>
+          prev.filter((d) => d.detection_id !== detectionId),
+        );
+        imageCache.deleteLocal(detectionId).catch(() => {});
+        setImageUrls((prev) => {
+          const next = { ...prev };
+          delete next[detectionId];
+          return next;
+        });
+        showPopup(t.disease.deletedSuccessfully);
+      } else {
+        showPopup(response.error || t.disease.errorDeleting);
+      }
+    } catch {
+      showPopup(t.disease.errorDeleting);
+    }
   };
 
   return (
@@ -501,7 +517,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
             ref={scrollViewRef}
             className="flex-1"
             contentContainerStyle={{
-              paddingHorizontal: spacing.md,
+              paddingHorizontal: TAB_H_PADDING,
               paddingTop: 0,
               paddingBottom: 100,
               flexGrow: 1,
@@ -550,26 +566,28 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                     {t.disease.foldersSectionTitle} {folders.length > 0 ? `(${folders.length})` : ""}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowCreateFolder(true)}
-                  hitSlop={8}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 4,
-                    paddingHorizontal: 10,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    backgroundColor: theme.primary + "15",
-                    borderWidth: 1,
-                    borderColor: theme.primary + "35",
-                  }}
-                >
-                  <Ionicons name="add" size={14} color={theme.primary} />
-                  <Text style={{ color: theme.primary, fontSize: 12, fontWeight: "700" }}>
-                    {t.disease.folderCreateButton}
-                  </Text>
-                </TouchableOpacity>
+                {!isStakeholder && (
+                  <TouchableOpacity
+                    onPress={() => setShowCreateFolder(true)}
+                    hitSlop={8}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                      paddingHorizontal: 10,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      backgroundColor: theme.primary + "15",
+                      borderWidth: 1,
+                      borderColor: theme.primary + "35",
+                    }}
+                  >
+                    <Ionicons name="add" size={14} color={theme.primary} />
+                    <Text style={{ color: theme.primary, fontSize: 12, fontWeight: "700" }}>
+                      {t.disease.folderCreateButton}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               {!foldersExpanded ? null : loadingFolders && folders.length === 0 ? (
@@ -604,7 +622,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                   />
                 ))
               ) : (
-                <View style={{ marginHorizontal: -spacing.md }}>
+                <View style={{ marginHorizontal: -TAB_H_PADDING }}>
                   <FlatList
                     data={folderPages}
                     keyExtractor={(_, i) => `folder-page-${i}`}
@@ -619,7 +637,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                       if (next !== folderPage) setFolderPage(next);
                     }}
                     renderItem={({ item: page }) => (
-                      <View style={{ width: folderPageWidth, paddingHorizontal: spacing.md }}>
+                      <View style={{ width: folderPageWidth, paddingHorizontal: TAB_H_PADDING }}>
                         {page.map((f) => (
                           <FolderCard
                             key={f.folderId}

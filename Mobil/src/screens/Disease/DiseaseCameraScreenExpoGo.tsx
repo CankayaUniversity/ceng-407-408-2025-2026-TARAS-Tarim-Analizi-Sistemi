@@ -3,7 +3,7 @@
 // preview (CameraView) + alt bar (galeri / shutter / flash). Live tarama yok.
 
 import { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, Alert, ActivityIndicator, Dimensions } from "react-native";
+import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, ActivityIndicator, Dimensions } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,6 +14,7 @@ import { DiseaseScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
 import { DEMO_SAMPLE_IMAGES } from "../../utils/demo/demoData";
 import { pickSampleImage, resolveSampleImageUri } from "../../utils/demo/demoSampleImage";
@@ -39,6 +40,7 @@ export const DiseaseCameraScreenExpoGo = ({
   const { showPopup } = usePopupMessage();
   const { t, language } = useLanguage();
   const { dataSource } = useAuth();
+  const confirm = useConfirm();
   const insets = useSafeAreaInsets();
   const isDemo = dataSource === "demo";
   const showSampleBtn = isDemo && DEMO_SAMPLE_IMAGES.length > 0;
@@ -149,31 +151,30 @@ export const DiseaseCameraScreenExpoGo = ({
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!photoUri) return;
-    Alert.alert(t.camera.sendTitle, t.camera.sendConfirmation, [
-      { text: t.common.cancel, style: "cancel" },
-      {
-        text: t.common.yes,
-        onPress: () => {
-          if (onSendForAnalysis) {
-            const extras = isDemo
-              ? { hintedLabel: pendingHintedLabel, liveScanResult: null }
-              : undefined;
-            onSendForAnalysis(
-              photoUri,
-              activeFolderContext?.folderId ?? null,
-              extras,
-            );
-          } else {
-            showPopup(t.camera.sentSuccess);
-          }
-          setPhotoUri(null);
-          setIsPreview(false);
-          setPendingHintedLabel(null);
-        },
-      },
-    ]);
+    const ok = await confirm({
+      title: t.camera.sendTitle,
+      message: t.camera.sendConfirmation,
+      confirmLabel: t.common.yes,
+      cancelLabel: t.common.cancel,
+    });
+    if (!ok) return;
+    if (onSendForAnalysis) {
+      const extras = isDemo
+        ? { hintedLabel: pendingHintedLabel, liveScanResult: null }
+        : undefined;
+      onSendForAnalysis(
+        photoUri,
+        activeFolderContext?.folderId ?? null,
+        extras,
+      );
+    } else {
+      showPopup(t.camera.sentSuccess);
+    }
+    setPhotoUri(null);
+    setIsPreview(false);
+    setPendingHintedLabel(null);
   };
 
   const handleCancelPreview = () => {

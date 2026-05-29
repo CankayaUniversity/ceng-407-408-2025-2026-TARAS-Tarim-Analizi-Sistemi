@@ -3,7 +3,7 @@
 // DiseaseCameraScreen.tsx (router) tarafindan SADECE non-Expo-Go ortamlarda require edilir.
 
 import { useState, useRef, useEffect } from "react";
-import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Pressable, StatusBar, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Camera } from "react-native-vision-camera";
@@ -19,6 +19,7 @@ import { useLiveScan } from "../../hooks/useLiveScan";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import { prepareDiseaseImageForUpload } from "../../utils/diseaseImageProcessing";
 import { DEMO_SAMPLE_IMAGES } from "../../utils/demo/demoData";
 import { pickSampleImage, resolveSampleImageUri } from "../../utils/demo/demoSampleImage";
@@ -38,6 +39,7 @@ export const DiseaseCameraScreenNative = ({
   const { showPopup } = usePopupMessage();
   const { t } = useLanguage();
   const { dataSource } = useAuth();
+  const confirm = useConfirm();
   const insets = useSafeAreaInsets();
   const isDemo = dataSource === "demo";
   const showSampleBtn = isDemo && DEMO_SAMPLE_IMAGES.length > 0;
@@ -211,48 +213,47 @@ export const DiseaseCameraScreenNative = ({
     setLiveMode((prev) => !prev);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!photoUri) return;
-    Alert.alert(t.camera.sendTitle, t.camera.sendConfirmation, [
-      { text: t.common.cancel, style: "cancel" },
-      {
-        text: t.common.yes,
-        onPress: () => {
-          // folderId varsa parent submit'i bu klasore baglar; yoksa general
-          if (onSendForAnalysis) {
-            // Demo extras backend tarafindan yok sayilir; tazelik CAPTURE aninda kontrol edilir
-            const liveFreshAtCapture =
-              pendingLocalResult &&
-              pendingLocalResult.status === "confident" &&
-              Date.now() - liveResultStampRef.current <= 1500;
-            const extras = isDemo
+    const ok = await confirm({
+      title: t.camera.sendTitle,
+      message: t.camera.sendConfirmation,
+      confirmLabel: t.common.yes,
+      cancelLabel: t.common.cancel,
+    });
+    if (!ok) return;
+    // folderId varsa parent submit'i bu klasore baglar; yoksa general
+    if (onSendForAnalysis) {
+      // Demo extras backend tarafindan yok sayilir; tazelik CAPTURE aninda kontrol edilir
+      const liveFreshAtCapture =
+        pendingLocalResult &&
+        pendingLocalResult.status === "confident" &&
+        Date.now() - liveResultStampRef.current <= 1500;
+      const extras = isDemo
+        ? {
+            hintedLabel: pendingHintedLabel,
+            liveScanResult: liveFreshAtCapture
               ? {
-                  hintedLabel: pendingHintedLabel,
-                  liveScanResult: liveFreshAtCapture
-                    ? {
-                        className: pendingLocalResult.className,
-                        confidence: pendingLocalResult.confidence,
-                        allProbs: pendingLocalResult.allProbs,
-                        timestamp: Date.now(),
-                      }
-                    : null,
+                  className: pendingLocalResult.className,
+                  confidence: pendingLocalResult.confidence,
+                  allProbs: pendingLocalResult.allProbs,
+                  timestamp: Date.now(),
                 }
-              : undefined;
-            onSendForAnalysis(
-              photoUri,
-              activeFolderContext?.folderId ?? null,
-              extras,
-            );
-          } else {
-            showPopup(t.camera.sentSuccess);
+              : null,
           }
-          setPhotoUri(null);
-          setIsPreview(false);
-          setPendingLocalResult(null);
-          setPendingHintedLabel(null);
-        },
-      },
-    ]);
+        : undefined;
+      onSendForAnalysis(
+        photoUri,
+        activeFolderContext?.folderId ?? null,
+        extras,
+      );
+    } else {
+      showPopup(t.camera.sentSuccess);
+    }
+    setPhotoUri(null);
+    setIsPreview(false);
+    setPendingLocalResult(null);
+    setPendingHintedLabel(null);
   };
 
   const handleCancelPreview = () => {

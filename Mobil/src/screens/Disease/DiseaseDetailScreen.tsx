@@ -10,7 +10,6 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
-  Alert,
   useWindowDimensions,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -23,6 +22,7 @@ import {
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import { getDiseaseTargetLabel, detectedDiseaseToTarget } from "../../utils/diseaseTargetLabels";
 import { spacing, s } from "../../utils/responsive";
 import { CompactStackHeader } from "../../components/CompactStackHeader";
@@ -33,31 +33,27 @@ export const DiseaseDetailScreen = ({ route, navigation }: DiseaseDetailScreenPr
   const { theme } = useTheme();
   const { t, language } = useLanguage();
   const { showPopup } = usePopupMessage();
+  const confirm = useConfirm();
   const [heroAspect, setHeroAspect] = useState<number | null>(null);
 
-  const confirmDelete = useCallback(() => {
-    Alert.alert(
-      t.disease.deleteTitle,
-      t.disease.deleteConfirmation,
-      [
-        { text: t.common.cancel, style: "cancel" },
-        {
-          text: t.common.delete,
-          style: "destructive",
-          onPress: async () => {
-            const res = await diseaseAPI.deleteDetection(detection.detection_id);
-            if (res.success) {
-              showPopup(t.disease.deletedSuccessfully);
-              navigation.goBack();
-            } else {
-              showPopup(res.error ?? t.disease.errorDeleting);
-            }
-          },
-        },
-      ],
-    );
+  const confirmDelete = useCallback(async () => {
+    const ok = await confirm({
+      title: t.disease.deleteTitle,
+      message: t.disease.deleteConfirmation,
+      confirmLabel: t.common.delete,
+      cancelLabel: t.common.cancel,
+      destructive: true,
+    });
+    if (!ok) return;
+    const res = await diseaseAPI.deleteDetection(detection.detection_id);
+    if (res.success) {
+      showPopup(t.disease.deletedSuccessfully);
+      navigation.goBack();
+    } else {
+      showPopup(res.error ?? t.disease.errorDeleting);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detection.detection_id, t, showPopup, navigation]);
+  }, [detection.detection_id, t, showPopup, navigation, confirm]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
