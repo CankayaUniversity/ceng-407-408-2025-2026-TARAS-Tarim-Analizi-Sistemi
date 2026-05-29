@@ -1,18 +1,24 @@
 import { prisma } from "../config/database";
 import { ActivityTypeCategory } from "../generated/prisma";
 import logger from "../utils/logger";
+import { resolveFarmAccess, isWriteAccess } from "./accessService";
 
-// bir farm'ın bu user'a ait olup olmadığını kontrol et
+// YAZMA erisimi: sahip VEYA farmer-uye (karbon girisi farmer rolune acik). Carbon log
+// olusturma/silme bu kontrolu kullanir — stakeholder + erisimsiz gecemez. (Global emission
+// factor yazma route-seviyesinde requireFarmer ile korunur, bu kontrolu kullanmaz.)
 export async function checkFarmAccess(
   userId: string,
   farmId: string,
 ): Promise<boolean> {
-  const farm = await prisma.farm.findUnique({
-    where: { farm_id: farmId },
-    select: { user_id: true },
-  });
+  return isWriteAccess(await resolveFarmAccess(userId, farmId));
+}
 
-  return farm?.user_id === userId;
+// OKUMA erisimi: sahip VEYA paydas. Yalnizca carbon GET uclari + sohbet araci kullanir.
+export async function checkFarmReadAccess(
+  userId: string,
+  farmId: string,
+): Promise<boolean> {
+  return (await resolveFarmAccess(userId, farmId)) !== null;
 }
 
 // tüm aktif activity type'ları kategoriye göre grupla
@@ -315,6 +321,7 @@ export async function createEmissionFactor(
 
 export default {
   checkFarmAccess,
+  checkFarmReadAccess,
   getActivityTypes,
   createCarbonLog,
   getFarmLogs,

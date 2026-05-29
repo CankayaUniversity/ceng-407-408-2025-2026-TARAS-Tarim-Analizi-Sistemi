@@ -6,7 +6,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma";
 import { DEBUG_QUERIES } from "./debug";
 import logger from "../utils/logger";
-import { ensureAdminRole, ensureFarmerRole } from "../services/userService";
+import {
+  ensureAdminRole,
+  ensureFarmerRole,
+  ensureStakeholderRole,
+} from "../services/userService";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -58,6 +62,7 @@ export async function initializeDatabase(): Promise<void> {
     // Seed required roles (idempotent upsert — safe to call every startup)
     await ensureAdminRole();
     await ensureFarmerRole();
+    await ensureStakeholderRole();
 
     logger.info("Database connected");
   } catch (error) {

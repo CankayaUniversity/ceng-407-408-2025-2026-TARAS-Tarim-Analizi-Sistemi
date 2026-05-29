@@ -80,6 +80,43 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+// Yalnizca ciftlik-baginsiz (farm-agnostic) farmer-only uclar icin: ciftlik olusturma,
+// davet uretme, paydas listeleme. Belirli bir ciftlige erisim DB uyeliginden kontrol edilir
+// (resolve*Access), bu middleware degil.
+export function requireFarmer(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      error: 'Authentication required',
+    });
+    return;
+  }
+
+  if (req.user.role_name !== 'farmer') {
+    res.status(403).json({
+      success: false,
+      error: 'Farmer access required',
+    });
+    return;
+  }
+
+  next();
+}
+
+// Paydaslar (stakeholder) salt-okunurdur. Sahip-kontrolu olmayan yazma uclarinda
+// (orn. user_id-scoped disease submit, global emission factor) paydasi acikca reddet.
+// Sahip-kontrollu uclar (carbon log, gateway, sulama onayi) paydasi zaten owner check ile keser.
+export function denyStakeholder(req: Request, res: Response, next: NextFunction): void {
+  if (req.user?.role_name === 'stakeholder') {
+    res.status(403).json({
+      success: false,
+      error: 'Stakeholders have read-only access',
+    });
+    return;
+  }
+  next();
+}
+
 export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ')
@@ -101,5 +138,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
 export default {
   authenticateToken,
   requireAdmin,
+  requireFarmer,
+  denyStakeholder,
   optionalAuth,
 };

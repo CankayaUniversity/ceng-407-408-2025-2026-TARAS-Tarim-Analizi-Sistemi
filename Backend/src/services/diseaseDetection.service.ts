@@ -459,10 +459,24 @@ async function invokeLambdaAsync(
   }
 }
 
-export async function getUserDetections(userId: string): Promise<any[]> {
+// Paydas (stakeholder) gorunumu icin kapsam: ciftci -> user_id; paydas -> ciftlik zinciri.
+// folderId=null (klasorsuz/genel) tespitler bir ciftlige baglanamaz, paydas gorunumunde haric.
+function detectionScopeWhere(userId: string, farmId?: string): Prisma.DiseaseDetectionWhereInput {
+  return farmId
+    ? { folder: { planting: { zone: { field: { farm_id: farmId } } } } }
+    : { user_id: userId };
+}
+
+function folderScopeWhere(userId: string, farmId?: string): Prisma.DiseaseTrackingFolderWhereInput {
+  return farmId
+    ? { planting: { zone: { field: { farm_id: farmId } } } }
+    : { user_id: userId };
+}
+
+export async function getUserDetections(userId: string, farmId?: string): Promise<any[]> {
   try {
     const detections = await prisma.diseaseDetection.findMany({
-      where: { user_id: userId, is_deleted: false },
+      where: { ...detectionScopeWhere(userId, farmId), is_deleted: false },
       orderBy: { uploaded_at: "desc" },
       select: {
         detection_id: true,
@@ -509,10 +523,10 @@ export async function getUserDetections(userId: string): Promise<any[]> {
   }
 }
 
-export async function getDetectionById(detectionId: string, userId: string): Promise<any> {
+export async function getDetectionById(detectionId: string, userId: string, farmId?: string): Promise<any> {
   try {
     const detection = await prisma.diseaseDetection.findFirst({
-      where: { detection_id: detectionId, user_id: userId, is_deleted: false },
+      where: { detection_id: detectionId, ...detectionScopeWhere(userId, farmId), is_deleted: false },
     });
     if (!detection) throw new Error("Detection not found or access denied");
     return detection;
@@ -522,10 +536,10 @@ export async function getDetectionById(detectionId: string, userId: string): Pro
   }
 }
 
-export async function getDetectionImageUrl(detectionId: string, userId: string, expiresIn: number = 3600): Promise<string> {
+export async function getDetectionImageUrl(detectionId: string, userId: string, expiresIn: number = 3600, farmId?: string): Promise<string> {
   try {
     const detection = await prisma.diseaseDetection.findFirst({
-      where: { detection_id: detectionId, user_id: userId, is_deleted: false },
+      where: { detection_id: detectionId, ...detectionScopeWhere(userId, farmId), is_deleted: false },
       select: { image_s3_key: true, thumbnail_s3_key: true },
     });
     if (!detection) throw new Error("Detection not found or access denied");
@@ -641,10 +655,10 @@ export async function createDiseaseTrackingFolder(
   }
 }
 
-export async function getUserDiseaseTrackingFolders(userId: string): Promise<any[]> {
+export async function getUserDiseaseTrackingFolders(userId: string, farmId?: string): Promise<any[]> {
   const folders = await prisma.diseaseTrackingFolder.findMany({
     where: {
-      user_id: userId,
+      ...folderScopeWhere(userId, farmId),
       is_active: true,
     },
     orderBy: {
@@ -732,12 +746,13 @@ export async function getUserDiseaseTrackingFolders(userId: string): Promise<any
 
 export async function getDiseaseTrackingFolderById(
   userId: string,
-  folderId: string
+  folderId: string,
+  farmId?: string
 ): Promise<any> {
   const folder = await prisma.diseaseTrackingFolder.findFirst({
     where: {
       folder_id: folderId,
-      user_id: userId,
+      ...folderScopeWhere(userId, farmId),
     },
     include: {
       planting: {
@@ -821,12 +836,13 @@ export async function getDiseaseTrackingFolderById(
 
 export async function getDiseaseTrackingFolderHistory(
   userId: string,
-  folderId: string
+  folderId: string,
+  farmId?: string
 ): Promise<any> {
   const folder = await prisma.diseaseTrackingFolder.findFirst({
     where: {
       folder_id: folderId,
-      user_id: userId,
+      ...folderScopeWhere(userId, farmId),
     },
     include: {
       planting: {

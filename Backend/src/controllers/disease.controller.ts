@@ -16,6 +16,34 @@ import { UserFeedback, DiseaseTarget } from "../generated/prisma";
 import { asyncHandler } from "../middleware/error.middleware";
 import logger from "../utils/logger";
 import { getStringParam } from "../utils/requestHelpers";
+import { resolveFarmAccess } from "../services/accessService";
+
+// Hastalik OKUMA uclari icin kapsam cozumleme:
+//  - ciftci/owner -> kendi user_id'i (farmId undefined -> user-scope)
+//  - paydas/stakeholder -> farm_id query param zorunlu + erisim dogrulanir -> ciftlik-kapsamli okuma
+// Doner: { ok:true, farmId? } VEYA response gonderip { ok:false }.
+async function resolveDiseaseReadScope(
+  req: Request,
+  res: Response,
+): Promise<{ ok: true; farmId?: string } | { ok: false }> {
+  const userId = (req as any).user?.user_id;
+  const role = (req as any).user?.role_name;
+
+  if (role !== "stakeholder") {
+    return { ok: true };
+  }
+
+  const farmId = getStringParam(req.query.farm_id);
+  if (!farmId) {
+    res.status(400).json({ success: false, error: "farm_id is required for stakeholders" });
+    return { ok: false };
+  }
+  if (!(await resolveFarmAccess(userId, farmId))) {
+    res.status(403).json({ success: false, error: "You do not have access to this farm" });
+    return { ok: false };
+  }
+  return { ok: true, farmId };
+}
 
 /**
  * Submit a new disease detection request
@@ -141,7 +169,10 @@ export const getUserDetectionRequests = asyncHandler(
     }
 
     try {
-      const detections = await getUserDetections(userId);
+      const scope = await resolveDiseaseReadScope(req, res);
+      if (!scope.ok) return;
+
+      const detections = await getUserDetections(userId, scope.farmId);
 
       res.status(200).json({
         success: true,
@@ -187,7 +218,10 @@ export const getDetectionRequest = asyncHandler(
     }
 
     try {
-      const detection = await getDetectionById(detectionId, userId);
+      const scope = await resolveDiseaseReadScope(req, res);
+      if (!scope.ok) return;
+
+      const detection = await getDetectionById(detectionId, userId, scope.farmId);
 
       res.status(200).json({
         success: true,
@@ -238,7 +272,10 @@ export const getDetectionImage = asyncHandler(
     }
 
     try {
-      const imageUrl = await getDetectionImageUrl(detectionId, userId, 3600);
+      const scope = await resolveDiseaseReadScope(req, res);
+      if (!scope.ok) return;
+
+      const imageUrl = await getDetectionImageUrl(detectionId, userId, 3600, scope.farmId);
 
       res.status(200).json({
         success: true,
@@ -491,7 +528,10 @@ export const getTrackingFolders = asyncHandler(async (req: Request, res: Respons
     return;
   }
 
-  const folders = await getUserDiseaseTrackingFolders(userId);
+  const scope = await resolveDiseaseReadScope(req, res);
+  if (!scope.ok) return;
+
+  const folders = await getUserDiseaseTrackingFolders(userId, scope.farmId);
 
   res.json({
     success: true,
@@ -516,7 +556,10 @@ export const getTrackingFolderById = asyncHandler(async (req: Request, res: Resp
     return;
   }
 
-  const folder = await getDiseaseTrackingFolderById(userId, folderId);
+  const scope = await resolveDiseaseReadScope(req, res);
+  if (!scope.ok) return;
+
+  const folder = await getDiseaseTrackingFolderById(userId, folderId, scope.farmId);
 
   res.json({
     success: true,
@@ -541,7 +584,10 @@ export const getTrackingFolderHistory = asyncHandler(async (req: Request, res: R
     return;
   }
 
-  const history = await getDiseaseTrackingFolderHistory(userId, folderId);
+  const scope = await resolveDiseaseReadScope(req, res);
+  if (!scope.ok) return;
+
+  const history = await getDiseaseTrackingFolderHistory(userId, folderId, scope.farmId);
 
   res.json({
     success: true,

@@ -3,6 +3,7 @@ import { getFieldContextForLLM } from "../services/tarasData.service";
 import { generateAdvisory, generateAdvisoryStream } from "../services/llm.service";
 import { saveMessage, getFieldSession, getSessionMessages } from "../services/chatMemory.service";
 import { asyncHandler } from "../middleware/error.middleware";
+import { resolveFieldAccess } from "../services/accessService";
 import prisma from "../config/database";
 import logger from "../utils/logger";
 
@@ -27,9 +28,17 @@ async function resolveSession(
   userId: string | undefined,
   fieldId: string,
 ): Promise<string> {
-  if (sessionId) {
-    logger.debug(`[CHAT] mevcut session: ${sessionId.slice(0, 8)}...`);
-    return sessionId;
+  if (sessionId && userId) {
+    // Session sahibini dogrula — baska kullanicinin session'ina yazmayi engelle
+    const owned = await prisma.chatSession.findFirst({
+      where: { session_id: sessionId, user_id: userId },
+      select: { session_id: true },
+    });
+    if (owned) {
+      logger.debug(`[CHAT] mevcut session: ${sessionId.slice(0, 8)}...`);
+      return owned.session_id;
+    }
+    logger.debug(`[CHAT] session sahibi dogrulanamadi, yeni session aciliyor`);
   }
   const newSession = await prisma.chatSession.create({
     data: { user_id: userId, field_id: fieldId },
@@ -51,6 +60,17 @@ export const getTarasAdvice = asyncHandler(
     }
 
     const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+    // Tarla erisim kontrolu — sahip VEYA paydas. Paydas sohbeti buradan gecer; ayni zamanda
+    // eskiden hic kontrol olmayan IDOR'u kapatir.
+    if (!(await resolveFieldAccess(userId, field_id))) {
+      res.status(403).json({ success: false, error: "Bu tarlaya erişiminiz yok." });
+      return;
+    }
+
     const currentSessionId = await resolveSession(session_id, userId, field_id);
     await saveMessage(currentSessionId, "user", message);
 
@@ -92,6 +112,15 @@ export const getTarasAdviceStream = asyncHandler(
     }
 
     const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+    if (!(await resolveFieldAccess(userId, field_id))) {
+      res.status(403).json({ success: false, error: "Bu tarlaya erişiminiz yok." });
+      return;
+    }
+
     const currentSessionId = await resolveSession(session_id, userId, field_id);
     await saveMessage(currentSessionId, "user", message);
 
@@ -159,6 +188,13 @@ export const getFieldChatSession = asyncHandler(
 
     if (!userId || (!fieldId && !sessionId)) {
       res.status(400).json({ success: false, error: "field_id veya session_id gerekli." });
+      return;
+    }
+
+    // fieldId ile cagriliyorsa erisim dogrula (sahip VEYA paydas). sessionId yolu zaten
+    // user_id ile filtreli oldugu icin izolasyon korunur.
+    if (fieldId && !(await resolveFieldAccess(userId, fieldId))) {
+      res.status(403).json({ success: false, error: "Bu tarlaya erişiminiz yok." });
       return;
     }
 

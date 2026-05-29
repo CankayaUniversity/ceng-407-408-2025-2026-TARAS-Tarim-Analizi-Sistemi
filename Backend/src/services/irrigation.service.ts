@@ -1610,15 +1610,28 @@ export async function getLatestIrrigationJobsByField(
   fieldId: string,
   userId: string
 ): Promise<FieldZoneLatestJob[]> {
-  const field = await prisma.field.findUnique({
-    where: { field_id: fieldId },
+  // Field'in kendisi + ciftligi aktif olmali — soft-deleted field/ciftlik donmesin (404).
+  const field = await prisma.field.findFirst({
+    where: { field_id: fieldId, is_active: { not: false }, farm: { is_active: true } },
     include: { farm: true },
   });
 
-  if (!field || field.farm?.user_id !== userId) {
+  if (!field?.farm) {
     const err = new Error("FIELD_NOT_FOUND_OR_FORBIDDEN");
     (err as any).status = 404;
     throw err;
+  }
+  // Okuma: sahip VEYA paydas erisebilir
+  if (field.farm.user_id !== userId) {
+    const membership = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: field.farm.farm_id, user_id: userId } },
+      select: { id: true },
+    });
+    if (!membership) {
+      const err = new Error("FIELD_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
   }
 
   const zones = await prisma.zone.findMany({
@@ -1682,10 +1695,22 @@ export async function createManualIrrigationActual(
     },
   });
 
-  if (!zone || zone.field?.farm?.user_id !== userId) {
+  if (!zone || !zone.field?.farm) {
     const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
     (err as any).status = 404;
     throw err;
+  }
+  // Operasyonel yazma: sahip VEYA farmer-uye. Stakeholder/erisimsiz -> 404 (varlik sizdirmaz).
+  if (zone.field.farm.user_id !== userId) {
+    const member = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: zone.field.farm.farm_id, user_id: userId } },
+      select: { role: true },
+    });
+    if (member?.role !== "farmer") {
+      const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
   }
 
   const environmentType = zone.field.environment_type;
@@ -1804,10 +1829,22 @@ export async function submitIrrigationJobActual(
     },
   });
 
-  if (!job || job.zone?.field?.farm?.user_id !== userId) {
+  if (!job || !job.zone?.field?.farm) {
     const err = new Error("JOB_NOT_FOUND_OR_FORBIDDEN");
     (err as any).status = 404;
     throw err;
+  }
+  // Operasyonel yazma: sahip VEYA farmer-uye. Stakeholder/erisimsiz -> 404 (varlik sizdirmaz).
+  if (job.zone.field.farm.user_id !== userId) {
+    const member = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: job.zone.field.farm.farm_id, user_id: userId } },
+      select: { role: true },
+    });
+    if (member?.role !== "farmer") {
+      const err = new Error("JOB_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
   }
 
   if (job.status !== "PENDING") {
@@ -1916,8 +1953,9 @@ export async function getZoneIrrigationJobs(zoneId: string, userId: string) {
     throw err;
   }
 
-  const zone = await prisma.zone.findUnique({
-    where: { zone_id: zoneId },
+  // field aktif + ciftligi aktif olmali — soft-deleted field/ciftligin zone'u donmesin (404).
+  const zone = await prisma.zone.findFirst({
+    where: { zone_id: zoneId, field: { is_active: { not: false }, farm: { is_active: true } } },
     include: {
       field: {
         include: { farm: true },
@@ -1925,10 +1963,23 @@ export async function getZoneIrrigationJobs(zoneId: string, userId: string) {
     },
   });
 
-  if (!zone || zone.field?.farm?.user_id !== userId) {
+  const jobsFarm = zone?.field?.farm;
+  if (!jobsFarm) {
     const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
     (err as any).status = 404;
     throw err;
+  }
+  // Okuma: sahip VEYA paydas erisebilir
+  if (jobsFarm.user_id !== userId) {
+    const membership = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: jobsFarm.farm_id, user_id: userId } },
+      select: { id: true },
+    });
+    if (!membership) {
+      const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
   }
 
   const jobs = await prisma.irrigationJob.findMany({

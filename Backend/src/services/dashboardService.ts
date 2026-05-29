@@ -23,6 +23,9 @@ export async function getUserFields(userId: string, farmId?: string): Promise<Fi
     where: { farm_id: { in: allowedIds } },
     include: {
       fields: {
+        // is_active: { not: false } — soft-deleted (false) field'leri eler; is_active null
+        // olan eski kayitlari (Prisma "not" null'lari dahil eder) gizlemez.
+        where: { is_active: { not: false } },
         select: {
           field_id: true,
           name: true,
@@ -417,6 +420,50 @@ export async function createFarm(
   return farm;
 }
 
+// SOFT delete: yalnizca DIREKT sahibi (Farm.user_id === userId) "siler" — uyelik
+// (FarmMember) yetmez, paydas silemez. is_active=false'a duser, veriler korunur (UI'dan
+// kaybolur cunku tum read path'leri is_active filtreliyor). Hard delete + cascade YOK —
+// gelecekteki restore icin opsiyon ve yanlislikla bagimliliklari uctan uca silmemek icin.
+// Zaten soft-deleted (is_active=false) bir ciftligi yeniden silmek not_found doner (gone).
+export async function deleteFarmAsOwner(
+  userId: string,
+  farmId: string,
+): Promise<{ ok: true } | { ok: false; reason: "not_found" | "forbidden" }> {
+  const farm = await prisma.farm.findUnique({
+    where: { farm_id: farmId },
+    select: { user_id: true, is_active: true },
+  });
+  if (!farm || !farm.is_active) return { ok: false, reason: "not_found" };
+  if (farm.user_id !== userId) return { ok: false, reason: "forbidden" };
+
+  await prisma.farm.update({
+    where: { farm_id: farmId },
+    data: { is_active: false },
+  });
+  return { ok: true };
+}
+
+// SOFT delete bir field — yalnizca field'in ait oldugu ciftligin DIREKT sahibi (Farm.user_id).
+// is_active=false'a duser; getUserFields + resolveFieldAccess + sulama/sensor zincirleri
+// is_active filtreledigi icin field UI/API'den kaybolur (zone/sensor verisi DB'de korunur).
+export async function deleteFieldAsOwner(
+  userId: string,
+  fieldId: string,
+): Promise<{ ok: true } | { ok: false; reason: "not_found" | "forbidden" }> {
+  const field = await prisma.field.findUnique({
+    where: { field_id: fieldId },
+    select: { is_active: true, farm: { select: { user_id: true } } },
+  });
+  if (!field || field.is_active === false) return { ok: false, reason: "not_found" };
+  if (field.farm?.user_id !== userId) return { ok: false, reason: "forbidden" };
+
+  await prisma.field.update({
+    where: { field_id: fieldId },
+    data: { is_active: false },
+  });
+  return { ok: true };
+}
+
 // fetch elevation from Open-Meteo Elevation API
 export async function getElevation(
   latitude: number,
@@ -456,6 +503,8 @@ export default {
   getFieldInventory,
   createField,
   createFarm,
+  deleteFarmAsOwner,
+  deleteFieldAsOwner,
   getElevation,
   getCropList,
 };

@@ -2,7 +2,7 @@
 import prisma from "../../config/database";
 import logger from "../../utils/logger";
 import { checkFieldAccess } from "../dashboardService";
-import { checkFarmAccess } from "../carbonService";
+import { checkFarmReadAccess } from "../carbonService";
 import { getFieldContextForLLM } from "../tarasData.service";
 import {
   getSensorNodesForZone,
@@ -348,7 +348,7 @@ export class ToolExecutor {
   }
 
   private async handleGetCarbonSummary(farmId: string): Promise<ToolResult> {
-    if (!await checkFarmAccess(this.userId, farmId)) {
+    if (!await checkFarmReadAccess(this.userId, farmId)) {
       return { success: false, error: "Bu çiftliğe erişim yetkiniz yok" };
     }
     const summary = await getFarmSummary(farmId);

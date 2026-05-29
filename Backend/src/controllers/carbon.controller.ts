@@ -46,7 +46,7 @@ export async function getFarmLogs(
       return;
     }
 
-    const hasAccess = await carbonService.checkFarmAccess(userId, farmId);
+    const hasAccess = await carbonService.checkFarmReadAccess(userId, farmId);
     if (!hasAccess) {
       res.status(403).json({ success: false, error: "You do not have access to this farm" });
       return;
@@ -208,7 +208,7 @@ export async function getFarmSummary(
       return;
     }
 
-    const hasAccess = await carbonService.checkFarmAccess(userId, farmId);
+    const hasAccess = await carbonService.checkFarmReadAccess(userId, farmId);
     if (!hasAccess) {
       res.status(403).json({ success: false, error: "You do not have access to this farm" });
       return;
@@ -255,7 +255,7 @@ export async function getYearlyTotal(
       return;
     }
 
-    const hasAccess = await carbonService.checkFarmAccess(userId, farmId);
+    const hasAccess = await carbonService.checkFarmReadAccess(userId, farmId);
     if (!hasAccess) {
       res.status(403).json({ success: false, error: "You do not have access to this farm" });
       return;

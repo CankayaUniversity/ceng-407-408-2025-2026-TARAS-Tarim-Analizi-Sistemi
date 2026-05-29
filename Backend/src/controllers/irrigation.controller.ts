@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { asyncHandler } from "../middleware/error.middleware";
 import { getStringParam } from "../utils/requestHelpers";
+import { resolveZoneAccess, isWriteAccess } from "../services/accessService";
 import {
   getIrrigationPreviewInput,
   getIrrigationPythonPayload,
@@ -14,6 +15,12 @@ import {
 
 export const previewIrrigationInput = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+
     const { zone_id } = req.body;
 
     if (!zone_id) {
@@ -21,6 +28,12 @@ export const previewIrrigationInput = asyncHandler(
         success: false,
         error: "Eksik parametre: 'zone_id' zorunludur.",
       });
+      return;
+    }
+
+    // Operasyonel uc — sahip VEYA farmer-uye. Stakeholder reddedilir + eski IDOR kapanir.
+    if (!isWriteAccess(await resolveZoneAccess(userId, zone_id))) {
+      res.status(403).json({ success: false, error: "Bu bölge üzerinde işlem yetkiniz yok." });
       return;
     }
 
@@ -41,6 +54,12 @@ export const previewIrrigationInput = asyncHandler(
 
 export const runIrrigationJob = asyncHandler(
   async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+
     const zone_id = Array.isArray(req.params.zone_id)
       ? req.params.zone_id[0]
       : req.params.zone_id;
@@ -50,6 +69,12 @@ export const runIrrigationJob = asyncHandler(
         success: false,
         error: "Eksik parametre: 'zone_id' zorunludur.",
       });
+      return;
+    }
+
+    // Operasyonel uc — sahip VEYA farmer-uye. Stakeholder reddedilir + eski IDOR kapanir.
+    if (!isWriteAccess(await resolveZoneAccess(userId, zone_id))) {
+      res.status(403).json({ success: false, error: "Bu bölge üzerinde işlem yetkiniz yok." });
       return;
     }
 

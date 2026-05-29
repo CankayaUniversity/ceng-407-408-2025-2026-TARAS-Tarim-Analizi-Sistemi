@@ -4,6 +4,7 @@ import logger from "../utils/logger";
 import { getStringParam } from "../utils/requestHelpers";
 import { emitToGateway } from "../config/socket";
 import { uploadToS3, getS3ObjectStream } from "../services/s3.service";
+import { getAccessibleFarmIds } from "../services/accessService";
 
 // Erisim kontrolu — gateway verisini dondurur, basarisizsa null dondurur
 async function verifyGatewayAccess(
@@ -14,7 +15,8 @@ async function verifyGatewayAccess(
     where: { gateway_id: gatewayId },
     include: { farm: true },
   });
-  if (!gateway || gateway.farm?.user_id !== userId) return null;
+  // Sahip + ciftlik aktif olmali — soft-deleted ciftligin gateway'lerine de erisilemez.
+  if (!gateway || gateway.farm?.user_id !== userId || !gateway.farm?.is_active) return null;
   return gateway;
 }
 
@@ -802,15 +804,47 @@ export async function listFarms(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const farms = await prisma.farm.findMany({
-      where: { user_id: userId },
-      select: {
-        farm_id: true,
-        name: true,
-        latitude: true,
-        longitude: true,
-        altitude_m: true,
-      },
+    // Sahibi olunan + paydas olunan ciftliklerin birlesimi (mobil dashboard'un
+    // farm secici listesi buradan beslenir; paydas yoksa liste bos kalirdi).
+    // is_owner her ciftlik icin direkt Farm.user_id eslesmesinden hesaplanir; mobil
+    // tarafta owner-only affordance'lar (trash, vs.) bu flag'e gore gizlenir/gosterilir.
+    const accessibleIds = await getAccessibleFarmIds(userId);
+    // is_active=true defansif filtre — getAccessibleFarmIds zaten soft-deleted'leri eler,
+    // ancak ileride direkt cagri ihtimaline karsi iki katmanli koruma.
+    // Uye olunan ciftliklerin rolunu de cek — mobil owner/farmer/stakeholder ayrimini buna gore yapar.
+    const [farmsRaw, memberships] = await Promise.all([
+      prisma.farm.findMany({
+        where: { farm_id: { in: accessibleIds }, is_active: true },
+        select: {
+          farm_id: true,
+          name: true,
+          latitude: true,
+          longitude: true,
+          altitude_m: true,
+          user_id: true,
+        },
+      }),
+      prisma.farmMember.findMany({
+        where: { user_id: userId, farm_id: { in: accessibleIds } },
+        select: { farm_id: true, role: true },
+      }),
+    ]);
+    const roleByFarm = new Map(memberships.map((m) => [m.farm_id, m.role]));
+    const farms = farmsRaw.map((f) => {
+      const isOwner = f.user_id === userId;
+      // access: owner (Farm.user_id) | uyelik rolu (farmer/stakeholder) | varsayilan stakeholder.
+      const access: "owner" | "farmer" | "stakeholder" = isOwner
+        ? "owner"
+        : roleByFarm.get(f.farm_id) ?? "stakeholder";
+      return {
+        farm_id: f.farm_id,
+        name: f.name,
+        latitude: f.latitude,
+        longitude: f.longitude,
+        altitude_m: f.altitude_m,
+        is_owner: isOwner,
+        access,
+      };
     });
 
     res.status(200).json({ success: true, data: farms });
