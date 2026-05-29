@@ -29,6 +29,8 @@ interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  // HTTP durum kodu — bazi cagrilar (profil duzenleme) hatayi koda gore yerellestirir.
+  status?: number;
 }
 
 interface User {
@@ -190,12 +192,11 @@ export const authAPI = {
     username: string,
     email: string,
     password: string,
-    roleId?: number,
   ): Promise<ApiResponse<LoginData>> {
     try {
       console.log("[AUTH] register:", username);
-      // role_id yerine roleName gonder — auto-increment ID sabit degil
-      const roleName = roleId === 1 ? "admin" : "farmer";
+      // Rol kayitta secilmez — herkes stakeholder (salt-okunur) baslar; ilk ciftligini
+      // olusturunca farmer'a yukselir, davet koduyla katilirsa stakeholder kalir.
       const res = await fetchWithTimeout(
         `${API_BASE_URL}/auth/register`,
         {
@@ -205,7 +206,6 @@ export const authAPI = {
             username,
             email,
             password,
-            roleName,
           }),
         },
         15000,
@@ -229,14 +229,82 @@ export const authAPI = {
     return authFetch("/auth/me");
   },
 
-  async updateProfile(
-    data: { username?: string; email?: string; password?: string },
-  ): Promise<ApiResponse<{ username: string; email: string }>> {
-    return authFetch("/auth/me", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
+  // Profil guncelle (kullanici adi ve/veya e-posta). currentPassword ZORUNLU — backend dogrular.
+  // Username degisirse backend yeni token doner (token icindeki username bayatlamasin); her
+  // durumda saklanan user'in ad/e-postasini tazeleriz (UI buradan okur). login/register gibi
+  // her statuste json'i parse ederiz ki backend'in temiz hata mesaji UI'a ulassin (status da
+  // doner — UI 401/409'u yerellestirir).
+  async updateProfile(data: {
+    username?: string;
+    email?: string;
+    currentPassword: string;
+  }): Promise<ApiResponse<{ username: string; email: string }>> {
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers) return { success: false, error: "Oturum bulunamadı" };
+
+      console.log("[AUTH] updateProfile");
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/me`,
+        {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+        15000,
+      );
+
+      const body = await res.json();
+      if (body.success && body.data) {
+        if (body.data.token) {
+          await secureSet(TOKEN_KEY, body.data.token);
+        }
+        // Saklanan user'i guncel ad/e-posta ile tazele (token degismese bile)
+        try {
+          const storedJson = await secureGet(USER_DATA_KEY);
+          if (storedJson) {
+            const stored = JSON.parse(storedJson);
+            stored.username = body.data.username;
+            stored.email = body.data.email;
+            await secureSet(USER_DATA_KEY, JSON.stringify(stored));
+          }
+        } catch {
+          // sessizce yut
+        }
+      }
+      return { ...body, status: res.status };
+    } catch (error) {
+      console.log("[AUTH] err:", error);
+      return { success: false, error: "Sunucuya bağlanılamadı" };
+    }
+  },
+
+  // Sifre degistir — mevcut + yeni sifre. Backend mevcut sifreyi dogrular, yeni >= 8 olmali.
+  // status doner ki UI "mevcut sifre yanlis" (401) durumunu yerellestirebilsin.
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<ApiResponse<null>> {
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers) return { success: false, error: "Oturum bulunamadı" };
+
+      console.log("[AUTH] changePassword");
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/change-password`,
+        {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        },
+        15000,
+      );
+      const body = await res.json();
+      return { ...body, status: res.status };
+    } catch (error) {
+      console.log("[AUTH] err:", error);
+      return { success: false, error: "Sunucuya bağlanılamadı" };
+    }
   },
 
   async updateDatasetConsent(
@@ -284,6 +352,135 @@ export const authAPI = {
   async isAuthenticated() {
     const token = await secureGet(TOKEN_KEY);
     return !!token;
+  },
+};
+
+// Paydas (stakeholder) davet + uyelik islemleri
+export interface StakeholderFarm {
+  farm_id: string;
+  name: string;
+  owner_username: string | null;
+}
+
+export interface FarmStakeholderRow {
+  user_id: string;
+  username: string | null;
+  // "owner" (farms.user_id'den) veya FarmRole ("stakeholder")
+  role: string;
+  is_owner: boolean;
+  created_at: string | null;
+}
+
+export type FarmMemberRole = "stakeholder" | "farmer";
+// listFarms'in dondurdugu erisim turu: sahip (Farm.user_id) + uyelik rolleri.
+export type FarmAccessRole = "owner" | FarmMemberRole;
+
+export interface FarmInviteRow {
+  invite_id: string;
+  code: string;
+  role: FarmMemberRole;
+  status: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
+  expires_at: string;
+  created_at: string | null;
+}
+
+export const stakeholderAPI = {
+  // Ciftci: ciftlik icin tek kullanimlik davet kodu uret (invite_id de doner — iptal icin).
+  // role: kodun verecegi rol (stakeholder=salt-okunur, farmer=operasyonel). Vars. stakeholder.
+  async createInvite(
+    farmId: string,
+    role: FarmMemberRole = "stakeholder",
+    ttlDays?: number,
+  ): Promise<ApiResponse<{ invite_id: string; code: string; expires_at: string }>> {
+    return authFetch(`/stakeholder/farms/${farmId}/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, ...(ttlDays ? { ttlDays } : {}) }),
+    });
+  },
+
+  // Ciftci: henuz kullanilmamis (PENDING) davet kodunu iptal et
+  async revokeInvite(
+    inviteId: string,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return authFetch(`/stakeholder/invites/${inviteId}/revoke`, {
+      method: "POST",
+    });
+  },
+
+  // Davet kodunu kullan, ciftlige erisim kazan. Farmer-davet ise backend yeni token+user doner —
+  // sakla ki hesap rolu (foto gonderme/onboarding kapilari) bu oturumda guncellensin (createFarm
+  // ile ayni desen). Caller sonrasinda AuthContext.refreshFromStorage() cagirmali.
+  async acceptInvite(
+    code: string,
+  ): Promise<ApiResponse<{ farm_id: string; farm_name: string; role?: FarmMemberRole }>> {
+    const res = await authFetch<{
+      farm_id: string;
+      farm_name: string;
+      role?: FarmMemberRole;
+      token?: string;
+      user?: unknown;
+    }>(`/stakeholder/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+
+    if (res.success && res.data?.token) {
+      await secureSet(TOKEN_KEY, res.data.token);
+      if (res.data.user) {
+        await secureSet(USER_DATA_KEY, JSON.stringify(res.data.user));
+      }
+    }
+    if (res.success && res.data) {
+      return {
+        success: true,
+        data: { farm_id: res.data.farm_id, farm_name: res.data.farm_name, role: res.data.role },
+      };
+    }
+    return res as ApiResponse<{ farm_id: string; farm_name: string; role?: FarmMemberRole }>;
+  },
+
+  // Paydas: gorebildigi ciftlikler (uyelik kayitlari)
+  async getMyFarms(): Promise<ApiResponse<StakeholderFarm[]>> {
+    return authFetch(`/stakeholder/farms`);
+  },
+
+  // Uyeler: ciftligin tum uyeleri (sahip + paydaslar) + rolleri — erisimi olan herkes okur
+  async listStakeholders(
+    farmId: string,
+  ): Promise<ApiResponse<FarmStakeholderRow[]>> {
+    return authFetch(`/stakeholder/farms/${farmId}/stakeholders`);
+  },
+
+  // Ciftci: ciftligin tum davet kodlari (kod + durum + son kullanim)
+  async listInvites(
+    farmId: string,
+  ): Promise<ApiResponse<FarmInviteRow[]>> {
+    return authFetch(`/stakeholder/farms/${farmId}/invites`);
+  },
+
+  // Ciftci: bir uyenin erisimini iptal et (kaldir)
+  async revokeStakeholder(
+    farmId: string,
+    userId: string,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return authFetch(`/stakeholder/farms/${farmId}/stakeholders/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Ciftci: bir uyenin rolunu degistir (stakeholder <-> farmer)
+  async changeMemberRole(
+    farmId: string,
+    userId: string,
+    role: FarmMemberRole,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return authFetch(`/stakeholder/farms/${farmId}/members/${userId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
   },
 };
 
@@ -701,20 +898,34 @@ export const dashboardAPI = {
       throw new Error(ERR_UNAUTHENTICATED);
     }
 
-    const res = await authFetch<{
+    // Backend { farm, token, user } doner: ciftlik olusturmak kullaniciyi farmer'a yukseltir.
+    type FarmData = {
       farm_id: string;
       name: string;
       latitude: number | null;
       longitude: number | null;
       altitude_m: number | null;
+    };
+    const res = await authFetch<{
+      farm: FarmData;
+      token?: string;
+      user?: unknown;
     }>("/dashboard/farms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    if (res.success && res.data) {
-      return res;
+    if (res.success && res.data?.farm) {
+      // Yeni token + user'i sakla ki global rol (salt-okunur kapilari) guncellensin.
+      // AuthContext.refreshFromStorage() bunu okuyup state'i tazeler.
+      if (res.data.token) {
+        await secureSet(TOKEN_KEY, res.data.token);
+        if (res.data.user) {
+          await secureSet(USER_DATA_KEY, JSON.stringify(res.data.user));
+        }
+      }
+      return { success: true, data: res.data.farm };
     }
     if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
       throw new Error(ERR_AUTH_EXPIRED);
@@ -820,12 +1031,15 @@ export const gatewayAPI = {
     });
   },
 
-  async getFarms(): Promise<ApiResponse<Array<{ farm_id: string; name: string }>>> {
+  async getFarms(): Promise<
+    ApiResponse<Array<{ farm_id: string; name: string; is_owner?: boolean; access?: FarmAccessRole }>>
+  > {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
+      // Demo: kullanici tam yetkili sahip gibi davranir, trash vs. gosterilsin.
       return {
         success: true,
-        data: [{ farm_id: "demo-farm", name: "Demo Çiftliği" }],
+        data: [{ farm_id: "demo-farm", name: "Demo Çiftliği", is_owner: true, access: "owner" }],
       };
     }
     return authFetch("/gateway/farms");
@@ -1412,7 +1626,9 @@ export const diseaseAPI = {
     });
   },
 
-  async getFolders(): Promise<ApiResponse<DiseaseTrackingFolder[]>> {
+  // farmId: paydas (stakeholder) icin zorunlu — backend ciftlik-kapsamli doner.
+  // Ciftci icin atlanir (kendi user_id'ine gore doner).
+  async getFolders(farmId?: string): Promise<ApiResponse<DiseaseTrackingFolder[]>> {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
       const { listFolders, seedIfEmpty } = await import("./demo/demoStorage");
@@ -1421,11 +1637,14 @@ export const diseaseAPI = {
       const list = await listFolders();
       return { success: true, data: list };
     }
-    return authFetch("/disease/folders");
+    return authFetch(
+      `/disease/folders${farmId ? `?farm_id=${encodeURIComponent(farmId)}` : ""}`,
+    );
   },
 
   async getFolderDetail(
     folderId: string,
+    farmId?: string,
   ): Promise<ApiResponse<DiseaseTrackingFolderDetail>> {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
@@ -1434,7 +1653,9 @@ export const diseaseAPI = {
       if (!detail) return { success: false, error: "Klasör bulunamadı" };
       return { success: true, data: detail };
     }
-    return authFetch(`/disease/folders/${folderId}`);
+    return authFetch(
+      `/disease/folders/${folderId}${farmId ? `?farm_id=${encodeURIComponent(farmId)}` : ""}`,
+    );
   },
 
   async getFolderHistory(

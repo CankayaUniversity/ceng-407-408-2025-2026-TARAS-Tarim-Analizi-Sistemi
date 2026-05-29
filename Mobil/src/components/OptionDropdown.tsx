@@ -25,6 +25,7 @@
 //   />
 
 import { memo, useCallback, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   View,
   Text,
@@ -45,6 +46,11 @@ export interface DropdownOption<V extends string | number> {
   label: string;
   /** Optional MaterialCommunityIcons icon next to the label */
   icon?: string;
+  /** Optional ikinci satir — label altinda kucuk gri yazi (orn. tarla sayisi, buyume gunu). */
+  subtitle?: string;
+  /** Optional satir sonu elemani (orn. sil butonu). Secili check'inden sonra gelir.
+      Kendi onPress'inde e.stopPropagation() cagir ki satir secimi tetiklenmesin. */
+  trailing?: ReactNode;
 }
 
 export interface OptionDropdownProps<V extends string | number> {
@@ -62,6 +68,17 @@ export interface OptionDropdownProps<V extends string | number> {
   displayLabel?: string;
   /** Trigger icindeki kucuk key-chip etiketi gosterilsin mi (varsayilan true). */
   showLabel?: boolean;
+  /** Panel modal'i status bar altina uzansin mi (Android). Yalnizca dropdown, status bar'i
+      KAPLAYAN bir host icinde (statusBarTranslucent modal ya da presentationStyle:fullScreen)
+      render ediliyorsa true ver — boylece panel trigger ile hizali kalir. Varsayilan false
+      (kok ekran ve normal modal hostlari window-relative olcer; panel de status bar altina inmemeli). */
+  statusBarTranslucent?: boolean;
+  /** Trigger yuksekligi (px). Varsayilan 44 — toolbar/quick-settings butonlariyla hizali.
+      Header gibi daha ince yerlerde daha kucuk bir deger verilebilir. */
+  triggerHeight?: number;
+  /** Trigger icinde, label ile chevron arasinda gosterilen ek eleman (orn. ciftlik rol rozeti).
+      Boylece rozet ayri bir satir olmadan dropdown'un kendi icinde durur. */
+  triggerAccessory?: ReactNode;
 }
 
 // Trigger sabit yuksekligi — toolbar'daki OptionButton ve kare butonlarla ayni hizada dursun diye.
@@ -86,6 +103,9 @@ function OptionDropdownInner<V extends string | number>({
   disabled,
   displayLabel,
   showLabel = true,
+  statusBarTranslucent = false,
+  triggerHeight = TRIGGER_HEIGHT,
+  triggerAccessory,
 }: OptionDropdownProps<V>) {
   const [open, setOpen] = useState(false);
   // Trigger'in ekrandaki konumu (window-relative)
@@ -189,11 +209,11 @@ function OptionDropdownInner<V extends string | number>({
     <View
       ref={triggerWrapRef}
       collapsable={false}
-      style={[style, { height: TRIGGER_HEIGHT }]}
+      style={[style, { height: triggerHeight }]}
     >
       <Animated.View
         style={{
-          height: TRIGGER_HEIGHT,
+          height: triggerHeight,
           justifyContent: "center",
           backgroundColor: theme.surface,
           borderWidth: 1,
@@ -256,6 +276,9 @@ function OptionDropdownInner<V extends string | number>({
           >
             {triggerLabel}
           </Text>
+          {triggerAccessory ? (
+            <View style={{ marginRight: 8 }}>{triggerAccessory}</View>
+          ) : null}
           <MaterialCommunityIcons
             name={open ? "chevron-up" : "chevron-down"}
             size={18}
@@ -269,7 +292,9 @@ function OptionDropdownInner<V extends string | number>({
         transparent
         // animationType="none" — fade'i kendi Animated'imizla yoneterek trigger ile sync edebiliyoruz.
         animationType="none"
-        statusBarTranslucent={Platform.OS === "android"}
+        // statusBarTranslucent yalnizca status bar'i kaplayan host'larda true olmali; aksi halde
+        // panel, window-relative olculen trigger'in status bar yuksekligi kadar USTUNE biner.
+        statusBarTranslucent={statusBarTranslucent && Platform.OS === "android"}
         onRequestClose={closeDropdown}
       >
         {/* Backdrop + panel butun blogu opaklik animasyonuyla tek seferde fade in/out olur. */}
@@ -339,17 +364,30 @@ function OptionDropdownInner<V extends string | number>({
                           style={{ marginRight: 10 }}
                         />
                       )}
-                      <Text
-                        style={{
-                          flex: 1,
-                          fontSize: 14,
-                          fontWeight: selected ? "700" : "500",
-                          color: selected ? theme.primary : theme.textMain,
-                        }}
-                        numberOfLines={1}
-                      >
-                        {opt.label}
-                      </Text>
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            fontWeight: selected ? "700" : "500",
+                            color: selected ? theme.primary : theme.textMain,
+                          }}
+                          numberOfLines={1}
+                        >
+                          {opt.label}
+                        </Text>
+                        {opt.subtitle ? (
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              color: theme.textSecondary,
+                              marginTop: 1,
+                            }}
+                            numberOfLines={1}
+                          >
+                            {opt.subtitle}
+                          </Text>
+                        ) : null}
+                      </View>
                       {selected && (
                         <MaterialCommunityIcons
                           name="check"
@@ -357,6 +395,9 @@ function OptionDropdownInner<V extends string | number>({
                           color={theme.primary}
                         />
                       )}
+                      {opt.trailing ? (
+                        <View style={{ marginLeft: 8 }}>{opt.trailing}</View>
+                      ) : null}
                     </Pressable>
                   );
                 })}

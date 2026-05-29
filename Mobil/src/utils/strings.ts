@@ -301,6 +301,55 @@ export interface StringDictionary {
     roleFarmer: string;
     roleAdmin: string;
     roleUser: string;
+    roleStakeholder: string;
+    farmRoleOwner: string;
+    farmRoleStakeholder: string;
+    farmRoleFarmer: string;
+    stakeholder: {
+      manageTitle: string;
+      redeemTitle: string;
+      codePlaceholder: string;
+      redeemButton: string;
+      redeemedMsg: string;
+      invalidMsg: string;
+      generateButton: string;
+      codeHint: string;
+      copiedMsg: string;
+      noneYet: string;
+      revokeButton: string;
+      revokedMsg: string;
+      revokeCodeButton: string;
+      codeRevokedMsg: string;
+      selectFarmFirst: string;
+      viewerNote: string;
+      // Uyeler + Paylas ekranlari (ciftlik satirindaki uyeler/paylas butonlari)
+      membersTitle: string;
+      membersSubtitle: string;
+      invitesTitle: string;
+      invitesSubtitle: string;
+      youLabel: string;
+      expiresLabel: string;
+      noInvitesYet: string;
+      inviteStatusPending: string;
+      inviteStatusAccepted: string;
+      inviteStatusExpired: string;
+      inviteStatusRevoked: string;
+      removeMemberConfirmTitle: string;
+      removeMemberConfirmMessage: string;
+      // Rol degistirme (sahip, uye satirinda rol rozetine dokunur)
+      makeFarmerTitle: string;
+      makeFarmerMessage: string;
+      makeStakeholderTitle: string;
+      makeStakeholderMessage: string;
+      changeRoleButton: string;
+      roleChangedMsg: string;
+      // Davet rolu secimi (Paylas ekraninda kod uretmeden once)
+      inviteRoleLabel: string;
+      inviteRoleHint: string;
+    };
+    locationManagement: string;
+    currentFarm: string;
+    currentField: string;
     farmManagement: string;
     activeFarm: string;
     noFarmSelected: string;
@@ -337,6 +386,14 @@ export interface StringDictionary {
     saveChanges: string;
     profileUpdated: string;
     profileUpdateFailed: string;
+    currentPasswordLabel: string;
+    newPasswordLabel: string;
+    confirmPasswordHint: string;
+    passwordChanged: string;
+    wrongPassword: string;
+    usernameOrEmailTaken: string;
+    passwordTooShort: string;
+    enterCurrentPassword: string;
     datasetConsentDisableTitle: string;
     datasetConsentDisableMessage: string;
     datasetConsentDisableConfirm: string;
@@ -462,6 +519,9 @@ export interface StringDictionary {
     categoryFuel: string;
     categoryFertilizer: string;
     categoryElectricity: string;
+    emissionSources: string;
+    ofTotal: string;
+    fuelBreakdown: string;
   };
 
   // Notifications Screen
@@ -608,9 +668,6 @@ export interface StringDictionary {
     emailPlaceholder: string;
     passwordPlaceholder: string;
     confirmPasswordPlaceholder: string;
-    roleLabel: string;
-    roleFarmer: string;
-    roleAdmin: string;
     createAccountButton: string;
     backToLogin: string;
     connectingToServer: string;
@@ -644,6 +701,21 @@ export interface StringDictionary {
     altitudeRequired: string;
     searchPlaceholder: string;
     searchNoResults: string;
+  };
+  onboarding: {
+    chooseTitle: string;
+    chooseSubtitle: string;
+    createCardTitle: string;
+    createCardDesc: string;
+    joinCardTitle: string;
+    joinCardDesc: string;
+    joinTitle: string;
+    joinSubtitle: string;
+    joinCodePlaceholder: string;
+    joinButton: string;
+    joinSuccess: string;
+    joinError: string;
+    joinEmptyCode: string;
   };
 }
 
@@ -938,21 +1010,67 @@ const tr: StringDictionary = {
     roleFarmer: "Çiftçi",
     roleAdmin: "Yönetici",
     roleUser: "Kullanıcı",
-    farmManagement: "Farm Yönetimi",
-    activeFarm: "Aktif Farm",
-    noFarmSelected: "Henüz farm seçilmedi",
-    noFarmCreated: "Henüz farm oluşturulmadı",
+    roleStakeholder: "Paydaş",
+    farmRoleOwner: "Sahip",
+    farmRoleStakeholder: "Paydaş",
+    farmRoleFarmer: "Çiftçi",
+    stakeholder: {
+      manageTitle: "Paydaş Erişimi",
+      redeemTitle: "Çiftlik Davetini Kullan",
+      codePlaceholder: "Davet kodu",
+      redeemButton: "Kodu Kullan",
+      redeemedMsg: "Erişim verildi",
+      invalidMsg: "Geçersiz veya süresi dolmuş kod",
+      generateButton: "Davet Kodu Oluştur",
+      codeHint: "Bu kodu paydaşla paylaşın (7 gün geçerli, tek kullanımlık).",
+      copiedMsg: "Kod kopyalandı",
+      noneYet: "Henüz paydaş yok",
+      revokeButton: "Kaldır",
+      revokedMsg: "Erişim kaldırıldı",
+      revokeCodeButton: "Bu kodu iptal et",
+      codeRevokedMsg: "Kod iptal edildi",
+      selectFarmFirst: "Önce bir çiftlik seçin",
+      viewerNote: "Salt-okunur erişiminiz var.",
+      membersTitle: "Üyeler",
+      membersSubtitle: "Bu çiftliği görebilen kişiler ve rolleri.",
+      invitesTitle: "Davet Kodları",
+      invitesSubtitle: "Bu çiftlik için ürettiğiniz davet kodları.",
+      youLabel: "Siz",
+      expiresLabel: "Sona erer",
+      noInvitesYet: "Henüz davet kodu yok",
+      inviteStatusPending: "Aktif",
+      inviteStatusAccepted: "Kullanıldı",
+      inviteStatusExpired: "Süresi doldu",
+      inviteStatusRevoked: "İptal edildi",
+      removeMemberConfirmTitle: "Üyeyi kaldır",
+      removeMemberConfirmMessage: "bu çiftliğe erişimini kaybedecek.",
+      makeFarmerTitle: "Çiftçi yap",
+      makeFarmerMessage: "Foto gönderme, karbon girişi ve sulama işlemleri yapabilecek. Silme, üye yönetimi ve tarla oluşturma yalnızca sahibe açıktır.",
+      makeStakeholderTitle: "Paydaş yap",
+      makeStakeholderMessage: "Yalnızca görüntüleme ve sohbet erişimi kalacak.",
+      changeRoleButton: "Değiştir",
+      roleChangedMsg: "Rol güncellendi",
+      inviteRoleLabel: "Davet rolü",
+      inviteRoleHint: "Çiftçi: foto, karbon ve sulama. Paydaş: salt-okunur görüntüleme + sohbet.",
+    },
+    locationManagement: "Konum Yönetimi",
+    currentFarm: "Mevcut Çiftlik",
+    currentField: "Mevcut Tarla",
+    farmManagement: "Çiftlik Yönetimi",
+    activeFarm: "Aktif Çiftlik",
+    noFarmSelected: "Henüz çiftlik seçilmedi",
+    noFarmCreated: "Henüz çiftlik oluşturulmadı",
     fieldsConnected: "tarla bağlı",
-    createNewFarm: "Yeni Farm Oluştur",
-    deleteFarm: "Farmı Sil",
-    deleteFarmConfirmTitle: "Farmı Sil",
-    deleteFarmConfirmMessage: "Bu farm ve tüm tarlalar kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    createNewFarm: "Yeni Çiftlik Oluştur",
+    deleteFarm: "Çiftliği Sil",
+    deleteFarmConfirmTitle: "Çiftliği Sil",
+    deleteFarmConfirmMessage: "Bu çiftlik ve tüm tarlalar kalıcı olarak silinecek. Bu işlem geri alınamaz.",
     deleteField: "Tarlayı Sil",
     deleteFieldConfirmTitle: "Tarlayı Sil",
     deleteFieldConfirmMessage: "Bu tarla kalıcı olarak silinecek. Bu işlem geri alınamaz.",
     deleteConfirm: "Sil",
     fieldManagement: "Tarla Yönetimi",
-    noFields: "Bu farmda henüz tarla yok",
+    noFields: "Bu çiftlikte henüz tarla yok",
     hardwareSubtitle: "Sensör ve gateway bağlantılarını yönet",
     appPreferences: "Uygulama Ayarları",
     privacySection: "Gizlilik ve Katkı",
@@ -969,11 +1087,19 @@ const tr: StringDictionary = {
     editProfileTitle: "Profili Düzenle",
     usernameLabel: "Kullanıcı Adı",
     emailLabel: "E-posta",
-    passwordLabel: "Yeni Şifre",
+    passwordLabel: "Şifre",
     passwordPlaceholder: "Değiştirmek istemiyorsan boş bırak",
     saveChanges: "Kaydet",
     profileUpdated: "Profil güncellendi",
     profileUpdateFailed: "Profil güncellenemedi",
+    currentPasswordLabel: "Mevcut Şifre",
+    newPasswordLabel: "Yeni Şifre",
+    confirmPasswordHint: "Bu değişikliği onaylamak için mevcut şifreni gir",
+    passwordChanged: "Şifre değiştirildi",
+    wrongPassword: "Mevcut şifre yanlış",
+    usernameOrEmailTaken: "Bu kullanıcı adı veya e-posta zaten kullanımda",
+    passwordTooShort: "Şifre en az 8 karakter olmalı",
+    enterCurrentPassword: "Lütfen mevcut şifreni gir",
     datasetConsentDisableTitle: "Emin misin?",
     datasetConsentDisableMessage: "Bundan sonra gönderdiğin fotoğraflar TARAS'ı iyileştirmek için kullanılmayacak. Daha önce gönderilenler için verdiğin izin geçerliliğini korur.",
     datasetConsentDisableConfirm: "Kapat",
@@ -1094,6 +1220,9 @@ const tr: StringDictionary = {
     categoryFuel: "Yakıt",
     categoryFertilizer: "Gübre",
     categoryElectricity: "Elektrik",
+    emissionSources: "Emisyon Kaynakları",
+    ofTotal: "toplam",
+    fuelBreakdown: "Yakıt Detayları",
   },
 
   notifications: {
@@ -1173,7 +1302,7 @@ const tr: StringDictionary = {
   },
 
   addField: {
-    addNewField: "+ Yeni Tarla Ekle",
+    addNewField: "Yeni Tarla Ekle",
     selectFieldType: "Tarla Tipi Seçin",
     greenhouse: "Sera",
     greenhouseDesc: "Poligon sınırı ve bölgeler çizin",
@@ -1233,9 +1362,6 @@ const tr: StringDictionary = {
     emailPlaceholder: "E-posta",
     passwordPlaceholder: "Şifre",
     confirmPasswordPlaceholder: "Şifre Tekrar",
-    roleLabel: "Rol",
-    roleFarmer: "Çiftçi",
-    roleAdmin: "Yönetici",
     createAccountButton: "Hesap Oluştur",
     backToLogin: "Zaten hesabınız var mı? Giriş Yapın",
     connectingToServer: "Sunucuya bağlanılıyor...",
@@ -1267,6 +1393,22 @@ const tr: StringDictionary = {
     altitudeRequired: "Yükseklik değeri gereklidir",
     searchPlaceholder: "İl veya ilçe ara...",
     searchNoResults: "Sonuç bulunamadı",
+  },
+  onboarding: {
+    chooseTitle: "Nasıl başlamak istersiniz?",
+    chooseSubtitle:
+      "Kendi çiftliğinizi oluşturun ya da bir davet koduyla mevcut bir çiftliğe katılın.",
+    createCardTitle: "Çiftlik Oluştur",
+    createCardDesc: "Kendi çiftliğinizi kurun ve yönetin.",
+    joinCardTitle: "Çiftliğe Katıl",
+    joinCardDesc: "Davet koduyla bir çiftliği görüntüleyin.",
+    joinTitle: "Davet Kodu Gir",
+    joinSubtitle: "Çiftçinin sizinle paylaştığı kodu girin.",
+    joinCodePlaceholder: "Davet kodu",
+    joinButton: "Katıl",
+    joinSuccess: "Çiftliğe katıldınız!",
+    joinError: "Kod geçersiz veya süresi dolmuş.",
+    joinEmptyCode: "Lütfen bir davet kodu girin.",
   },
 };
 
@@ -1561,6 +1703,52 @@ const en: StringDictionary = {
     roleFarmer: "Farmer",
     roleAdmin: "Admin",
     roleUser: "User",
+    roleStakeholder: "Stakeholder",
+    farmRoleOwner: "Owner",
+    farmRoleStakeholder: "Stakeholder",
+    farmRoleFarmer: "Farmer",
+    stakeholder: {
+      manageTitle: "Stakeholder Access",
+      redeemTitle: "Redeem Farm Invite",
+      codePlaceholder: "Invite code",
+      redeemButton: "Redeem",
+      redeemedMsg: "Access granted",
+      invalidMsg: "Invalid or expired code",
+      generateButton: "Generate Invite Code",
+      codeHint: "Share this code with the stakeholder (valid 7 days, single use).",
+      copiedMsg: "Code copied",
+      noneYet: "No stakeholders yet",
+      revokeButton: "Revoke",
+      revokedMsg: "Access revoked",
+      revokeCodeButton: "Revoke this code",
+      codeRevokedMsg: "Code revoked",
+      selectFarmFirst: "Select a farm first",
+      viewerNote: "You have read-only access.",
+      membersTitle: "Members",
+      membersSubtitle: "People who can view this farm and their roles.",
+      invitesTitle: "Invite Codes",
+      invitesSubtitle: "Invite codes you've generated for this farm.",
+      youLabel: "You",
+      expiresLabel: "Expires",
+      noInvitesYet: "No invite codes yet",
+      inviteStatusPending: "Active",
+      inviteStatusAccepted: "Used",
+      inviteStatusExpired: "Expired",
+      inviteStatusRevoked: "Revoked",
+      removeMemberConfirmTitle: "Remove member",
+      removeMemberConfirmMessage: "will lose access to this farm.",
+      makeFarmerTitle: "Make Farmer",
+      makeFarmerMessage: "They'll be able to submit photos, log carbon, and run irrigation. Deleting, member management, and field creation stay owner-only.",
+      makeStakeholderTitle: "Make Stakeholder",
+      makeStakeholderMessage: "They'll be limited to view and chat access only.",
+      changeRoleButton: "Change",
+      roleChangedMsg: "Role updated",
+      inviteRoleLabel: "Invite role",
+      inviteRoleHint: "Farmer: photos, carbon, and irrigation. Stakeholder: read-only view + chat.",
+    },
+    locationManagement: "Location Management",
+    currentFarm: "Current Farm",
+    currentField: "Current Field",
     farmManagement: "Farm Management",
     activeFarm: "Active Farm",
     noFarmSelected: "No farm selected",
@@ -1592,11 +1780,19 @@ const en: StringDictionary = {
     editProfileTitle: "Edit Profile",
     usernameLabel: "Username",
     emailLabel: "Email",
-    passwordLabel: "New Password",
+    passwordLabel: "Password",
     passwordPlaceholder: "Leave blank to keep current",
     saveChanges: "Save",
     profileUpdated: "Profile updated",
     profileUpdateFailed: "Failed to update profile",
+    currentPasswordLabel: "Current Password",
+    newPasswordLabel: "New Password",
+    confirmPasswordHint: "Enter your current password to confirm this change",
+    passwordChanged: "Password changed",
+    wrongPassword: "Current password is incorrect",
+    usernameOrEmailTaken: "This username or email is already in use",
+    passwordTooShort: "Password must be at least 8 characters",
+    enterCurrentPassword: "Please enter your current password",
     datasetConsentDisableTitle: "Are you sure?",
     datasetConsentDisableMessage: "From now on, photos you upload won't be used to improve TARAS. Photos you've already sent keep the consent you gave at the time.",
     datasetConsentDisableConfirm: "Turn off",
@@ -1717,6 +1913,9 @@ const en: StringDictionary = {
     categoryFuel: "Fuel",
     categoryFertilizer: "Fertilizer",
     categoryElectricity: "Electricity",
+    emissionSources: "Emission Sources",
+    ofTotal: "of total",
+    fuelBreakdown: "Fuel Breakdown",
   },
 
   notifications: {
@@ -1796,7 +1995,7 @@ const en: StringDictionary = {
   },
 
   addField: {
-    addNewField: "+ Add New Field",
+    addNewField: "Add New Field",
     selectFieldType: "Select Field Type",
     greenhouse: "Greenhouse",
     greenhouseDesc: "Draw polygon boundary and zones",
@@ -1856,9 +2055,6 @@ const en: StringDictionary = {
     emailPlaceholder: "Email",
     passwordPlaceholder: "Password",
     confirmPasswordPlaceholder: "Confirm Password",
-    roleLabel: "Role",
-    roleFarmer: "Farmer",
-    roleAdmin: "Admin",
     createAccountButton: "Create Account",
     backToLogin: "Already have an account? Log In",
     connectingToServer: "Connecting to server...",
@@ -1890,6 +2086,22 @@ const en: StringDictionary = {
     altitudeRequired: "Altitude value is required",
     searchPlaceholder: "Search city or district...",
     searchNoResults: "No results found",
+  },
+  onboarding: {
+    chooseTitle: "How would you like to start?",
+    chooseSubtitle:
+      "Create your own farm, or join an existing one with an invite code.",
+    createCardTitle: "Create a Farm",
+    createCardDesc: "Set up and manage your own farm.",
+    joinCardTitle: "Join a Farm",
+    joinCardDesc: "View a farm with an invite code.",
+    joinTitle: "Enter Invite Code",
+    joinSubtitle: "Enter the code the farmer shared with you.",
+    joinCodePlaceholder: "Invite code",
+    joinButton: "Join",
+    joinSuccess: "Joined the farm!",
+    joinError: "Invalid or expired code.",
+    joinEmptyCode: "Please enter an invite code.",
   },
 };
 

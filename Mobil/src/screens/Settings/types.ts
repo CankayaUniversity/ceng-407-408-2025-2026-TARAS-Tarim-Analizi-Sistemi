@@ -19,10 +19,19 @@ export interface SettingsScreenProps {
   selectedFarmId: string | null;
   onSelectFarm: (farmId: string) => void;
   fields: Array<{ id: string; name: string; farm_id?: string }>;
+  selectedFieldId: string | null;
+  onSelectField: (fieldId: string) => void;
   hasFarms: boolean;
+  // Secili ciftligi DIREKT sahipleniyor muyum — yapisal/yonetsel affordance'lar (field/hardware
+  // olustur-sil, davet paylas) bununla gizlenir. Operasyonel haklar (sulama/karbon) Settings'te yok.
+  canManageSelectedFarm: boolean;
   onCreateFarm: () => void;
+  onCreateField: () => void;
   onDeleteFarm: (farmId: string) => Promise<void>;
   onDeleteField: (fieldId: string) => Promise<void>;
+  // Secili ciftligin uyelerini gor (herkes) / davet kodlarini paylas (yalnizca sahip)
+  onManageMembers: () => void;
+  onShareInvites: () => void;
   onProfileUpdated: (username: string, email: string) => void;
 }
 
