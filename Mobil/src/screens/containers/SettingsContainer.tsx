@@ -10,6 +10,7 @@ import { CreateFarmScreen, JoinFarmModal, FarmChoiceCards } from "../CreateFarm"
 import { FullScreenModal } from "../../components/FullScreenModal";
 import { useTheme } from "../../context/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
+import { useTabReset } from "../../context/TabResetContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
@@ -53,6 +54,15 @@ export const SettingsContainer = () => {
   const [membersOpen, setMembersOpen] = useState(false);
   const [invitesOpen, setInvitesOpen] = useState(false);
   const activeFarmName = farms.find((f) => f.farm_id === selectedFarmId)?.name ?? "";
+
+  // Aktif "settings" sekmesine tekrar basilinca acik tum alt modallari kapat —
+  // ana ayarlar ekranina don.
+  useTabReset("settings", () => {
+    setShowHardwareSetup(false);
+    setAddFarmOpen(false);
+    setMembersOpen(false);
+    setInvitesOpen(false);
+  });
 
   // Profil bilgileri
   const [email, setEmail] = useState<string | null>(null);

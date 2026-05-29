@@ -24,6 +24,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useDashboard } from "../../context/DashboardContext";
+import { useTabReset } from "../../context/TabResetContext";
 import { FocusableSection } from "../../components/FocusableSection";
 import { BottomSheet } from "../../components/BottomSheet";
 import { carbonAPI } from "../../utils/api";
@@ -107,6 +108,14 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
   // ── UI state ───────────────────────────────────────────────────────────────
   const [detailCategory, setDetailCategory] = useState<CategoryKey | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Aktif "carbon" sekmesine tekrar basilinca ana duruma don: acik detay/kayit
+  // modallarini kapat ve en uste kaydir.
+  useTabReset("carbon", () => {
+    setDetailCategory(null);
+    setShowAddModal(false);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  });
 
   // ── Helper ─────────────────────────────────────────────────────────────────
   const getCategoryTotal = (cat: string): number =>
@@ -947,10 +956,10 @@ const styles = StyleSheet.create({
     padding: 5,
     marginBottom: 6,
     borderWidth: 1,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.14,
+    shadowRadius: 9,
+    elevation: 9,
   },
   sectionLabel: {
     fontSize: ms(11, 0.3),

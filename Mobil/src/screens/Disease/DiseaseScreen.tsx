@@ -37,6 +37,7 @@ import { DiseaseScreenProps } from "./types";
 import { spacing, vs, TAB_H_PADDING } from "../../utils/responsive";
 import type { DiseaseListScreenProps } from "./DiseaseStack";
 import { useScreenReset } from "../../hooks/useScreenReset";
+import { useTabReset } from "../../context/TabResetContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
@@ -320,6 +321,16 @@ export const DiseaseScreen = memo(function DiseaseScreen({
       setShowCamera(false);
       setLoading(false);
     },
+  });
+
+  // Aktif "disease" sekmesine tekrar basilinca ana duruma don: alt ekrandan koke
+  // (DiseaseDetail/FolderDetail) don, acik dialoglari kapat, listeyi en uste kaydir.
+  useTabReset("disease", () => {
+    navigation.popToTop();
+    setShowCamera(false);
+    setCameraFolderContext(null);
+    setShowCreateFolder(false);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   });
 
   const closeCameraAndReturn = () => {

@@ -11,6 +11,7 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useTabBarPopOut } from "../context/TabBarPopOutContext";
+import { useTabResetContext } from "../context/TabResetContext";
 import { NAV_ITEMS } from "../constants";
 import { s, vs, ms } from "../utils/responsive";
 import type { TabParamList } from "../navigation/navigationRef";
@@ -20,6 +21,7 @@ export const AppTabBar = memo(function AppTabBar(props: BottomTabBarProps) {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const { popOuts } = useTabBarPopOut();
+  const { requestReset } = useTabResetContext();
   const navBottom = insets.bottom > 20 ? 8 : Math.max(insets.bottom + 4, 8);
   const hasPopOut = Object.keys(popOuts).length > 0;
 
@@ -94,7 +96,15 @@ export const AppTabBar = memo(function AppTabBar(props: BottomTabBarProps) {
                 },
                 isActive && { backgroundColor: theme.primary + "22" },
               ]}
-              onPress={() => props.navigation.navigate(item.id as keyof TabParamList)}
+              onPress={() => {
+                // Zaten aktif sekmeye tekrar basildiysa o sekmeyi ana duruma sifirla;
+                // degilse normal sekme gecisi yap.
+                if (isActive) {
+                  requestReset(item.id as keyof TabParamList);
+                } else {
+                  props.navigation.navigate(item.id as keyof TabParamList);
+                }
+              }}
             >
               <MaterialCommunityIcons
                 name={item.icon as any}

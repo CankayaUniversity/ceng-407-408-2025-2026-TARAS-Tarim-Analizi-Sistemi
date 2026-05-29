@@ -6,12 +6,13 @@
 import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { View, Text } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useTabReset } from "../../context/TabResetContext";
 import { PressableDark } from "../../components/PressableDark";
 import type { NodeInfo } from "../../components/ColorPlane";
 import { HomeScreen } from "./HomeScreen";
@@ -37,6 +38,12 @@ const HomeMainScreen = () => {
   const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen, canManageSelectedFarm } = useDashboard();
   const { t } = useLanguage();
   const isFocused = useIsFocused();
+  const navigation = useNavigation<IrrigationDetailNavProps["navigation"]>();
+
+  // Aktif "home" sekmesine tekrar basilinca alt ekrandan (IrrigationDetail) koke don.
+  useTabReset("home", () => {
+    navigation.popToTop();
+  });
 
   if (fields.length === 0) {
     return (

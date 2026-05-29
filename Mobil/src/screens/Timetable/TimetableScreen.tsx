@@ -24,6 +24,7 @@ import { Theme } from "../../utils/theme";
 import { useLanguage } from "../../context/LanguageContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
+import { useTabReset } from "../../context/TabResetContext";
 import { useSensorData } from "../../hooks/useSensorData";
 import { s, vs, ms, TAB_H_PADDING } from "../../utils/responsive";
 import { OptionButton } from "../../components/OptionButton";
@@ -285,6 +286,13 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
   );
   const [filterOpen, setFilterOpen] = useState(false);
   const [view, setView] = useState<"chart" | "table">("chart");
+
+  // Aktif "timetable" sekmesine tekrar basilinca ana duruma don: filtre menusunu
+  // kapat ve varsayilan grafik gorunumune gec.
+  useTabReset("timetable", () => {
+    setFilterOpen(false);
+    setView("chart");
+  });
   // Grafik scrub'i (yatay) suruyor mu — true iken ScrollView dikey kaydirma KAPALI (Android'de
   // yalniz responder kilidi yetmiyor). Yatay scrub kilidi baslayinca true, gesture bitince false.
   const [chartScrubbing, setChartScrubbing] = useState(false);

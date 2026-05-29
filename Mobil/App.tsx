@@ -55,6 +55,7 @@ import { DashboardProvider } from "./src/context/DashboardContext";
 import { ChatProvider } from "./src/context/ChatContext";
 import { SectionFocusProvider } from "./src/context/SectionFocusContext";
 import { TabBarPopOutProvider } from "./src/context/TabBarPopOutContext";
+import { TabResetProvider } from "./src/context/TabResetContext";
 import { AppRouter } from "./src/navigation/AppRouter";
 
 export default function App() {
@@ -70,7 +71,9 @@ export default function App() {
                     <SectionFocusProvider>
                       <ChatProvider>
                         <TabBarPopOutProvider>
-                          <AppRouter />
+                          <TabResetProvider>
+                            <AppRouter />
+                          </TabResetProvider>
                         </TabBarPopOutProvider>
                       </ChatProvider>
                     </SectionFocusProvider>
