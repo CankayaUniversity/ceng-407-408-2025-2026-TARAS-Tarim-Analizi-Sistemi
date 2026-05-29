@@ -594,10 +594,10 @@ export const DiseaseResultCard = ({
         borderWidth: 1,
         borderColor: theme.primary + "20",
         shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 3,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.14,
+        shadowRadius: 9,
+        elevation: 9,
       }}
     >
       <View className="flex-row" style={{ gap: 10 }}>

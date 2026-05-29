@@ -108,6 +108,7 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
   // ── UI state ───────────────────────────────────────────────────────────────
   const [detailCategory, setDetailCategory] = useState<CategoryKey | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [recentExpanded, setRecentExpanded] = useState(true);
 
   // Aktif "carbon" sekmesine tekrar basilinca ana duruma don: acik detay/kayit
   // modallarini kapat ve en uste kaydir.
@@ -482,34 +483,50 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
         </FocusableSection>
 
         {/* ── 4. Recent Activities ──────────────────────────────────────────── */}
-        <FocusableSection
-          id="recentLogsList"
-          screen="carbon"
-          theme={theme}
-          scrollViewRef={scrollRef}
-        >
-          <Text style={[styles.sectionLabel, { color: theme.textMuted, marginBottom: vs(6) }]}>
-            {t.carbon.recentLogs}
-          </Text>
+        {/* Baslik genel tespitler bolumuyle ayni yapida: chevron ile acilir/kapanir
+            + sayi rozeti. Kartlar FocusableSection icinde kalir (LLM scroll hedefi). */}
+        <View>
+          <TouchableOpacity
+            onPress={() => setRecentExpanded((v) => !v)}
+            activeOpacity={0.8}
+            hitSlop={8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: recentExpanded ? vs(8) : 0,
+              paddingHorizontal: 2,
+            }}
+          >
+            <Ionicons
+              name={recentExpanded ? "chevron-down" : "chevron-forward"}
+              size={18}
+              color={theme.textMuted}
+            />
+            <Text style={[styles.sectionLabel, { color: theme.textMuted }]}>
+              {t.carbon.recentLogs}{" "}
+              {recentLogs.length > 0 ? `(${recentLogs.length})` : ""}
+            </Text>
+          </TouchableOpacity>
 
-          {recentLogs.length === 0 ? (
-            <View
-              className="surface-bg rounded-xl"
-              style={[styles.diseaseCard, { borderColor: theme.primary + "20", shadowColor: theme.shadowColor, alignItems: "center", paddingVertical: spacing.lg }]}
-            >
-              <MaterialCommunityIcons name="leaf" size={32} color={theme.textSecondary} />
-              <Text
-                className="text-primary font-semibold"
-                style={{ fontSize: 14, marginTop: spacing.xs }}
-              >
-                {t.carbon.noLogs}
-              </Text>
-              <Text className="text-secondary" style={{ fontSize: 12, textAlign: "center" }}>
-                {t.carbon.noLogsSubtitle}
-              </Text>
-            </View>
-          ) : (
-            recentLogs.map((log) => {
+          <FocusableSection
+            id="recentLogsList"
+            screen="carbon"
+            theme={theme}
+            scrollViewRef={scrollRef}
+          >
+            {!recentExpanded ? null : recentLogs.length === 0 ? (
+              <View className="flex-1 center" style={{ paddingVertical: vs(16) }}>
+                <MaterialCommunityIcons name="leaf" size={48} color={theme.textSecondary} />
+                <Text className="text-primary text-base font-semibold mt-3">
+                  {t.carbon.noLogs}
+                </Text>
+                <Text className="text-secondary text-[13px] mt-1 text-center">
+                  {t.carbon.noLogsSubtitle}
+                </Text>
+              </View>
+            ) : (
+              recentLogs.map((log) => {
               const catKey = log.activity_type.category as CategoryKey;
               const cfg = catConfig[catKey] ?? {
                 color: theme.textSecondary,
@@ -584,8 +601,9 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
                 </View>
               );
             })
-          )}
-        </FocusableSection>
+            )}
+          </FocusableSection>
+        </View>
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
