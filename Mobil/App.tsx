@@ -50,6 +50,7 @@ import { LanguageProvider } from "./src/context/LanguageContext";
 import { PopupMessageProvider } from "./src/context/PopupMessageContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ThemeProvider } from "./src/context/ThemeContext";
+import { ConfirmProvider } from "./src/context/ConfirmContext";
 import { DashboardProvider } from "./src/context/DashboardContext";
 import { ChatProvider } from "./src/context/ChatContext";
 import { SectionFocusProvider } from "./src/context/SectionFocusContext";
@@ -64,15 +65,17 @@ export default function App() {
           <PopupMessageProvider>
             <AuthProvider>
               <ThemeProvider>
-                <DashboardProvider>
-                  <SectionFocusProvider>
-                    <ChatProvider>
-                      <TabBarPopOutProvider>
-                        <AppRouter />
-                      </TabBarPopOutProvider>
-                    </ChatProvider>
-                  </SectionFocusProvider>
-                </DashboardProvider>
+                <ConfirmProvider>
+                  <DashboardProvider>
+                    <SectionFocusProvider>
+                      <ChatProvider>
+                        <TabBarPopOutProvider>
+                          <AppRouter />
+                        </TabBarPopOutProvider>
+                      </ChatProvider>
+                    </SectionFocusProvider>
+                  </DashboardProvider>
+                </ConfirmProvider>
               </ThemeProvider>
             </AuthProvider>
           </PopupMessageProvider>

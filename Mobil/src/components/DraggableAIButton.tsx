@@ -6,7 +6,7 @@ import {
   GestureResponderEvent,
   PanResponderGestureState,
 } from "react-native";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { RobotLeafIcon } from "./RobotLeafIcon";
 import { Theme } from "../types";
 import { s } from "../utils/responsive";
 
@@ -168,7 +168,7 @@ export const DraggableAIButton = ({
       }}
       {...panResponder.panHandlers}
     >
-      <MaterialCommunityIcons name="robot" size={s(22)} color={theme.textOnPrimary} />
+      <RobotLeafIcon size={s(28)} color={theme.textOnPrimary} />
     </Animated.View>
   );
 };

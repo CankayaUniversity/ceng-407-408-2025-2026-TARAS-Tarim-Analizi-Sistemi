@@ -81,6 +81,13 @@ export const spacing = {
 };
 
 /**
+ * Tum tablarin (Home/Disease/Timetable/Carbon/Settings) icerik yatay kenar bosluğu.
+ * AppHeader icerigi ile ayni hizada: header s(8) padding + s(4) element gap = s(12).
+ * Tek kaynak — tablar arasi gorsel hizalama bozulmasin diye buradan referans alinir.
+ */
+export const TAB_H_PADDING = scale(12);
+
+/**
  * Predefined font size configurations
  * Includes base, min, and max values for each scale
  */
@@ -325,16 +332,18 @@ export const calculateMetricCardsRowWidth = (
  * <LogoLight width={headerDims.logoSize} height={headerDims.logoSize} />
  */
 export const getHeaderDimensions = (screenWidth: number): HeaderDimensions => {
-  const minLogoSize = 40;
-  const maxLogoSize = 64;
+  const minLogoSize = 34;
+  const maxLogoSize = 54;
 
-  // Logo scales with screen width (11% of width, clamped to min/max)
+  // Logo scales with screen width (9.4% of width, clamped to min/max).
+  // Header'i inceltmek icin kucultuldu (onceki 0.11 / 40-64); logo + bildirim butonu
+  // (getProfileButtonSize) + AppHeader field selector bu degerle birlikte iniyor.
   const logoSize = Math.max(
     minLogoSize,
-    Math.min(screenWidth * 0.11, maxLogoSize),
+    Math.min(screenWidth * 0.094, maxLogoSize),
   );
 
-  const headerPadding = spacing.md;
+  const headerPadding = spacing.sm;
   const headerTopPadding = spacing.xs;
   const elementGap = spacing.xs;
 

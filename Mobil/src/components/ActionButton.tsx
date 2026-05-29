@@ -5,7 +5,7 @@
 // disabled iken opaklik 0.4 + dokunulamaz; metin/cerceve degismez, hala okunabilir.
 
 import { memo } from "react";
-import { Text } from "react-native";
+import { Text, ActivityIndicator } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { PressableDark } from "./PressableDark";
@@ -19,14 +19,18 @@ export interface ActionButtonProps {
   onPress: () => void;
   variant?: ActionButtonVariant;
   disabled?: boolean;
-  /** MaterialCommunityIcons icon name. */
+  /** MaterialCommunityIcons icon name (label SOLUNDA). */
   icon?: string;
+  /** MaterialCommunityIcons icon name (label SAGINDA — orn. "ileri" chevron'u). */
+  trailingIcon?: string;
   /** Outer style overrides (flex, margin, width). */
   style?: StyleProp<ViewStyle>;
   fontSize?: number;
   iconSize?: number;
   paddingV?: number;
   paddingH?: number;
+  /** true iken label/icon yerine spinner gosterir + dokunulamaz (devam eden islem). */
+  loading?: boolean;
 }
 
 export const ActionButton = memo(function ActionButton({
@@ -36,11 +40,13 @@ export const ActionButton = memo(function ActionButton({
   variant = "primary",
   disabled = false,
   icon,
+  trailingIcon,
   style,
   fontSize = 14,
   iconSize = 16,
   paddingV = 12,
   paddingH = 16,
+  loading = false,
 }: ActionButtonProps) {
   const isPrimary = variant === "primary";
   const bg = isPrimary ? theme.primary : "transparent";
@@ -50,8 +56,8 @@ export const ActionButton = memo(function ActionButton({
 
   return (
     <PressableDark
-      onPress={disabled ? undefined : onPress}
-      disabled={disabled}
+      onPress={disabled || loading ? undefined : onPress}
+      disabled={disabled || loading}
       style={[
         {
           flex: 1,
@@ -70,25 +76,39 @@ export const ActionButton = memo(function ActionButton({
         style,
       ]}
     >
-      {icon && (
-        <MaterialCommunityIcons
-          name={icon as any}
-          size={iconSize}
-          color={fg}
-          style={{ marginRight: 6 }}
-        />
+      {loading ? (
+        <ActivityIndicator size="small" color={fg} />
+      ) : (
+        <>
+          {icon && (
+            <MaterialCommunityIcons
+              name={icon as any}
+              size={iconSize}
+              color={fg}
+              style={{ marginRight: 6 }}
+            />
+          )}
+          <Text
+            style={{
+              fontSize,
+              fontWeight: "700",
+              textAlign: "center",
+              color: fg,
+            }}
+            numberOfLines={1}
+          >
+            {label}
+          </Text>
+          {trailingIcon && (
+            <MaterialCommunityIcons
+              name={trailingIcon as any}
+              size={iconSize}
+              color={fg}
+              style={{ marginLeft: 6 }}
+            />
+          )}
+        </>
       )}
-      <Text
-        style={{
-          fontSize,
-          fontWeight: "700",
-          textAlign: "center",
-          color: fg,
-        }}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
     </PressableDark>
   );
 });

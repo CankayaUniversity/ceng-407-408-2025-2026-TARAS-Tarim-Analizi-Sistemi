@@ -34,7 +34,7 @@ const Stack = createNativeStackNavigator<HomeStackParamList>();
 // (HomeContainer'daki ayni kapsam; HomeStack icinde ayri screen olarak yasatilir)
 const HomeMainScreen = () => {
   const { theme, isDark } = useTheme();
-  const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen } = useDashboard();
+  const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen, canManageSelectedFarm } = useDashboard();
   const { t } = useLanguage();
   const isFocused = useIsFocused();
 
@@ -48,24 +48,27 @@ const HomeMainScreen = () => {
         <Text style={{ fontSize: ms(13, 0.3), color: theme.textSecondary, marginTop: vs(6), textAlign: "center" }}>
           {t.home.noFieldsSubtitle}
         </Text>
-        <PressableDark
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            backgroundColor: theme.primary,
-            borderRadius: 12,
-            paddingVertical: vs(12),
-            paddingHorizontal: s(24),
-            marginTop: vs(20),
-            gap: s(6),
-          }}
-          onPress={() => setAddFieldModalOpen(true)}
-        >
-          <MaterialCommunityIcons name="plus" size={18} color={theme.textOnPrimary} />
-          <Text style={{ fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textOnPrimary }}>
-            {t.home.addField}
-          </Text>
-        </PressableDark>
+        {/* Tarla ekleme yalnizca secili ciftligi sahiplenen kullaniciya — paydas/farmer-uye salt-okunur. */}
+        {canManageSelectedFarm && (
+          <PressableDark
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: theme.primary,
+              borderRadius: 12,
+              paddingVertical: vs(12),
+              paddingHorizontal: s(24),
+              marginTop: vs(20),
+              gap: s(6),
+            }}
+            onPress={() => setAddFieldModalOpen(true)}
+          >
+            <MaterialCommunityIcons name="plus" size={18} color={theme.textOnPrimary} />
+            <Text style={{ fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textOnPrimary }}>
+              {t.home.addField}
+            </Text>
+          </PressableDark>
+        )}
       </View>
     );
   }

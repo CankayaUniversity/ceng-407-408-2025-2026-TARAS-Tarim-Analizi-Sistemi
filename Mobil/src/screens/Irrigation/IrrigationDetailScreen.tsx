@@ -100,9 +100,17 @@ const YesNoToggle = ({
 export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNavProps) => {
   const { node, nodeIndex } = route.params;
   const { theme } = useTheme();
-  const { dashboardData, selectedFieldId } = useDashboard();
+  const { dashboardData, selectedFieldId, canEditSelectedFarm, zoneNameById } = useDashboard();
   const { t, language } = useLanguage();
   const { showPopup } = usePopupMessage();
+
+  // Bolge basligi — FeaturedZoneCard ile AYNI cozum sirasi (kullanicinin tikladigi adla esit kalsin):
+  // node'un kendi adi → context zone_id->zone_name haritasi → "Bölge N" index fallback'i.
+  const zoneTitle = useMemo(() => {
+    if (node?.zone_name) return node.zone_name;
+    const byId = node?.zone_id ? zoneNameById[node.zone_id] : undefined;
+    return byId ?? `${t.irrigation.zone} ${nodeIndex + 1}`;
+  }, [node, zoneNameById, nodeIndex, t.irrigation.zone]);
 
   // Sulama is verileri
   const [jobs, setJobs] = useState<IrrigationJob[]>([]);
@@ -438,7 +446,7 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
               color: theme.textMain,
             }}
           >
-            {t.irrigation.zone} {nodeIndex + 1}
+            {zoneTitle}
           </Text>
           {zoneDetails?.active_plantings?.[0]?.crop_name ? (
             <Text
@@ -452,6 +460,8 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
             </Text>
           ) : null}
         </View>
+        {/* Sulama onerisi calistir — yalnizca secili ciftligi sahiplenen (paydas salt-okunur) */}
+        {canEditSelectedFarm && (
         <TouchableOpacity
           onPress={handleRunRecommendation}
           disabled={runningRecommendation}
@@ -475,6 +485,7 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
             {t.irrigation.recommendButton}
           </Text>
         </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -969,7 +980,8 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
               </View>
             )}
 
-            {/* Kaydet butonu */}
+            {/* Kaydet butonu — yalnizca secili ciftligi sahiplenen (paydas salt-okunur) */}
+            {canEditSelectedFarm && (
             <TouchableOpacity
               onPress={handleSave}
               disabled={!canSave || saving}
@@ -995,6 +1007,7 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
                 </Text>
               )}
             </TouchableOpacity>
+            )}
 
             {/* Kayit sonucu */}
             {saveResult === "success" && (
@@ -1338,7 +1351,8 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
                   </Text>
                 )}
 
-                {/* Kaydet butonu */}
+                {/* Kaydet butonu — yalnizca secili ciftligi sahiplenen (paydas salt-okunur) */}
+                {canEditSelectedFarm && (
                 <TouchableOpacity
                   onPress={handleManualSave}
                   disabled={!canManualSave || manualSaving}
@@ -1364,6 +1378,7 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
                     </Text>
                   )}
                 </TouchableOpacity>
+                )}
 
                 {/* Sonuc mesaji */}
                 {manualSaveResult === "success" && (

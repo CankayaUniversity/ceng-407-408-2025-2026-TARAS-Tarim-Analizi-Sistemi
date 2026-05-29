@@ -86,6 +86,8 @@ interface FeaturedZoneCardProps {
   theme: Theme;
   node: NodeInfo | null;
   nodeIndex: number;
+  /** Secili bolgenin gercek adi (ornek "Sera 1"). null ise "Bölge {nodeIndex+1}" fallback'i kullanilir. */
+  zoneName?: string | null;
   /** Gosterilecek sensor ortalamasi — zone secili ise zone, degilse tarla geneli. */
   sensor: SensorAvg | null;
   pendingSuggestion?: IrrigationSuggestion | null;
@@ -98,6 +100,9 @@ interface FeaturedZoneCardProps {
   onRefreshData?: () => void;
   /** Toprak hucresine dokununca sulama detay ekranini acar (zone modunda). */
   onPress: () => void;
+  /** Paydas (salt-okunur): true ise toprak hucresi sulama onerisi/parlama/tiklama OLMADAN
+   *  sade SensorCell olarak (hava hucreleri gibi) gosterilir. */
+  readOnly?: boolean;
 }
 
 // Hucre olculeri — SABIT satir yukseklikleri + ACIK lineHeight → icerik determinist, KAYMAZ.
@@ -199,6 +204,7 @@ export const FeaturedZoneCard = ({
   theme,
   node,
   nodeIndex,
+  zoneName = null,
   sensor,
   pendingSuggestion = null,
   noActionEvaluation = null,
@@ -207,6 +213,7 @@ export const FeaturedZoneCard = ({
   fetchedAt = null,
   onRefreshData,
   onPress,
+  readOnly = false,
 }: FeaturedZoneCardProps) => {
   const { t, language } = useLanguage();
 
@@ -276,7 +283,9 @@ export const FeaturedZoneCard = ({
           numberOfLines={1}
           style={{ flexShrink: 1, fontSize: ms(15, 0.3), fontWeight: "700", color: theme.textMain }}
         >
-          {isZone ? `${t.irrigation.zone} ${nodeIndex + 1}` : t.home.fieldOverview}
+          {isZone
+            ? zoneName ?? `${t.irrigation.zone} ${nodeIndex + 1}`
+            : t.home.fieldOverview}
         </Text>
         <DataFreshnessMeta theme={theme} fetchedAt={fetchedAt} onRefresh={onRefreshData} />
       </View>
@@ -299,9 +308,10 @@ export const FeaturedZoneCard = ({
         />
       </View>
 
-      {/* 2. satir — toprak nemi (zone: dokunulabilir, belirgin oneri) */}
+      {/* 2. satir — toprak nemi (zone + duzenleyebilen: dokunulabilir, belirgin oneri).
+          Paydas (readOnly): sulama onerisi/parlama/tiklama YOK → sade SensorCell (hava hucreleri gibi). */}
       <View style={{ flexDirection: "row", marginTop: s(6) }}>
-        {isZone ? (
+        {isZone && !readOnly ? (
           <TouchableOpacity
             activeOpacity={0.75}
             onPress={onPress}

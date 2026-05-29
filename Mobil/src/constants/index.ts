@@ -17,7 +17,7 @@ export const NAV_ITEMS = [
   { id: "timetable", icon: "calendar-month" },
   { id: "home", icon: "home" },
   { id: "disease", icon: "leaf" },
-  { id: "settings", icon: "account-circle-outline" },
+  { id: "settings", icon: "account-circle" },
 ] as const;
 
 export const HEADER_TEXT: Record<Exclude<ScreenType, "login">, string> = {

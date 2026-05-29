@@ -13,12 +13,14 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  Animated,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { authAPI, healthAPI } from "../../utils/api";
 import { LoginScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useKeyboard } from "../../hooks/useKeyboard";
 import { vs, ms, s } from "../../utils/responsive";
 
 import LogoLight from "../../assets/Taras-logo-light.svg";
@@ -36,6 +38,12 @@ export const LoginScreen = ({
   const [isLoading, setIsLoading] = useState(false);
   const [username, setUsername] = useState("");
   const [serverStatus, setServerStatus] = useState<string | null>(null);
+
+  // Klavye acilinca LOGO'NUN USTUNDEKI bosluk kuculur (icerik yukari kayar) — logo gizlenmez/
+  // kucukmez. Sadece ust boslugun yuksekligi animate edilir (height — bu dosyada/hook'ta zaten
+  // kullanilan, guvenilir yol); icerik justifyContent:"center" ile ortali kalir.
+  const { animatedPadding } = useKeyboard();
+  const topSpacerHeight = animatedPadding.interpolate({ inputRange: [0, 1], outputRange: [vs(56), 0] });
 
   // AWS demo credentials from env
   const awsDemoUsername = Constants.expoConfig?.extra?.awsDemoUsername || "";
@@ -123,11 +131,17 @@ export const LoginScreen = ({
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {theme.isDark ? (
-          <LogoDark width={220} height={220} />
-        ) : (
-          <LogoLight width={220} height={220} />
-        )}
+        {/* Logo ustundeki bosluk — klavye acilinca 0'a kuculur, icerik yukari kayar (logo tam
+            boyutta/gorunur kalir). */}
+        <Animated.View style={{ height: topSpacerHeight }} />
+
+        <View style={{ alignItems: "center", justifyContent: "center" }}>
+          {theme.isDark ? (
+            <LogoDark width={220} height={220} />
+          ) : (
+            <LogoLight width={220} height={220} />
+          )}
+        </View>
 
         {serverStatus && (
           <Text

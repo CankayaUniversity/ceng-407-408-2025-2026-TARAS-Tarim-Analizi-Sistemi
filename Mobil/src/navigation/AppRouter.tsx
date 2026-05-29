@@ -1,8 +1,8 @@
 // Auth gate + ana layout — loading/login/register/main arasinda gecis yapar
 // Tablar logged in iken mount'lu, chat overlay showChat iken ustte gozukuyor
 
-import { useState } from "react";
-import { View, Text, Platform } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { View, Text, Platform, Animated } from "react-native";
 import Constants from "expo-constants";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,6 +27,23 @@ export const AppRouter = () => {
   const { t } = useLanguage();
   const { showChat } = useChatContext();
   const [authView, setAuthView] = useState<"login" | "register">("login");
+
+  // Login <-> Register yumusak gecis: gorunum degisince gelen ekran fade + yone gore hafif
+  // yatay kayma ile girer (ilk acilista animasyon yok).
+  const authAnim = useRef(new Animated.Value(1)).current;
+  const isFirstAuthView = useRef(true);
+  useEffect(() => {
+    if (isFirstAuthView.current) {
+      isFirstAuthView.current = false;
+      return;
+    }
+    authAnim.setValue(0);
+    Animated.timing(authAnim, {
+      toValue: 1,
+      duration: 240,
+      useNativeDriver: true,
+    }).start();
+  }, [authView, authAnim]);
 
   if (!isAuthReady) {
     return (
@@ -58,19 +75,36 @@ export const AppRouter = () => {
               onLoginSuccess={handleLogin}
               onSkip={handleSkip}
             />
-          ) : authView === "register" ? (
-            <RegisterScreen
-              theme={theme}
-              onRegisterSuccess={handleLogin}
-              onBackToLogin={() => setAuthView("login")}
-            />
           ) : (
-            <LoginScreen
-              theme={theme}
-              onLoginSuccess={handleLogin}
-              onSkip={handleSkip}
-              onGoToRegister={() => setAuthView("register")}
-            />
+            <Animated.View
+              style={{
+                flex: 1,
+                opacity: authAnim,
+                transform: [
+                  {
+                    translateX: authAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [authView === "register" ? 28 : -28, 0],
+                    }),
+                  },
+                ],
+              }}
+            >
+              {authView === "register" ? (
+                <RegisterScreen
+                  theme={theme}
+                  onRegisterSuccess={handleLogin}
+                  onBackToLogin={() => setAuthView("login")}
+                />
+              ) : (
+                <LoginScreen
+                  theme={theme}
+                  onLoginSuccess={handleLogin}
+                  onSkip={handleSkip}
+                  onGoToRegister={() => setAuthView("register")}
+                />
+              )}
+            </Animated.View>
           )
         ) : (
           <>

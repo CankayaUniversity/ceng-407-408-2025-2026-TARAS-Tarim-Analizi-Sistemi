@@ -18,8 +18,9 @@ import { Theme } from "../../utils/theme";
 import { DashboardData, irrigationAPI, IrrigationJob } from "../../utils/api";
 import { IrrigationSuggestion } from "./types";
 import { useSectionFocusFor } from "../../context/SectionFocusContext";
+import { useDashboard } from "../../context/DashboardContext";
 
-import { s, spacing } from "../../utils/responsive";
+import { spacing, TAB_H_PADDING } from "../../utils/responsive";
 import { FeaturedZoneCard } from "./FeaturedZoneCard";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Safe3DCanvas } from "../../components/Safe3DCanvas";
@@ -130,6 +131,8 @@ export const HomeScreen = memo(({
   onRefresh,
 }: HomeScreenProps) => {
   const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
+  // Paydas (salt-okunur, secili ciftligi sahiplenmeyen): sulama onerisi/parlama/tiklama gizlenir.
+  const { canEditSelectedFarm, zoneNameById } = useDashboard();
 
   // Sulama verisi — TUM zone'lar icin BASTA bir kez cekilir (zone tiklamasinda yeni sorgu YOK).
   // Harita: zoneKey → ozet. Secili zone bu haritadan okunur.
@@ -232,12 +235,21 @@ export const HomeScreen = memo(({
   // kadar yanlis poz kaliyordu).
   const fieldData = dashboardData?.field;
 
-  // Secili node'un indeksi — zone adi icin
+  // Secili node'un indeksi — zone adi cozulemezse fallback "Bölge N" icin
   const nodeIndex = useMemo(() => {
     if (!selectedNode || !fieldData?.nodes?.length) return 0;
     const idx = fieldData.nodes.findIndex((n) => n.id === selectedNode.id);
     return idx >= 0 ? idx : 0;
   }, [selectedNode, fieldData?.nodes]);
+
+  // Secili node'un gercek bolge adi — once node'un kendi alani (backend gonderirse),
+  // sonra context'teki zone_id -> zone_name haritasi. Ikisi de yoksa null (kart index'e duser).
+  const selectedZoneName = useMemo(() => {
+    if (!selectedNode) return null;
+    if (selectedNode.zone_name) return selectedNode.zone_name;
+    const byId = selectedNode.zone_id ? zoneNameById[selectedNode.zone_id] : undefined;
+    return byId ?? null;
+  }, [selectedNode, zoneNameById]);
 
   // Connector balonu rengi — secili zone'un nem renginden turetilir (overlay'de pastel + saydam)
   const zoneColor = useMemo(
@@ -350,7 +362,7 @@ export const HomeScreen = memo(({
 
   return (
     <View ref={rootRef} className="flex-1 relative" style={{ backgroundColor: theme.background }}>
-      <View className="flex-1" style={{ marginHorizontal: spacing.sm }}>
+      <View className="flex-1" style={{ marginHorizontal: TAB_H_PADDING }}>
         <ScrollView
           style={{ flexGrow: 0, flexShrink: 0 }}
           showsVerticalScrollIndicator={false}
@@ -367,12 +379,13 @@ export const HomeScreen = memo(({
             ref={cardWrapRef}
             collapsable={false}
             onLayout={measureConnector}
-            style={{ marginHorizontal: s(2), marginBottom: spacing.sm }}
+            style={{ marginBottom: spacing.sm }}
           >
             <FeaturedZoneCard
               theme={theme}
               node={selectedNode}
               nodeIndex={nodeIndex}
+              zoneName={selectedZoneName}
               sensor={displaySensor}
               pendingSuggestion={currentIrrigation?.pendingSuggestion ?? null}
               noActionEvaluation={currentIrrigation?.noActionEvaluation ?? null}
@@ -381,11 +394,12 @@ export const HomeScreen = memo(({
               fetchedAt={lastFetchedAt}
               onRefreshData={handleDataRefresh}
               onPress={handleOpenDetail}
+              readOnly={!canEditSelectedFarm}
             />
           </View>
         </ScrollView>
 
-        {/* 3D Canvas — yatay margin'lari ekrana kadar uzat (outer wrapper'in spacing.sm'sini ters ceviriyoruz) */}
+        {/* 3D Canvas — yatay margin'lari ekrana kadar uzat (outer wrapper'in TAB_H_PADDING'ini ters ceviriyoruz) */}
         <View
           ref={canvasWrapRef}
           collapsable={false}
@@ -395,8 +409,8 @@ export const HomeScreen = memo(({
             {
               position: "relative",
               flex: 1,
-              marginLeft: -spacing.sm,
-              marginRight: -spacing.sm,
+              marginLeft: -TAB_H_PADDING,
+              marginRight: -TAB_H_PADDING,
               borderRadius: 10,
             },
           ]}
