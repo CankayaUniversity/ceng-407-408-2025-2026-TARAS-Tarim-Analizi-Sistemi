@@ -181,6 +181,7 @@ export const SettingsContainer = () => {
       <FullScreenModal
         visible={membersOpen}
         theme={theme}
+        variant="inline"
         title={t.settings.stakeholder.membersTitle}
         caption={activeFarmName || t.settings.stakeholder.membersSubtitle}
         onRequestClose={() => setMembersOpen(false)}
@@ -193,6 +194,7 @@ export const SettingsContainer = () => {
       <FullScreenModal
         visible={invitesOpen}
         theme={theme}
+        variant="inline"
         title={t.settings.stakeholder.invitesTitle}
         caption={activeFarmName || t.settings.stakeholder.invitesSubtitle}
         onRequestClose={() => setInvitesOpen(false)}

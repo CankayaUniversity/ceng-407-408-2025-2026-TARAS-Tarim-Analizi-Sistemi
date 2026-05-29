@@ -29,6 +29,7 @@ import {
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Theme } from "../utils/theme";
 import { s, vs, ms } from "../utils/responsive";
+import { GlobalToast } from "../context/PopupMessageContext";
 
 // Disease native-stack "simple_push" hizi (~100ms) gibi snappy yandan giris.
 const ANIM_IN = 180;
@@ -51,6 +52,10 @@ export interface FullScreenModalProps {
   onClose?: () => void;
   /** Kapat (X) butonunun SOLUNA eklenen ekstra kontroller (orn. chat gecmis/yeni). */
   headerRight?: ReactNode;
+  /** Header duzeni. "big" (varsayilan) = ust kontrol satiri + altinda BUYUK baslik blogu (wizard
+      tarzi). "inline" = baslik kapat (X) ile AYNI satirda; alt sayfasi olmayan basit ekranlarda
+      sol ust kosede bosluk olmasin diye (orn. Uyeler/Paylas/Bildirimler/Hesap Duzenle). */
+  variant?: "big" | "inline";
   children: ReactNode;
 }
 
@@ -83,6 +88,7 @@ export const FullScreenModal = ({
   onBack,
   onClose,
   headerRight,
+  variant = "big",
   children,
 }: FullScreenModalProps) => {
   // progress: 0 kapali, 1 acik. translateX'i surer (sagdan iceri).
@@ -136,34 +142,57 @@ export const FullScreenModal = ({
             paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
           }}
         >
-          {/* HEADER ZONE — ikincil zemin (surface). Kontrol satiri + buyuk baslik s(20)'de hizali. */}
+          {/* HEADER ZONE — ikincil zemin (surface). variant="big": ust kontrol satiri + altinda
+              BUYUK baslik blogu (wizard hissi). variant="inline": baslik kapat (X) ile AYNI satirda
+              — alt sayfasi olmayan basit ekranlarda sol ust kose bos kalmasin. */}
           <View
             style={{
               paddingHorizontal: s(20),
               paddingTop: vs(6),
-              paddingBottom: title != null ? vs(16) : vs(6),
+              paddingBottom:
+                variant === "big" && title != null
+                  ? vs(16)
+                  : variant === "inline" && (caption != null || clamped != null)
+                    ? vs(12)
+                    : vs(6),
               borderBottomWidth: 1,
               borderBottomColor: theme.border,
             }}
           >
+            {/* Kontrol satiri — opsiyonel geri + (inline ise) baslik + sag grup (headerRight + kapat). */}
             <View
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: "space-between",
                 height: s(34),
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                {onBack ? <IconButton theme={theme} icon="chevron-left" onPress={onBack} /> : null}
-              </View>
+              {onBack ? <IconButton theme={theme} icon="chevron-left" onPress={onBack} /> : null}
+              {variant === "inline" && title != null ? (
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: ms(26, 0.3),
+                    fontWeight: "800",
+                    color: theme.textMain,
+                    marginLeft: onBack ? s(12) : 0,
+                    marginRight: s(12),
+                  }}
+                  numberOfLines={1}
+                >
+                  {title}
+                </Text>
+              ) : (
+                <View style={{ flex: 1 }} />
+              )}
               <View style={{ flexDirection: "row", alignItems: "center", gap: s(14) }}>
                 {headerRight}
                 <IconButton theme={theme} icon="close" onPress={closeHandler} />
               </View>
             </View>
 
-            {title != null && (
+            {/* Buyuk baslik blogu — yalnizca "big" varyantta. */}
+            {variant === "big" && title != null && (
               <View style={{ marginTop: vs(6) }}>
                 <Text
                   style={{ fontSize: ms(26, 0.3), fontWeight: "800", color: theme.textMain }}
@@ -200,10 +229,46 @@ export const FullScreenModal = ({
                 ) : null}
               </View>
             )}
+
+            {/* Inline varyant: caption / progress varsa kontrol satirinin altinda kompakt sekilde. */}
+            {variant === "inline" && (caption != null || clamped != null) && (
+              <View style={{ marginTop: vs(6) }}>
+                {caption ? (
+                  <Text style={{ fontSize: ms(12, 0.3), color: theme.textSecondary }}>
+                    {caption}
+                  </Text>
+                ) : null}
+                {clamped != null ? (
+                  <View
+                    style={{
+                      height: 4,
+                      borderRadius: 999,
+                      backgroundColor: theme.border,
+                      marginTop: caption ? vs(8) : 0,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: 4,
+                        borderRadius: 999,
+                        backgroundColor: theme.primary,
+                        width: `${clamped * 100}%`,
+                      }}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            )}
           </View>
 
           {/* ICERIK — birincil zemin (background). */}
           <View style={{ flex: 1, backgroundColor: theme.background }}>{children}</View>
+
+          {/* Toast — RN Modal ayri pencere actigi icin koktekı toast bunun ALTINDA
+              kalir; modal penceresinde de cizip en uste tasiyoruz (ayni context durumu,
+              klavyenin uzerine konumlanir). */}
+          <GlobalToast />
         </SafeAreaView>
       </Animated.View>
     </Modal>

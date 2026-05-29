@@ -114,6 +114,7 @@ export const AppHeader = () => {
       <FullScreenModal
         visible={notificationsOpen}
         theme={theme}
+        variant="inline"
         title={t.notifications.title}
         onRequestClose={() => setNotificationsOpen(false)}
         onClose={() => setNotificationsOpen(false)}

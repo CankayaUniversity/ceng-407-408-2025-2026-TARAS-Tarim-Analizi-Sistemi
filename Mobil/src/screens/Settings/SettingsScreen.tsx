@@ -941,6 +941,7 @@ export const SettingsScreen = memo(function SettingsScreen({
       <FullScreenModal
         visible={editMode}
         theme={theme}
+        variant="inline"
         title={t.settings.editProfileTitle}
         onRequestClose={closeEdit}
         onClose={closeEdit}
