@@ -8,6 +8,7 @@ import { runDemoTurn, type DemoSseEvent } from "../utils/demo/demoChat";
 const ADVISORY_STREAM_URL = `${API_HOST}/api/advisory/stream`;
 const SESSION_URL = `${API_HOST}/api/advisory/session`;
 const HISTORY_URL = `${API_HOST}/api/advisory/history`;
+const DELETE_SESSION_URL_BASE = `${API_HOST}/api/advisory/sessions`;
 
 // Arac adlari → kullanici dostu etiketler (noktalar dinamik eklenir)
 const TOOL_LABELS: Record<string, string> = {
@@ -582,6 +583,47 @@ export const useChat = (
     }
   }, []);
 
+  // Bir gecmis session'i sil — backend (DELETE /advisory/sessions/:id) sahiplik dogrulamasi
+  // yapar (user_id filtresi). Demo modunda demoStorage uzerinden silinir. Yerel listeden de
+  // cikar; aktif yuklenmis oturum siliniyorsa yeni-sohbet durumuna doneriz.
+  const deleteSession = useCallback(async (sid: string): Promise<boolean> => {
+    try {
+      const token = await authAPI.getToken();
+      if (!token) return false;
+
+      if (isDemoToken(token)) {
+        const { deleteSession: demoDelete } = await import("../utils/demo/demoStorage");
+        await demoDelete(sid);
+      } else {
+        const res = await fetchWithTimeout(
+          `${DELETE_SESSION_URL_BASE}/${sid}`,
+          {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          },
+          10000,
+        );
+        const data = await res.json();
+        if (!data.success) return false;
+      }
+
+      setHistorySessions((prev) => prev.filter((s) => s.session_id !== sid));
+
+      if (sid === sessionId) {
+        setSessionId(null);
+        setMessages([WELCOME]);
+      }
+
+      return true;
+    } catch {
+      console.log("[CHAT] session silinemedi:", sid.slice(0, 8));
+      return false;
+    }
+  }, [sessionId]);
+
   return {
     messages,
     chatInput,
@@ -595,5 +637,6 @@ export const useChat = (
     isLoadingHistory,
     loadHistory,
     loadSessionById,
+    deleteSession,
   };
 };

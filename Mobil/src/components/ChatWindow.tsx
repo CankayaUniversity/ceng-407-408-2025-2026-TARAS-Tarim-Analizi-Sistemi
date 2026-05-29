@@ -14,8 +14,10 @@ import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Markdown from "@ronradtke/react-native-markdown-display";
 import { ChatMessage, Theme } from "../types";
 import { ChatSessionSummary } from "../hooks/useChat";
-import { useKeyboard } from "../hooks/useKeyboard";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLanguage } from "../context/LanguageContext";
+import { useConfirm } from "../context/ConfirmContext";
+import { usePopupMessage } from "../context/PopupMessageContext";
 import { s, vs, ms } from "../utils/responsive";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -33,6 +35,8 @@ interface ChatWindowProps {
   historySessions: ChatSessionSummary[];
   isLoadingHistory: boolean;
   onSelectSession: (sessionId: string) => void;
+  /** Bir gecmis oturumu sil — onay sonrasi cagrilir. Verilmezse silme butonu cizilmez. */
+  onDeleteSession?: (sessionId: string) => Promise<boolean>;
 }
 
 // Zaman formatlama — "2 dk once", "Dun", "3 Nis"
@@ -59,12 +63,14 @@ export const ChatWindow = ({
   historySessions,
   isLoadingHistory,
   onSelectSession,
+  onDeleteSession,
 }: ChatWindowProps) => {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const confirm = useConfirm();
+  const { showPopup } = usePopupMessage();
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
-  const { keyboardHeight } = useKeyboard();
   const [isInputFocused, setIsInputFocused] = useState(false);
 
   const scrollToEnd = () =>
@@ -77,6 +83,22 @@ export const ChatWindow = ({
 
   const handleSelectSession = (sid: string) => {
     onSelectSession(sid);
+  };
+
+  // Gecmis listesindeki bir oturumu sil — once onay sorulur, sonra parent'a cagri.
+  // Sonucu kisa bir popup ile bildiririz; basariliysa useChat zaten yerel listeyi gunceller.
+  const handleDeleteSession = async (sid: string) => {
+    if (!onDeleteSession) return;
+    const ok = await confirm({
+      title: t.chat.deleteConfirmTitle,
+      message: t.chat.deleteConfirmMessage,
+      confirmLabel: t.chat.deleteConfirmButton,
+      cancelLabel: t.common.cancel,
+      destructive: true,
+    });
+    if (!ok) return;
+    const success = await onDeleteSession(sid);
+    showPopup(success ? t.chat.deletedMsg : t.chat.deleteFailedMsg);
   };
 
   // Android: OS klavye kapatma butonu TextInput'u blur etmez
@@ -93,7 +115,13 @@ export const ChatWindow = ({
   }, [messages]);
 
   const hasInput = chatInput.trim().length > 0;
-  const bottomPadding = keyboardHeight > 0 ? keyboardHeight : insets.bottom + vs(8);
+  // Klavye davranisi react-native-keyboard-controller'in KeyboardAvoidingView'ina devredildi
+  // (App.tsx'te KeyboardProvider sariyor). Library iOS + Android'in tum varyantlarinda
+  // (translucent Modal + gesture-nav + 3-button-nav + farkli OEM klavyeleri) keyboard'in
+  // gercek screenY'ini native event'lerden okuyup tutarli sekilde padding uygular. Manuel
+  // platform/inset/extraNavInset hesabi yok. Input cubugu yalniz safe-area kadar alttan bos
+  // kalir; KAV klavye acikken telafiyi kendisi yapar.
+  const bottomPadding = insets.bottom + vs(8);
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.background }}>
@@ -111,37 +139,55 @@ export const ChatWindow = ({
             </Text>
           ) : (
             historySessions.map((session) => (
-              <TouchableOpacity
+              <View
                 key={session.session_id}
-                className="border-b"
-                style={{ paddingVertical: vs(12), borderBottomColor: theme.primary + "10" }}
-                onPress={() => handleSelectSession(session.session_id)}
-                activeOpacity={0.7}
+                className="flex-row items-center border-b"
+                style={{ borderBottomColor: theme.primary + "10" }}
               >
-                <View className="flex-row justify-between items-center" style={{ marginBottom: vs(4) }}>
-                  <Text
-                    className="font-semibold flex-1"
-                    style={{ fontSize: ms(14, 0.3), color: theme.textMain }}
-                    numberOfLines={1}
-                  >
-                    {session.field_name}
-                  </Text>
-                  <Text style={{ fontSize: ms(11, 0.3), marginLeft: s(8), color: theme.textSecondary }}>
-                    {formatSessionTime(session.last_message_at || session.started_at)}
-                  </Text>
-                </View>
-                <Text
-                  style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3), color: theme.textSecondary }}
-                  numberOfLines={2}
+                <TouchableOpacity
+                  className="flex-1"
+                  style={{ paddingVertical: vs(12) }}
+                  onPress={() => handleSelectSession(session.session_id)}
+                  activeOpacity={0.7}
                 >
-                  {session.last_message || "\u2014"}
-                </Text>
-              </TouchableOpacity>
+                  <View className="flex-row justify-between items-center" style={{ marginBottom: vs(4) }}>
+                    <Text
+                      className="font-semibold flex-1"
+                      style={{ fontSize: ms(14, 0.3), color: theme.textMain }}
+                      numberOfLines={1}
+                    >
+                      {session.field_name}
+                    </Text>
+                    <Text style={{ fontSize: ms(11, 0.3), marginLeft: s(8), color: theme.textSecondary }}>
+                      {formatSessionTime(session.last_message_at || session.started_at)}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3), color: theme.textSecondary }}
+                    numberOfLines={2}
+                  >
+                    {session.last_message || "\u2014"}
+                  </Text>
+                </TouchableOpacity>
+                {onDeleteSession && (
+                  <TouchableOpacity
+                    onPress={() => handleDeleteSession(session.session_id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{ paddingLeft: s(12), paddingVertical: vs(12) }}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={20} color={theme.danger} />
+                  </TouchableOpacity>
+                )}
+              </View>
             ))
           )}
         </ScrollView>
       ) : (
-        <>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior="padding"
+          keyboardVerticalOffset={0}
+        >
           {/* Mesajlar */}
           <ScrollView
             ref={scrollViewRef}
@@ -164,7 +210,7 @@ export const ChatWindow = ({
                       {
                         maxWidth: "82%",
                         paddingHorizontal: s(12),
-                        paddingVertical: vs(8),
+                        paddingVertical: vs(5),
                       },
                       isUser
                         ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
@@ -180,7 +226,7 @@ export const ChatWindow = ({
                         bullet_list: { marginVertical: vs(4) },
                         ordered_list: { marginVertical: vs(4) },
                         list_item: { marginVertical: vs(1) },
-                        paragraph: { marginVertical: vs(2) },
+                        paragraph: { marginVertical: 0 },
                         heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(4) },
                         heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(3) },
                         heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, marginVertical: vs(2) },
@@ -259,7 +305,7 @@ export const ChatWindow = ({
               </TouchableOpacity>
             </View>
           </View>
-        </>
+        </KeyboardAvoidingView>
       )}
     </View>
   );

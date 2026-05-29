@@ -1,8 +1,10 @@
 // ChatWindow'u FullScreenModal icinde sunar — diger tam ekran ekranlarla
-// (Bildirimler, Ayarlar alt ekranlari) ayni kabuk: buyuk baslik + sagdan kayan
-// giris + X ile kapat. Android donanim/jest geri tusu Modal'in onRequestClose'u
-// ile chat'i kapatir (eski absolute-View sunumunda geri tusu sekmelere dusuyordu).
-// Gecmis ve yeni-sohbet kontrolleri header'in sag tarafina (headerRight) tasindi.
+// (Bildirimler, Ayarlar alt ekranlari) ayni kabuk: inline baslik (kapat X ile ayni
+// satirda) + sagdan kayan giris + X ile kapat. Android donanim/jest geri tusu
+// Modal'in onRequestClose'u ile chat'i kapatir (eski absolute-View sunumunda
+// geri tusu sekmelere dusuyordu).
+// Yeni-sohbet (reset) ve gecmis butonlari header'in sag tarafinda — reset
+// gecmisten once gelir ki en sik kullanilani kapat X'e en yakin olsun.
 import { useEffect, useState } from "react";
 import { TouchableOpacity } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -28,6 +30,7 @@ export const ChatOverlay = () => {
     isLoadingHistory,
     loadHistory,
     loadSessionById,
+    deleteSession,
     showChat,
     setShowChat,
   } = useChatContext();
@@ -48,13 +51,6 @@ export const ChatOverlay = () => {
 
   const headerRight = (
     <>
-      <TouchableOpacity onPress={toggleHistory} activeOpacity={0.6} hitSlop={HIT}>
-        <MaterialCommunityIcons
-          name={showHistory ? "chat" : "history"}
-          size={24}
-          color={theme.textMain}
-        />
-      </TouchableOpacity>
       {!showHistory && (
         <TouchableOpacity
           onPress={startNewChat}
@@ -63,9 +59,16 @@ export const ChatOverlay = () => {
           hitSlop={HIT}
           style={{ opacity: chatLoading ? 0.3 : 1 }}
         >
-          <MaterialCommunityIcons name="refresh" size={24} color={theme.textMain} />
+          <MaterialCommunityIcons name="plus" size={24} color={theme.textMain} />
         </TouchableOpacity>
       )}
+      <TouchableOpacity onPress={toggleHistory} activeOpacity={0.6} hitSlop={HIT}>
+        <MaterialCommunityIcons
+          name={showHistory ? "chat" : "history"}
+          size={24}
+          color={theme.textMain}
+        />
+      </TouchableOpacity>
     </>
   );
 
@@ -73,6 +76,7 @@ export const ChatOverlay = () => {
     <FullScreenModal
       visible={showChat}
       theme={theme}
+      variant="inline"
       title={showHistory ? t.chat.history : t.chat.title}
       headerRight={headerRight}
       onRequestClose={close}
@@ -92,6 +96,7 @@ export const ChatOverlay = () => {
           setShowHistory(false);
           loadSessionById(id);
         }}
+        onDeleteSession={deleteSession}
       />
     </FullScreenModal>
   );

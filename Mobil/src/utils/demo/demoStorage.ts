@@ -415,6 +415,19 @@ export async function startNewSession(
   await saveChatStore(store);
 }
 
+// Bir oturumu (gecmis dahil) sil. Aktif oturum siliniyorsa activeByField referansi da kalkar
+// ki sonraki acilis WELCOME ile baslasin (yeni-sohbet hissi).
+export async function deleteSession(sessionId: string): Promise<void> {
+  const store = await loadChatStore();
+  const session = store.sessions[sessionId];
+  if (!session) return;
+  if (store.activeByField[session.field_id] === sessionId) {
+    delete store.activeByField[session.field_id];
+  }
+  delete store.sessions[sessionId];
+  await saveChatStore(store);
+}
+
 // ── Carbon logs (in-memory backed) ───────────────────────────────────────
 
 export async function listCarbonLogs(): Promise<CarbonLog[]> {

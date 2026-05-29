@@ -463,6 +463,11 @@ export interface StringDictionary {
     history: string;
     historyEmpty: string;
     readMore: string;
+    deleteConfirmTitle: string;
+    deleteConfirmMessage: string;
+    deleteConfirmButton: string;
+    deletedMsg: string;
+    deleteFailedMsg: string;
   };
 
   // Error Boundary / 3D
@@ -866,7 +871,8 @@ const tr: StringDictionary = {
     correctionTargetSpot: "Hedef leke",
     correctionYellowLeafCurlVirus: "Sarı yaprak kıvırcık virüsü",
     foldersSectionTitle: "Takip Klasörleri",
-    foldersEmpty: "Henüz aktif klasör yok. Bir hastalığı zamanla takip etmek için klasör oluşturun.",
+    foldersEmpty:
+      "Henüz aktif klasör yok. Bir hastalığı zamanla takip etmek için klasör oluşturun.",
     generalSectionTitle: "Genel Tespitler",
     showMore: "daha göster",
     folderCreateButton: "Yeni",
@@ -874,7 +880,8 @@ const tr: StringDictionary = {
     folderCreateHelper: "Bölge seçin",
     folderCreateZoneLabel: "Bölge",
     folderCreateZoneLoadError: "Bölgeler yüklenemedi.",
-    folderCreateNoZones: "Hiç bölge bulunamadı. Önce çiftlik / tarla / bölge yapınızı kurun.",
+    folderCreateNoZones:
+      "Hiç bölge bulunamadı. Önce çiftlik / tarla / bölge yapınızı kurun.",
     folderCreateNameLabel: "Klasör Adı",
     folderCreateNamePlaceholder: "örn. Domates erken yanıklık takibi",
     folderCreateNamePlaceholderEmpty: "Önce bir bölge seçin",
@@ -882,7 +889,8 @@ const tr: StringDictionary = {
     folderCreatePickZone: "Lütfen önce bir bölge seçin.",
     folderCreateNameRequired: "Klasör adı zorunlu.",
     folderCreateSuccess: "Klasör oluşturuldu.",
-    folderCreateDuplicateName: "Bu bölgenin aktif ekiminde aynı isimli bir klasör zaten var.",
+    folderCreateDuplicateName:
+      "Bu bölgenin aktif ekiminde aynı isimli bir klasör zaten var.",
     folderCreateNoActivePlanting: "Bu bölgede aktif bir ekim yok.",
     folderCreateGenericError: "Klasör oluşturulamadı.",
     folderPhotoSingular: "fotoğraf",
@@ -893,7 +901,8 @@ const tr: StringDictionary = {
     folderDetailTimeline: "Zaman Çizelgesi",
     folderDetailEmpty: "Henüz fotoğraf yok.",
     folderDeactivateTitle: "Klasörü Arşivle?",
-    folderDeactivateConfirmation: "{name} arşivlenecek. Fotoğraflar ve tespitler korunur.",
+    folderDeactivateConfirmation:
+      "{name} arşivlenecek. Fotoğraflar ve tespitler korunur.",
     folderDeactivateConfirm: "Arşivle",
     folderDeactivateSuccess: "Klasör arşivlendi.",
     folderDeactivateError: "Klasör arşivlenemedi.",
@@ -1045,13 +1054,15 @@ const tr: StringDictionary = {
       removeMemberConfirmTitle: "Üyeyi kaldır",
       removeMemberConfirmMessage: "bu çiftliğe erişimini kaybedecek.",
       makeFarmerTitle: "Çiftçi yap",
-      makeFarmerMessage: "Foto gönderme, karbon girişi ve sulama işlemleri yapabilecek. Silme, üye yönetimi ve tarla oluşturma yalnızca sahibe açıktır.",
+      makeFarmerMessage:
+        "Foto gönderme, karbon girişi ve sulama işlemleri yapabilecek. Silme, üye yönetimi ve tarla oluşturma yalnızca sahibe açıktır.",
       makeStakeholderTitle: "Paydaş yap",
       makeStakeholderMessage: "Yalnızca görüntüleme ve sohbet erişimi kalacak.",
       changeRoleButton: "Değiştir",
       roleChangedMsg: "Rol güncellendi",
       inviteRoleLabel: "Davet rolü",
-      inviteRoleHint: "Çiftçi: foto, karbon ve sulama. Paydaş: salt-okunur görüntüleme + sohbet.",
+      inviteRoleHint:
+        "Çiftçi: foto, karbon ve sulama. Paydaş: salt-okunur görüntüleme + sohbet.",
     },
     locationManagement: "Konum Yönetimi",
     currentFarm: "Mevcut Çiftlik",
@@ -1064,10 +1075,12 @@ const tr: StringDictionary = {
     createNewFarm: "Yeni Çiftlik Oluştur",
     deleteFarm: "Çiftliği Sil",
     deleteFarmConfirmTitle: "Çiftliği Sil",
-    deleteFarmConfirmMessage: "Bu çiftlik ve tüm tarlalar kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    deleteFarmConfirmMessage:
+      "Bu çiftlik ve tüm tarlalar kalıcı olarak silinecek. Bu işlem geri alınamaz.",
     deleteField: "Tarlayı Sil",
     deleteFieldConfirmTitle: "Tarlayı Sil",
-    deleteFieldConfirmMessage: "Bu tarla kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    deleteFieldConfirmMessage:
+      "Bu tarla kalıcı olarak silinecek. Bu işlem geri alınamaz.",
     deleteConfirm: "Sil",
     fieldManagement: "Tarla Yönetimi",
     noFields: "Bu çiftlikte henüz tarla yok",
@@ -1082,9 +1095,10 @@ const tr: StringDictionary = {
     languageTurkish: "Türkçe",
     languageEnglish: "English",
     datasetConsentTitle: "TARAS'ı geliştirmeye yardım et",
-    datasetConsentSubtitle: "İzin verirsen, analize gönderdiğin fotoğraflar sonuçlarımızı iyileştirmek için kullanılabilir.",
+    datasetConsentSubtitle:
+      "İzin verirsen, analize gönderdiğin fotoğraflar sonuçlarımızı iyileştirmek için kullanılabilir.",
     editProfile: "Düzenle",
-    editProfileTitle: "Profili Düzenle",
+    editProfileTitle: "Profil Detayları",
     usernameLabel: "Kullanıcı Adı",
     emailLabel: "E-posta",
     passwordLabel: "Şifre",
@@ -1101,7 +1115,8 @@ const tr: StringDictionary = {
     passwordTooShort: "Şifre en az 8 karakter olmalı",
     enterCurrentPassword: "Lütfen mevcut şifreni gir",
     datasetConsentDisableTitle: "Emin misin?",
-    datasetConsentDisableMessage: "Bundan sonra gönderdiğin fotoğraflar TARAS'ı iyileştirmek için kullanılmayacak. Daha önce gönderilenler için verdiğin izin geçerliliğini korur.",
+    datasetConsentDisableMessage:
+      "Bundan sonra gönderdiğin fotoğraflar TARAS'ı iyileştirmek için kullanılmayacak. Daha önce gönderilenler için verdiğin izin geçerliliğini korur.",
     datasetConsentDisableConfirm: "Kapat",
     logout: "Çıkış Yap",
   },
@@ -1144,7 +1159,8 @@ const tr: StringDictionary = {
     waitingGateway: "Gateway bekleniyor...",
     testingWifi: "WiFi test ediliyor...",
     wifiFailed: "WiFi bağlantısı başarısız. SSID ve şifreyi kontrol edin.",
-    backendUnreachable: "Backend sunucusuna ulaşılamıyor. İnternet bağlantısını kontrol edin.",
+    backendUnreachable:
+      "Backend sunucusuna ulaşılamıyor. İnternet bağlantısını kontrol edin.",
     provisionFailed: "Yapılandırma başarısız.",
     online: "Çevrimiçi",
     offline: "Çevrimdışı",
@@ -1153,7 +1169,8 @@ const tr: StringDictionary = {
     firmwareUpToDate: "Güncel",
     updateAvailable: "Güncelleme mevcut",
     updateConfirmTitle: "Yazılım Güncellemesi",
-    updateConfirmMessage: "Gateway v{version} sürümüne güncellensin mi? Gateway yeniden başlatılacak.",
+    updateConfirmMessage:
+      "Gateway v{version} sürümüne güncellensin mi? Gateway yeniden başlatılacak.",
     updating: "Yazılım güncelleniyor...",
     updateSuccess: "Yazılım başarıyla güncellendi!",
     updateFailed: "Yazılım güncellemesi başarısız",
@@ -1167,6 +1184,11 @@ const tr: StringDictionary = {
     history: "Geçmiş Sohbetler",
     historyEmpty: "Henüz sohbet geçmişi yok",
     readMore: "Tümünü gör",
+    deleteConfirmTitle: "Sohbeti sil",
+    deleteConfirmMessage: "Bu sohbet kalıcı olarak silinecek. Devam et?",
+    deleteConfirmButton: "Sil",
+    deletedMsg: "Sohbet silindi",
+    deleteFailedMsg: "Sohbet silinemedi",
   },
 
   errors: {
@@ -1261,7 +1283,8 @@ const tr: StringDictionary = {
     reasoning: "Gerekçe",
     recommendationTime: "Öneri Zamanı",
     noActiveRecommendation: "Aktif öneri yok",
-    noActiveRecommendationSub: "Bu bölge için bekleyen sulama önerisi bulunmuyor.",
+    noActiveRecommendationSub:
+      "Bu bölge için bekleyen sulama önerisi bulunmuyor.",
     noIrrigationNeeded: "Sulama gerekmiyor",
     noIrrigationNeededSub: "Sistem kontrol etti, şu an sulama gerekmiyor.",
     lastChecked: "Son kontrol",
@@ -1280,7 +1303,8 @@ const tr: StringDictionary = {
     urgencyCritical: "Kritik",
     irrigationRecommended: "sulama öneriliyor",
     whyRecommended: "Neden önerildi?",
-    defaultReasoning: "Toprak nemi hedef seviyenin altında olduğu için sulama önerildi. Miktar, bölge kalibrasyonuna göre hesaplandı.",
+    defaultReasoning:
+      "Toprak nemi hedef seviyenin altında olduğu için sulama önerildi. Miktar, bölge kalibrasyonuna göre hesaplandı.",
     lastIrrigation: "Son Sulama",
     manualIrrigation: "Manuel Sulama",
     manualIrrigationDesc: "Öneri olmadan sulama kaydı oluşturun",
@@ -1559,7 +1583,8 @@ const en: StringDictionary = {
     correctionTargetSpot: "Target spot",
     correctionYellowLeafCurlVirus: "Yellow leaf curl virus",
     foldersSectionTitle: "Tracking Folders",
-    foldersEmpty: "No active folders yet. Create one to track a disease over time.",
+    foldersEmpty:
+      "No active folders yet. Create one to track a disease over time.",
     generalSectionTitle: "General Detections",
     showMore: "more",
     folderCreateButton: "New",
@@ -1567,7 +1592,8 @@ const en: StringDictionary = {
     folderCreateHelper: "Select a zone",
     folderCreateZoneLabel: "Zone",
     folderCreateZoneLoadError: "Failed to load zones.",
-    folderCreateNoZones: "No zones found. Set up your farm / field / zone structure first.",
+    folderCreateNoZones:
+      "No zones found. Set up your farm / field / zone structure first.",
     folderCreateNameLabel: "Folder Name",
     folderCreateNamePlaceholder: "e.g. Tomato early blight watch",
     folderCreateNamePlaceholderEmpty: "Pick a zone first",
@@ -1575,7 +1601,8 @@ const en: StringDictionary = {
     folderCreatePickZone: "Please pick a zone first.",
     folderCreateNameRequired: "Folder name is required.",
     folderCreateSuccess: "Folder created.",
-    folderCreateDuplicateName: "A folder with this name already exists for this zone's planting.",
+    folderCreateDuplicateName:
+      "A folder with this name already exists for this zone's planting.",
     folderCreateNoActivePlanting: "This zone has no active planting.",
     folderCreateGenericError: "Could not create folder.",
     folderPhotoSingular: "photo",
@@ -1586,7 +1613,8 @@ const en: StringDictionary = {
     folderDetailTimeline: "Timeline",
     folderDetailEmpty: "No photos yet.",
     folderDeactivateTitle: "Archive Folder?",
-    folderDeactivateConfirmation: "{name} will be archived. Photos and detections are preserved.",
+    folderDeactivateConfirmation:
+      "{name} will be archived. Photos and detections are preserved.",
     folderDeactivateConfirm: "Archive",
     folderDeactivateSuccess: "Folder archived.",
     folderDeactivateError: "Could not archive folder.",
@@ -1715,7 +1743,8 @@ const en: StringDictionary = {
       redeemedMsg: "Access granted",
       invalidMsg: "Invalid or expired code",
       generateButton: "Generate Invite Code",
-      codeHint: "Share this code with the stakeholder (valid 7 days, single use).",
+      codeHint:
+        "Share this code with the stakeholder (valid 7 days, single use).",
       copiedMsg: "Code copied",
       noneYet: "No stakeholders yet",
       revokeButton: "Revoke",
@@ -1738,13 +1767,16 @@ const en: StringDictionary = {
       removeMemberConfirmTitle: "Remove member",
       removeMemberConfirmMessage: "will lose access to this farm.",
       makeFarmerTitle: "Make Farmer",
-      makeFarmerMessage: "They'll be able to submit photos, log carbon, and run irrigation. Deleting, member management, and field creation stay owner-only.",
+      makeFarmerMessage:
+        "They'll be able to submit photos, log carbon, and run irrigation. Deleting, member management, and field creation stay owner-only.",
       makeStakeholderTitle: "Make Stakeholder",
-      makeStakeholderMessage: "They'll be limited to view and chat access only.",
+      makeStakeholderMessage:
+        "They'll be limited to view and chat access only.",
       changeRoleButton: "Change",
       roleChangedMsg: "Role updated",
       inviteRoleLabel: "Invite role",
-      inviteRoleHint: "Farmer: photos, carbon, and irrigation. Stakeholder: read-only view + chat.",
+      inviteRoleHint:
+        "Farmer: photos, carbon, and irrigation. Stakeholder: read-only view + chat.",
     },
     locationManagement: "Location Management",
     currentFarm: "Current Farm",
@@ -1757,10 +1789,12 @@ const en: StringDictionary = {
     createNewFarm: "Create New Farm",
     deleteFarm: "Delete Farm",
     deleteFarmConfirmTitle: "Delete Farm",
-    deleteFarmConfirmMessage: "This farm and all its fields will be permanently deleted. This action cannot be undone.",
+    deleteFarmConfirmMessage:
+      "This farm and all its fields will be permanently deleted. This action cannot be undone.",
     deleteField: "Delete Field",
     deleteFieldConfirmTitle: "Delete Field",
-    deleteFieldConfirmMessage: "This field will be permanently deleted. This action cannot be undone.",
+    deleteFieldConfirmMessage:
+      "This field will be permanently deleted. This action cannot be undone.",
     deleteConfirm: "Delete",
     fieldManagement: "Field Management",
     noFields: "No fields in this farm yet",
@@ -1775,9 +1809,10 @@ const en: StringDictionary = {
     languageTurkish: "Türkçe",
     languageEnglish: "English",
     datasetConsentTitle: "Help improve TARAS",
-    datasetConsentSubtitle: "If you allow it, photos you upload for analysis may be used to improve our results.",
+    datasetConsentSubtitle:
+      "If you allow it, photos you upload for analysis may be used to improve our results.",
     editProfile: "Edit",
-    editProfileTitle: "Edit Profile",
+    editProfileTitle: "Profile Details",
     usernameLabel: "Username",
     emailLabel: "Email",
     passwordLabel: "Password",
@@ -1794,7 +1829,8 @@ const en: StringDictionary = {
     passwordTooShort: "Password must be at least 8 characters",
     enterCurrentPassword: "Please enter your current password",
     datasetConsentDisableTitle: "Are you sure?",
-    datasetConsentDisableMessage: "From now on, photos you upload won't be used to improve TARAS. Photos you've already sent keep the consent you gave at the time.",
+    datasetConsentDisableMessage:
+      "From now on, photos you upload won't be used to improve TARAS. Photos you've already sent keep the consent you gave at the time.",
     datasetConsentDisableConfirm: "Turn off",
     logout: "Log Out",
   },
@@ -1837,7 +1873,8 @@ const en: StringDictionary = {
     waitingGateway: "Waiting for gateway...",
     testingWifi: "Testing WiFi...",
     wifiFailed: "WiFi connection failed. Check SSID and password.",
-    backendUnreachable: "Cannot reach backend server. Check internet connection.",
+    backendUnreachable:
+      "Cannot reach backend server. Check internet connection.",
     provisionFailed: "Configuration failed.",
     online: "Online",
     offline: "Offline",
@@ -1846,7 +1883,8 @@ const en: StringDictionary = {
     firmwareUpToDate: "Up to date",
     updateAvailable: "Update available",
     updateConfirmTitle: "Firmware Update",
-    updateConfirmMessage: "Update gateway to v{version}? The gateway will restart.",
+    updateConfirmMessage:
+      "Update gateway to v{version}? The gateway will restart.",
     updating: "Updating firmware...",
     updateSuccess: "Firmware updated successfully!",
     updateFailed: "Firmware update failed",
@@ -1860,6 +1898,11 @@ const en: StringDictionary = {
     history: "Past Conversations",
     historyEmpty: "No conversation history yet",
     readMore: "Read more",
+    deleteConfirmTitle: "Delete chat",
+    deleteConfirmMessage: "This chat will be permanently deleted. Continue?",
+    deleteConfirmButton: "Delete",
+    deletedMsg: "Chat deleted",
+    deleteFailedMsg: "Failed to delete chat",
   },
 
   errors: {
@@ -1954,11 +1997,14 @@ const en: StringDictionary = {
     reasoning: "Reason",
     recommendationTime: "Recommendation Time",
     noActiveRecommendation: "No active recommendation",
-    noActiveRecommendationSub: "There is no pending irrigation recommendation for this zone.",
+    noActiveRecommendationSub:
+      "There is no pending irrigation recommendation for this zone.",
     noIrrigationNeeded: "No irrigation needed",
-    noIrrigationNeededSub: "System checked — no irrigation is required right now.",
+    noIrrigationNeededSub:
+      "System checked — no irrigation is required right now.",
     lastChecked: "Last checked",
-    confirmIrrigationQuestion: "Did you follow the irrigation recommendation exactly?",
+    confirmIrrigationQuestion:
+      "Did you follow the irrigation recommendation exactly?",
     yesFollowedExactly: "Yes, I irrigated with the recommended amount and time",
     noUsedDifferent: "No, I used different values",
     enterActualValues: "Enter your actual values",
@@ -1973,7 +2019,8 @@ const en: StringDictionary = {
     urgencyCritical: "Critical",
     irrigationRecommended: "irrigation recommended",
     whyRecommended: "Why recommended?",
-    defaultReasoning: "Irrigation was recommended because soil moisture is below the target level. The amount was calculated based on zone calibration.",
+    defaultReasoning:
+      "Irrigation was recommended because soil moisture is below the target level. The amount was calculated based on zone calibration.",
     lastIrrigation: "Last Irrigation",
     manualIrrigation: "Manual Irrigation",
     manualIrrigationDesc: "Log irrigation without a recommendation",
@@ -2080,7 +2127,8 @@ const en: StringDictionary = {
     longitude: "Longitude",
     altitude: "Altitude (m)",
     altitudeHint: "Auto-filled after selecting a coordinate",
-    altitudeFetchFailed: "Could not fetch altitude automatically. Please enter it manually.",
+    altitudeFetchFailed:
+      "Could not fetch altitude automatically. Please enter it manually.",
     fetchingAltitude: "Fetching altitude...",
     locationRequired: "You must select a location on the map",
     altitudeRequired: "Altitude value is required",
