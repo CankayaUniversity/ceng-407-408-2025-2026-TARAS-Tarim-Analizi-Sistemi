@@ -10,9 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
   View,
-  KeyboardAvoidingView,
   ScrollView,
-  Platform,
   Animated,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -39,11 +37,25 @@ export const LoginScreen = ({
   const [username, setUsername] = useState("");
   const [serverStatus, setServerStatus] = useState<string | null>(null);
 
-  // Klavye acilinca LOGO'NUN USTUNDEKI bosluk kuculur (icerik yukari kayar) — logo gizlenmez/
-  // kucukmez. Sadece ust boslugun yuksekligi animate edilir (height — bu dosyada/hook'ta zaten
-  // kullanilan, guvenilir yol); icerik justifyContent:"center" ile ortali kalir.
-  const { animatedPadding } = useKeyboard();
-  const topSpacerHeight = animatedPadding.interpolate({ inputRange: [0, 1], outputRange: [vs(56), 0] });
+  // Klavye yonetimi: KeyboardAvoidingView KULLANILMAZ (ChatWindow ile ayni yaklasim).
+  // Android manifest adjustResize + KAV "height" klavye payini CIFT sayiyordu (icerik
+  // klavyenin cok ustune kayiyordu — "cok kotu" davranisin sebebi). Yerine olculen
+  // yukseklikten ust/alt bosluklar animate edilir:
+  //   - Klavye kapali: icerik dikeyde ortali (topSpace = (viewport - kolon)/2).
+  //   - Klavye acik:   topSpace -> 0 (logo en uste, ustunde bosluk yok), alt bosluk klavye
+  //     yuksekligi kadar buyur ki alttaki alanlar klavyenin uzerine kaydirilabilsin.
+  // Logo TAM boyutta kalir — yalnizca tum icerik yukari kayar (kucukmez/gizlenmez).
+  const { animatedPadding, keyboardHeight } = useKeyboard();
+  const [viewportH, setViewportH] = useState(0);
+  const [columnH, setColumnH] = useState(0);
+  const topSpace = animatedPadding.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Math.max(vs(16), (viewportH - columnH) / 2), 0],
+  });
+  const bottomSpace = animatedPadding.interpolate({
+    inputRange: [0, 1],
+    outputRange: [vs(24), keyboardHeight + vs(24)],
+  });
 
   // AWS demo credentials from env
   const awsDemoUsername = Constants.expoConfig?.extra?.awsDemoUsername || "";
@@ -114,34 +126,41 @@ export const LoginScreen = ({
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View className="flex-1 bg-porcelain dark:bg-carbonBlack">
       <ScrollView
+        style={{ flex: 1, width: "100%" }}
+        onLayout={(e) => setViewportH(e.nativeEvent.layout.height)}
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: "center",
           alignItems: "center",
-          width: "100%",
-          paddingVertical: 20,
+          paddingHorizontal: s(24),
         }}
-        style={{ width: "100%" }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {/* Logo ustundeki bosluk — klavye acilinca 0'a kuculur, icerik yukari kayar (logo tam
-            boyutta/gorunur kalir). */}
-        <Animated.View style={{ height: topSpacerHeight }} />
+        {/* Ust bosluk: klavye kapaliyken icerigi ortalar, acilinca 0'a iner (logo en uste). */}
+        <Animated.View style={{ height: topSpace }} />
 
-        <View style={{ alignItems: "center", justifyContent: "center" }}>
-          {theme.isDark ? (
-            <LogoDark width={220} height={220} />
-          ) : (
-            <LogoLight width={220} height={220} />
-          )}
-        </View>
+        {/* Olculen kolon (logo + form) — dikey ortalama hesabi icin yuksekligi olculur.
+            Olculmeden once gizli (opacity 0) — boylece ilk karede ust-hizadan ortaya
+            sicrama gorunmez (onLayout opacity'den bagimsiz tetiklenir). */}
+        <View
+          onLayout={(e) => setColumnH(e.nativeEvent.layout.height)}
+          style={{
+            width: "100%",
+            alignItems: "center",
+            opacity: viewportH && columnH ? 1 : 0,
+          }}
+        >
+          {/* Logo — en ust eleman, ustunde bosluk yok. Tam boyutta kalir, sadece yukari kayar. */}
+          <View style={{ alignItems: "center", justifyContent: "center" }}>
+            {theme.isDark ? (
+              <LogoDark width={220} height={220} />
+            ) : (
+              <LogoLight width={220} height={220} />
+            )}
+          </View>
 
         {serverStatus && (
           <Text
@@ -277,7 +296,11 @@ export const LoginScreen = ({
             {language === "tr" ? "English" : "Türkçe"}
           </Text>
         </TouchableOpacity>
+        </View>
+
+        {/* Alt bosluk: klavye acilinca formun alti klavyenin uzerine kaydirilabilir kalir. */}
+        <Animated.View style={{ height: bottomSpace }} />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };

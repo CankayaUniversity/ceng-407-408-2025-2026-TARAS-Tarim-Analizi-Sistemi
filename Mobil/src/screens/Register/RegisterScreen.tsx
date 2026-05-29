@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
   Animated,
+  BackHandler,
+  ScrollView,
+  View,
 } from "react-native";
 import { authAPI, healthAPI } from "../../utils/api";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { useKeyboard } from "../../hooks/useKeyboard";
+import { vs, s } from "../../utils/responsive";
 import { UserInfoStep } from "./UserInfoStep";
 import type { RegisterScreenProps, RegisterFormState } from "./types";
 import { INITIAL_REGISTER_STATE } from "./types";
@@ -29,10 +29,21 @@ export const RegisterScreen = ({
   const [state, setState] = useState<RegisterFormState>(INITIAL_REGISTER_STATE);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Klavye acilinca ust logo alani dinamik olarak 0'a kuculur — form scroll olmadan gorunur.
-  const { animatedPadding } = useKeyboard();
-  const logoHeight = animatedPadding.interpolate({ inputRange: [0, 1], outputRange: [220, 0] });
-  const logoOpacity = animatedPadding.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  // Klavye yonetimi: LoginScreen ile ayni desen — KeyboardAvoidingView yok. Olculen
+  // yukseklikten ust/alt bosluklar animate edilir; klavye acilinca logo en uste gelir
+  // (ustunde bosluk yok). Logo TAM boyutta kalir — yalnizca tum icerik yukari kayar
+  // (eski davranis logoyu 0'a indiriyordu, istenen bu degildi).
+  const { animatedPadding, keyboardHeight } = useKeyboard();
+  const [viewportH, setViewportH] = useState(0);
+  const [columnH, setColumnH] = useState(0);
+  const topSpace = animatedPadding.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Math.max(vs(16), (viewportH - columnH) / 2), 0],
+  });
+  const bottomSpace = animatedPadding.interpolate({
+    inputRange: [0, 1],
+    outputRange: [vs(24), keyboardHeight + vs(24)],
+  });
 
   const onUpdate = useCallback(
     (partial: Partial<RegisterFormState>) =>
@@ -82,48 +93,55 @@ export const RegisterScreen = ({
   }, [isLoading]);
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View className="flex-1 bg-porcelain dark:bg-carbonBlack">
       <ScrollView
+        style={{ flex: 1, width: "100%" }}
+        onLayout={(e) => setViewportH(e.nativeEvent.layout.height)}
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: "center",
           alignItems: "center",
-          width: "100%",
-          paddingVertical: 20,
+          paddingHorizontal: s(24),
         }}
-        style={{ width: "100%" }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <Animated.View
+        {/* Ust bosluk: klavye kapaliyken icerigi ortalar, acilinca 0'a iner (logo en uste). */}
+        <Animated.View style={{ height: topSpace }} />
+
+        {/* Olculen kolon (logo + form) — dikey ortalama hesabi icin yuksekligi olculur.
+            Olculmeden once gizli (opacity 0) — boylece ilk karede ust-hizadan ortaya
+            sicrama gorunmez (onLayout opacity'den bagimsiz tetiklenir). */}
+        <View
+          onLayout={(e) => setColumnH(e.nativeEvent.layout.height)}
           style={{
-            height: logoHeight,
-            opacity: logoOpacity,
-            overflow: "hidden",
+            width: "100%",
             alignItems: "center",
-            justifyContent: "center",
+            opacity: viewportH && columnH ? 1 : 0,
           }}
         >
-          {theme.isDark ? (
-            <LogoDark width={220} height={220} />
-          ) : (
-            <LogoLight width={220} height={220} />
-          )}
-        </Animated.View>
+          {/* Logo — en ust eleman, ustunde bosluk yok. Tam boyutta kalir, sadece yukari kayar. */}
+          <View style={{ alignItems: "center", justifyContent: "center" }}>
+            {theme.isDark ? (
+              <LogoDark width={220} height={220} />
+            ) : (
+              <LogoLight width={220} height={220} />
+            )}
+          </View>
 
-        <UserInfoStep
-          theme={theme}
-          state={state}
-          onUpdate={onUpdate}
-          onSubmit={handleSubmit}
-          onBack={onBackToLogin}
-          isLoading={isLoading}
-        />
+          <UserInfoStep
+            theme={theme}
+            state={state}
+            onUpdate={onUpdate}
+            onSubmit={handleSubmit}
+            onBack={onBackToLogin}
+            isLoading={isLoading}
+          />
+        </View>
+
+        {/* Alt bosluk: klavye acilinca formun alti klavyenin uzerine kaydirilabilir kalir. */}
+        <Animated.View style={{ height: bottomSpace }} />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
