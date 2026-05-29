@@ -35,6 +35,8 @@ const X_LABEL_HEIGHT_DOUBLE = vs(28);
 // 40 -> "HH:mm" / "DD/MM" (~25px) rahat sigar, ama bir haftalik aralikta gunluk tick'e izin verecek kadar dar.
 const X_LABEL_SLOT_WIDTH = s(40);
 const POPUP_HIDE_DELAY = 2500;
+// Scrub eksen kilidi esigi — bu kadar px hareketten sonra gesture yatay/dikey olarak kilitlenir.
+const AXIS_LOCK_THRESHOLD = 8;
 
 // Birime gore Y ekseni sutunu genisligi — etiket "75%" dar sigarken "0.0 mm/h" daha genise ihtiyac duyar.
 // Bu degeri her grafik kartinda kendi unit'ine gore ayri hesapliyoruz, boylece kartin solunda gereksiz bosluk olusmaz.
@@ -66,6 +68,10 @@ interface MultiSeriesChartProps {
   thresholds?: { min: number; max: number } | null;
   onTouchStart?: () => void;
   onTouchEnd?: () => void;
+  // Yatay scrub'a kilitlenince true, gesture bitince false. Ust ScrollView bunu scrollEnabled ile
+  // kullanir: Android'de onResponderTerminationRequest=false native scroll'u DURDURMUYOR, bu yuzden
+  // yatay scrub boyunca ScrollView'i komple devre disi birakiyoruz (dikey niyet hicbir zaman kilitlemez).
+  onScrubbingChange?: (scrubbing: boolean) => void;
   // Filtre degisikliginden gelen refetch sirasinda kartin uzerine
   // yumusakca yari saydam karartma + spinner bindirir.
   loading?: boolean;
@@ -82,6 +88,7 @@ export const MultiSeriesChart = memo(function MultiSeriesChart({
   thresholds = null,
   onTouchStart,
   onTouchEnd,
+  onScrubbingChange,
   loading = false,
 }: MultiSeriesChartProps) {
   const { t } = useLanguage();
@@ -96,6 +103,11 @@ export const MultiSeriesChart = memo(function MultiSeriesChart({
   // Android'de nativeEvent.locationX bazi senaryolarda hatali geliyor; bunun yerine pageX'i kullanip
   // bu mutlak X'i cikartarak yerel X'i kendimiz hesapliyoruz.
   const containerScreenXRef = useRef(0);
+  // Scrub eksen kilidi: dokunma basinda baslangic koordinati + kilitlenen eksen tutulur. Yatay ("h")
+  // kilitliyken responder birakilmaz → ust ScrollView dikey kaydiramaz (scrub hafif dikey kaymadan
+  // iptal olmaz); dikey ("v") iken scrub yapilmaz → sayfa normal kayar. Gesture boyunca tek eksene kilitli.
+  const gestureStartRef = useRef<{ x: number; y: number } | null>(null);
+  const axisLockRef = useRef<"h" | "v" | null>(null);
 
   // Yari saydam karartma overlay opaklik animasyonu — filtre degisikligi refetch'i sirasinda
   // eski grafik uzerine yumusakca girer/cikar (250ms). Native driver ile JS thread'i mesgul etmez.
@@ -309,10 +321,13 @@ export const MultiSeriesChart = memo(function MultiSeriesChart({
   );
 
   const handleTouchStart = useCallback(
-    (e: { nativeEvent: { pageX: number; locationX: number } }) => {
+    (e: { nativeEvent: { pageX: number; pageY: number; locationX: number } }) => {
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
       onTouchStart?.();
       if (numPoints === 0) return;
+      // Yeni gesture: baslangic noktasini kaydet, eksen kilidini sifirla (ilk harekette belirlenir).
+      gestureStartRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+      axisLockRef.current = null;
       const localX =
         containerScreenXRef.current > 0
           ? e.nativeEvent.pageX - containerScreenXRef.current
@@ -323,21 +338,45 @@ export const MultiSeriesChart = memo(function MultiSeriesChart({
   );
 
   const handleTouchMove = useCallback(
-    (e: { nativeEvent: { pageX: number; locationX: number } }) => {
+    (e: { nativeEvent: { pageX: number; pageY: number; locationX: number } }) => {
       if (numPoints === 0) return;
+      // Eksen henuz kilitli degilse: ilk anlamli hareketin yonune gore kilitle (esitlikte yatay=scrub).
+      if (axisLockRef.current === null && gestureStartRef.current) {
+        const dx = Math.abs(e.nativeEvent.pageX - gestureStartRef.current.x);
+        const dy = Math.abs(e.nativeEvent.pageY - gestureStartRef.current.y);
+        if (dx > AXIS_LOCK_THRESHOLD || dy > AXIS_LOCK_THRESHOLD) {
+          axisLockRef.current = dx >= dy ? "h" : "v";
+          if (axisLockRef.current === "h") {
+            // Yatay scrub'a kilitlendi → ust ScrollView'i devre disi birak. Android native scroll
+            // onResponderTerminationRequest=false'u dinlemiyor; scrollEnabled=false tek guvenilir yol.
+            onScrubbingChange?.(true);
+          } else {
+            // Dikey kaydirma niyeti: scrub secimini HEMEN temizle — yoksa tooltip + secim cizgisi
+            // sayfa kayarken 2.5sn bayat kalir (grant aninda scrub baslamisti).
+            if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+            setSelectedIndex(null);
+          }
+        }
+      }
+      // Dikey kilit: scrub etme, responder ScrollView'a kalsin (sayfa kaysin).
+      if (axisLockRef.current === "v") return;
       const localX =
         containerScreenXRef.current > 0
           ? e.nativeEvent.pageX - containerScreenXRef.current
           : e.nativeEvent.locationX;
       setSelectedIndex(indexFromTouchX(localX));
     },
-    [numPoints, indexFromTouchX],
+    [numPoints, indexFromTouchX, onScrubbingChange],
   );
 
   const handleTouchEnd = useCallback(() => {
+    // Gesture bitti: eksen kilidini sifirla + ust ScrollView'i tekrar etkinlestir.
+    axisLockRef.current = null;
+    gestureStartRef.current = null;
+    onScrubbingChange?.(false);
     onTouchEnd?.();
     hideTimeoutRef.current = setTimeout(() => setSelectedIndex(null), POPUP_HIDE_DELAY);
-  }, [onTouchEnd]);
+  }, [onTouchEnd, onScrubbingChange]);
 
   const selectedTs = selectedIndex != null ? unifiedTs[selectedIndex] : null;
   const selectedValues = selectedIndex != null
@@ -487,6 +526,9 @@ export const MultiSeriesChart = memo(function MultiSeriesChart({
         }}
         onStartShouldSetResponder={() => !allHidden && containerWidth > 0}
         onMoveShouldSetResponder={() => !allHidden && containerWidth > 0}
+        // Yatay scrub'a kilitlendiyse responder'i BIRAKMA → ust ScrollView devralip dikey kaydiramaz,
+        // boylece hafif dikey kayma scrub'i iptal etmez. Kilit yoksa/dikeyse true → ScrollView sayfayi kaydirir.
+        onResponderTerminationRequest={() => axisLockRef.current !== "h"}
         onResponderGrant={handleTouchStart}
         onResponderMove={handleTouchMove}
         onResponderRelease={handleTouchEnd}

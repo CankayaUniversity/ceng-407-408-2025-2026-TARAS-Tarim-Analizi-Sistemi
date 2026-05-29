@@ -110,13 +110,49 @@ export interface UnifiedSeriesData {
   perSeriesValues: (number | null)[][];
 }
 
+// ── Anormal bosluk (gap) tespiti ───────────────────────────────────────────
+// Sensor node veri gondermeyi birakinca grafikte iki uzak nokta arasinda yaniltici bir
+// baglanti cizgisi olusuyordu. Cozum: bir seride ardisik iki nokta arasi sure, o serinin
+// TIPIK araligindan cok daha buyukse cizgiyi kopar (interpolasyon/baglanti yok = bos birak).
+// Esik VERIYE GORE ADAPTIF: median ardisik aralik × GAP_FACTOR. Boylece LTTB seyreltme +
+// degisken zaman penceresi (6sa..1ay) otomatik telafi edilir — sabit bir sure kullanmiyoruz
+// (sabit esik uzun pencerede normal veriyi koparirdi, kisa pencerede bosluklari kacirirdi).
+const GAP_FACTOR = 3;
+// Anlamli bir median icin gereken minimum ardisik-aralik sayisi (>= 4 nokta). Daha azsa seri
+// gap-break'e uygun degil -> sonsuz esik (bugunku gibi her zaman baglanir).
+const MIN_DELTAS_FOR_GAP = 3;
+
+// Bir serinin (ts'e gore sirali) median ardisik araligi. Yetersiz nokta -> null (uygun degil).
+// Median secildi (ortalama degil) cunku tek bir uzun kopukluk (outage) ortalamayi sisirir ama
+// median'i etkilemez -> esik gercek cadence'a sadik kalir.
+const medianConsecutiveDelta = (points: { ts: number }[]): number | null => {
+  if (points.length < MIN_DELTAS_FOR_GAP + 1) return null;
+  const deltas: number[] = [];
+  for (let i = 1; i < points.length; i++) {
+    const d = points[i]!.ts - points[i - 1]!.ts;
+    if (d > 0) deltas.push(d);
+  }
+  if (deltas.length < MIN_DELTAS_FOR_GAP) return null;
+  deltas.sort((a, b) => a - b);
+  const mid = deltas.length >> 1;
+  return deltas.length % 2 === 0 ? (deltas[mid - 1]! + deltas[mid]!) / 2 : deltas[mid]!;
+};
+
 // Coklu seriyi ortak (sirali) timeline'a hizalar; ortak ts'te degeri olmayan seri o noktayi
 // komsulardan lineer interpolate eder. Toplam nokta cok ise timeline'i da LTTB ile seyreltir.
+// Anormal bosluklarda (yukari bkz.) interpolasyon yerine null doner -> cizgi kopar.
 export const unifyAndDownsample = (series: ChartSeries[]): UnifiedSeriesData => {
   const downsampled = series.map((s) => ({
     ...s,
     points: lttbDownsample(s.points, MAX_POINTS_PER_SERIES),
   }));
+
+  // Her seri icin adaptif bosluk esigi (downsample SONRASI noktalardan — interpolasyonun test
+  // ettigi araliklar bunlar). null/yetersiz -> Infinity (o seri asla kopmaz).
+  const seriesCaps = downsampled.map((s) => {
+    const med = medianConsecutiveDelta(s.points);
+    return med == null ? Infinity : med * GAP_FACTOR;
+  });
 
   const allTs = new Set<number>();
   for (const s of downsampled) for (const p of s.points) allTs.add(p.ts);
@@ -128,7 +164,27 @@ export const unifyAndDownsample = (series: ChartSeries[]): UnifiedSeriesData => 
     ).map((p) => p.ts);
   }
 
-  const perSeriesValues = downsampled.map((s) => {
+  // Global sessizlik (tum node'lar AYNI ANDA susmus) icin: arada hicbir serinin noktasi olmadigindan
+  // unified timeline'da buyuk bir sicrama olusur ve iki gercek nokta dogrudan baglanir (null slotu yok).
+  // En dar serinin esigini (min cap) asan her sicramanin ortasina bir "kopma isareti" ts ekleriz; o
+  // indexte her seri KENDI esigine gore null/interpolate eder -> dar seriler kopar, seyrekler degismeden
+  // gecer. min cap kullanmak tam dogru: bir seri yalnizca ardisik iki finalTs arasinda kopmali ise
+  // (= straddle == sicrama) kopar, ki bu durumda sicrama > o serinin cap'i >= min cap olur.
+  const markerThreshold = Math.min(...seriesCaps);
+  if (isFinite(markerThreshold) && finalTs.length > 1) {
+    const withMarkers: number[] = [];
+    for (let i = 0; i < finalTs.length; i++) {
+      withMarkers.push(finalTs[i]!);
+      const nextTs = finalTs[i + 1];
+      if (nextTs !== undefined && nextTs - finalTs[i]! > markerThreshold) {
+        withMarkers.push((finalTs[i]! + nextTs) / 2); // bosluk ortasi (hicbir gercek ts ile cakismaz)
+      }
+    }
+    finalTs = withMarkers;
+  }
+
+  const perSeriesValues = downsampled.map((s, si) => {
+    const cap = seriesCaps[si]!;
     const byTs = new Map<number, number>();
     for (const p of s.points) byTs.set(p.ts, p.value);
     return finalTs.map((ts) => {
@@ -144,9 +200,14 @@ export const unifyAndDownsample = (series: ChartSeries[]): UnifiedSeriesData => 
         }
       }
       if (prev && next) {
+        // Iki gercek nokta cok uzaksa (anormal bosluk) baglama -> null (cizgi kopar).
+        if (next.ts - prev.ts > cap) return null;
         return prev.value + (next.value - prev.value) * ((ts - prev.ts) / (next.ts - prev.ts));
       }
-      return prev?.value ?? next?.value ?? null;
+      // Seri ucu: tek komsuya uzaklik esigi asiyorsa duz uzatma yapma (orn. erken susan node).
+      if (prev) return ts - prev.ts > cap ? null : prev.value;
+      if (next) return next.ts - ts > cap ? null : next.value;
+      return null;
     });
   });
 

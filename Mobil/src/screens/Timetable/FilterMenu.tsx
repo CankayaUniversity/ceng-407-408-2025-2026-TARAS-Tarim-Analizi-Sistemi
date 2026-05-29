@@ -12,13 +12,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
-  ScrollView,
   Platform,
-  Pressable,
 } from "react-native";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Theme } from "../../utils/theme";
 import { useLanguage } from "../../context/LanguageContext";
@@ -26,6 +22,7 @@ import { s, vs, ms } from "../../utils/responsive";
 import { OptionButton } from "../../components/OptionButton";
 import { OptionDropdown } from "../../components/OptionDropdown";
 import { ActionButton } from "../../components/ActionButton";
+import { BottomSheet } from "../../components/BottomSheet";
 import type {
   AggregationMode,
   MetricKey,
@@ -270,59 +267,41 @@ export const FilterMenu = ({
   ]);
 
   return (
-    <Modal
+    <BottomSheet
       visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <Pressable
-        onPress={onClose}
-        style={{
-          flex: 1,
-          backgroundColor: theme.overlay,
-          justifyContent: "flex-end",
-        }}
-      >
-        <Pressable
-          onPress={(e) => e.stopPropagation()}
+      theme={theme}
+      onClose={onClose}
+      title={t.timetable.filters}
+      scroll
+      contentContainerStyle={{ paddingHorizontal: s(16), paddingBottom: vs(16) }}
+      footer={
+        <View
           style={{
-            backgroundColor: theme.background,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            maxHeight: "85%",
-            paddingBottom: vs(20),
+            flexDirection: "row",
+            gap: s(10),
+            paddingHorizontal: s(16),
+            paddingTop: vs(10),
+            borderTopWidth: 1,
+            borderTopColor: theme.divider,
           }}
         >
-          {/* Header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: s(16),
-              paddingTop: vs(12),
-              paddingBottom: vs(4),
-            }}
-          >
-            <Text
-              style={{
-                fontSize: ms(18, 0.3),
-                fontWeight: "700",
-                color: theme.textMain,
-              }}
-            >
-              {t.timetable.filters}
-            </Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <MaterialCommunityIcons name="close" size={24} color={theme.textMain} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={{ paddingHorizontal: s(16) }}
-            contentContainerStyle={{ paddingBottom: vs(16) }}
-          >
+          <ActionButton
+            theme={theme}
+            label={t.timetable.resetFilters}
+            variant="secondary"
+            disabled={!canReset}
+            onPress={handleReset}
+          />
+          <ActionButton
+            theme={theme}
+            label={t.timetable.applyFilters}
+            variant="primary"
+            disabled={!canApply}
+            onPress={handleApply}
+          />
+        </View>
+      }
+    >
             {/* MOD + ZAMAN ARALIGI — yan yana iki sutun; her sutunun ustunde baslik var.
                 Custom tarih araligi ZAMAN ARALIGI dropdown'inin icinde sentinel olarak yer alir;
                 secince zincirleme from->to date picker'i acilir. */}
@@ -343,6 +322,7 @@ export const FilterMenu = ({
                   value={draftMode}
                   options={modeDropdownOptions}
                   onChange={setDraftMode}
+                  statusBarTranslucent
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -355,6 +335,7 @@ export const FilterMenu = ({
                   options={rangeDropdownOptions}
                   onChange={setPreset}
                   displayLabel={isCustom ? draftRange.label : undefined}
+                  statusBarTranslucent
                 />
               </View>
             </View>
@@ -478,38 +459,7 @@ export const FilterMenu = ({
                 </View>
               </>
             )}
-          </ScrollView>
-
-          {/* Footer — Reset + Apply (reusable ActionButton). Disabled iken opaklik dustugu icin
-              hem birincil hem ikincil varyant okunabilir kalir. */}
-          <View
-            style={{
-              flexDirection: "row",
-              gap: s(10),
-              paddingHorizontal: s(16),
-              paddingTop: vs(10),
-              borderTopWidth: 1,
-              borderTopColor: theme.divider,
-            }}
-          >
-            <ActionButton
-              theme={theme}
-              label={t.timetable.resetFilters}
-              variant="secondary"
-              disabled={!canReset}
-              onPress={handleReset}
-            />
-            <ActionButton
-              theme={theme}
-              label={t.timetable.applyFilters}
-              variant="primary"
-              disabled={!canApply}
-              onPress={handleApply}
-            />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    </BottomSheet>
   );
 };
 

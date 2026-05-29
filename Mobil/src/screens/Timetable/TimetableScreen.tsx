@@ -25,7 +25,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { useSensorData } from "../../hooks/useSensorData";
-import { s, vs, ms } from "../../utils/responsive";
+import { s, vs, ms, TAB_H_PADDING } from "../../utils/responsive";
 import { OptionButton } from "../../components/OptionButton";
 import { OptionDropdown } from "../../components/OptionDropdown";
 import { MultiSeriesChart } from "./MultiSeriesChart";
@@ -285,6 +285,9 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
   );
   const [filterOpen, setFilterOpen] = useState(false);
   const [view, setView] = useState<"chart" | "table">("chart");
+  // Grafik scrub'i (yatay) suruyor mu — true iken ScrollView dikey kaydirma KAPALI (Android'de
+  // yalniz responder kilidi yetmiyor). Yatay scrub kilidi baslayinca true, gesture bitince false.
+  const [chartScrubbing, setChartScrubbing] = useState(false);
 
   // Hook fetch — fieldName/dataSource artik AppHeader'in FieldSelector'i ile gosteriliyor
   const {
@@ -363,6 +366,29 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
     }
     return out;
   }, [tableReadings]);
+
+  // Grafik serileri — memo'lu. scrub baslat/bitir (chartScrubbing) re-render'inde yeniden
+  // hesaplanmasin diye: aksi halde her seri yeni referans olur, MultiSeriesChart memo'su kirilir
+  // ve scrub aninda tum grafikler yeniden cizilerek hitch olur.
+  const visibleCharts = useMemo(
+    () =>
+      metricDefs
+        .filter((m) => selectedMetrics.has(m.key))
+        .map((m) => ({
+          def: m,
+          series: buildSeries({
+            readings: filteredReadings,
+            metric: m.key,
+            mode,
+            selectedZoneIds,
+            zones,
+            language: language as "tr" | "en",
+          }),
+          isPercent: m.unit === "%",
+          thresholds: m.key === "sm_percent" && soilThresholds ? soilThresholds : null,
+        })),
+    [metricDefs, selectedMetrics, filteredReadings, mode, selectedZoneIds, zones, language, soilThresholds],
+  );
 
   // CSV export — Android'de Share.share({message}) buyuk verilerde patlar veya text olarak gonderir.
   // expo-sharing.shareAsync(uri, { mimeType }) hem iOS hem Android'de gercek dosya paylasimi yapar.
@@ -460,7 +486,7 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
         style={{
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 12,
+          paddingHorizontal: TAB_H_PADDING,
           gap: 6,
         }}
       >
@@ -508,7 +534,7 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
         style={{
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 12,
+          paddingHorizontal: TAB_H_PADDING,
           paddingTop: 6,
           gap: 6,
         }}
@@ -635,7 +661,10 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
         {controlStrip}
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: s(12), paddingTop: vs(4), paddingBottom: vs(24) }}
+          // Yatay grafik scrub'i suruyorken dikey kaydirma KAPALI — Android'de child responder kilidi
+          // (onResponderTerminationRequest=false) native scroll'u durdurmaya yetmiyor.
+          scrollEnabled={!chartScrubbing}
+          contentContainerStyle={{ paddingHorizontal: TAB_H_PADDING, paddingTop: vs(4), paddingBottom: vs(24) }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -644,36 +673,21 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
             />
           }
         >
-          {metricDefs
-            .filter((m) => selectedMetrics.has(m.key))
-            .map((m) => {
-              const series = buildSeries({
-                readings: filteredReadings,
-                metric: m.key,
-                mode,
-                selectedZoneIds,
-                zones,
-                language: language as "tr" | "en",
-              });
-              // % metrikleri 0..100 sabit eksenle, soil moisture ek olarak DB esikleri
-              const isPercent = m.unit === "%";
-              const thresholds =
-                m.key === "sm_percent" && soilThresholds ? soilThresholds : null;
-              return (
-                <MultiSeriesChart
-                  key={m.key}
-                  theme={theme}
-                  title={m.label}
-                  icon={m.icon}
-                  unit={m.unit}
-                  decimals={m.decimals}
-                  series={series}
-                  percentScale={isPercent}
-                  thresholds={thresholds}
-                  loading={isRefetchOverlay}
-                />
-              );
-            })}
+          {visibleCharts.map(({ def, series, isPercent, thresholds }) => (
+            <MultiSeriesChart
+              key={def.key}
+              theme={theme}
+              title={def.label}
+              icon={def.icon}
+              unit={def.unit}
+              decimals={def.decimals}
+              series={series}
+              percentScale={isPercent}
+              thresholds={thresholds}
+              loading={isRefetchOverlay}
+              onScrubbingChange={setChartScrubbing}
+            />
+          ))}
 
           {lastUpdated && (
             <Text
@@ -722,7 +736,7 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
       {controlStrip}
       <View
         style={{
-          marginHorizontal: s(8),
+          marginHorizontal: TAB_H_PADDING,
           marginTop: vs(4),
           padding: s(10),
           borderRadius: 12,
