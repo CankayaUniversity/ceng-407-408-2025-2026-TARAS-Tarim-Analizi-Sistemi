@@ -8,6 +8,7 @@ const router = Router();
 router.post('/login', authLimiter, authController.login);
 router.post('/register', authLimiter, authController.register);
 router.get('/me', authenticateToken, authController.getProfile);
+router.patch('/me', authenticateToken, authLimiter, authController.updateProfile);
 router.patch('/me/dataset-consent', authenticateToken, authController.updateDatasetConsent);
 router.post('/change-password', authenticateToken, authLimiter, authController.changePassword);
 

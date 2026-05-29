@@ -143,6 +143,23 @@ export async function updateUserPassword(userId: string, newPassword: string) {
   });
 }
 
+// Kullanici adi ve/veya e-postayi gunceller. Sadece verilen alanlari yazar.
+// Username/email unique oldugu icin cakisma P2002 firlatir (controller 409'a cevirir).
+// role ile doner ki username degistiginde yeni JWT uretilebilsin.
+export async function updateUserProfile(
+  userId: string,
+  data: { username?: string; email?: string },
+) {
+  return prisma.user.update({
+    where: { user_id: userId },
+    data: {
+      ...(data.username !== undefined ? { username: data.username } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+    },
+    include: { role: true },
+  });
+}
+
 export async function updateDatasetConsent(userId: string, consent: boolean) {
   return prisma.user.update({
     where: { user_id: userId },
@@ -173,9 +190,32 @@ export async function ensureFarmerRole() {
   });
 }
 
+export async function ensureStakeholderRole() {
+  return prisma.role.upsert({
+    where: { role_name: "stakeholder" },
+    update: {},
+    create: {
+      role_name: "stakeholder",
+      description: "Read-only viewer invited to a specific farm",
+    },
+  });
+}
+
 export async function getFarmerRoleId(): Promise<number | undefined> {
   const role = await prisma.role.findUnique({ where: { role_name: "farmer" } });
   return role?.role_id;
+}
+
+// Kullaniciyi "farmer" rolune yukseltir — ilk ciftligini olusturunca cagrilir.
+// Idempotent: zaten farmer ise ayni degeri yazar. Sadece yukseltir (asla stakeholder'a dusurmez).
+// Guncellenmis kullaniciyi role ile doner ki yeni JWT uretilebilsin.
+export async function promoteToFarmer(userId: string) {
+  const farmerRoleId = await getFarmerRoleId();
+  return prisma.user.update({
+    where: { user_id: userId },
+    data: farmerRoleId != null ? { role_id: farmerRoleId } : {},
+    include: { role: true },
+  });
 }
 
 export async function getRoleIdByName(roleName: string): Promise<number | undefined> {
@@ -285,10 +325,13 @@ export default {
   authenticateUser,
   getUserProfile,
   updateUserPassword,
+  updateUserProfile,
   updateDatasetConsent,
   ensureAdminRole,
   ensureFarmerRole,
+  ensureStakeholderRole,
   getFarmerRoleId,
+  promoteToFarmer,
   getRoleIdByName,
   getAllRoles,
   createAlert,
