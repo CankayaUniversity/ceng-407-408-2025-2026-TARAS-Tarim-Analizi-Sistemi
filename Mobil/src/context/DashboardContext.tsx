@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   dashboardAPI,
   gatewayAPI,
+  sensorAPI,
   DashboardData,
   FieldSummary,
   ERR_AUTH_EXPIRED,
@@ -27,6 +28,12 @@ const SELECTED_FARM_KEY = "selected_farm_id";
 export interface FarmInfo {
   farm_id: string;
   name: string;
+  // Backend listFarms doner: Farm.user_id === caller ise true. Paydas/farmer-uye icin false.
+  // Owner-only affordance'lar (trash, vs.) bu flag ile gizlenir; backend de bagimsiz reddeder.
+  is_owner?: boolean;
+  // Erisim turu: "owner" (sahip) | "farmer" (operasyonel uye) | "stakeholder" (salt-okunur).
+  // Iki kapi sinyalini surer: yonetim (owner) vs operasyonel yazma (owner|farmer).
+  access?: "owner" | "farmer" | "stakeholder";
 }
 
 interface DashboardContextValue {
@@ -34,11 +41,18 @@ interface DashboardContextValue {
   farms: FarmInfo[];
   selectedFarmId: string | null;
   selectedFarm: FarmInfo | null;
+  // Operasyonel yazma (sulama calistirma/onaylama, karbon girisi, foto): sahip VEYA farmer-uye.
+  canEditSelectedFarm: boolean;
+  // Yapisal/yonetsel (field/ciftlik/donanim olustur-sil, davet/uye yonetimi, rol degistir): yalnizca sahip.
+  canManageSelectedFarm: boolean;
   setSelectedFarmId: (farmId: string) => void;
   // Fields
   fields: FieldSummary[];
   selectedFieldId: string | null;
   dashboardData: DashboardData | null;
+  // zone_id -> zone_name (kullanicinin tum bolgeleri). Dashboard node'lari sadece zone_id tasiyor;
+  // kart basligi gercek bolge adini bununla cozuyor. Demo + gercek modu getUserZones halleder.
+  zoneNameById: Record<string, string>;
   refreshing: boolean;
   fieldSelectorOpen: boolean;
   addFieldModalOpen: boolean;
@@ -51,6 +65,7 @@ interface DashboardContextValue {
   setAddFieldModalOpen: (open: boolean) => void;
   addLocalField: (summary: FieldSummary, data: DashboardData) => void;
   notifyFarmCreated: (farmId: string) => Promise<void>;
+  notifyFarmJoined: (farmId: string) => Promise<void>;
   deleteFarm: (farmId: string) => Promise<void>;
   deleteField: (fieldId: string) => Promise<void>;
 }
@@ -68,6 +83,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
   const [fields, setFields] = useState<FieldSummary[]>([]);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [zoneNameById, setZoneNameById] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
   const [fieldSelectorOpen, setFieldSelectorOpen] = useState(false);
   const [addFieldModalOpen, setAddFieldModalOpen] = useState(false);
@@ -79,6 +95,23 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     () => farms.find((f) => f.farm_id === selectedFarmId) ?? null,
     [farms, selectedFarmId],
   );
+
+  // Iki kapi: operasyonel yazma (owner|farmer) vs yapisal/yonetsel (owner). Backend her ikisini
+  // de bagimsiz uygular; bunlar yalnizca UI affordance gizleme.
+  // Lenient fallback: access bilinmiyorsa (eski cache / pre-rollout backend) is_owner'a dus —
+  // mesru bir sahibin butonlarini bayrak eksikligi yuzunden gizleme; bilinen non-owner kisilir.
+  const farmAccess = selectedFarm?.access;
+  const isOwnerLenient = !!selectedFarm && selectedFarm.is_owner !== false;
+
+  // Operasyonel yazma (sulama calistirma/onaylama, karbon girisi): sahip VEYA farmer-uye.
+  // Disease sekmesi user-scoped oldugu icin bunun disinda (hesap rolu ile yonetilir).
+  const canEditSelectedFarm = farmAccess
+    ? farmAccess === "owner" || farmAccess === "farmer"
+    : isOwnerLenient;
+
+  // Yapisal/yonetsel (field/ciftlik/donanim olustur-sil, davet/uye yonetimi, kick, rol degistir):
+  // yalnizca sahip.
+  const canManageSelectedFarm = farmAccess ? farmAccess === "owner" : isOwnerLenient;
 
   // ── Dashboard yükleme ──────────────────────────────────────────────────────
   const loadDashboardForField = useCallback(
@@ -272,6 +305,38 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     return () => sub.remove();
   }, [selectedFieldId, dataSource, loadDashboardForField]);
 
+  // ── Bolge adlari (zone_id -> zone_name) ────────────────────────────────────
+  // Dashboard node'lari sadece zone_id tasiyor; kart basligi gercek adi bununla cozer.
+  // getUserZones demo/gercek modu token'a gore kendi ayirir; tum bolgeleri tek cagriyla doner.
+  // selectedFarmId degisince yenile (yeni ciftligin bolgeleri). Logged-out'ta cekme.
+  useEffect(() => {
+    if (!isAuthReady) return;
+    const active = dataSource === "demo" || (isLoggedIn && dataSource === "aws");
+    if (!active) {
+      setZoneNameById({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await sensorAPI.getUserZones();
+        if (cancelled) return;
+        if (res.success && res.data) {
+          const map: Record<string, string> = {};
+          for (const z of res.data.zones) {
+            if (z.zone_id && z.zone_name) map[z.zone_id] = z.zone_name;
+          }
+          setZoneNameById(map);
+        }
+      } catch {
+        // Bolge adlari kritik degil — basarisizsa kart index fallback'ine duser
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthReady, isLoggedIn, dataSource, selectedFarmId]);
+
   const selectField = useCallback(
     async (fieldId: string) => {
       setSelectedFieldId(fieldId);
@@ -390,6 +455,22 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
     } catch { /* noop */ }
   }, []);
 
+  // Davet koduyla ciftlige katilinca: liste yenile + ciftligi sec. notifyFarmCreated'dan
+  // farki: katilinan ciftlik dolu olabilir, bu yuzden setSelectedFarmId ile field'lar yuklenir.
+  const notifyFarmJoined = useCallback(
+    async (farmId: string) => {
+      setHasFarms(true);
+      try {
+        const farmsRes = await gatewayAPI.getFarms();
+        if (farmsRes.success && farmsRes.data) setFarms(farmsRes.data);
+      } catch {
+        /* noop */
+      }
+      setSelectedFarmId(farmId);
+    },
+    [setSelectedFarmId],
+  );
+
   const addLocalField = useCallback(
     (summary: FieldSummary, data: DashboardData) => {
       localFields.set(summary.id, data);
@@ -407,10 +488,13 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       farms,
       selectedFarmId,
       selectedFarm,
+      canEditSelectedFarm,
+      canManageSelectedFarm,
       setSelectedFarmId,
       fields,
       selectedFieldId,
       dashboardData,
+      zoneNameById,
       refreshing,
       fieldSelectorOpen,
       addFieldModalOpen,
@@ -423,6 +507,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       setAddFieldModalOpen,
       addLocalField,
       notifyFarmCreated,
+      notifyFarmJoined,
       deleteFarm,
       deleteField,
     }),
@@ -430,10 +515,13 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       farms,
       selectedFarmId,
       selectedFarm,
+      canEditSelectedFarm,
+      canManageSelectedFarm,
       setSelectedFarmId,
       fields,
       selectedFieldId,
       dashboardData,
+      zoneNameById,
       refreshing,
       fieldSelectorOpen,
       addFieldModalOpen,
@@ -444,6 +532,7 @@ export const DashboardProvider = ({ children }: { children: React.ReactNode }) =
       refreshFields,
       addLocalField,
       notifyFarmCreated,
+      notifyFarmJoined,
       deleteFarm,
       deleteField,
     ],

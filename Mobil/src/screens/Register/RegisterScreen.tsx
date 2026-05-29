@@ -6,10 +6,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from "react-native";
 import { authAPI, healthAPI } from "../../utils/api";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useKeyboard } from "../../hooks/useKeyboard";
 import { UserInfoStep } from "./UserInfoStep";
 import type { RegisterScreenProps, RegisterFormState } from "./types";
 import { INITIAL_REGISTER_STATE } from "./types";
@@ -26,6 +28,11 @@ export const RegisterScreen = ({
   const { t } = useLanguage();
   const [state, setState] = useState<RegisterFormState>(INITIAL_REGISTER_STATE);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Klavye acilinca ust logo alani dinamik olarak 0'a kuculur — form scroll olmadan gorunur.
+  const { animatedPadding } = useKeyboard();
+  const logoHeight = animatedPadding.interpolate({ inputRange: [0, 1], outputRange: [220, 0] });
+  const logoOpacity = animatedPadding.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
 
   const onUpdate = useCallback(
     (partial: Partial<RegisterFormState>) =>
@@ -44,12 +51,12 @@ export const RegisterScreen = ({
       return;
     }
 
-    // Register — creates user only (no farm)
+    // Register — creates user only (no farm, no role choice). Rol onboarding'de
+    // (ilk ciftlik olustur / davet koduyla katil) belirlenir.
     const response = await authAPI.register(
       state.username.trim(),
       state.email.trim(),
       state.password,
-      state.roleId,
     );
     setIsLoading(false);
 
@@ -92,11 +99,21 @@ export const RegisterScreen = ({
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {theme.isDark ? (
-          <LogoDark width={220} height={220} />
-        ) : (
-          <LogoLight width={220} height={220} />
-        )}
+        <Animated.View
+          style={{
+            height: logoHeight,
+            opacity: logoOpacity,
+            overflow: "hidden",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {theme.isDark ? (
+            <LogoDark width={220} height={220} />
+          ) : (
+            <LogoLight width={220} height={220} />
+          )}
+        </Animated.View>
 
         <UserInfoStep
           theme={theme}

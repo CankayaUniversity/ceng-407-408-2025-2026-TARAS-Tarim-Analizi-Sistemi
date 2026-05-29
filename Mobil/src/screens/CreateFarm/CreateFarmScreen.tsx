@@ -28,7 +28,6 @@ import { s, vs, ms } from "../../utils/responsive";
 interface CreateFarmScreenProps {
   theme: any;
   onFarmCreated: (farmId: string) => void;
-  onBack: () => void;
 }
 
 // Turkiye merkezi — GPS alinamazsa fallback
@@ -92,7 +91,6 @@ async function fetchOpenMeteoElevation(
 export const CreateFarmScreen = ({
   theme,
   onFarmCreated,
-  onBack,
 }: CreateFarmScreenProps) => {
   const { t } = useLanguage();
   const { showPopup } = usePopupMessage();
@@ -275,38 +273,6 @@ export const CreateFarmScreen = ({
         contentContainerStyle={{ flexGrow: 1, padding: s(16) }}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            marginTop: vs(4),
-            marginBottom: vs(16),
-          }}
-        >
-          <TouchableOpacity
-            onPress={onBack}
-            disabled={isCreating}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MaterialCommunityIcons
-              name={Platform.OS === "ios" ? "chevron-down" : "arrow-left"}
-              size={Platform.OS === "ios" ? 28 : 24}
-              color={theme.textMain}
-            />
-          </TouchableOpacity>
-          <Text
-            className="font-bold"
-            style={{
-              fontSize: ms(20, 0.3),
-              color: theme.textMain,
-              marginLeft: s(12),
-            }}
-          >
-            {t.farm.addFarm}
-          </Text>
-        </View>
-
         {/* Error banner */}
         {error && (
           <View

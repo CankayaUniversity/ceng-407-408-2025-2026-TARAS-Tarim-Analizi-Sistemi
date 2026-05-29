@@ -3,7 +3,6 @@ export interface RegisterFormState {
   email: string;
   password: string;
   confirmPassword: string;
-  roleId: number; // 2 = farmer (default), 1 = admin
 }
 
 export const INITIAL_REGISTER_STATE: RegisterFormState = {
@@ -11,7 +10,6 @@ export const INITIAL_REGISTER_STATE: RegisterFormState = {
   email: "",
   password: "",
   confirmPassword: "",
-  roleId: 2,
 };
 
 export interface RegisterScreenProps {

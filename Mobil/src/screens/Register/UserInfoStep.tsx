@@ -54,18 +54,6 @@ export const UserInfoStep = ({
 
   return (
     <View className="w-full">
-      {/* Header */}
-      <Text
-        className="text-center font-bold"
-        style={{
-          fontSize: ms(20, 0.3),
-          marginBottom: vs(12),
-          color: theme.textMain,
-        }}
-      >
-        {t.register.stepUserInfo}
-      </Text>
-
       {/* Error banner */}
       {error && (
         <View
@@ -172,69 +160,6 @@ export const UserInfoStep = ({
         secureTextEntry
         editable={!isLoading}
       />
-
-      {/* Role selector */}
-      <Text
-        style={{
-          fontSize: ms(13, 0.3),
-          color: theme.textSecondary,
-          fontWeight: "600",
-          marginBottom: vs(8),
-          marginTop: vs(4),
-        }}
-      >
-        {t.register.roleLabel}
-      </Text>
-      <View style={{ flexDirection: "row", gap: s(10), marginBottom: vs(16) }}>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            paddingVertical: vs(10),
-            borderRadius: 10,
-            borderWidth: 1.5,
-            borderColor: state.roleId === 2 ? theme.primary : theme.border,
-            backgroundColor: state.roleId === 2 ? theme.primary + "15" : theme.surface,
-            alignItems: "center",
-          }}
-          onPress={() => onUpdate({ roleId: 2 })}
-          activeOpacity={0.7}
-          disabled={isLoading}
-        >
-          <Text
-            style={{
-              fontSize: ms(14, 0.3),
-              fontWeight: "600",
-              color: state.roleId === 2 ? theme.primary : theme.textSecondary,
-            }}
-          >
-            {t.register.roleFarmer}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            paddingVertical: vs(10),
-            borderRadius: 10,
-            borderWidth: 1.5,
-            borderColor: state.roleId === 1 ? theme.primary : theme.border,
-            backgroundColor: state.roleId === 1 ? theme.primary + "15" : theme.surface,
-            alignItems: "center",
-          }}
-          onPress={() => onUpdate({ roleId: 1 })}
-          activeOpacity={0.7}
-          disabled={isLoading}
-        >
-          <Text
-            style={{
-              fontSize: ms(14, 0.3),
-              fontWeight: "600",
-              color: state.roleId === 1 ? theme.primary : theme.textSecondary,
-            }}
-          >
-            {t.register.roleAdmin}
-          </Text>
-        </TouchableOpacity>
-      </View>
 
       {/* Submit button */}
       <TouchableOpacity
