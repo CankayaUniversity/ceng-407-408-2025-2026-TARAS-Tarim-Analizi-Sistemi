@@ -152,7 +152,7 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
     [jobs],
   );
   const historyJobs = useMemo(
-    () => jobs.filter((j) => j.status === "EXECUTED"),
+    () => jobs.filter((j) => j.status === "EXECUTED" || j.status === "ANALYZED"),
     [jobs],
   );
 
@@ -171,6 +171,7 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
       sensorAPI.getZoneDetails(zoneId),
     ]);
     if (jobsRes.success && jobsRes.data) {
+      console.log("[IRRIGATION] jobs loaded:", jobsRes.data.length, "statuses:", jobsRes.data.map((j) => j.status));
       setJobs(jobsRes.data);
     } else if (!jobsRes.success) {
       setError(jobsRes.error ?? "Error");
@@ -533,7 +534,7 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
                   : moistureClamped < 60
                     ? palette.soilMoisture[500]
                     : palette.soilMoisture[700];
-              const svgSize = s(88);
+              const svgSize = s(104);
               const fillY = 100 - moistureClamped;
               const hasRecommendation = pendingJob?.water_amount_ml != null;
 
@@ -541,214 +542,202 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
                 <View
                   style={{
                     flexDirection: "row",
-                    alignItems: "center",
-                    paddingVertical: spacing.md,
+                    alignItems: "stretch",
+                    paddingVertical: spacing.sm,
                     marginBottom: spacing.xs,
                   }}
                 >
                   {/* Sol kolon: Damla (%40) */}
-                  <View
-                    style={{
-                      width: "40%",
-                      alignItems: "center",
-                    }}
-                  >
-                    <View style={{ width: svgSize, height: svgSize }}>
-                      <Svg
-                        width={svgSize}
-                        height={svgSize}
-                        viewBox="0 0 100 100"
-                      >
-                        <Defs>
-                          <ClipPath id="dropClip">
-                            <Path d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z" />
-                          </ClipPath>
-                        </Defs>
-                        <Path
-                          d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z"
-                          fill={dropColor + "18"}
-                        />
-                        <Rect
-                          x="0"
-                          y={fillY}
-                          width="100"
-                          height={100 - fillY}
-                          fill={dropColor + "40"}
-                          clipPath="url(#dropClip)"
-                        />
-                        <Path
-                          d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z"
-                          fill="none"
-                          stroke={dropColor + "50"}
-                          strokeWidth="2"
-                        />
-                      </Svg>
-                      <View
-                        style={{
-                          position: "absolute",
-                          top: svgSize * 0.6,
-                          left: 0,
-                          right: 0,
-                          alignItems: "center",
-                        }}
-                      >
-                        <Text
+                  <View style={{ width: "40%", alignItems: "center" }}>
+                    {/* Ust: damla */}
+                    <View style={{ flex: 1, justifyContent: "center" }}>
+                      <View style={{ width: svgSize, height: svgSize }}>
+                        <Svg
+                          width={svgSize}
+                          height={svgSize}
+                          viewBox="0 0 100 100"
+                        >
+                          <Defs>
+                            <ClipPath id="dropClip">
+                              <Path d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z" />
+                            </ClipPath>
+                          </Defs>
+                          <Path
+                            d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z"
+                            fill={dropColor + "18"}
+                          />
+                          <Rect
+                            x="0"
+                            y={fillY}
+                            width="100"
+                            height={100 - fillY}
+                            fill={dropColor + "40"}
+                            clipPath="url(#dropClip)"
+                          />
+                          <Path
+                            d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z"
+                            fill="none"
+                            stroke={dropColor + "50"}
+                            strokeWidth="2"
+                          />
+                        </Svg>
+                        <View
                           style={{
-                            fontSize: ms(18, 0.3),
-                            fontWeight: "800",
-                            color: dropColor,
+                            position: "absolute",
+                            top: svgSize * 0.6,
+                            left: 0,
+                            right: 0,
+                            alignItems: "center",
                           }}
                         >
-                          {moisture}%
-                        </Text>
+                          <Text
+                            style={{
+                              fontSize: ms(20, 0.3),
+                              fontWeight: "800",
+                              color: dropColor,
+                            }}
+                          >
+                            {moisture}%
+                          </Text>
+                        </View>
                       </View>
                     </View>
+                    {/* Alt: etiketler */}
                     <Text
                       style={{
-                        fontSize: ms(11, 0.3),
+                        fontSize: ms(12, 0.3),
                         color: theme.textSecondary,
-                        marginTop: s(4),
+                        marginTop: s(3),
                       }}
                     >
                       {t.irrigation.currentMoisture}
                     </Text>
-                    {targetMoisture != null && (
+                    {targetMoisture != null ? (
                       <Text
                         style={{
-                          fontSize: ms(10, 0.3),
+                          fontSize: ms(11, 0.3),
                           color: theme.textMuted,
                           marginTop: 1,
                         }}
                       >
                         {t.irrigation.targetMoisture}: {Math.round(targetMoisture)}%
                       </Text>
+                    ) : (
+                      <View style={{ height: ms(13, 0.3) }} />
                     )}
                   </View>
 
                   {/* Sag kolon: Oneri (%60) */}
-                  <View
-                    style={{
-                      width: "60%",
-                      alignItems: "center",
-                    }}
-                  >
+                  <View style={{ width: "60%", alignItems: "center" }}>
                     {hasRecommendation ? (
                       <>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "baseline",
-                          }}
-                        >
-                          <Text
+                        {/* Ust: aciliyet */}
+                        {pendingJob!.urgency_level ? (
+                          <View
                             style={{
-                              fontSize: ms(38, 0.3),
-                              fontWeight: "800",
-                              color: theme.primary,
+                              backgroundColor:
+                                theme[
+                                  getUrgencyColor(pendingJob!.urgency_level)
+                                ] + "18",
+                              paddingHorizontal: s(10),
+                              paddingVertical: s(3),
+                              borderRadius: s(8),
                             }}
                           >
-                            {Math.round(pendingJob!.water_amount_ml!)}
-                          </Text>
-                          <Text
+                            <Text
+                              style={{
+                                fontSize: ms(12, 0.3),
+                                fontWeight: "700",
+                                color:
+                                  theme[
+                                    getUrgencyColor(pendingJob!.urgency_level)
+                                  ],
+                              }}
+                            >
+                              {getUrgencyLabel(
+                                pendingJob!.urgency_level,
+                                t.irrigation,
+                              )}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {/* Orta: miktar + etiket */}
+                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                          <View
                             style={{
-                              fontSize: ms(16, 0.3),
-                              fontWeight: "600",
-                              color: theme.primary,
-                              marginLeft: s(4),
+                              flexDirection: "row",
+                              alignItems: "baseline",
                             }}
                           >
-                            {t.irrigation.ml}
+                            <Text
+                              style={{
+                                fontSize: ms(52, 0.3),
+                                fontWeight: "800",
+                                color: theme.primary,
+                              }}
+                            >
+                              {Math.round(pendingJob!.water_amount_ml!)}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: ms(19, 0.3),
+                                fontWeight: "600",
+                                color: theme.primary,
+                                marginLeft: s(4),
+                              }}
+                            >
+                              {t.irrigation.ml}
+                            </Text>
+                          </View>
+                          <Text
+                            style={{
+                              fontSize: ms(13, 0.3),
+                              color: theme.textSecondary,
+                              marginTop: vs(1),
+                            }}
+                          >
+                            {t.irrigation.irrigationRecommended}
                           </Text>
                         </View>
-                        <Text
-                          style={{
-                            fontSize: ms(13, 0.3),
-                            color: theme.textSecondary,
-                            marginTop: 2,
-                          }}
-                        >
-                          {t.irrigation.irrigationRecommended}
-                        </Text>
 
-                        {/* Zaman + Aciliyet */}
+                        {/* Alt: zaman */}
                         <View
                           style={{
                             flexDirection: "row",
                             alignItems: "center",
-                            flexWrap: "wrap",
-                            justifyContent: "center",
-                            marginTop: spacing.sm,
-                            gap: s(6),
                           }}
                         >
-                          <View
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={theme.textSecondary}
+                          />
+                          <Text
                             style={{
-                              flexDirection: "row",
-                              alignItems: "center",
+                              fontSize: ms(13, 0.3),
+                              color: theme.textSecondary,
+                              marginLeft: s(3),
                             }}
                           >
-                            <Ionicons
-                              name="time-outline"
-                              size={13}
-                              color={theme.textSecondary}
-                            />
-                            <Text
-                              style={{
-                                fontSize: ms(12, 0.3),
-                                color: theme.textSecondary,
-                                marginLeft: s(3),
-                              }}
-                            >
-                              {formatDateTimeLong(
-                                pendingJob!.start_time,
-                                language,
-                              )}
-                            </Text>
-                          </View>
-                          {pendingJob!.urgency_level ? (
-                            <View
-                              style={{
-                                backgroundColor:
-                                  theme[
-                                    getUrgencyColor(
-                                      pendingJob!.urgency_level,
-                                    )
-                                  ] + "18",
-                                paddingHorizontal: s(8),
-                                paddingVertical: s(2),
-                                borderRadius: s(8),
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  fontSize: ms(11, 0.3),
-                                  fontWeight: "700",
-                                  color:
-                                    theme[
-                                      getUrgencyColor(
-                                        pendingJob!.urgency_level,
-                                      )
-                                    ],
-                                }}
-                              >
-                                {getUrgencyLabel(
-                                  pendingJob!.urgency_level,
-                                  t.irrigation,
-                                )}
-                              </Text>
-                            </View>
-                          ) : null}
+                            {formatDateTimeLong(
+                              pendingJob!.start_time,
+                              language,
+                            )}
+                          </Text>
                         </View>
                       </>
                     ) : (
-                      <Text
-                        style={{
-                          fontSize: ms(14, 0.3),
-                          color: theme.textMuted,
-                        }}
-                      >
-                        {t.irrigation.noRecommendation}
-                      </Text>
+                      <View style={{ flex: 1, justifyContent: "center" }}>
+                        <Text
+                          style={{
+                            fontSize: ms(14, 0.3),
+                            color: theme.textMuted,
+                          }}
+                        >
+                          {t.irrigation.noRecommendation}
+                        </Text>
+                      </View>
                     )}
                   </View>
                 </View>
