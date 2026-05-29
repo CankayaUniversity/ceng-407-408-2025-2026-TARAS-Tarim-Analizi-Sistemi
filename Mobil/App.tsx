@@ -45,9 +45,10 @@ if (__DEV__) {
 
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { LanguageProvider } from "./src/context/LanguageContext";
-import { PopupMessageProvider } from "./src/context/PopupMessageContext";
+import { PopupMessageProvider, GlobalToast } from "./src/context/PopupMessageContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { ThemeProvider } from "./src/context/ThemeContext";
 import { ConfirmProvider } from "./src/context/ConfirmContext";
@@ -61,8 +62,9 @@ import { AppRouter } from "./src/navigation/AppRouter";
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <LanguageProvider>
+      <KeyboardProvider>
+        <SafeAreaProvider>
+          <LanguageProvider>
           <PopupMessageProvider>
             <AuthProvider>
               <ThemeProvider>
@@ -73,6 +75,11 @@ export default function App() {
                         <TabBarPopOutProvider>
                           <TabResetProvider>
                             <AppRouter />
+                            {/* Toast'u tema agacinin ICINDE ciz — PopupMessageProvider
+                                ThemeProvider'in ustunde, orada useTheme yok. Kokteki kopya
+                                (sekmelerin uzerinde); modallarin ustu icin FullScreenModal
+                                kendi kopyasini cizer. */}
+                            <GlobalToast />
                           </TabResetProvider>
                         </TabBarPopOutProvider>
                       </ChatProvider>
@@ -82,8 +89,9 @@ export default function App() {
               </ThemeProvider>
             </AuthProvider>
           </PopupMessageProvider>
-        </LanguageProvider>
-      </SafeAreaProvider>
+          </LanguageProvider>
+        </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
