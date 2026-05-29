@@ -462,6 +462,9 @@ export interface StringDictionary {
     categoryFuel: string;
     categoryFertilizer: string;
     categoryElectricity: string;
+    emissionSources: string;
+    ofTotal: string;
+    fuelBreakdown: string;
   };
 
   // Notifications Screen
@@ -1094,6 +1097,9 @@ const tr: StringDictionary = {
     categoryFuel: "Yakıt",
     categoryFertilizer: "Gübre",
     categoryElectricity: "Elektrik",
+    emissionSources: "Emisyon Kaynakları",
+    ofTotal: "toplam",
+    fuelBreakdown: "Yakıt Detayları",
   },
 
   notifications: {
@@ -1717,6 +1723,9 @@ const en: StringDictionary = {
     categoryFuel: "Fuel",
     categoryFertilizer: "Fertilizer",
     categoryElectricity: "Electricity",
+    emissionSources: "Emission Sources",
+    ofTotal: "of total",
+    fuelBreakdown: "Fuel Breakdown",
   },
 
   notifications: {
