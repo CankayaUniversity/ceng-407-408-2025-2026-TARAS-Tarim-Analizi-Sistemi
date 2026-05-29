@@ -24,14 +24,14 @@ interface ChatWindowProps {
   chatInput: string;
   theme: Theme;
   isLoading?: boolean;
-  onClose: () => void;
+  // Header + kapat/gecmis/yeni-sohbet kontrolleri FullScreenModal'a tasindi.
+  // Bu bilesen yalnizca govdeyi (mesajlar/giris ya da gecmis paneli) cizer.
+  showHistory: boolean;
   onSendMessage: () => void;
   onInputChange: (text: string) => void;
-  onNewChat?: () => void;
   // Gecmis
   historySessions: ChatSessionSummary[];
   isLoadingHistory: boolean;
-  onLoadHistory: () => void;
   onSelectSession: (sessionId: string) => void;
 }
 
@@ -53,13 +53,11 @@ export const ChatWindow = ({
   chatInput,
   theme,
   isLoading,
-  onClose,
+  showHistory,
   onSendMessage,
   onInputChange,
-  onNewChat,
   historySessions,
   isLoadingHistory,
-  onLoadHistory,
   onSelectSession,
 }: ChatWindowProps) => {
   const { t } = useLanguage();
@@ -68,7 +66,6 @@ export const ChatWindow = ({
   const chatInputRef = useRef<TextInput>(null);
   const { keyboardHeight } = useKeyboard();
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
 
   const scrollToEnd = () =>
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 60);
@@ -78,13 +75,7 @@ export const ChatWindow = ({
     setTimeout(() => onSendMessage(), 80);
   };
 
-  const handleHistoryToggle = () => {
-    if (!showHistory) onLoadHistory();
-    setShowHistory(!showHistory);
-  };
-
   const handleSelectSession = (sid: string) => {
-    setShowHistory(false);
     onSelectSession(sid);
   };
 
@@ -106,55 +97,6 @@ export const ChatWindow = ({
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.background }}>
-      {/* Header */}
-      <View
-        className="row-between border-b"
-        style={{
-          paddingHorizontal: s(14),
-          paddingTop: insets.top + vs(8),
-          paddingBottom: vs(10),
-          borderBottomColor: theme.primary + "15",
-        }}
-      >
-        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <MaterialCommunityIcons name="chevron-down" size={ms(24, 0.3)} color={theme.textSecondary} />
-        </TouchableOpacity>
-
-        <View className="row" style={{ gap: s(6) }}>
-          <View className="rounded-full bg-olive-800 dark:bg-olive-700" style={{ width: s(6), height: s(6) }} />
-          <Text
-            className="font-semibold uppercase tracking-wider"
-            style={{ fontSize: ms(12, 0.3), color: theme.textSecondary }}
-          >
-            {showHistory ? t.chat.history : t.chat.title}
-          </Text>
-        </View>
-
-        <View className="row">
-          <TouchableOpacity
-            onPress={handleHistoryToggle}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={{ opacity: 0.7 }}
-          >
-            <MaterialCommunityIcons
-              name={showHistory ? "chat" : "history"}
-              size={ms(18, 0.3)}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
-          {!showHistory && onNewChat && (
-            <TouchableOpacity
-              onPress={onNewChat}
-              disabled={isLoading}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ opacity: isLoading ? 0.3 : 0.7, marginLeft: s(12) }}
-            >
-              <MaterialCommunityIcons name="refresh" size={ms(18, 0.3)} color={theme.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
       {showHistory ? (
         /* Gecmis panel */
         <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: s(14) }}>

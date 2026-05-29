@@ -49,6 +49,8 @@ export interface FullScreenModalProps {
   onBack?: () => void;
   /** Sag kapat (X). Verilmezse onRequestClose'a duser. */
   onClose?: () => void;
+  /** Kapat (X) butonunun SOLUNA eklenen ekstra kontroller (orn. chat gecmis/yeni). */
+  headerRight?: ReactNode;
   children: ReactNode;
 }
 
@@ -80,6 +82,7 @@ export const FullScreenModal = ({
   progress,
   onBack,
   onClose,
+  headerRight,
   children,
 }: FullScreenModalProps) => {
   // progress: 0 kapali, 1 acik. translateX'i surer (sagdan iceri).
@@ -147,12 +150,17 @@ export const FullScreenModal = ({
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                justifyContent: onBack ? "space-between" : "flex-end",
+                justifyContent: "space-between",
                 height: s(34),
               }}
             >
-              {onBack ? <IconButton theme={theme} icon="chevron-left" onPress={onBack} /> : null}
-              <IconButton theme={theme} icon="close" onPress={closeHandler} />
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {onBack ? <IconButton theme={theme} icon="chevron-left" onPress={onBack} /> : null}
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: s(14) }}>
+                {headerRight}
+                <IconButton theme={theme} icon="close" onPress={closeHandler} />
+              </View>
             </View>
 
             {title != null && (

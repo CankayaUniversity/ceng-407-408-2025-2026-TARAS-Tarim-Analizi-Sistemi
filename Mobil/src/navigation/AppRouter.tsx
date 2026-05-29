@@ -9,7 +9,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useLanguage } from "../context/LanguageContext";
-import { useChatContext } from "../context/ChatContext";
 import { LoginScreen, DemoOnlyLoginScreen, RegisterScreen } from "../screens";
 import { AppHeader } from "../components/AppHeader";
 import { AppTabs } from "./AppTabs";
@@ -25,7 +24,6 @@ export const AppRouter = () => {
   const { isLoggedIn, isAuthReady, handleLogin, handleSkip } = useAuth();
   const { theme, isDark } = useTheme();
   const { t } = useLanguage();
-  const { showChat } = useChatContext();
   const [authView, setAuthView] = useState<"login" | "register">("login");
 
   // Login <-> Register yumusak gecis: gorunum degisince gelen ekran fade + yone gore hafif
@@ -108,16 +106,16 @@ export const AppRouter = () => {
           )
         ) : (
           <>
-            <View
-              className="flex-1"
-              style={{ display: showChat && Platform.OS !== "ios" ? "none" : "flex" }}
-            >
+            <View className="flex-1" style={{ backgroundColor: theme.background }}>
               <AppHeader />
               <AppTabs />
               <ChatBubbleLayer />
               <DraggableAIButtonLayer />
             </View>
-            {Platform.OS === "ios" ? <ChatOverlay /> : showChat ? <ChatOverlay /> : null}
+            {/* Chat artik FullScreenModal — surekli mount'lu, visible=showChat ile
+                kendini acar/kapatir. Android geri tusu Modal'in onRequestClose'u ile
+                chat'i kapatir (eski display:none takasi + geri-tusu dusmesi kalkti). */}
+            <ChatOverlay />
           </>
         )}
       </View>

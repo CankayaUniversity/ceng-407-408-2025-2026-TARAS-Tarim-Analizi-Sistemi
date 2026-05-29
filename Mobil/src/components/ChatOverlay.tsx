@@ -1,12 +1,22 @@
-// ChatWindow'u ChatContext ile sarmaliyor
-// iOS: pageSheet Modal, Android: absolute positioned overlay
-import { View, Modal, Platform } from "react-native";
+// ChatWindow'u FullScreenModal icinde sunar — diger tam ekran ekranlarla
+// (Bildirimler, Ayarlar alt ekranlari) ayni kabuk: buyuk baslik + sagdan kayan
+// giris + X ile kapat. Android donanim/jest geri tusu Modal'in onRequestClose'u
+// ile chat'i kapatir (eski absolute-View sunumunda geri tusu sekmelere dusuyordu).
+// Gecmis ve yeni-sohbet kontrolleri header'in sag tarafina (headerRight) tasindi.
+import { useEffect, useState } from "react";
+import { TouchableOpacity } from "react-native";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { FullScreenModal } from "./FullScreenModal";
 import { ChatWindow } from "./ChatWindow";
 import { useTheme } from "../context/ThemeContext";
+import { useLanguage } from "../context/LanguageContext";
 import { useChatContext } from "../context/ChatContext";
+
+const HIT = { top: 12, bottom: 12, left: 12, right: 12 };
 
 export const ChatOverlay = () => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const {
     messages,
     chatInput,
@@ -22,49 +32,67 @@ export const ChatOverlay = () => {
     setShowChat,
   } = useChatContext();
 
-  const chatWindow = (
-    <ChatWindow
-      messages={messages}
-      chatInput={chatInput}
-      theme={theme}
-      isLoading={chatLoading}
-      onClose={() => setShowChat(false)}
-      onSendMessage={sendMessage}
-      onInputChange={setChatInput}
-      onNewChat={startNewChat}
-      historySessions={historySessions}
-      isLoadingHistory={isLoadingHistory}
-      onLoadHistory={loadHistory}
-      onSelectSession={loadSessionById}
-    />
+  const [showHistory, setShowHistory] = useState(false);
+
+  const close = () => setShowChat(false);
+
+  // Chat kapaninca gecmis gorunumunu sifirla — tekrar acildiginda sohbette baslar
+  useEffect(() => {
+    if (!showChat) setShowHistory(false);
+  }, [showChat]);
+
+  const toggleHistory = () => {
+    if (!showHistory) loadHistory();
+    setShowHistory(!showHistory);
+  };
+
+  const headerRight = (
+    <>
+      <TouchableOpacity onPress={toggleHistory} activeOpacity={0.6} hitSlop={HIT}>
+        <MaterialCommunityIcons
+          name={showHistory ? "chat" : "history"}
+          size={24}
+          color={theme.textMain}
+        />
+      </TouchableOpacity>
+      {!showHistory && (
+        <TouchableOpacity
+          onPress={startNewChat}
+          disabled={chatLoading}
+          activeOpacity={0.6}
+          hitSlop={HIT}
+          style={{ opacity: chatLoading ? 0.3 : 1 }}
+        >
+          <MaterialCommunityIcons name="refresh" size={24} color={theme.textMain} />
+        </TouchableOpacity>
+      )}
+    </>
   );
 
-  if (Platform.OS === "ios") {
-    return (
-      <Modal
-        visible={showChat}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowChat(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: theme.background }}>
-          {chatWindow}
-        </View>
-      </Modal>
-    );
-  }
-
   return (
-    <View
-      style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-      }}
+    <FullScreenModal
+      visible={showChat}
+      theme={theme}
+      title={showHistory ? t.chat.history : t.chat.title}
+      headerRight={headerRight}
+      onRequestClose={close}
+      onClose={close}
     >
-      {chatWindow}
-    </View>
+      <ChatWindow
+        messages={messages}
+        chatInput={chatInput}
+        theme={theme}
+        isLoading={chatLoading}
+        showHistory={showHistory}
+        onSendMessage={sendMessage}
+        onInputChange={setChatInput}
+        historySessions={historySessions}
+        isLoadingHistory={isLoadingHistory}
+        onSelectSession={(id) => {
+          setShowHistory(false);
+          loadSessionById(id);
+        }}
+      />
+    </FullScreenModal>
   );
 };
