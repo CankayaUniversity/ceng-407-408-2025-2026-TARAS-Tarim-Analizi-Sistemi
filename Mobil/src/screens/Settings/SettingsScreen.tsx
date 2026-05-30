@@ -587,7 +587,7 @@ export const SettingsScreen = memo(function SettingsScreen({
           style={{
             flexDirection: "row",
             alignItems: "center",
-            paddingVertical: vs(14),
+            paddingVertical: vs(6),
           }}
         >
           {/* Bilgiler — avatar kaldirildi (profil resmi yok), bilgi blogu basa gecti */}
@@ -658,7 +658,7 @@ export const SettingsScreen = memo(function SettingsScreen({
         </View>
       </FocusableSection>
 
-      <Divider theme={theme} spacing={vs(10)} />
+      <Divider theme={theme} spacing={vs(5)} />
 
       {/* ── 2. Konum Yonetimi — ciftlik + tarla tek baslik altinda ── */}
       <SectionTitle title={t.settings.locationManagement} theme={theme} />

@@ -35,7 +35,7 @@ const Stack = createNativeStackNavigator<HomeStackParamList>();
 // (HomeContainer'daki ayni kapsam; HomeStack icinde ayri screen olarak yasatilir)
 const HomeMainScreen = () => {
   const { theme, isDark } = useTheme();
-  const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen, canManageSelectedFarm } = useDashboard();
+  const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen, canManageSelectedFarm, initialLoadDone } = useDashboard();
   const { t } = useLanguage();
   const isFocused = useIsFocused();
   const navigation = useNavigation<IrrigationDetailNavProps["navigation"]>();
@@ -45,7 +45,8 @@ const HomeMainScreen = () => {
     navigation.popToTop();
   });
 
-  if (fields.length === 0) {
+  // initialLoadDone gate: aksi halde fetch tamamlanmadan fields:[] gorulup "tarla yok" ekrani flash atar.
+  if (initialLoadDone && fields.length === 0) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.background, paddingHorizontal: s(32) }}>
         <MaterialCommunityIcons name="terrain" size={56} color={theme.textMuted} />
