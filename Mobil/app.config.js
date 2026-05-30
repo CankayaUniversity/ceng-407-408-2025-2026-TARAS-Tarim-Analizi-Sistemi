@@ -31,14 +31,23 @@ const plugins = [
   ["./plugins/withTarasAndroid.js", { useHermesV1 }],
   "@react-native-community/datetimepicker",
   "expo-sharing",
-  [
-    "react-native-maps",
-    {
-      // Android: Google Maps API anahtari gerekli — .env veya Google Cloud Console'dan alin
-      // iOS: Apple Maps varsayilan, anahtar gerekmez
-      androidApiKey: process.env.GOOGLE_MAPS_API_KEY || "",
-    },
-  ],
+  // Sadece API anahtari varsa kayit ol — bos/eksik anahtar AndroidManifest'e
+  // empty <meta-data android:value="" /> koyup Gradle build'i patlatiyordu
+  // (ve runtime'da Google Maps SDK "Authentication failure" atiyor).
+  // Anahtar yoksa Maps pluginini hic mount etmiyoruz; CreateFarm'in MapView'i
+  // graceful sekilde fallback verir. iOS Apple Maps kullanir, anahtar gerekmez —
+  // dolayisiyla bu dallandirma yalnizca Android'i etkiler.
+  // ⚠ Plugin prop'unun ismi `androidGoogleMapsApiKey` (NOT `androidApiKey` — eski config
+  // buradaki yanlis isim yuzunden meta-data hic injecte edilmedi, runtime'da boş harita ve
+  // crash; bkz. node_modules/react-native-maps/plugin/build/android.js — `if (props?.androidGoogleMapsApiKey)`).
+  ...(process.env.GOOGLE_MAPS_API_KEY
+    ? [
+        [
+          "react-native-maps",
+          { androidGoogleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY },
+        ],
+      ]
+    : []),
   [
     "expo-location",
     {
@@ -54,7 +63,7 @@ const plugins = [
 // Yeni surum yayinlarken APP_VERSION ve APP_VERSION_CODE'u guncelle.
 // APP_VERSION: kullaniciya gosterilir (semver)
 // APP_VERSION_CODE: Android internal versionCode — her surumde +1 olmali
-const APP_VERSION = "0.5.0";
+const APP_VERSION = "0.8.2";
 //const APP_VERSION_CODE = 2;
 
 module.exports = {
