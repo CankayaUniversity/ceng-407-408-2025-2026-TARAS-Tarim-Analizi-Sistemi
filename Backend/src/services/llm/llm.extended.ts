@@ -5,7 +5,7 @@ import OpenAI from "openai";
 import { getSessionHistory } from "../chatMemory.service";
 import { anthropic, ANTHROPIC_MODEL, CACHED_SYSTEM_PROMPT, buildPerRequestContext } from "./anthropic.service";
 import { TOOL_DEFINITIONS } from "./toolDefinitions";
-import { ToolExecutor } from "./toolExecutor";
+import { ToolExecutor, type TimetableFilterPayload, type ChatAction } from "./toolExecutor";
 import { getFieldInventory, getUserMeta } from "../dashboardService";
 import { getFieldContextForLLM } from "../tarasData.service";
 import {
@@ -21,12 +21,10 @@ import logger from "../../utils/logger";
 
 const MAX_ITERATIONS = 8;
 const LOOP_TIMEOUT_MS = 30000;
-// Extended thinking — Haiku 4.5 manual mode (type:"enabled").
-// Haiku 4.5 interleaved thinking DESTEKLEMEZ — tek turda birden fazla dusunme
-// blogu olusturmaz. Her iterasyon basinda (bizim tool loop'umuzda) model bastan
-// dusunur, eylemi verir, biz tool_result doneriz, bir sonraki iterasyon yeniden
-// dusunur. Loop yapisi sayesinde "tool cagirir, tekrar dusunur" davranisi
-// API seviyesinde olmasa da sistem seviyesinde elde edilir.
+// Extended thinking — manual mode (type:"enabled"). 2026-05-30: model Haiku 4.5'ten
+// Sonnet 4.6'ya yukseltildi (anthropic.service.ts::ANTHROPIC_MODEL). Bizim kendi tool
+// loop'umuz her iterasyonda modeli bastan dusundurur (interleaved thinking'e bagimli
+// degiliz), dolayisiyla token/butce ayarlari model degisiminden bagimsiz gecerli kalir.
 // budget_tokens < max_tokens kurali zorunlu. Temperature otomatik 1'e kilitlenir.
 const HAIKU_MAX_TOKENS = 8000;
 const HAIKU_THINKING_BUDGET = 5000;
@@ -110,6 +108,8 @@ export const generateAdvisoryStream = async (
   onChunk: (text: string) => void,
   onStatus?: (status: string) => void,
   onNavigate?: (screen: string, section: string | null, zoneId?: string) => void,
+  onSetFilters?: (filters: TimetableFilterPayload) => void,
+  onAction?: (action: ChatAction) => void,
 ): Promise<string> => {
   const start = Date.now();
   const [history, ctx] = await Promise.all([
@@ -129,6 +129,8 @@ export const generateAdvisoryStream = async (
 
   const executor = new ToolExecutor(userId, fieldId);
   executor.onNavigate = onNavigate;
+  executor.onSetFilters = onSetFilters;
+  executor.onAction = onAction;
   const systemMessages = buildSystemMessages(ctx, fieldId);
   const deadline = Date.now() + LOOP_TIMEOUT_MS;
 
@@ -360,6 +362,8 @@ export const generateAdvisoryStreamGroq = async (
   onChunk: (text: string) => void,
   onStatus?: (status: string) => void,
   onNavigate?: (screen: string, section: string | null, zoneId?: string) => void,
+  onSetFilters?: (filters: TimetableFilterPayload) => void,
+  onAction?: (action: ChatAction) => void,
 ): Promise<string> => {
   try {
     const start = Date.now();
@@ -373,6 +377,8 @@ export const generateAdvisoryStreamGroq = async (
     const messages = buildGroqMessages(userMessage, history, ctx, fieldId);
     const executor = new ToolExecutor(userId, fieldId);
     executor.onNavigate = onNavigate;
+    executor.onSetFilters = onSetFilters;
+    executor.onAction = onAction;
 
     const finalText = await runGroqToolLoop(messages, executor, onStatus);
 

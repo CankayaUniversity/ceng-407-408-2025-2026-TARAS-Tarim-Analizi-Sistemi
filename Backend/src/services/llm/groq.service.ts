@@ -34,6 +34,7 @@ import {
   PROMPT_AGRONOMY_REFERENCE,
   PROMPT_SYSTEM_MODEL,
   PROMPT_SCOPE,
+  PROMPT_TIMETABLE_GUIDANCE,
   formatToolRoster,
 } from "./promptParts";
 
@@ -74,20 +75,24 @@ ${PROMPT_LANGUAGE_CORE}
 
 ${formatToolRoster()}
 
+${PROMPT_TIMETABLE_GUIDANCE}
+
 ## Tool-selection decision tree (follow in order)
 
 Step 1 — Can the answer come from chat history alone? Yes → answer in text, no tool. No → Step 2.
 
-Step 2 — Is the question about CURRENT sensor data, irrigation, alerts, diseases, or carbon? Yes → pick ONE data tool, call it, then answer in TEXT with the numbers. No → Step 3.
+Step 2 — Does the user want one of the three sensor metrics (temperature, humidity, soil moisture) over a TIME WINDOW — "today / this week / last N days / this month / the trend / how it changed / a chart or table / a metric named with a timeframe"? Yes → call set_timetable_filters (match range, metrics, zones; table view for raw values). This is the DEFAULT for time-series sensor data; do it even if they did not say "show/open". The toast then only names what's on screen — do NOT list the data in it. No → Step 3.
 
-Step 3 — Is the question pure agronomy (Kc, soil types, irrigation methods, disease names)? Yes → try the built-in reference below FIRST. Only call search_knowledge if the topic is NOT covered there. No → Step 4.
+Step 3 — Is the question about CURRENT (point-in-time) sensor data, irrigation, alerts, diseases, or carbon — with no time window ("right now", "should I irrigate")? Yes → pick ONE data tool, call it, then answer in TEXT with the numbers. No → Step 4.
 
-Step 4 — Did the user explicitly say "göster / aç / show / open", or clearly want to SEE something? Yes → call highlight_zone (a specific zone on the 3D field) or navigate_to_section (a screen/chart); the toast then only names what's on screen — do NOT list the data in it (see Brevity). No → answer in text.
+Step 4 — Is the question pure agronomy (Kc, soil types, irrigation methods, disease names)? Yes → try the built-in reference below FIRST. Only call search_knowledge if the topic is NOT covered there. No → Step 5.
+
+Step 5 — Did the user explicitly say "göster / aç / show / open", or clearly want to SEE a zone or screen? Yes → call highlight_zone (a specific zone on the 3D field) or navigate_to_section (a screen/chart); the toast then only names what's on screen — do NOT list the data in it (see Brevity). No → answer in text.
 
 ## Tool-use HARD rules
 
 - ALWAYS use the EXACT UUIDs shown in the inventory below. NEVER truncate, paraphrase, or invent IDs. For field-level questions default to the [SELECTED] field.
-- DEFAULT TO TEXT-ONLY. Numbers from a data tool answer most questions in one sentence — do NOT navigate "for completeness".
+- DEFAULT TO TEXT-ONLY for point-in-time and decision questions. Numbers from a data tool answer those in one sentence — do NOT navigate "for completeness". (EXCEPTION: sensor metrics over a time window go to set_timetable_filters per Step 2 — that is not "for completeness", it is the right surface.)
 - If a data tool returns a number, lead with that number in your reply.
 - If a data tool returns no data or fails, say so in one sentence. Do NOT fabricate readings.
 - Always compare a reading to its threshold when explaining an irrigation decision.

@@ -4,6 +4,7 @@ import { generateAdvisory, generateAdvisoryStream } from "../services/llm.servic
 import { saveMessage, getFieldSession, getSessionMessages } from "../services/chatMemory.service";
 import { asyncHandler } from "../middleware/error.middleware";
 import { resolveFieldAccess } from "../services/accessService";
+import type { TimetableFilterPayload, ChatAction } from "../services/llm/toolExecutor";
 import prisma from "../config/database";
 import logger from "../utils/logger";
 
@@ -22,6 +23,19 @@ try {
 
 const useAgenticGroq = ext && LLM_MODE === "groq";
 const useAgenticAnthropic = ext && LLM_MODE !== "groq";
+
+// Kaydedilmis mesaj metadata'sindan ({ events: [...] }) ham SSE event dizisini cikar.
+// Gecersiz/yok ise undefined — mobil bunu butonsuz mesaj olarak ele alir.
+function extractEvents(metadata: unknown): Record<string, unknown>[] | undefined {
+  if (
+    metadata &&
+    typeof metadata === "object" &&
+    Array.isArray((metadata as { events?: unknown }).events)
+  ) {
+    return (metadata as { events: Record<string, unknown>[] }).events;
+  }
+  return undefined;
+}
 
 async function resolveSession(
   sessionId: string | undefined,
@@ -133,25 +147,51 @@ export const getTarasAdviceStream = asyncHandler(
     try {
       let fullText: string;
 
+      // Mesaj-alti buton ureten event'ler — SSE ile gonderirken AYRICA topla; asistan
+      // mesajinin metadata'sina kaydedilir, boylece sohbet yeniden acildiginda butonlar
+      // geri gelir. Saklanan sekil ham SSE yuku (mobil canli stream'le ayni parser'i kullanir).
+      const collectedActions: Record<string, unknown>[] = [];
+      const emit = (event: Record<string, unknown>): void => {
+        collectedActions.push(event);
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      };
+
+      // navigate / highlight — ekran/zone vurgusu
+      const emitNavigate = (
+        screen: string,
+        section: string | null,
+        zoneId?: string,
+      ): void => {
+        emit({ navigate: screen, section, ...(zoneId ? { zone_id: zoneId } : {}) });
+      };
+
+      // set_timetable_filters → ekrani Cizelge sekmesine acar (navigate) + filtre yukunu tasir.
+      const emitSetFilters = (filters: TimetableFilterPayload): void => {
+        emit({ navigate: "timetable", section: null, set_filters: filters });
+      };
+
+      // Buton ile onaylanan eylemler (select_field / set_theme / set_language / add_carbon_log).
+      const emitAction = (action: ChatAction): void => {
+        emit({ action });
+      };
+
       if (useAgenticAnthropic) {
         fullText = await ext.generateAdvisoryStream(
           userId, field_id, message, currentSessionId,
           (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
           (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
-          (screen: string, section: string | null, zoneId?: string) =>
-            res.write(
-              `data: ${JSON.stringify({ navigate: screen, section, ...(zoneId ? { zone_id: zoneId } : {}) })}\n\n`,
-            ),
+          emitNavigate,
+          emitSetFilters,
+          emitAction,
         );
       } else if (useAgenticGroq) {
         fullText = await ext.generateAdvisoryStreamGroq(
           userId, field_id, message, currentSessionId,
           (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
           (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
-          (screen: string, section: string | null, zoneId?: string) =>
-            res.write(
-              `data: ${JSON.stringify({ navigate: screen, section, ...(zoneId ? { zone_id: zoneId } : {}) })}\n\n`,
-            ),
+          emitNavigate,
+          emitSetFilters,
+          emitAction,
         );
       } else {
         const fieldContext = await getFieldContextForLLM(field_id);
@@ -166,7 +206,12 @@ export const getTarasAdviceStream = asyncHandler(
         );
       }
 
-      await saveMessage(currentSessionId, "assistant", fullText);
+      await saveMessage(
+        currentSessionId,
+        "assistant",
+        fullText,
+        collectedActions.length > 0 ? { events: collectedActions } : undefined,
+      );
       res.write(
         `data: ${JSON.stringify({ done: true, session_id: currentSessionId })}\n\n`,
       );
@@ -229,6 +274,9 @@ export const getFieldChatSession = asyncHandler(
           text: m.content || "",
           sender: m.sender === "user" ? "user" : "assistant",
           timestamp: m.created_at,
+          // Kaydedilmis aksiyon butonlari (ham SSE event'leri) — mobil canli stream'le
+          // ayni parser'la butona cevirir; yoksa undefined.
+          events: extractEvents((m as { metadata?: unknown }).metadata),
         })),
       },
     });

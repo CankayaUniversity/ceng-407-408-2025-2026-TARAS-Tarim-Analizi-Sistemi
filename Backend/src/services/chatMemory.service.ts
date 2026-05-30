@@ -31,11 +31,14 @@ export const getSessionHistory = async (sessionId: string): Promise<ChatHistoryM
 
 /**
  * Kullanıcının veya asistanın mesajını veritabanına kaydeder.
+ * metadata: asistan mesajinin altinda gosterilecek aksiyon butonlari ({ events: [...] }) —
+ * yalnizca varsa kaydedilir; LLM gecmisine girmez (getSessionHistory yalniz content seciyor).
  */
 export const saveMessage = async (
   sessionId: string,
   sender: "user" | "assistant",
   messageText: string,
+  metadata?: unknown,
 ): Promise<void> => {
   try {
     await prisma.chatMessage.create({
@@ -43,6 +46,7 @@ export const saveMessage = async (
         session_id: sessionId,
         sender: sender,
         content: messageText,
+        ...(metadata != null ? { metadata: metadata as object } : {}),
       },
     });
   } catch (error) {

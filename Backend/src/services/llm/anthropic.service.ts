@@ -9,6 +9,7 @@ import {
   PROMPT_AGRONOMY_REFERENCE,
   PROMPT_SYSTEM_MODEL,
   PROMPT_SCOPE,
+  PROMPT_TIMETABLE_GUIDANCE,
   formatToolRoster,
 } from "./promptParts";
 
@@ -20,7 +21,9 @@ export const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
+// Sonnet 4.6 — Haiku 4.5'ten yukseltildi 2026-05-30 (kullanici talebi). Sonnet daha guclu
+// reasoning + arac kullanimi; ucret Haiku'dan ~4-5x yuksek (girdi $3 / cikti $15 per Mtok).
+export const ANTHROPIC_MODEL = "claude-sonnet-4-6";
 
 // Bolum A: Onbelleklenen sistem promptu
 // Kisa ve net — text-first default, navigasyon sadece gerektiginde
@@ -37,10 +40,13 @@ ${PROMPT_BREVITY_CORE}
 
 ${formatToolRoster()}
 
+${PROMPT_TIMETABLE_GUIDANCE}
+
 ## Tool usage rules
 - Ground every claim about live sensor values, irrigation, alerts, diseases or carbon in a DATA tool — never guess at current numbers.
 - This app has a 3D field view, charts and detail screens — USE THEM. When the user asks about a specific zone, or seeing helps (a zone on the 3D field, a chart, a workflow), call highlight_zone (for a zone) or navigate_to_section (for a screen) to show it, then point at it in the toast — name what's on screen, don't restate the data (see the toast rule above). Reach for the visual readily — not only on an explicit "göster".
-- For pure analysis or numbers-only questions ("should I irrigate?", "what's the trend?"), answer in full chat text — don't force a navigation that shrinks your answer into a toast.
+- Sensor data over a time window (temperature, humidity, soil moisture for "today / this week / last N days / the trend") → call set_timetable_filters; that is what the Timetable screen is for. See the Timetable section above; default to showing it, do not keep these in text just because no chart was explicitly requested.
+- For point-in-time or decision questions with no time window ("should I irrigate?", "what's the soil moisture right now?"), answer in full chat text — don't force a navigation that shrinks your answer into a toast.
 - Agricultural theory (Kc, drip vs sprinkler, disease symptoms) → built-in reference below first, search_knowledge only if not covered.
 - If a tool returns no data or fails, say so in one sentence. Never fabricate readings.
 - When explaining an irrigation decision, compare the reading to its threshold.

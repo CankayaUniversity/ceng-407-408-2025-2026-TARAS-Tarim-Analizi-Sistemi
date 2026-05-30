@@ -512,6 +512,10 @@ model ChatMessage {
   session_id String?      @db.Uuid
   sender     String?      @db.VarChar(10)
   content    String?
+  // LLM tool-call'larindan dogan mesaj-alti aksiyon butonlari ({ events: [...] } ham SSE
+  // event yukleri). Mobil yuklerken ayni parser'la butona cevirir; eski sohbet acildiginda
+  // butonlar geri gelir. LLM gecmisine GIRMEZ (getSessionHistory yalniz content seciyor).
+  metadata   Json?
   created_at DateTime?    @default(now()) @db.Timestamptz(6)
   session    ChatSession? @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 

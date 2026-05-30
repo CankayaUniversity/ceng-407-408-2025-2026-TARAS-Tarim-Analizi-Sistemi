@@ -2,17 +2,31 @@
 import prisma from "../../config/database";
 import logger from "../../utils/logger";
 import { checkFieldAccess } from "../dashboardService";
-import { checkFarmReadAccess } from "../carbonService";
+import {
+  checkFarmReadAccess,
+  checkFarmAccess,
+  previewCarbonLog,
+  getActivityTypes,
+} from "../carbonService";
 import { getFieldContextForLLM } from "../tarasData.service";
 import {
   getSensorNodesForZone,
   getReadingsInTimeRange,
   getZoneWithAdaptiveControl,
   getIrrigationHistory,
+  getFieldSensorHistory,
 } from "../sensorNodeService";
 import { getFarmSummary } from "../carbonService";
 import { searchKnowledge } from "./knowledgeBase.service";
-import { SECTION_TARGETS } from "./toolDefinitions";
+import {
+  SECTION_TARGETS,
+  TIMETABLE_AGGREGATIONS,
+  TIMETABLE_METRICS,
+  TIMETABLE_VIEWS,
+  type TimetableAggregation,
+  type TimetableMetric,
+  type TimetableView,
+} from "./toolDefinitions";
 
 const MAX_RESULT_CHARS = 8000;
 const MAX_CALLS = 8;
@@ -22,6 +36,36 @@ interface ToolResult {
   data?: unknown;
   error?: string;
 }
+
+// set_timetable_filters tool'unun istemciye gonderdigi normalize edilmis yuk.
+// Yalnizca degistirilecek alanlar bulunur; eksik alan "degistirme" anlamina gelir.
+// zones: [] -> tum bolgeler, [...] -> secili bolgeler, undefined -> degistirme.
+// range her zaman now'dan geriye dogru "rolling" — gun veya saat cinsinden.
+export interface TimetableFilterPayload {
+  range?: { days: number } | { hours: number };
+  aggregation?: TimetableAggregation;
+  metrics?: TimetableMetric[];
+  zones?: string[];
+  view?: TimetableView;
+}
+
+// Buton ile onaylanan eylemler — istemci mesaj altinda buton cizer, tap'te calisir.
+// kind ile ayrilan discriminated union. add_carbon_log YAZMAZ; yalnizca onayli teklif tasir.
+export type ChatAction =
+  | { kind: "select_field"; field_id: string; field_name: string }
+  | { kind: "set_theme"; mode: "light" | "dark" | "system" }
+  | { kind: "set_language"; lang: "tr" | "en" }
+  | {
+      kind: "add_carbon_log";
+      farm_id: string;
+      activity_type_id: number;
+      activity_type_name: string;
+      unit: string;
+      activity_date: string;
+      activity_amount: number;
+      estimated_emission: number;
+      notes?: string;
+    };
 
 // Zone ID'den field ID'ye cozumleme (kapsam kontrolu icin)
 async function getFieldIdForZone(zoneId: string): Promise<string | null> {
@@ -39,6 +83,18 @@ async function getFieldIdForNode(nodeId: string): Promise<string | null> {
     select: { zone: { select: { field_id: true } } },
   });
   return node?.zone?.field_id ?? null;
+}
+
+// Field ID'den farm_id + isim cozumleme (carbon kapsam kontrolu + select_field icin).
+// farm_id semada nullable — cagiranlar carbon icin null'u reddeder.
+async function getFieldInfo(
+  fieldId: string,
+): Promise<{ farm_id: string | null; name: string } | null> {
+  const field = await prisma.field.findUnique({
+    where: { field_id: fieldId },
+    select: { farm_id: true, name: true },
+  });
+  return field ?? null;
 }
 
 // Sonucu JSON string olarak sinirla
@@ -76,6 +132,11 @@ export class ToolExecutor {
     section: string | null,
     zoneId?: string,
   ) => void;
+  // set_timetable_filters — istemciye normalize edilmis filtre yuku gonderir.
+  public onSetFilters?: (filters: TimetableFilterPayload) => void;
+  // Buton ile onaylanan eylemler (select_field / set_theme / set_language / add_carbon_log).
+  // Istemci mesajin altinda buton cizer; kullanici basinca eylem calisir. kind ile ayrilir.
+  public onAction?: (action: ChatAction) => void;
 
   constructor(userId: string, fieldId: string) {
     this.userId = userId;
@@ -132,6 +193,35 @@ export class ToolExecutor {
           input.reason as string,
         );
 
+      case "set_timetable_filters":
+        return this.handleSetTimetableFilters(input);
+
+      case "select_field":
+        return this.handleSelectField(
+          input.field_id as string,
+          input.reason as string,
+        );
+
+      case "set_theme":
+        return this.handleSetTheme(input.mode as string, input.reason as string);
+
+      case "set_language":
+        return this.handleSetLanguage(
+          input.lang as string,
+          input.reason as string,
+        );
+
+      case "add_carbon_log":
+        return this.handleAddCarbonLog(
+          input.activity_type_id as number,
+          input.activity_amount as number,
+          input.activity_date as string | undefined,
+          input.notes as string | undefined,
+        );
+
+      case "get_activity_types":
+        return this.handleGetActivityTypes();
+
       case "get_field_overview":
         return this.handleGetFieldOverview(input.field_id as string);
 
@@ -142,6 +232,12 @@ export class ToolExecutor {
         return this.handleGetZoneHistory(
           input.zone_id as string,
           Math.min((input.hours as number) || 24, 72),
+        );
+
+      case "get_field_history":
+        return this.handleGetFieldHistory(
+          input.field_id as string,
+          (input.days as number) || 7,
         );
 
       case "get_zone_details":
@@ -157,7 +253,10 @@ export class ToolExecutor {
         return this.handleGetSensorDiagnostics(input.node_id as string);
 
       case "get_carbon_summary":
-        return this.handleGetCarbonSummary(input.farm_id as string);
+        return this.handleGetCarbonSummary(
+          input.farm_id as string,
+          input.days as number | undefined,
+        );
 
       case "get_disease_history":
         return this.handleGetDiseaseHistory(
@@ -226,6 +325,259 @@ export class ToolExecutor {
         reason,
       },
     };
+  }
+
+  // Cizelge filtrelerini degistir — istemciye normalize yuk gonderir, ekrani Cizelge
+  // sekmesine acar. Yalnizca gecerli alanlar uygulanir; gecersizler atlanir.
+  private async handleSetTimetableFilters(
+    input: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    const reason = typeof input.reason === "string" ? input.reason : "";
+    const payload: TimetableFilterPayload = {};
+    const applied: string[] = [];
+    let droppedZones = 0;
+
+    // --- Zaman araligi: gun veya saat (rolling, now'dan geriye) ---
+    const range = input.range;
+    if (range && typeof range === "object") {
+      const r = range as Record<string, unknown>;
+      const days = Number(r.days);
+      const hours = Number(r.hours);
+      if (Number.isFinite(days) && days > 0) {
+        const d = Math.min(Math.max(Math.round(days), 1), 90);
+        payload.range = { days: d };
+        applied.push(`aralık=son ${d} gün`);
+      } else if (Number.isFinite(hours) && hours > 0) {
+        const h = Math.min(Math.max(Math.round(hours), 1), 2160);
+        payload.range = { hours: h };
+        applied.push(`aralık=son ${h} saat`);
+      }
+    }
+
+    // --- Aggregation modu ---
+    const agg = input.aggregation;
+    if (
+      typeof agg === "string" &&
+      (TIMETABLE_AGGREGATIONS as readonly string[]).includes(agg)
+    ) {
+      payload.aggregation = agg as TimetableAggregation;
+      applied.push(`mod=${agg}`);
+    }
+
+    // --- Metrikler (en az 1; bos/gecersiz gelirse degistirme) ---
+    if (Array.isArray(input.metrics)) {
+      const valid = input.metrics.filter(
+        (m): m is TimetableMetric =>
+          typeof m === "string" &&
+          (TIMETABLE_METRICS as readonly string[]).includes(m),
+      );
+      if (valid.length > 0) {
+        payload.metrics = valid;
+        applied.push(`metrikler=${valid.join("/")}`);
+      }
+    }
+
+    // --- Gorunum (chart/table) ---
+    const view = input.view;
+    if (
+      typeof view === "string" &&
+      (TIMETABLE_VIEWS as readonly string[]).includes(view)
+    ) {
+      payload.view = view as TimetableView;
+      applied.push(`görünüm=${view === "table" ? "tablo" : "grafik"}`);
+    }
+
+    // --- Bolgeler: [] -> tumu, [...] -> yalnizca bu field'e ait gecerli zone'lar ---
+    if (Array.isArray(input.zones)) {
+      const requested = input.zones.filter(
+        (z): z is string => typeof z === "string" && z.length > 0,
+      );
+      if (requested.length === 0) {
+        payload.zones = [];
+        applied.push("bölgeler=tümü");
+      } else {
+        const valid: string[] = [];
+        for (const zid of requested) {
+          // Zone bu executor'in (secili) field'ine ait olmali — field zaten
+          // controller'da erisim kontrolunden gecmis durumda.
+          const fid = await getFieldIdForZone(zid);
+          if (fid && fid === this.fieldId) valid.push(zid);
+          else droppedZones++;
+        }
+        if (valid.length > 0) {
+          payload.zones = valid;
+          applied.push(`bölgeler=${valid.length} seçili`);
+        }
+        // valid bos -> zones uygulanmaz (mevcut secim korunur)
+      }
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return {
+        success: false,
+        error:
+          "Geçerli bir filtre parametresi sağlanmadı (range/aggregation/metrics/zones/view).",
+      };
+    }
+
+    // Eventi SSE uzerinden istemciye gonder — controller buna navigate:"timetable" ekler
+    this.onSetFilters?.(payload);
+
+    let summary = `Çizelge filtreleri uygulandı ve Çizelge sekmesi açıldı: ${applied.join(", ")}.`;
+    if (droppedZones > 0) {
+      summary += ` (${droppedZones} tanınmayan/erişilemeyen bölge atlandı.)`;
+    }
+    return {
+      success: true,
+      data: { applied: payload, summary, reason },
+    };
+  }
+
+  // Secili field'i degistir — buton ile onaylanir. Field kullaniciya erisilebilir olmali.
+  private async handleSelectField(
+    fieldId: string,
+    reason: string,
+  ): Promise<ToolResult> {
+    if (!fieldId) {
+      return { success: false, error: "field_id zorunludur" };
+    }
+    if (!(await checkFieldAccess(this.userId, fieldId))) {
+      return { success: false, error: "Bu tarlaya erişim yetkiniz yok" };
+    }
+    const info = await getFieldInfo(fieldId);
+    if (!info) {
+      return { success: false, error: "Tarla bulunamadı" };
+    }
+    this.onAction?.({
+      kind: "select_field",
+      field_id: fieldId,
+      field_name: info.name,
+    });
+    return {
+      success: true,
+      data: {
+        staged: "select_field",
+        field_id: fieldId,
+        field_name: info.name,
+        reason,
+        note: "Kullanıcıya 'Geç' butonu gösterildi; tarla butona basınca değişecek.",
+      },
+    };
+  }
+
+  // Tema degistir — buton ile onaylanir
+  private async handleSetTheme(
+    mode: string,
+    reason: string,
+  ): Promise<ToolResult> {
+    if (mode !== "light" && mode !== "dark" && mode !== "system") {
+      return { success: false, error: `Geçersiz tema modu: ${mode}` };
+    }
+    this.onAction?.({ kind: "set_theme", mode });
+    return {
+      success: true,
+      data: {
+        staged: "set_theme",
+        mode,
+        reason,
+        note: "Kullanıcıya 'Uygula' butonu gösterildi.",
+      },
+    };
+  }
+
+  // Dil degistir — buton ile onaylanir
+  private async handleSetLanguage(
+    lang: string,
+    reason: string,
+  ): Promise<ToolResult> {
+    if (lang !== "tr" && lang !== "en") {
+      return { success: false, error: `Geçersiz dil: ${lang}` };
+    }
+    this.onAction?.({ kind: "set_language", lang });
+    return {
+      success: true,
+      data: {
+        staged: "set_language",
+        lang,
+        reason,
+        note: "Kullanıcıya 'Uygula' butonu gösterildi.",
+      },
+    };
+  }
+
+  // Karbon kaydi teklifi — YAZMAZ. Erisim + factor dogrular, tahmini hesaplar, butonu cizdirir.
+  // Gercek yazma kullanici "Onayla"ya basinca istemciden POST ile yapilir.
+  private async handleAddCarbonLog(
+    activityTypeId: number,
+    activityAmount: number,
+    activityDate: string | undefined,
+    notes: string | undefined,
+  ): Promise<ToolResult> {
+    if (typeof activityTypeId !== "number" || !Number.isFinite(activityTypeId)) {
+      return { success: false, error: "Geçerli bir activity_type_id gerekli" };
+    }
+    if (typeof activityAmount !== "number" || !(activityAmount > 0)) {
+      return { success: false, error: "activity_amount pozitif bir sayı olmalı" };
+    }
+
+    // Tarih — verilmezse bugun; geçersizse hata
+    const date = activityDate ? new Date(activityDate) : new Date();
+    if (isNaN(date.getTime())) {
+      return { success: false, error: "Geçersiz tarih (YYYY-MM-DD bekleniyor)" };
+    }
+
+    // Karbon farm-kapsamli; secili field'in farm'ini coz + YAZMA erisimi dogrula
+    const info = await getFieldInfo(this.fieldId);
+    if (!info || !info.farm_id) {
+      return { success: false, error: "Tarla/çiftlik çözümlenemedi" };
+    }
+    const farmId = info.farm_id;
+    if (!(await checkFarmAccess(this.userId, farmId))) {
+      return { success: false, error: "Bu çiftliğe kayıt ekleme yetkiniz yok" };
+    }
+
+    const preview = await previewCarbonLog(activityTypeId, date);
+    if (!preview) {
+      return {
+        success: false,
+        error:
+          "Bu aktivite tipi için bu tarihte geçerli bir emisyon faktörü bulunamadı (activity_type_id'yi get_activity_types ile doğrulayın)",
+      };
+    }
+
+    const estimated =
+      Math.round(activityAmount * preview.emission_factor * 100) / 100;
+    const isoDate = date.toISOString().slice(0, 10);
+
+    this.onAction?.({
+      kind: "add_carbon_log",
+      farm_id: farmId,
+      activity_type_id: activityTypeId,
+      activity_type_name: preview.activity_type.name,
+      unit: preview.activity_type.unit,
+      activity_date: isoDate,
+      activity_amount: activityAmount,
+      estimated_emission: estimated,
+      ...(notes ? { notes } : {}),
+    });
+
+    return {
+      success: true,
+      data: {
+        staged: "add_carbon_log",
+        activity: preview.activity_type.name,
+        amount: `${activityAmount} ${preview.activity_type.unit}`,
+        date: isoDate,
+        estimated_emission_kgco2: estimated,
+        note: "Kullanıcıya 'Onayla / İptal' butonları gösterildi. Kayıt henüz OLUŞTURULMADI; kullanıcı onaylayınca eklenecek.",
+      },
+    };
+  }
+
+  private async handleGetActivityTypes(): Promise<ToolResult> {
+    // Aktivite tipleri herkese acik referans — kapsam kontrolu gerekmez
+    const grouped = await getActivityTypes();
+    return { success: true, data: grouped };
   }
 
   private async checkZoneAccess(zoneId: string): Promise<boolean> {
@@ -307,6 +659,128 @@ export class ToolExecutor {
     };
   }
 
+  // Tarla genelinde N gunluk gecmis — tum zone'lar zaman bucket'larinda ortalamayla
+  // kompakt bir trend serisine indirilir (Cizelge ekraninin "custom daygap" karsiligi).
+  // get_zone_history'nin 72 saat / tek-zone sinirini asar; analiz/trend sorulari icindir.
+  private async handleGetFieldHistory(
+    fieldId: string,
+    days: number,
+  ): Promise<ToolResult> {
+    if (!(await checkFieldAccess(this.userId, fieldId))) {
+      return { success: false, error: "Bu tarlaya erişim yetkiniz yok" };
+    }
+    const clampedDays = Math.min(Math.max(Math.round(days), 1), 90);
+    const data = await getFieldSensorHistory(fieldId, clampedDays * 24);
+    if (!data) {
+      return { success: false, error: "Tarla bulunamadı" };
+    }
+
+    const readings = data.readings;
+    if (readings.length === 0) {
+      return {
+        success: true,
+        data: {
+          field_id: fieldId,
+          field_name: data.field_name,
+          period_days: clampedDays,
+          total_readings: 0,
+          message: "Bu aralıkta sensör verisi yok",
+        },
+      };
+    }
+
+    // Zaman penceresinin min/max'i (spread yok — cok sayida okuma stack'i tasirabilir)
+    let minT = Infinity;
+    let maxT = -Infinity;
+    for (const r of readings) {
+      const ts = r.created_at ? new Date(r.created_at).getTime() : NaN;
+      if (!isNaN(ts)) {
+        if (ts < minT) minT = ts;
+        if (ts > maxT) maxT = ts;
+      }
+    }
+    const span = Math.max(1, maxT - minT);
+
+    // Esit zaman bucket'lari — her bucket'ta field_avg (null'lar atlanir)
+    const BUCKETS = 60;
+    const acc = Array.from({ length: BUCKETS }, () => ({
+      temp: [] as number[],
+      hum: [] as number[],
+      sm: [] as number[],
+    }));
+    const push = (arr: number[], v: number | null): void => {
+      if (v != null && !isNaN(v)) arr.push(v);
+    };
+    for (const r of readings) {
+      const ts = r.created_at ? new Date(r.created_at).getTime() : NaN;
+      if (isNaN(ts)) continue;
+      const idx = Math.min(
+        BUCKETS - 1,
+        Math.floor(((ts - minT) / span) * BUCKETS),
+      );
+      push(acc[idx]!.temp, r.temperature);
+      push(acc[idx]!.hum, r.humidity);
+      push(acc[idx]!.sm, r.sm_percent);
+    }
+    const avg = (a: number[]): number | null =>
+      a.length
+        ? Math.round((a.reduce((s, v) => s + v, 0) / a.length) * 10) / 10
+        : null;
+    const trend = acc
+      .map((b, i) => ({
+        t: new Date(minT + ((i + 0.5) / BUCKETS) * span).toISOString(),
+        temperature: avg(b.temp),
+        humidity: avg(b.hum),
+        sm_percent: avg(b.sm),
+      }))
+      .filter(
+        (p) =>
+          p.temperature != null || p.humidity != null || p.sm_percent != null,
+      );
+
+    // Genel ozet — her metrik icin avg/min/max + okuma sayisi
+    const stat = (
+      sel: (r: (typeof readings)[number]) => number | null,
+    ): { avg: number; min: number; max: number; count: number } | null => {
+      const vals: number[] = [];
+      for (const r of readings) {
+        const v = sel(r);
+        if (v != null && !isNaN(v)) vals.push(v);
+      }
+      if (!vals.length) return null;
+      let mn = vals[0]!;
+      let mx = vals[0]!;
+      let sum = 0;
+      for (const v of vals) {
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+        sum += v;
+      }
+      return {
+        avg: Math.round((sum / vals.length) * 10) / 10,
+        min: mn,
+        max: mx,
+        count: vals.length,
+      };
+    };
+
+    return {
+      success: true,
+      data: {
+        field_id: fieldId,
+        field_name: data.field_name,
+        period_days: clampedDays,
+        total_readings: readings.length,
+        summary: {
+          temperature: stat((r) => r.temperature),
+          humidity: stat((r) => r.humidity),
+          sm_percent: stat((r) => r.sm_percent),
+        },
+        trend,
+      },
+    };
+  }
+
   private async handleGetZoneDetails(zoneId: string): Promise<ToolResult> {
     if (!await this.checkZoneAccess(zoneId)) {
       return { success: false, error: "Bu bölgeye erişim yetkiniz yok" };
@@ -347,12 +821,24 @@ export class ToolExecutor {
     return { success: true, data: diagnostics };
   }
 
-  private async handleGetCarbonSummary(farmId: string): Promise<ToolResult> {
+  private async handleGetCarbonSummary(
+    farmId: string,
+    days?: number,
+  ): Promise<ToolResult> {
     if (!await checkFarmReadAccess(this.userId, farmId)) {
       return { success: false, error: "Bu çiftliğe erişim yetkiniz yok" };
     }
-    const summary = await getFarmSummary(farmId);
-    return { success: true, data: summary };
+    // Opsiyonel son-N-gun penceresi (trend sorulari icin)
+    let startDate: Date | undefined;
+    if (typeof days === "number" && Number.isFinite(days) && days > 0) {
+      const d = Math.min(Math.round(days), 365);
+      startDate = new Date(Date.now() - d * 86400000);
+    }
+    const summary = await getFarmSummary(farmId, startDate);
+    return {
+      success: true,
+      data: startDate ? { period_days: Math.round(days as number), ...summary } : summary,
+    };
   }
 
   private async handleSearchKnowledge(query: string, limit: number): Promise<ToolResult> {

@@ -113,6 +113,32 @@ export async function createCarbonLog(
   return log;
 }
 
+// add_carbon_log onayi (proposal) — DB'ye YAZMADAN emission tahmini + activity tipi bilgisi
+// doner. Chat asistani once bunu cagirir; kullanici "Onayla" butonuna basinca gercek
+// createCarbonLog (POST /carbon/farm/:id/logs) calisir. null = bilinmeyen/pasif tip ya da
+// o tarih icin gecerli emission factor yok.
+export async function previewCarbonLog(
+  activityTypeId: number,
+  activityDate: Date,
+): Promise<{
+  activity_type: { name: string; unit: string; category: string };
+  emission_factor: number;
+} | null> {
+  const at = await prisma.activityType.findUnique({
+    where: { activity_type_id: activityTypeId },
+    select: { name: true, unit: true, category: true, is_active: true },
+  });
+  if (!at || !at.is_active) return null;
+
+  const factor = await findEmissionFactor(activityTypeId, activityDate);
+  if (factor === null) return null;
+
+  return {
+    activity_type: { name: at.name, unit: at.unit, category: at.category },
+    emission_factor: factor,
+  };
+}
+
 interface FarmLogFilters {
   startDate?: Date;
   endDate?: Date;
@@ -324,6 +350,7 @@ export default {
   checkFarmReadAccess,
   getActivityTypes,
   createCarbonLog,
+  previewCarbonLog,
   getFarmLogs,
   deleteCarbonLog,
   getFarmSummary,

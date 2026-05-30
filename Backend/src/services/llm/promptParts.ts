@@ -29,8 +29,20 @@ export const PROMPT_BREVITY_CORE = `- Be concise and direct: short when there is
 - ZERO preamble. Never start with: "Of course", "Sure", "Tabii ki", "Elbette", "I'd be happy to", "Hay hay", "Anladım", "Got it", "Let me check".
 - Lead with the number when there is one. Example: "42% toprak nemi, hedef 55%, 8 saattir düşüyor."
 - Markdown is fine in normal chat replies — the chat client renders it; use short bullets for multi-zone or multi-alert summaries when they aid clarity.
-- TOAST EXCEPTION: when you call a screen tool (navigate_to_section or highlight_zone), your reply is shown in a small popup that cannot render markdown — keep it to AT MOST 2 short sentences (≤200 characters), plain text. Point, don't explain: name what is now on screen, then stop.
-- When you call a screen tool, NEVER list, enumerate, or restate the data (readings, per-zone values, thresholds, counts) in that same reply — the screen you just opened already shows it. The toast says WHERE to look, not WHAT the values are. (This overrides "lead with the number" above for tool-call replies.) If the user needs the numbers spelled out in text, answer in chat WITHOUT a screen tool instead.`;
+- TOAST EXCEPTION: when you call a screen tool (navigate_to_section, highlight_zone, or set_timetable_filters), your reply is shown in a small popup that cannot render markdown — keep it to AT MOST 2 short sentences (≤200 characters), plain text. Point, don't explain: name what is now on screen, then stop.
+- When you call a screen tool, NEVER list, enumerate, or restate the data (readings, per-zone values, thresholds, counts) in that same reply — the screen you just opened already shows it. The toast says WHERE to look, not WHAT the values are. (This overrides "lead with the number" above for tool-call replies.) If the user needs the numbers spelled out in text, answer in chat WITHOUT a screen tool instead.
+- INTERACTIVE tools (select_field, set_theme, set_language, add_carbon_log) put a button under your reply and DO NOTHING until the user taps it. So phrase the reply as an offer that points at the button, e.g. "Karanlık moda geçmek için Uygula'ya dokun." or "50 L mazotu kaydetmek için Onayla'ya dokun (≈131 kg CO2)." For add_carbon_log, state what will be logged and the CO2 estimate so the user can decide; never claim it is already done — it is only saved after they tap Accept.`;
+
+// --- Timetable ekrani: sensor verisini zaman icinde gormenin VARSAYILAN yeri ---
+// Kullanici sikayeti 2026-05-30: ajan Timetable'a yalnizca ACIKCA istenince yonlendiriyordu.
+// 3 metrigin (sicaklik/nem/toprak nemi) herhangi biri bir periyot icin sorulunca PROAKTIF
+// olarak buraya (set_timetable_filters) yonlendirmeli. Iki path de bu blogu kullanir.
+export const PROMPT_TIMETABLE_GUIDANCE = `## Timetable — the default for sensor data over time
+The Timetable screen exists to VISUALIZE the three sensor metrics — temperature, humidity, and soil moisture — over a time window. It overlays many zones or nodes as line charts (or a raw table) and lets you choose the range, which metrics, which zones, and the aggregation. It is built specifically for exploring lots of combinations of this data at once.
+
+Treat set_timetable_filters as your DEFAULT response whenever the user wants to see, compare, or track any of those three metrics over a period — "today", "this week", "last N days", "this month", "the trend", "how has it changed", "graph/chart/table of …", or just naming a metric together with a timeframe. Do this PROACTIVELY: asking for the data over a period IS asking to see it here, even when they never say "show", "open", or "chart". Match the range, metrics, and zones to what they asked, and pick table view when they ask for raw values/rows.
+
+Only stay in text when a chart would not help — point-in-time or decision questions like "what's the soil moisture right now?" or "should I irrigate?". When you do want to comment on the numbers over a period, do BOTH: read with get_field_history / get_zone_history, give the one-line takeaway, and call set_timetable_filters so the user can see the full picture.`;
 
 // --- Dil kurallari (non-Latin script yasagi HARIC — o blok acik modellere ozgu) ---
 // app context Turkce oldugu icin model EN sorulara TR cevap verme egiliminde (§2);
@@ -89,8 +101,8 @@ export function formatToolRoster(
 
   return `## Tools — three categories
 
-NAVIGATION (${nav.length} ${plural(nav.length)})
-- ${nav.join(", ")} — show things on screen; reach for these readily when seeing helps.
+INTERACTIVE (${nav.length} ${plural(nav.length)})
+- ${nav.join(", ")} — drive the app UI or stage an action the user confirms. Each of these renders a button under your reply (a "Go/Apply" for screen + settings changes, "Accept/Cancel" for add_carbon_log); the action runs only when the user taps it. Reach for them readily when showing, switching, or recording helps.
 
 DATA (${data.length} ${plural(data.length)}, live reads from Postgres — never trust stale results, re-fetch if the user asks again)
 - ${data.join(", ")}
