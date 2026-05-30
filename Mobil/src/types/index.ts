@@ -44,6 +44,12 @@ export interface ChatMessage {
   actions?: ChatMessageAction[];
   // Aksiyonlar kullanildi mi (tap sonrasi butonlar gizlenir / "yapildi" gosterilir).
   actionsConsumed?: boolean;
+  // Kullanici create/log onayini IPTAL etti mi — "Tamamlandı" yerine "İptal edildi" gosterilir.
+  actionsCancelled?: boolean;
+  // Arac calisirken gosterilen durum etiketi (orn "📊 Tarla verilerini çekiyor"). Set iken
+  // bos asistan balonunda TypingDots ile birlikte animasyonlu uc-nokta gosterilir. Ilk
+  // chunk gelince temizlenir. Persist EDİLMEZ.
+  statusLabel?: string;
 }
 
 // Theme type is defined in utils/theme.ts and re-exported here for convenience.

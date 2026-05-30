@@ -325,26 +325,42 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
     if (filterRequest && filterRequest.nonce !== lastFilterNonceRef.current) {
       lastFilterNonceRef.current = filterRequest.nonce;
 
-      // Zaman araligi — gun/saat rolling. Bilinen preset'e denk gelirse preset kullan
-      // (lokalize etiket + dropdown highlight), aksi halde custom from/to.
+      // Zaman araligi 3 bicim: (a) custom takvim from/to (ISO) -> o gunlerin baslangic/bitisi;
+      // (b) days/hours rolling — bilinen preset'e denk gelirse preset kullan (lokalize etiket +
+      // dropdown highlight), aksi halde custom rolling from/to.
       if (filterRequest.range) {
         const r = filterRequest.range;
-        const hours = "days" in r ? r.days * 24 : r.hours;
-        const preset = presetRanges.find((p) => p.hours === hours);
-        if (preset) {
-          setRange({ preset: hours, label: preset.label });
+        if ("from" in r && "to" in r) {
+          // Custom takvim araligi: from gunu 00:00 -> to gunu 23:59:59 (FilterMenu ile ayni mantik).
+          const from = new Date(r.from);
+          const to = new Date(r.to);
+          if (!isNaN(from.getTime()) && !isNaN(to.getTime())) {
+            from.setHours(0, 0, 0, 0);
+            to.setHours(23, 59, 59, 999);
+            setRange({
+              from,
+              to,
+              label: `${from.toLocaleDateString()} - ${to.toLocaleDateString()}`,
+            });
+          }
         } else {
-          const to = new Date();
-          const from = new Date(to.getTime() - hours * 3600000);
-          const label =
-            "days" in r
-              ? language === "tr"
-                ? `Son ${r.days} gün`
-                : `Last ${r.days} day${r.days === 1 ? "" : "s"}`
-              : language === "tr"
-                ? `Son ${hours} saat`
-                : `Last ${hours} hour${hours === 1 ? "" : "s"}`;
-          setRange({ from, to, label });
+          const hours = "days" in r ? r.days * 24 : r.hours;
+          const preset = presetRanges.find((p) => p.hours === hours);
+          if (preset) {
+            setRange({ preset: hours, label: preset.label });
+          } else {
+            const to = new Date();
+            const from = new Date(to.getTime() - hours * 3600000);
+            const label =
+              "days" in r
+                ? language === "tr"
+                  ? `Son ${r.days} gün`
+                  : `Last ${r.days} day${r.days === 1 ? "" : "s"}`
+                : language === "tr"
+                  ? `Son ${hours} saat`
+                  : `Last ${hours} hour${hours === 1 ? "" : "s"}`;
+            setRange({ from, to, label });
+          }
         }
       }
 

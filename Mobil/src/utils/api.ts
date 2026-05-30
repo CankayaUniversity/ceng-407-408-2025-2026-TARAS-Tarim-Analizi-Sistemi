@@ -553,19 +553,28 @@ export const sensorAPI = {
     return authFetch<ZoneDetailsData>(`/sensors/zone/${zoneId}/details`);
   },
 
-  async getFieldHistory(fieldId: string, hours = 72) {
+  async getFieldHistory(
+    fieldId: string,
+    hours = 72,
+    opts?: { startDate?: string; endDate?: string },
+  ) {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
       const { generateDemoSensorHistory } = await import("./demo/demoData");
       return { success: true, data: generateDemoSensorHistory(fieldId, hours) };
     }
+    // Custom takvim araligi verilirse startDate/endDate query'si gonder; yoksa rolling hours.
+    const qs =
+      opts?.startDate && opts?.endDate
+        ? `startDate=${encodeURIComponent(opts.startDate)}&endDate=${encodeURIComponent(opts.endDate)}`
+        : `hours=${hours}`;
     return authFetch<{
       field_id: string;
       field_name: string;
       hours: number;
       reading_count: number;
       readings: SensorReading[];
-    }>(`/sensors/field/${fieldId}/history?hours=${hours}`);
+    }>(`/sensors/field/${fieldId}/history?${qs}`);
   },
 };
 

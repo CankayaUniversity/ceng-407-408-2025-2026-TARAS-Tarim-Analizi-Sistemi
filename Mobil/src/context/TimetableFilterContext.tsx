@@ -15,9 +15,9 @@ import type { AggregationMode, MetricKey } from "../screens/Timetable/types";
 // Backend toolExecutor.ts::TimetableFilterPayload ile birebir ayni sekil.
 // Yalnizca degistirilecek alanlar bulunur; eksik alan "degistirme" demek.
 // zones: [] -> tum bolgeler, [...] -> secili bolgeler, undefined -> degistirme.
-// range her zaman now'dan geriye rolling — gun veya saat cinsinden.
+// range: rolling (days/hours, now'dan geriye) VEYA custom takvim araligi (from/to, ISO YYYY-MM-DD).
 export interface TimetableFilterPayload {
-  range?: { days: number } | { hours: number };
+  range?: { days: number } | { hours: number } | { from: string; to: string };
   aggregation?: AggregationMode;
   metrics?: MetricKey[];
   zones?: string[];

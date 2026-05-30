@@ -474,10 +474,15 @@ export interface StringDictionary {
     actionAccept: string;
     actionCancel: string;
     actionDone: string;
+    actionCancelled: string;
     actionFieldSelected: string;
     actionThemeApplied: string;
     actionLogSaved: string;
     actionLogFailed: string;
+    // Mesaj-alti buton etiketi: "<fiil> · <hedef>" (hedef bir sonraki ekran/ayar).
+    actionVerbOpen: string;
+    actionVerbSwitch: string;
+    actionVerbSet: string;
   };
 
   // Error Boundary / 3D
@@ -1204,10 +1209,14 @@ const tr: StringDictionary = {
     actionAccept: "Onayla",
     actionCancel: "İptal",
     actionDone: "Tamamlandı",
+    actionCancelled: "İptal edildi",
     actionFieldSelected: "seçildi",
     actionThemeApplied: "Tema uygulandı",
     actionLogSaved: "Karbon kaydı eklendi",
     actionLogFailed: "Kayıt eklenemedi",
+    actionVerbOpen: "Aç",
+    actionVerbSwitch: "Geç",
+    actionVerbSet: "Ayarla",
   },
 
   errors: {
@@ -1927,10 +1936,14 @@ const en: StringDictionary = {
     actionAccept: "Accept",
     actionCancel: "Cancel",
     actionDone: "Done",
+    actionCancelled: "Cancelled",
     actionFieldSelected: "selected",
     actionThemeApplied: "Theme applied",
     actionLogSaved: "Carbon log added",
     actionLogFailed: "Could not add log",
+    actionVerbOpen: "Open",
+    actionVerbSwitch: "Switch to",
+    actionVerbSet: "Set",
   },
 
   errors: {

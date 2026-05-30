@@ -195,7 +195,6 @@ export const useChat = (
   const pendingActionsRef = useRef<ChatMessageAction[]>([]);
   const xhrRef = useRef<XMLHttpRequest | null>(null);
   const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const toolDotIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentToolLabelRef = useRef<string>("");
   const demoTurnRef = useRef<{ cancel: () => void } | null>(null);
   const demoOptionsRef = useRef<DemoChatOptions | undefined>(demoOptions);
@@ -208,7 +207,6 @@ export const useChat = (
       xhrRef.current?.abort();
       demoTurnRef.current?.cancel();
       if (typingIntervalRef.current) clearInterval(typingIntervalRef.current);
-      if (toolDotIntervalRef.current) clearInterval(toolDotIntervalRef.current);
     };
   }, []);
 
@@ -313,10 +311,13 @@ export const useChat = (
       action: ChatMessageAction,
       choice?: "accept" | "cancel",
     ): Promise<void> => {
-      // add_carbon_log "İptal": yalnizca butonlari kapat, hicbir sey yapma
+      // add_carbon_log "İptal": butonlari kapat + IPTAL isaretle (badge "İptal edildi"
+      // gosterir, "Tamamlandı" DEGIL — kullanici onaylamis gibi gozukmesin).
       if (action.kind === "add_carbon_log" && choice === "cancel") {
         setMessages((prev) =>
-          prev.map((m) => (m.id === messageId ? { ...m, actionsConsumed: true } : m)),
+          prev.map((m) =>
+            m.id === messageId ? { ...m, actionsConsumed: true, actionsCancelled: true } : m,
+          ),
         );
         return;
       }
@@ -423,7 +424,6 @@ export const useChat = (
     // Stream temizleme — interval ve xhr referanslarini sifirlar
     const cleanupStream = () => {
       if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
-      if (toolDotIntervalRef.current) { clearInterval(toolDotIntervalRef.current); toolDotIntervalRef.current = null; }
       xhrRef.current = null;
     };
 
@@ -441,7 +441,6 @@ export const useChat = (
 
     // Typing efekti — accumulated'dan karakter karakter goster
     let displayedLength = 0;
-    let toolDotCount = 0;
     typingIntervalRef.current = setInterval(() => {
       if (displayedLength < accumulated.length) {
         displayedLength = Math.min(displayedLength + TYPING_CHARS_PER_TICK, accumulated.length);
@@ -468,7 +467,6 @@ export const useChat = (
     const finalizeStream = () => {
       // Intervalleri temizle, kalan metni hemen goster
       if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
-      if (toolDotIntervalRef.current) { clearInterval(toolDotIntervalRef.current); toolDotIntervalRef.current = null; }
       xhrRef.current = null;
       // Toplanan aksiyonlari mesaja iliştir — OTOMATIK CALISTIRMA; butonla tetiklenir.
       const actions = pendingActionsRef.current;
@@ -481,6 +479,8 @@ export const useChat = (
                   ...m,
                   text: accumulated || m.text,
                   actions: actions.length > 0 ? actions : undefined,
+                  // Durum etiketi/spinner'i kapat — yanit (metin veya butonlar) geldi.
+                  statusLabel: undefined,
                 }
               : m,
           ),
@@ -522,42 +522,28 @@ export const useChat = (
           pendingActionsRef.current.push(...eventToActions(parsed));
 
           if (parsed.status) {
-            // Onceki nokta animasyonunu temizle
-            if (toolDotIntervalRef.current) { clearInterval(toolDotIntervalRef.current); toolDotIntervalRef.current = null; }
-            toolDotCount = 0;
-
-            // Arac etiketinden "..." son ekini kaldir (biz ekleyecegiz)
+            // Arac etiketini statusLabel olarak set et (text bos kalir) -> bos balonda
+            // TypingDots etiket + animasyonlu uc-nokta gosterir. Eski metin-bazli "..."
+            // dongusu (setInterval) kaldirildi; animasyon artik ChatWindow'da.
             const rawLabel = TOOL_LABELS[parsed.status] ?? "⏳ Veriler işleniyor";
             currentToolLabelRef.current = rawLabel.replace(/\.+$/, "");
-
-            // Hemen goster
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === streamingId && !accumulated
-                  ? { ...m, text: currentToolLabelRef.current }
+                  ? { ...m, statusLabel: currentToolLabelRef.current }
                   : m,
               ),
             );
-
-            // Nokta animasyonu baslat (1.2 saniyede bir nokta ekle, maks 3)
-            toolDotIntervalRef.current = setInterval(() => {
-              toolDotCount = (toolDotCount % 3) + 1;
-              const dots = ".".repeat(toolDotCount);
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === streamingId && !accumulated
-                    ? { ...m, text: currentToolLabelRef.current + dots }
-                    : m,
-                ),
-              );
-            }, 500);
           }
 
           if (parsed.chunk) {
-            // Ilk chunk gelince nokta animasyonunu durdur
-            if (toolDotIntervalRef.current) {
-              clearInterval(toolDotIntervalRef.current);
-              toolDotIntervalRef.current = null;
+            // Ilk chunk gelince durum etiketini temizle (metin akmaya basliyor)
+            if (accumulated.length === 0) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === streamingId ? { ...m, statusLabel: undefined } : m,
+                ),
+              );
             }
             accumulated += parsed.chunk;
           }

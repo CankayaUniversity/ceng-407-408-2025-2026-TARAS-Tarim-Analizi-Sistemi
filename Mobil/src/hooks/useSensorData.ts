@@ -96,9 +96,19 @@ export function useSensorData({
 
         const hours = rangeToHours(range);
 
+        // Custom takvim araligi (preset YOK + from/to var) -> backend'e ISO startDate/endDate
+        // gonder ki dogru gecmis pencereyi ceksin (yoksa rolling now-hours yanlis/bos doner).
+        const customDates =
+          !range.preset && range.from && range.to
+            ? {
+                startDate: range.from.toISOString(),
+                endDate: range.to.toISOString(),
+              }
+            : undefined;
+
         // History + zones paralel cek
         const [historyRes, zonesRes] = await Promise.all([
-          sensorAPI.getFieldHistory(fieldId, hours),
+          sensorAPI.getFieldHistory(fieldId, hours, customDates),
           sensorAPI.getUserZones(),
         ]);
 

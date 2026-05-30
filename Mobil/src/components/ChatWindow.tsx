@@ -9,6 +9,7 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Markdown from "@ronradtke/react-native-markdown-display";
@@ -64,14 +65,28 @@ const actionLabel = (
   action: ChatMessageAction,
   t: ReturnType<typeof useLanguage>["t"],
 ): string => {
+  // "<fiil> · <hedef>" — kullanici butonun NEREYE goturecegini gorur. Hedef adlari lokalize:
+  // ekranlar t.nav.*, tema/dil t.settings.*, tarla action.fieldName.
+  const navName = (screen: string): string =>
+    (t.nav as Record<string, string>)[screen] ?? screen;
   switch (action.kind) {
     case "navigate":
+      return `${t.chat.actionVerbOpen} · ${navName(action.screen)}`;
     case "set_filters":
+      return `${t.chat.actionVerbOpen} · ${t.nav.timetable}`;
     case "select_field":
-      return t.chat.actionGo;
-    case "set_theme":
+      return `${t.chat.actionVerbSwitch} · ${action.fieldName || t.nav.home}`;
+    case "set_theme": {
+      const mode =
+        action.mode === "dark"
+          ? t.settings.themeDark
+          : action.mode === "light"
+            ? t.settings.themeLight
+            : t.settings.themeSystem;
+      return `${t.chat.actionVerbSwitch} · ${mode}`;
+    }
     case "set_language":
-      return t.chat.actionApply;
+      return `${t.chat.actionVerbSet} · ${action.lang === "tr" ? t.settings.languageTurkish : t.settings.languageEnglish}`;
     case "add_carbon_log":
       return t.chat.actionAccept;
   }
@@ -95,17 +110,39 @@ const actionIcon = (action: ChatMessageAction): string => {
 
 // Mesaj govdesinin altinda cizilen aksiyon butonlari. consumed=true ise butonlar
 // yerine sadece "Tamamlandı" rozeti gosterilir (tekrar tetiklemeyi onler).
+// LLM yanit uretirken (henuz gosterilecek metin yokken) bos asistan balonunda gosterilen
+// yukleniyor gostergesi — ESKI metin-bazli "..." dongusu (500ms'de bir nokta ekler, 1→2→3→1).
+// Opsiyonel label: arac calisirken etiket ("📊 Tarla verilerini çekiyor") + cycling dots.
+// label yoksa sadece dots (ilk dusunme bekleyisi).
+const TypingDots = ({ theme, label }: { theme: Theme; label?: string }) => {
+  const [dotCount, setDotCount] = useState(1);
+
+  useEffect(() => {
+    const id = setInterval(() => setDotCount((c) => (c % 3) + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <Text style={{ fontSize: ms(13, 0.3), color: theme.textSecondary }}>
+      {label ? `${label}${".".repeat(dotCount)}` : ".".repeat(dotCount)}
+    </Text>
+  );
+};
+
 interface MessageActionsProps {
   theme: Theme;
   actions: ChatMessageAction[];
   consumed: boolean;
+  cancelled: boolean;
   onRun: (action: ChatMessageAction, choice?: "accept" | "cancel") => void;
 }
 
-const MessageActions = ({ theme, actions, consumed, onRun }: MessageActionsProps) => {
+const MessageActions = ({ theme, actions, consumed, cancelled, onRun }: MessageActionsProps) => {
   const { t } = useLanguage();
 
   if (consumed) {
+    // İptal edilen create/log: notr "İptal edildi" rozeti (yesil "Tamamlandı" check'i DEGIL).
+    const badgeColor = cancelled ? theme.textSecondary : theme.primary;
     return (
       <View className="flex-row" style={{ marginTop: vs(6), marginLeft: s(2) }}>
         <View
@@ -114,12 +151,16 @@ const MessageActions = ({ theme, actions, consumed, onRun }: MessageActionsProps
             paddingHorizontal: s(10),
             paddingVertical: vs(5),
             borderRadius: s(10),
-            backgroundColor: theme.primary + "12",
+            backgroundColor: badgeColor + "12",
           }}
         >
-          <MaterialCommunityIcons name="check-circle" size={ms(13, 0.3)} color={theme.primary} />
-          <Text style={{ marginLeft: s(5), fontSize: ms(12, 0.3), color: theme.primary, fontWeight: "600" }}>
-            {t.chat.actionDone}
+          <MaterialCommunityIcons
+            name={cancelled ? "close-circle" : "check-circle"}
+            size={ms(13, 0.3)}
+            color={badgeColor}
+          />
+          <Text style={{ marginLeft: s(5), fontSize: ms(12, 0.3), color: badgeColor, fontWeight: "600" }}>
+            {cancelled ? t.chat.actionCancelled : t.chat.actionDone}
           </Text>
         </View>
       </View>
@@ -219,7 +260,7 @@ export const ChatWindow = ({
   const insets = useSafeAreaInsets();
   const confirm = useConfirm();
   const { showPopup } = usePopupMessage();
-  const { keyboardHeight } = useKeyboard();
+  const { keyboardHeight, isKeyboardVisible } = useKeyboard();
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -266,16 +307,20 @@ export const ChatWindow = ({
   }, [messages]);
 
   const hasInput = chatInput.trim().length > 0;
-  // react-native-keyboard-controller'in native modulu APK'da degil (Metro JS-only refresh
-  // native side'i eklemiyor); native rebuild gerekiyor. O zamana kadar manuel useKeyboard +
-  // insets ile padding hesapliyoruz: Android'de keyboardHeight altinda gesture-nav handle
-  // alani ayri kalir → +insets.bottom telafisi. vs(6) nefes payi klavye tepesinden ayirir.
-  // iOS'da Keyboard.endCoordinates.height home-indicator alanini icerdigi icin telafi yok.
-  // Native rebuild sonrasi library KAV'a tekrar gecilebilir (KeyboardProvider zaten App.tsx'te).
-  const extraNavInset = Platform.OS === "android" ? insets.bottom : 0;
-  const bottomPadding = keyboardHeight > 0
-    ? keyboardHeight + extraNavInset + vs(6)
-    : insets.bottom + vs(8);
+  // Klavye kacinma iki platformda FARKLI ele alinir:
+  //  • iOS: chat bir RN Modal'in icinde (transparent → klavyeyle OTOMATIK resize OLMAZ), bu yuzden
+  //    asagida govdeyi <KeyboardAvoidingView behavior="padding"> ile sariyoruz; KAV gercek frame'i
+  //    olcup klavye ortusmesi kadar alttan padding ekler → input klavyenin uzerine cikar. Burada
+  //    input kabinin KENDI paddingBottom'una keyboardHeight EKLEMEYIZ (yoksa cift sayim olur);
+  //    klavye aciksa kucuk vs(8) nefes payi, kapaliyken safe-area insets.bottom.
+  //  • Android: Modal adjustResize'a uymadigindan KAV guvenilir degil; manuel keyboardHeight
+  //    padding'i (gesture-nav handle icin +insets.bottom, vs(6) nefes payi) calismaya devam eder.
+  const isIOS = Platform.OS === "ios";
+  const bottomPadding = isIOS
+    ? (isKeyboardVisible ? vs(8) : insets.bottom + vs(8))
+    : keyboardHeight > 0
+      ? keyboardHeight + insets.bottom + vs(6)
+      : insets.bottom + vs(8);
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.background }}>
@@ -337,7 +382,10 @@ export const ChatWindow = ({
           )}
         </ScrollView>
       ) : (
-        <>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={isIOS ? "padding" : undefined}
+        >
           {/* Mesajlar */}
           <ScrollView
             ref={scrollViewRef}
@@ -356,6 +404,10 @@ export const ChatWindow = ({
                 !isUser && !!msg.actions && msg.actions.length > 0;
               return (
                 <View key={msg.id} style={{ width: "100%" }}>
+                  {/* Tool-call mesajinda LLM metni CHAT'te gizli — o metin "ekrandaki X'e bak"
+                      gibi popup'a yonelik; sadece popup toast'ta gosterilir. Chat'te yalniz
+                      hedefi belirten butonlar durur. Diger mesajlarda normal balon. */}
+                  {!hasActions && (
                   <View className={`flex-row ${isUser ? "justify-end" : "justify-start"}`}>
                     <View
                       className="rounded-[14px]"
@@ -363,7 +415,9 @@ export const ChatWindow = ({
                         {
                           maxWidth: "82%",
                           paddingHorizontal: s(12),
-                          paddingVertical: vs(5),
+                          // Kullanici balonu daha kalin (vs7), LLM balonu daha ince (vs2) —
+                          // kullanici talebi. Yatay padding ikisinde de ayni.
+                          paddingVertical: isUser ? vs(7) : vs(2),
                         },
                         isUser
                           ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
@@ -372,17 +426,23 @@ export const ChatWindow = ({
                     >
                       {isUser ? (
                         <Text style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3), color: theme.textOnPrimary }}>{msg.text}</Text>
+                      ) : msg.text.length === 0 ? (
+                        // LLM yanit uretiyor ama henuz gosterilecek metin yok -> uc-nokta loader.
+                        // statusLabel varsa arac etiketi + animasyonlu dots (eski metin "..." yerine).
+                        <TypingDots theme={theme} label={msg.statusLabel} />
                       ) : (
+                        // Markdown bosluklari sikistirildi: liste/baslik margin'leri 0, bolumler
+                        // arasi bosluk = yalniz baslik-ust margin'i (kucuk). paragraph margin 0 (lib default 10).
                         <Markdown style={{
-                          body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
+                          body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(17, 0.3) },
                           strong: { fontWeight: "700", color: theme.textMain },
-                          bullet_list: { marginVertical: vs(4) },
-                          ordered_list: { marginVertical: vs(4) },
-                          list_item: { marginVertical: vs(1) },
+                          bullet_list: { marginVertical: 0 },
+                          ordered_list: { marginVertical: 0 },
+                          list_item: { marginVertical: 0 },
                           paragraph: { marginVertical: 0 },
-                          heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(4) },
-                          heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(3) },
-                          heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, marginVertical: vs(2) },
+                          heading1: { fontSize: ms(16.5, 0.3), fontWeight: "700", color: theme.textMain, marginTop: vs(2), marginBottom: 0 },
+                          heading2: { fontSize: ms(15, 0.3), fontWeight: "700", color: theme.textMain, marginTop: vs(2), marginBottom: 0 },
+                          heading3: { fontSize: ms(14, 0.3), fontWeight: "600", color: theme.textMain, marginTop: vs(1.5), marginBottom: 0 },
                           code_inline: { backgroundColor: theme.primary + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
                           fence: { backgroundColor: theme.primary + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
                         }}>
@@ -391,6 +451,7 @@ export const ChatWindow = ({
                       )}
                     </View>
                   </View>
+                  )}
 
                   {/* Mesaj-alti aksiyon butonlari — LLM tool-call'lari icin */}
                   {hasActions && (
@@ -398,6 +459,7 @@ export const ChatWindow = ({
                       theme={theme}
                       actions={msg.actions!}
                       consumed={!!msg.actionsConsumed}
+                      cancelled={!!msg.actionsCancelled}
                       onRun={(action, choice) =>
                         onRunAction?.(msg.id, action, choice)
                       }
@@ -471,7 +533,7 @@ export const ChatWindow = ({
               </TouchableOpacity>
             </View>
           </View>
-        </>
+        </KeyboardAvoidingView>
       )}
     </View>
   );
