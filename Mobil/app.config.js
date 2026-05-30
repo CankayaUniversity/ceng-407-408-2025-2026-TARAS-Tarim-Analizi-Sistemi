@@ -109,6 +109,11 @@ module.exports = {
       awsDemoPassword: process.env.AWS_DEMO_PASSWORD,
       // DEMO_ONLY=true → DemoOnlyLoginScreen render edilir (input + register gizlenir)
       demoOnly: process.env.DEMO_ONLY === "true",
+      // CHART_CONNECT_GAPS: Cizelge cizgileri bosluklara ragmen baglanir mi? VARSAYILAN true —
+      // anahtar .env'de YOKSA / bossa / "true" ise baglanir (eski her-zaman-bagli davranis).
+      // YALNIZCA acikca "false" → adaptif gap-break (cizgi kopmasi). Boylece eksik/yeni config'de
+      // grafikler bos/kopuk gozukmez, varsayilan kesintisiz cizgidir.
+      chartConnectGaps: process.env.CHART_CONNECT_GAPS !== "false",
     },
   },
 };

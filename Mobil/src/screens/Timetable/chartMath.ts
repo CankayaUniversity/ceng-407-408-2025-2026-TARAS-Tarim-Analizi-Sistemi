@@ -1,7 +1,15 @@
 // Timetable grafik kartinin saf yardimci fonksiyonlari (React/tema icermez, test edilebilir).
 
+import Constants from "expo-constants";
 import type { ChartSeries } from "./types";
 import { lttbDownsample } from "./lttb";
+
+// .env CHART_CONNECT_GAPS → app.config.js extra.chartConnectGaps. VARSAYILAN true:
+// extra eksik/undefined ise de (eski bundle, config okunamadi) baglanir; YALNIZCA acikca
+// false ise gap-break aktif. true ise bosluk kopmasi devre disi (tum seriler hep baglanir).
+// Modul yuklenirken bir kez okunur (Constants build-time'da sabitlenir).
+const CONNECT_GAPS: boolean =
+  Constants.expoConfig?.extra?.chartConnectGaps !== false;
 
 export const MAX_POINTS_PER_SERIES = 240;
 
@@ -149,7 +157,9 @@ export const unifyAndDownsample = (series: ChartSeries[]): UnifiedSeriesData => 
 
   // Her seri icin adaptif bosluk esigi (downsample SONRASI noktalardan — interpolasyonun test
   // ettigi araliklar bunlar). null/yetersiz -> Infinity (o seri asla kopmaz).
+  // CONNECT_GAPS acikken: tum esikler Infinity -> hicbir seri kopmaz, marker da eklenmez.
   const seriesCaps = downsampled.map((s) => {
+    if (CONNECT_GAPS) return Infinity;
     const med = medianConsecutiveDelta(s.points);
     return med == null ? Infinity : med * GAP_FACTOR;
   });
