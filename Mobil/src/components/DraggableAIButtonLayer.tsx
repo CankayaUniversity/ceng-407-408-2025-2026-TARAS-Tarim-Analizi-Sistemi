@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DraggableAIButton } from "./DraggableAIButton";
 import { useTheme } from "../context/ThemeContext";
 import { useChatContext } from "../context/ChatContext";
+import { useSectionFocus } from "../context/SectionFocusContext";
 import { s, vs } from "../utils/responsive";
 
 export const DraggableAIButtonLayer = () => {
@@ -17,8 +18,8 @@ export const DraggableAIButtonLayer = () => {
     setShowChat,
     aiMoveTarget,
     setAiMoveTarget,
-    setAiSpotIndex,
   } = useChatContext();
+  const { clearFocus } = useSectionFocus();
   const insets = useSafeAreaInsets();
   // Konteynerin (absoluteFill) gercek olculeri — top:0 bu view'in tepesidir.
   const [box, setBox] = useState({ width: 0, height: 0 });
@@ -56,13 +57,14 @@ export const DraggableAIButtonLayer = () => {
         <DraggableAIButton
           theme={theme}
           onPress={() => {
+            // Balon + bolum vurgusunu temizle, tam sohbeti ac
             clearPendingBubble();
+            clearFocus();
             setShowChat(true);
           }}
           safeSpots={aiSafeSpots}
           moveToSpot={aiMoveTarget}
           onMoveComplete={() => setAiMoveTarget(null)}
-          onSpotChanged={setAiSpotIndex}
         />
       )}
     </View>

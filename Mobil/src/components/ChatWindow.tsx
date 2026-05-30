@@ -12,9 +12,9 @@ import {
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Markdown from "@ronradtke/react-native-markdown-display";
-import { ChatMessage, Theme } from "../types";
+import { ChatMessage, ChatMessageAction, Theme } from "../types";
 import { ChatSessionSummary } from "../hooks/useChat";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useKeyboard } from "../hooks/useKeyboard";
 import { useLanguage } from "../context/LanguageContext";
 import { useConfirm } from "../context/ConfirmContext";
 import { usePopupMessage } from "../context/PopupMessageContext";
@@ -37,6 +37,12 @@ interface ChatWindowProps {
   onSelectSession: (sessionId: string) => void;
   /** Bir gecmis oturumu sil — onay sonrasi cagrilir. Verilmezse silme butonu cizilmez. */
   onDeleteSession?: (sessionId: string) => Promise<boolean>;
+  /** Mesaj-alti aksiyon butonu tap'i — LLM tool-call eylemini calistirir. */
+  onRunAction?: (
+    messageId: string,
+    action: ChatMessageAction,
+    choice?: "accept" | "cancel",
+  ) => void;
 }
 
 // Zaman formatlama — "2 dk once", "Dun", "3 Nis"
@@ -52,6 +58,149 @@ const formatSessionTime = (iso: string | null): string => {
   return `${d.getDate()} ${["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"][d.getMonth()]}`;
 };
 
+// Tek bir aksiyon icin buton metni + ikon. add_carbon_log haric hepsi tek buton;
+// add_carbon_log Onayla/İptal cifti olarak ayri ele alinir (asagida).
+const actionLabel = (
+  action: ChatMessageAction,
+  t: ReturnType<typeof useLanguage>["t"],
+): string => {
+  switch (action.kind) {
+    case "navigate":
+    case "set_filters":
+    case "select_field":
+      return t.chat.actionGo;
+    case "set_theme":
+    case "set_language":
+      return t.chat.actionApply;
+    case "add_carbon_log":
+      return t.chat.actionAccept;
+  }
+};
+
+const actionIcon = (action: ChatMessageAction): string => {
+  switch (action.kind) {
+    case "navigate":
+    case "set_filters":
+      return "arrow-right-circle-outline";
+    case "select_field":
+      return "swap-horizontal";
+    case "set_theme":
+      return "theme-light-dark";
+    case "set_language":
+      return "translate";
+    case "add_carbon_log":
+      return "check";
+  }
+};
+
+// Mesaj govdesinin altinda cizilen aksiyon butonlari. consumed=true ise butonlar
+// yerine sadece "Tamamlandı" rozeti gosterilir (tekrar tetiklemeyi onler).
+interface MessageActionsProps {
+  theme: Theme;
+  actions: ChatMessageAction[];
+  consumed: boolean;
+  onRun: (action: ChatMessageAction, choice?: "accept" | "cancel") => void;
+}
+
+const MessageActions = ({ theme, actions, consumed, onRun }: MessageActionsProps) => {
+  const { t } = useLanguage();
+
+  if (consumed) {
+    return (
+      <View className="flex-row" style={{ marginTop: vs(6), marginLeft: s(2) }}>
+        <View
+          className="flex-row items-center"
+          style={{
+            paddingHorizontal: s(10),
+            paddingVertical: vs(5),
+            borderRadius: s(10),
+            backgroundColor: theme.primary + "12",
+          }}
+        >
+          <MaterialCommunityIcons name="check-circle" size={ms(13, 0.3)} color={theme.primary} />
+          <Text style={{ marginLeft: s(5), fontSize: ms(12, 0.3), color: theme.primary, fontWeight: "600" }}>
+            {t.chat.actionDone}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      className="flex-row flex-wrap"
+      style={{ marginTop: vs(6), marginLeft: s(2), gap: s(8) }}
+    >
+      {actions.map((action, idx) => {
+        if (action.kind === "add_carbon_log") {
+          // Onayla (dolu) + İptal (cizgili) cifti — tahmin metniyle
+          return (
+            <View key={idx} style={{ width: "100%", gap: vs(6) }}>
+              <Text style={{ fontSize: ms(11.5, 0.3), color: theme.textSecondary, marginLeft: s(2) }}>
+                {action.activityAmount} {action.unit} · ≈{action.estimatedEmission} kg CO₂
+              </Text>
+              <View className="flex-row" style={{ gap: s(8) }}>
+                <TouchableOpacity
+                  onPress={() => onRun(action, "accept")}
+                  activeOpacity={0.85}
+                  className="flex-row items-center"
+                  style={{
+                    paddingHorizontal: s(14),
+                    paddingVertical: vs(7),
+                    borderRadius: s(10),
+                    backgroundColor: theme.primary,
+                  }}
+                >
+                  <MaterialCommunityIcons name="check" size={ms(15, 0.3)} color={theme.textOnPrimary} />
+                  <Text style={{ marginLeft: s(5), fontSize: ms(13, 0.3), color: theme.textOnPrimary, fontWeight: "700" }}>
+                    {t.chat.actionAccept}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => onRun(action, "cancel")}
+                  activeOpacity={0.85}
+                  className="flex-row items-center"
+                  style={{
+                    paddingHorizontal: s(14),
+                    paddingVertical: vs(7),
+                    borderRadius: s(10),
+                    borderWidth: 1,
+                    borderColor: theme.primary + "40",
+                  }}
+                >
+                  <Text style={{ fontSize: ms(13, 0.3), color: theme.textMain, fontWeight: "600" }}>
+                    {t.chat.actionCancel}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        }
+        // Tek butonlu eylemler (Git / Uygula)
+        return (
+          <TouchableOpacity
+            key={idx}
+            onPress={() => onRun(action)}
+            activeOpacity={0.85}
+            className="flex-row items-center"
+            style={{
+              paddingHorizontal: s(14),
+              paddingVertical: vs(7),
+              borderRadius: s(10),
+              backgroundColor: theme.primary,
+            }}
+          >
+            <MaterialCommunityIcons name={actionIcon(action) as any} size={ms(15, 0.3)} color={theme.textOnPrimary} />
+            <Text style={{ marginLeft: s(5), fontSize: ms(13, 0.3), color: theme.textOnPrimary, fontWeight: "700" }}>
+              {actionLabel(action, t)}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+
 export const ChatWindow = ({
   messages,
   chatInput,
@@ -64,11 +213,13 @@ export const ChatWindow = ({
   isLoadingHistory,
   onSelectSession,
   onDeleteSession,
+  onRunAction,
 }: ChatWindowProps) => {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const confirm = useConfirm();
   const { showPopup } = usePopupMessage();
+  const { keyboardHeight } = useKeyboard();
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
@@ -115,13 +266,16 @@ export const ChatWindow = ({
   }, [messages]);
 
   const hasInput = chatInput.trim().length > 0;
-  // Klavye davranisi react-native-keyboard-controller'in KeyboardAvoidingView'ina devredildi
-  // (App.tsx'te KeyboardProvider sariyor). Library iOS + Android'in tum varyantlarinda
-  // (translucent Modal + gesture-nav + 3-button-nav + farkli OEM klavyeleri) keyboard'in
-  // gercek screenY'ini native event'lerden okuyup tutarli sekilde padding uygular. Manuel
-  // platform/inset/extraNavInset hesabi yok. Input cubugu yalniz safe-area kadar alttan bos
-  // kalir; KAV klavye acikken telafiyi kendisi yapar.
-  const bottomPadding = insets.bottom + vs(8);
+  // react-native-keyboard-controller'in native modulu APK'da degil (Metro JS-only refresh
+  // native side'i eklemiyor); native rebuild gerekiyor. O zamana kadar manuel useKeyboard +
+  // insets ile padding hesapliyoruz: Android'de keyboardHeight altinda gesture-nav handle
+  // alani ayri kalir → +insets.bottom telafisi. vs(6) nefes payi klavye tepesinden ayirir.
+  // iOS'da Keyboard.endCoordinates.height home-indicator alanini icerdigi icin telafi yok.
+  // Native rebuild sonrasi library KAV'a tekrar gecilebilir (KeyboardProvider zaten App.tsx'te).
+  const extraNavInset = Platform.OS === "android" ? insets.bottom : 0;
+  const bottomPadding = keyboardHeight > 0
+    ? keyboardHeight + extraNavInset + vs(6)
+    : insets.bottom + vs(8);
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.background }}>
@@ -183,11 +337,7 @@ export const ChatWindow = ({
           )}
         </ScrollView>
       ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior="padding"
-          keyboardVerticalOffset={0}
-        >
+        <>
           {/* Mesajlar */}
           <ScrollView
             ref={scrollViewRef}
@@ -202,41 +352,57 @@ export const ChatWindow = ({
           >
             {messages.map((msg) => {
               const isUser = msg.sender === "user";
+              const hasActions =
+                !isUser && !!msg.actions && msg.actions.length > 0;
               return (
-                <View key={msg.id} className={`flex-row ${isUser ? "justify-end" : "justify-start"}`}>
-                  <View
-                    className="rounded-[14px]"
-                    style={[
-                      {
-                        maxWidth: "82%",
-                        paddingHorizontal: s(12),
-                        paddingVertical: vs(5),
-                      },
-                      isUser
-                        ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
-                        : { backgroundColor: theme.surface, borderColor: theme.primary + "12", borderWidth: 1, borderBottomLeftRadius: 4 },
-                    ]}
-                  >
-                    {isUser ? (
-                      <Text style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3), color: theme.textOnPrimary }}>{msg.text}</Text>
-                    ) : (
-                      <Markdown style={{
-                        body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
-                        strong: { fontWeight: "700", color: theme.textMain },
-                        bullet_list: { marginVertical: vs(4) },
-                        ordered_list: { marginVertical: vs(4) },
-                        list_item: { marginVertical: vs(1) },
-                        paragraph: { marginVertical: 0 },
-                        heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(4) },
-                        heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(3) },
-                        heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, marginVertical: vs(2) },
-                        code_inline: { backgroundColor: theme.primary + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
-                        fence: { backgroundColor: theme.primary + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
-                      }}>
-                        {msg.text}
-                      </Markdown>
-                    )}
+                <View key={msg.id} style={{ width: "100%" }}>
+                  <View className={`flex-row ${isUser ? "justify-end" : "justify-start"}`}>
+                    <View
+                      className="rounded-[14px]"
+                      style={[
+                        {
+                          maxWidth: "82%",
+                          paddingHorizontal: s(12),
+                          paddingVertical: vs(5),
+                        },
+                        isUser
+                          ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
+                          : { backgroundColor: theme.surface, borderColor: theme.primary + "12", borderWidth: 1, borderBottomLeftRadius: 4 },
+                      ]}
+                    >
+                      {isUser ? (
+                        <Text style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3), color: theme.textOnPrimary }}>{msg.text}</Text>
+                      ) : (
+                        <Markdown style={{
+                          body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
+                          strong: { fontWeight: "700", color: theme.textMain },
+                          bullet_list: { marginVertical: vs(4) },
+                          ordered_list: { marginVertical: vs(4) },
+                          list_item: { marginVertical: vs(1) },
+                          paragraph: { marginVertical: 0 },
+                          heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(4) },
+                          heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(3) },
+                          heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, marginVertical: vs(2) },
+                          code_inline: { backgroundColor: theme.primary + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
+                          fence: { backgroundColor: theme.primary + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
+                        }}>
+                          {msg.text}
+                        </Markdown>
+                      )}
+                    </View>
                   </View>
+
+                  {/* Mesaj-alti aksiyon butonlari — LLM tool-call'lari icin */}
+                  {hasActions && (
+                    <MessageActions
+                      theme={theme}
+                      actions={msg.actions!}
+                      consumed={!!msg.actionsConsumed}
+                      onRun={(action, choice) =>
+                        onRunAction?.(msg.id, action, choice)
+                      }
+                    />
+                  )}
                 </View>
               );
             })}
@@ -305,7 +471,7 @@ export const ChatWindow = ({
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
+        </>
       )}
     </View>
   );

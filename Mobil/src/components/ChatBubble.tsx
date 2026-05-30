@@ -1,12 +1,14 @@
 // LLM navigasyon sonrasi bildirim baloncugu
 // Sohbet penceresiyle ayni estetik: ince cerceve, arka plan rengi, avatar yok
 // Metin 140 karaktere/bir cumleye kisaltilir — tam metin chat penceresinde
+// 10 sn gosterilir; en altta azalan bir sayac cubugu kalan sureyi gosterir.
 import { useEffect, useRef } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Animated,
+  Easing,
 } from "react-native";
 import Markdown from "@ronradtke/react-native-markdown-display";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
@@ -19,11 +21,13 @@ interface ChatBubbleProps {
   visible: boolean;
   theme: Theme;
   bottom: number;
+  // Sol kenar — AI buton + kamera butonuyla AYNI kenar boslugu (AppRouter fabRight=s(16)).
+  left: number;
   onPress: () => void;
   onDismiss: () => void;
 }
 
-const AUTO_DISMISS_MS = 8000;
+const AUTO_DISMISS_MS = 10000;
 const MAX_BUBBLE_CHARS = 140;
 
 // Ilk cumleyi cikar — nokta/soru isareti/unlem sonrasi kesmeyi dener
@@ -42,16 +46,37 @@ export const ChatBubble = ({
   visible,
   theme,
   bottom,
+  left,
   onPress,
   onDismiss,
 }: ChatBubbleProps) => {
   const { t } = useLanguage();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sayac cubugu — 1 (dolu) -> 0 (bos). width/% animasyonu native driver kullanamaz.
+  const progress = useRef(new Animated.Value(1)).current;
+  // Geri sayim animasyonu referansi — kapanma bunun bitisine bagli (tek otorite).
+  const countdownRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const short = firstSentence(message);
   const hasMore = short.length < message.trim().length;
+
+  const dismiss = () => {
+    countdownRef.current?.stop();
+    countdownRef.current = null;
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        toValue: 20,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => onDismiss());
+  };
 
   useEffect(() => {
     if (visible) {
@@ -68,49 +93,65 @@ export const ChatBubble = ({
         }),
       ]).start();
 
-      timerRef.current = setTimeout(() => dismiss(), AUTO_DISMISS_MS);
+      // Geri sayim cubugu — otomatik kapanmanin TEK otoritesi (eski setTimeout yerine).
+      // finished:true ile bitince kapat; stop() ile iptal edilirse finished:false, kapatma.
+      progress.setValue(1);
+      const countdown = Animated.timing(progress, {
+        toValue: 0,
+        duration: AUTO_DISMISS_MS,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      });
+      countdownRef.current = countdown;
+      countdown.start(({ finished }) => {
+        if (finished) dismiss();
+      });
     }
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      countdownRef.current?.stop();
     };
-  }, [visible]);
-
-  const dismiss = () => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 20,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => onDismiss());
-  };
+    // visible/message degisince sayac sifirlanir (yeni balon -> taze 10 sn + cubuk)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, message]);
 
   if (!visible) return null;
+
+  const barWidth = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0%", "100%"],
+  });
 
   return (
     <Animated.View
       style={{
         position: "absolute",
-        right: s(12),
-        left: s(48),
+        // Popup sirasinda AI buton SOLA gectigi icin balon da SOLDA — buton'dan cikiyormus
+        // gibi. left, ChatBubbleLayer'dan gelir (kamera + AI butonuyla ayni FAB_MARGIN).
+        left,
         bottom,
         zIndex: 999,
-        alignItems: "flex-end" as const,
+        alignItems: "flex-start" as const,
+        maxWidth: s(270),
         opacity,
         transform: [{ translateY }],
       }}
     >
+      {/* Basliksiz, sade konusma balonu — AI buton'dan cikiyormus gibi: icerige gore
+          daralir (full-width DEGIL), SOL-alt kose sivri (kuyruk asagidaki butona dogru),
+          diger koseler genis yuvarlatma. Sohbet sekmesi balon idiomuyla ayni. */}
       <TouchableOpacity
-        className="w-full rounded-2xl border overflow-hidden"
+        className="overflow-hidden"
         style={{
-          backgroundColor: theme.background,
+          alignSelf: "flex-start",
+          maxWidth: "100%",
+          backgroundColor: theme.surface,
           borderColor: theme.primary + "18",
+          borderWidth: 1,
+          borderTopLeftRadius: s(16),
+          borderTopRightRadius: s(16),
+          borderBottomLeftRadius: s(4),
+          borderBottomRightRadius: s(16),
           shadowColor: theme.shadowColor,
           elevation: 12,
           shadowOffset: { width: 0, height: -2 },
@@ -120,37 +161,21 @@ export const ChatBubble = ({
         onPress={onPress}
         activeOpacity={0.9}
       >
-        {/* Ince header — sohbet penceresiyle ayni */}
-        <View
-          className="row border-b"
-          style={{
-            paddingHorizontal: s(12),
-            paddingVertical: vs(8),
-            gap: s(6),
-            borderBottomColor: theme.primary + "15",
-          }}
+        {/* Kapat (X) — sag ust kosede serbest */}
+        <TouchableOpacity
+          onPress={dismiss}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={{ position: "absolute", top: vs(5), right: s(6), zIndex: 2, padding: s(3) }}
         >
-          <View className="rounded-full bg-olive-800 dark:bg-olive-700" style={{ width: s(5), height: s(5) }} />
-          <Text
-            className="flex-1 font-semibold uppercase tracking-wider"
-            style={{ fontSize: ms(11, 0.3), color: theme.textSecondary }}
-          >
-            {t.chat.title}
-          </Text>
-          <TouchableOpacity
-            onPress={dismiss}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <MaterialCommunityIcons
-              name="close"
-              size={14}
-              color={theme.textSecondary + "80"}
-            />
-          </TouchableOpacity>
-        </View>
+          <MaterialCommunityIcons
+            name="close"
+            size={15}
+            color={theme.textSecondary + "99"}
+          />
+        </TouchableOpacity>
 
-        {/* Mesaj icerigi — tek cumle, <= 140 karakter */}
-        <View style={{ paddingHorizontal: s(12), paddingVertical: vs(10) }}>
+        {/* Mesaj icerigi — tek cumle, <= 140 karakter. Sag padding X'e yer acar. */}
+        <View style={{ paddingLeft: s(12), paddingRight: s(28), paddingTop: vs(9), paddingBottom: vs(5) }}>
           <Markdown style={{
             body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
             strong: { fontWeight: "700", color: theme.textMain },
@@ -173,13 +198,24 @@ export const ChatBubble = ({
           )}
         </View>
 
-        {/* Alt ipucu */}
+        {/* Tiklanabilir-ac ipucu */}
         <Text
-          className="text-center"
-          style={{ fontSize: ms(10, 0.3), paddingBottom: vs(8), color: theme.textSecondary + "60" }}
+          style={{
+            paddingHorizontal: s(12),
+            paddingBottom: vs(8),
+            fontSize: ms(10, 0.3),
+            color: theme.textSecondary + "70",
+          }}
         >
           {t.chat.tapToOpen}
         </Text>
+
+        {/* Geri sayim cubugu — kalan popup suresini gosterir, soldan saga azalir */}
+        <View style={{ height: vs(3), backgroundColor: theme.primary + "12" }}>
+          <Animated.View
+            style={{ height: "100%", width: barWidth, backgroundColor: theme.primary }}
+          />
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );

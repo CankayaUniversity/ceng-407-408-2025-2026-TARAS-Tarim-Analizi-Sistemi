@@ -468,6 +468,16 @@ export interface StringDictionary {
     deleteConfirmButton: string;
     deletedMsg: string;
     deleteFailedMsg: string;
+    // Mesaj-alti aksiyon butonlari + onay popuplari (LLM tool-call'lari)
+    actionGo: string;
+    actionApply: string;
+    actionAccept: string;
+    actionCancel: string;
+    actionDone: string;
+    actionFieldSelected: string;
+    actionThemeApplied: string;
+    actionLogSaved: string;
+    actionLogFailed: string;
   };
 
   // Error Boundary / 3D
@@ -1189,6 +1199,15 @@ const tr: StringDictionary = {
     deleteConfirmButton: "Sil",
     deletedMsg: "Sohbet silindi",
     deleteFailedMsg: "Sohbet silinemedi",
+    actionGo: "Git",
+    actionApply: "Uygula",
+    actionAccept: "Onayla",
+    actionCancel: "İptal",
+    actionDone: "Tamamlandı",
+    actionFieldSelected: "seçildi",
+    actionThemeApplied: "Tema uygulandı",
+    actionLogSaved: "Karbon kaydı eklendi",
+    actionLogFailed: "Kayıt eklenemedi",
   },
 
   errors: {
@@ -1903,6 +1922,15 @@ const en: StringDictionary = {
     deleteConfirmButton: "Delete",
     deletedMsg: "Chat deleted",
     deleteFailedMsg: "Failed to delete chat",
+    actionGo: "Go",
+    actionApply: "Apply",
+    actionAccept: "Accept",
+    actionCancel: "Cancel",
+    actionDone: "Done",
+    actionFieldSelected: "selected",
+    actionThemeApplied: "Theme applied",
+    actionLogSaved: "Carbon log added",
+    actionLogFailed: "Could not add log",
   },
 
   errors: {

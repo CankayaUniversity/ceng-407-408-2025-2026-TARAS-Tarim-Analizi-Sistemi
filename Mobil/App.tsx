@@ -55,6 +55,7 @@ import { ConfirmProvider } from "./src/context/ConfirmContext";
 import { DashboardProvider } from "./src/context/DashboardContext";
 import { ChatProvider } from "./src/context/ChatContext";
 import { SectionFocusProvider } from "./src/context/SectionFocusContext";
+import { TimetableFilterProvider } from "./src/context/TimetableFilterContext";
 import { TabBarPopOutProvider } from "./src/context/TabBarPopOutContext";
 import { TabResetProvider } from "./src/context/TabResetContext";
 import { AppRouter } from "./src/navigation/AppRouter";
@@ -71,18 +72,20 @@ export default function App() {
                 <ConfirmProvider>
                   <DashboardProvider>
                     <SectionFocusProvider>
-                      <ChatProvider>
-                        <TabBarPopOutProvider>
-                          <TabResetProvider>
-                            <AppRouter />
-                            {/* Toast'u tema agacinin ICINDE ciz — PopupMessageProvider
-                                ThemeProvider'in ustunde, orada useTheme yok. Kokteki kopya
-                                (sekmelerin uzerinde); modallarin ustu icin FullScreenModal
-                                kendi kopyasini cizer. */}
-                            <GlobalToast />
-                          </TabResetProvider>
-                        </TabBarPopOutProvider>
-                      </ChatProvider>
+                      <TimetableFilterProvider>
+                        <ChatProvider>
+                          <TabBarPopOutProvider>
+                            <TabResetProvider>
+                              <AppRouter />
+                              {/* Toast'u tema agacinin ICINDE ciz — PopupMessageProvider
+                                  ThemeProvider'in ustunde, orada useTheme yok. Kokteki kopya
+                                  (sekmelerin uzerinde); modallarin ustu icin FullScreenModal
+                                  kendi kopyasini cizer. */}
+                              <GlobalToast />
+                            </TabResetProvider>
+                          </TabBarPopOutProvider>
+                        </ChatProvider>
+                      </TimetableFilterProvider>
                     </SectionFocusProvider>
                   </DashboardProvider>
                 </ConfirmProvider>

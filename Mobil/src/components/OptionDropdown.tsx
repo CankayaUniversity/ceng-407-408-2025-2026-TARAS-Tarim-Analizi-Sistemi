@@ -39,7 +39,9 @@ import {
 } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Theme } from "../utils/theme";
+import { IS_EXPO_GO } from "../utils/runtimeEnv";
 
 export interface DropdownOption<V extends string | number> {
   value: V;
@@ -111,6 +113,7 @@ function OptionDropdownInner<V extends string | number>({
   // Trigger'in ekrandaki konumu (window-relative)
   const [anchor, setAnchor] = useState({ x: 0, y: 0, w: 0, h: 0 });
   const triggerWrapRef = useRef<View>(null);
+  const insets = useSafeAreaInsets();
 
   // Acilma/kapanma ilerleme animasyonu — 0=kapali, 1=acik.
   // Hem Modal opacity'sini hem trigger kose radyusunu/border rengini bu deger suruyor.
@@ -172,19 +175,28 @@ function OptionDropdownInner<V extends string | number>({
   // Panel yerlesim hesabi
   const screenH = Dimensions.get("window").height;
   const idealH = Math.min(PANEL_MAX_H, options.length * ITEM_H + 2);
-  const spaceBelow = screenH - (anchor.y + anchor.h) - PANEL_MARGIN;
-  const spaceAbove = anchor.y - PANEL_MARGIN;
+  // Android edge-to-edge (SDK 55 / Android 15) duzeltmesi: standalone build'de panel modal'i
+  // tam ekran (status bar altina) cizilir ama measureInWindow trigger Y'sini ICERIK alanina gore
+  // (status bar HARIC) dondurur -> panel status bar yuksekligi kadar YUKARI kayip trigger'in
+  // ustune biner ("on top"). status bar'i KAPLAYAN host icindeyken (statusBarTranslucent=true)
+  // measure zaten ekran-mutlak doner; ek pay GEREKMEZ. Expo Go (non-edge-to-edge) zaten dogru
+  // hizaliyor -> ona dokunma (sadece native standalone'da pay ekle).
+  const sbOffset =
+    Platform.OS === "android" && !IS_EXPO_GO && !statusBarTranslucent ? insets.top : 0;
+  const anchorTop = anchor.y + sbOffset;
+  const spaceBelow = screenH - (anchorTop + anchor.h) - PANEL_MARGIN;
+  const spaceAbove = anchorTop - PANEL_MARGIN;
   // Safety: yukari acilmasi icin trigger'in ekran alt yarisinda olmasi gerek.
   // (toolbar dropdownlari ekranin ust kisminda — burada yanlislikla yukari acmasinlar.)
-  const inBottomHalf = anchor.y > screenH / 2;
+  const inBottomHalf = anchorTop > screenH / 2;
   const openUpwards =
     inBottomHalf &&
     spaceBelow < Math.min(idealH, 160) &&
     spaceAbove > spaceBelow;
   const panelH = Math.max(80, Math.min(idealH, openUpwards ? spaceAbove : spaceBelow));
   const panelTop = openUpwards
-    ? anchor.y - panelH - PANEL_GAP
-    : anchor.y + anchor.h + PANEL_GAP;
+    ? anchorTop - panelH - PANEL_GAP
+    : anchorTop + anchor.h + PANEL_GAP;
 
   // Animasyonlu interpolasyonlar
   const radiusInterp = openProgress.interpolate({
@@ -292,9 +304,12 @@ function OptionDropdownInner<V extends string | number>({
         transparent
         // animationType="none" — fade'i kendi Animated'imizla yoneterek trigger ile sync edebiliyoruz.
         animationType="none"
-        // statusBarTranslucent yalnizca status bar'i kaplayan host'larda true olmali; aksi halde
-        // panel, window-relative olculen trigger'in status bar yuksekligi kadar USTUNE biner.
-        statusBarTranslucent={statusBarTranslucent && Platform.OS === "android"}
+        // Native standalone'da panel modal'i HER ZAMAN tam ekran (status bar altina) olsun ki
+        // yukaridaki sbOffset duzeltmesi tutarli bir referansa (D=0) dayansin. Expo Go'da prop'a
+        // gore birak — mevcut dogru hizalama bozulmasin.
+        statusBarTranslucent={
+          Platform.OS === "android" && (statusBarTranslucent || !IS_EXPO_GO)
+        }
         onRequestClose={closeDropdown}
       >
         {/* Backdrop + panel butun blogu opaklik animasyonuyla tek seferde fade in/out olur. */}

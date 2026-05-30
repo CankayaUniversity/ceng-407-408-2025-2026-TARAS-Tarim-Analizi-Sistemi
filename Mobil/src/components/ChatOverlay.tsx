@@ -31,6 +31,7 @@ export const ChatOverlay = () => {
     loadHistory,
     loadSessionById,
     deleteSession,
+    runMessageAction,
     showChat,
     setShowChat,
   } = useChatContext();
@@ -97,6 +98,7 @@ export const ChatOverlay = () => {
           loadSessionById(id);
         }}
         onDeleteSession={deleteSession}
+        onRunAction={runMessageAction}
       />
     </FullScreenModal>
   );

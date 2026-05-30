@@ -7,7 +7,7 @@
 //   - LTTB downsample ile gorsel detayi koruyarak yuk azaltir
 //   - Tablo: virtualized FlatList, ekrana sigan compact + tap-to-expand
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { useTabReset } from "../../context/TabResetContext";
+import { useTimetableFilter } from "../../context/TimetableFilterContext";
 import { useSensorData } from "../../hooks/useSensorData";
 import { s, vs, ms, TAB_H_PADDING } from "../../utils/responsive";
 import { OptionButton } from "../../components/OptionButton";
@@ -312,6 +313,78 @@ export const TimetableScreen = memo(function TimetableScreen(_props: TimetableSc
     range,
     enabled: true,
   });
+
+  // LLM kaynakli filtre direktifi (set_timetable_filters). Nonce'lu istek; YENI istegi
+  // (nonce) bir kez uygular, mount yarisinda da kaybolmaz. Zone disi alanlar hemen,
+  // spesifik zone'lar yuklenen zone listesine gore (cold-mount yarisi) uygulanir.
+  const { filterRequest } = useTimetableFilter();
+  const lastFilterNonceRef = useRef(-1);
+  const pendingZonesRef = useRef<string[] | null>(null);
+
+  useEffect(() => {
+    if (filterRequest && filterRequest.nonce !== lastFilterNonceRef.current) {
+      lastFilterNonceRef.current = filterRequest.nonce;
+
+      // Zaman araligi — gun/saat rolling. Bilinen preset'e denk gelirse preset kullan
+      // (lokalize etiket + dropdown highlight), aksi halde custom from/to.
+      if (filterRequest.range) {
+        const r = filterRequest.range;
+        const hours = "days" in r ? r.days * 24 : r.hours;
+        const preset = presetRanges.find((p) => p.hours === hours);
+        if (preset) {
+          setRange({ preset: hours, label: preset.label });
+        } else {
+          const to = new Date();
+          const from = new Date(to.getTime() - hours * 3600000);
+          const label =
+            "days" in r
+              ? language === "tr"
+                ? `Son ${r.days} gün`
+                : `Last ${r.days} day${r.days === 1 ? "" : "s"}`
+              : language === "tr"
+                ? `Son ${hours} saat`
+                : `Last ${hours} hour${hours === 1 ? "" : "s"}`;
+          setRange({ from, to, label });
+        }
+      }
+
+      // Aggregation modu
+      if (filterRequest.aggregation) setMode(filterRequest.aggregation);
+
+      // Metrikler — en az 1; bos/gecersiz gelirse mevcut secimi koru
+      if (filterRequest.metrics && filterRequest.metrics.length > 0) {
+        const valid = filterRequest.metrics.filter((m) =>
+          metricDefs.some((d) => d.key === m),
+        );
+        if (valid.length > 0) setSelectedMetrics(new Set(valid));
+      }
+
+      // Gorunum (chart/table)
+      if (filterRequest.view) setView(filterRequest.view);
+
+      // Bolgeler — [] -> tumu (null); [...] -> yuklenince intersect et (asagida drain)
+      if (filterRequest.zones) {
+        if (filterRequest.zones.length === 0) {
+          setSelectedZoneIds(null);
+          pendingZonesRef.current = null;
+        } else {
+          pendingZonesRef.current = filterRequest.zones;
+        }
+      }
+
+      // Filtre menusu acIksa kapat ki uygulanan durum gorunur olsun
+      setFilterOpen(false);
+    }
+
+    // Bekleyen spesifik zone'lari yuklenen zone'lara gore uygula (cold-mount yarisi).
+    // Gecerli zone kalmasa bile bekleme bayragini temizle (sonsuz beklemeyi onler).
+    if (pendingZonesRef.current && zones.length > 0) {
+      const wanted = pendingZonesRef.current;
+      pendingZonesRef.current = null;
+      const valid = wanted.filter((z) => zones.some((zz) => zz.zone_id === z));
+      if (valid.length > 0) setSelectedZoneIds(new Set(valid));
+    }
+  }, [filterRequest, zones, presetRanges, language, metricDefs]);
 
   // Soil moisture bantlari — kullanici kararina gore SADECE tek zone scope'undaysa goster:
   //   - filter null + zones.length === 1 (zaten tek zone var)
