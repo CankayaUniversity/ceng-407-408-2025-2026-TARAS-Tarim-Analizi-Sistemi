@@ -592,7 +592,8 @@ export async function createDiseaseTrackingFolder(
   }
   // Zone'un kullanicidaki farm/field zincirine ait oldugunu dogrula + en yeni
   // aktif planting'i bul (irrigation.service.ts:174-182 ile ayni yaklasim).
-  // Zone'da aktif planting yoksa hata don.
+  // Erisim: sahip VEYA farmer-uye (operasyonel yazma). Stakeholder route-level
+  // denyStakeholder middleware'inde zaten engellenir; burada extra savunma.
   const planting = await prisma.planting.findFirst({
     where: {
       zone_id: zoneId,
@@ -600,7 +601,10 @@ export async function createDiseaseTrackingFolder(
       zone: {
         field: {
           farm: {
-            user_id: userId,
+            OR: [
+              { user_id: userId },
+              { members: { some: { user_id: userId, role: "farmer" } } },
+            ],
           },
         },
       },
@@ -907,10 +911,23 @@ export async function deactivateDiseaseTrackingFolder(
   userId: string,
   folderId: string
 ): Promise<void> {
+  // Erisim: sahip VEYA farmer-uye — folder olusturanin (user_id) yetkilisi olmasini sart
+  // kosmak yerine ciftlik uyeligine baglar (operasyonel paylasim). Bu create ile ayni gate.
   const folder = await prisma.diseaseTrackingFolder.findFirst({
     where: {
       folder_id: folderId,
-      user_id: userId,
+      planting: {
+        zone: {
+          field: {
+            farm: {
+              OR: [
+                { user_id: userId },
+                { members: { some: { user_id: userId, role: "farmer" } } },
+              ],
+            },
+          },
+        },
+      },
     },
   });
 
