@@ -3,7 +3,7 @@ import sensorNodeService from "../services/sensorNodeService";
 import dashboardService from "../services/dashboardService";
 import { prisma } from "../config/database";
 import logger from "../utils/logger";
-import { getStringParam, getNumberParam } from "../utils/requestHelpers";
+import { getStringParam, getNumberParam, getDateParam } from "../utils/requestHelpers";
 import { emitSensorUpdate } from "../config/socket";
 import { getAccessibleFarmIds } from "../services/accessService";
 
@@ -492,9 +492,14 @@ export async function getFieldSensorHistory(
     }
 
     const hoursParam = getNumberParam(hours, 72);
+    // Custom takvim araligi (startDate/endDate ISO) verilirse onu kullan; yoksa rolling hours.
+    const startDate = getDateParam(req.query.startDate);
+    const endDate = getDateParam(req.query.endDate);
+    const range = startDate || endDate ? { startDate, endDate } : undefined;
     const result = await sensorNodeService.getFieldSensorHistory(
       fieldId,
       hoursParam,
+      range,
     );
 
     if (!result) {

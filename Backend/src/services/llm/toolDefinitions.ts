@@ -95,15 +95,23 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
         range: {
           type: "object",
           description:
-            "Time window — always rolling and ending now. Provide EITHER days OR hours; omit to leave the current range unchanged. For a 'custom day gap' like 'last 5 days' use days:5. (Arbitrary past calendar windows are not supported here.)",
+            "Time window. Provide ONE of: (a) days — last N days from now; (b) hours — last N hours from now (sub-day); (c) from+to — a SPECIFIC past calendar range as ISO dates (YYYY-MM-DD), e.g. {from:'2026-05-01', to:'2026-05-10'} for 'May 1 to 10' or 'last week of April'. Use from+to whenever the user names actual dates/months rather than a rolling 'last N'. Omit to leave the current range unchanged.",
           properties: {
             days: {
               type: "number",
-              description: "Last N days from now (1-90). This is the custom day-gap.",
+              description: "Last N days from now (1-90). Rolling window ending now.",
             },
             hours: {
               type: "number",
               description: "Last N hours from now (1-2160). Use for sub-day windows like 6 or 12.",
+            },
+            from: {
+              type: "string",
+              description: "Custom range START date, ISO YYYY-MM-DD. Must be paired with `to` and be before it.",
+            },
+            to: {
+              type: "string",
+              description: "Custom range END date, ISO YYYY-MM-DD. Must be paired with `from`.",
             },
           },
         },
@@ -265,7 +273,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_zone_history",
     description:
-      "Time-range sensor history for a zone. Use for trend analysis — 'last 24 hours', 'is moisture dropping?'. Default 24h, max 72h.",
+      "Compact sensor STATISTICS for one zone over the last N hours (default 24, max 72): for temperature, humidity and soil moisture % it returns avg, min, max, the first vs last value and the overall direction (rising/falling/flat) — a cheap numeric summary, NOT a point-by-point series. Use for 'is moisture dropping?' or the zone's recent average. To let the user SEE the chart over time, use set_timetable_filters instead.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -284,7 +292,7 @@ export const TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: "get_field_history",
     description:
-      "Field-wide sensor history over a custom number of DAYS — every zone's readings averaged into a compact trend series (temperature, humidity, soil moisture %) plus an avg/min/max summary. This is the data behind the Timetable screen. Use it to ANALYZE or describe a trend across many days — 'moisture trend over the last 10 days?', 'how did temperature move this week?' — when get_zone_history's single-zone 72-hour limit is not enough. (For one zone's short-term detail use get_zone_history; to SHOW the chart on screen use set_timetable_filters.)",
+      "Compact field-wide sensor STATISTICS over the last N days (1-90, default 7), every zone averaged together: for temperature, humidity and soil moisture % it returns avg, min, max, the first vs last value and the overall direction (rising/falling/flat) — a cheap numeric summary to REASON about a multi-day trend, NOT a point-by-point series. Use it to answer 'what was the average/highest moisture this week?' or 'is temperature trending down over 10 days?' when get_zone_history's single-zone 72-hour limit is not enough. To let the user SEE the actual chart over time use set_timetable_filters; for one zone's shorter window use get_zone_history.",
     input_schema: {
       type: "object" as const,
       properties: {

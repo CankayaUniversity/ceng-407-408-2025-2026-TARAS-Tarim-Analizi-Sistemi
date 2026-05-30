@@ -283,9 +283,13 @@ export async function getFarmDashboard(farmId: string) {
 export async function getFieldSensorHistory(
   fieldId: string,
   hours: number = 72,
+  range?: { startDate?: Date; endDate?: Date },
 ) {
-  const now = new Date();
-  const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
+  // Iki mod: (a) rolling — now'dan geriye `hours` saat (varsayilan), (b) custom takvim
+  // araligi — range.startDate/endDate verilirse onlar kullanilir. endDate yoksa now.
+  const endTime = range?.endDate ?? new Date();
+  const startTime =
+    range?.startDate ?? new Date(endTime.getTime() - hours * 60 * 60 * 1000);
 
   const field = await prisma.field.findUnique({
     where: { field_id: fieldId },
@@ -298,7 +302,7 @@ export async function getFieldSensorHistory(
                 where: {
                   created_at: {
                     gte: startTime,
-                    lte: now,
+                    lte: endTime,
                   },
                 },
                 orderBy: { created_at: "asc" },
@@ -337,8 +341,114 @@ export async function getFieldSensorHistory(
     field_id: field.field_id,
     field_name: field.name,
     hours,
+    start: startTime.toISOString(),
+    end: endTime.toISOString(),
     reading_count: allReadings.length,
     readings: allReadings,
+  };
+}
+
+// --- LLM ozet araclari icin kompakt istatistik (ham satir cekmeden) ---
+// field VEYA zone kapsaminda, [startTime,endTime] penceresinde her metrik icin
+// avg/min/max + pencerenin ilk/son okumasi. Postgres'te toplulastirilir: en fazla ~3
+// sorgu, ~2 satir materialize edilir (maliyet/token minimum). get_field_history ve
+// get_zone_history bunu kullanir; gorsel trend frontend Cizelge ekranina aittir.
+interface MetricAgg {
+  temperature: number | null;
+  humidity: number | null;
+  sm_percent: number | null;
+}
+interface StatsReadingPoint {
+  created_at: Date | null;
+  temperature: number | null;
+  humidity: number | null;
+  sm_percent: number | null;
+}
+export interface SensorStats {
+  node_count: number;
+  reading_count: number;
+  avg: MetricAgg;
+  min: MetricAgg;
+  max: MetricAgg;
+  first: StatsReadingPoint | null;
+  last: StatsReadingPoint | null;
+}
+
+export async function getSensorStats(
+  scope: { fieldId?: string; zoneId?: string },
+  startTime: Date,
+  endTime: Date,
+): Promise<SensorStats> {
+  const empty: MetricAgg = {
+    temperature: null,
+    humidity: null,
+    sm_percent: null,
+  };
+  const emptyStats: SensorStats = {
+    node_count: 0,
+    reading_count: 0,
+    avg: empty,
+    min: empty,
+    max: empty,
+    first: null,
+    last: null,
+  };
+
+  // Kapsam zorunlu — ikisi de yoksa filtre tum tabloyu kapsardi, bos don.
+  if (!scope.zoneId && !scope.fieldId) return emptyStats;
+
+  // Kapsamdaki node'lari coz: tek zone -> o zone'un node'lari; field -> tum zone'lari.
+  const nodes = await prisma.sensorNode.findMany({
+    where: scope.zoneId
+      ? { zone_id: scope.zoneId }
+      : { zone: { field_id: scope.fieldId } },
+    select: { node_id: true },
+  });
+  const nodeIds = nodes.map((n) => n.node_id);
+  if (nodeIds.length === 0) return emptyStats;
+
+  const where = {
+    node_id: { in: nodeIds },
+    created_at: { gte: startTime, lte: endTime },
+  };
+
+  // Tek sorguda avg/min/max + toplam okuma sayisi — ham satir donmez.
+  const agg = await prisma.sensorReading.aggregate({
+    where,
+    _count: true,
+    _avg: { temperature: true, humidity: true, sm_percent: true },
+    _min: { temperature: true, humidity: true, sm_percent: true },
+    _max: { temperature: true, humidity: true, sm_percent: true },
+  });
+
+  // Yon (rising/falling) icin pencerenin ilk + son okumasi — 2 satir.
+  const pick = {
+    created_at: true,
+    temperature: true,
+    humidity: true,
+    sm_percent: true,
+  } as const;
+  const [first, last] = await Promise.all([
+    prisma.sensorReading.findFirst({
+      where,
+      orderBy: { created_at: "asc" },
+      select: pick,
+    }),
+    prisma.sensorReading.findFirst({
+      where,
+      orderBy: { created_at: "desc" },
+      select: pick,
+    }),
+  ]);
+
+  return {
+    node_count: nodeIds.length,
+    reading_count: agg._count,
+    avg: agg._avg,
+    min: agg._min,
+    max: agg._max,
+    first,
+    last,
   };
 }
 
@@ -355,4 +465,5 @@ export default {
   getUserFarmsWithSensors,
   getFarmDashboard,
   getFieldSensorHistory,
+  getSensorStats,
 };

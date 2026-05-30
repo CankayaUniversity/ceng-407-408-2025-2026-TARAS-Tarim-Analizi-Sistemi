@@ -11,10 +11,9 @@ import {
 import { getFieldContextForLLM } from "../tarasData.service";
 import {
   getSensorNodesForZone,
-  getReadingsInTimeRange,
   getZoneWithAdaptiveControl,
   getIrrigationHistory,
-  getFieldSensorHistory,
+  getSensorStats,
 } from "../sensorNodeService";
 import { getFarmSummary } from "../carbonService";
 import { searchKnowledge } from "./knowledgeBase.service";
@@ -42,7 +41,8 @@ interface ToolResult {
 // zones: [] -> tum bolgeler, [...] -> secili bolgeler, undefined -> degistirme.
 // range her zaman now'dan geriye dogru "rolling" — gun veya saat cinsinden.
 export interface TimetableFilterPayload {
-  range?: { days: number } | { hours: number };
+  // Rolling (days/hours, now'dan geriye) VEYA custom takvim araligi (from/to, ISO YYYY-MM-DD).
+  range?: { days: number } | { hours: number } | { from: string; to: string };
   aggregation?: TimetableAggregation;
   metrics?: TimetableMetric[];
   zones?: string[];
@@ -108,19 +108,41 @@ function capResult(data: unknown): string {
   return json;
 }
 
-// Gecmis verilerini 100 noktaya dusur
-function downsampleReadings(
-  readings: { sm_percent: number | null; temperature: number | null; humidity: number | null; created_at: Date }[],
-  maxPoints: number = 100,
-): typeof readings {
-  if (readings.length <= maxPoints) return readings;
-  const step = readings.length / maxPoints;
-  const result: typeof readings = [];
-  for (let i = 0; i < maxPoints; i++) {
-    const idx = Math.min(Math.floor(i * step), readings.length - 1);
-    result.push(readings[idx]!);
+// Tek metrik icin kompakt ozet — avg/min/max + pencerenin ilk/son degeri ve yonu.
+// Ham seri YOK (gorsel trend Cizelge ekranina ait). Tum girdiler null ise null doner.
+interface MetricSummary {
+  avg: number | null;
+  min: number | null;
+  max: number | null;
+  first: number | null;
+  last: number | null;
+  change?: number;
+  direction?: "rising" | "falling" | "flat";
+}
+function fmtMetric(
+  avg: number | null,
+  min: number | null,
+  max: number | null,
+  first: number | null,
+  last: number | null,
+): MetricSummary | null {
+  if (avg == null && min == null && max == null) return null;
+  const r1 = (v: number | null): number | null =>
+    v == null || isNaN(v) ? null : Math.round(v * 10) / 10;
+  const out: MetricSummary = {
+    avg: r1(avg),
+    min: r1(min),
+    max: r1(max),
+    first: r1(first),
+    last: r1(last),
+  };
+  // Yon: ilk ve son okuma varsa farktan cikar (±0.5 olu bolge = flat).
+  if (first != null && last != null && !isNaN(first) && !isNaN(last)) {
+    const delta = Math.round((last - first) * 10) / 10;
+    out.change = delta;
+    out.direction = delta > 0.5 ? "rising" : delta < -0.5 ? "falling" : "flat";
   }
-  return result;
+  return out;
 }
 
 export class ToolExecutor {
@@ -337,13 +359,30 @@ export class ToolExecutor {
     const applied: string[] = [];
     let droppedZones = 0;
 
-    // --- Zaman araligi: gun veya saat (rolling, now'dan geriye) ---
+    // --- Zaman araligi: custom takvim (from/to) VEYA rolling (gun/saat, now'dan geriye) ---
     const range = input.range;
     if (range && typeof range === "object") {
       const r = range as Record<string, unknown>;
       const days = Number(r.days);
       const hours = Number(r.hours);
-      if (Number.isFinite(days) && days > 0) {
+      // Custom takvim araligi oncelikli: from+to ISO tarih (YYYY-MM-DD) ve gecerli + from<to ise.
+      const fromStr = typeof r.from === "string" ? r.from : "";
+      const toStr = typeof r.to === "string" ? r.to : "";
+      const fromDate = fromStr ? new Date(fromStr) : null;
+      const toDate = toStr ? new Date(toStr) : null;
+      if (
+        fromDate &&
+        toDate &&
+        !isNaN(fromDate.getTime()) &&
+        !isNaN(toDate.getTime()) &&
+        fromDate.getTime() < toDate.getTime()
+      ) {
+        // ISO gun formuna normalize et (YYYY-MM-DD) — istemci gun bazli pencere kurar.
+        const fromIso = fromDate.toISOString().slice(0, 10);
+        const toIso = toDate.toISOString().slice(0, 10);
+        payload.range = { from: fromIso, to: toIso };
+        applied.push(`aralık=${fromIso} → ${toIso}`);
+      } else if (Number.isFinite(days) && days > 0) {
         const d = Math.min(Math.max(Math.round(days), 1), 90);
         payload.range = { days: d };
         applied.push(`aralık=son ${d} gün`);
@@ -622,46 +661,71 @@ export class ToolExecutor {
     return { success: true, data: summary };
   }
 
-  private async handleGetZoneHistory(zoneId: string, hours: number): Promise<ToolResult> {
-    if (!await this.checkZoneAccess(zoneId)) {
+  // Tek zone icin N saatlik kompakt istatistik — Postgres'te toplulastirilir (avg/min/max
+  // + ilk/son + yon). Ham satir cekilmez; LLM maliyeti minimum. Gorsel trend icin
+  // set_timetable_filters (Cizelge ekrani) kullanilir.
+  private async handleGetZoneHistory(
+    zoneId: string,
+    hours: number,
+  ): Promise<ToolResult> {
+    if (!(await this.checkZoneAccess(zoneId))) {
       return { success: false, error: "Bu bölgeye erişim yetkiniz yok" };
     }
-    const nodes = await getSensorNodesForZone(zoneId, 0);
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - hours * 3600000);
+    const stats = await getSensorStats({ zoneId }, startTime, endTime);
 
-    const allReadings: { node_id: string; sm_percent: number | null; temperature: number | null; humidity: number | null; created_at: Date }[] = [];
-    for (const node of nodes) {
-      const readings = await getReadingsInTimeRange(node.node_id, startTime, endTime);
-      for (const r of readings) {
-        allReadings.push({
-          node_id: node.node_id,
-          sm_percent: r.sm_percent,
-          temperature: r.temperature,
-          humidity: r.humidity,
-          created_at: r.created_at!,
-        });
-      }
+    if (stats.reading_count === 0) {
+      return {
+        success: true,
+        data: {
+          zone_id: zoneId,
+          period_hours: hours,
+          total_readings: 0,
+          message: "Bu aralıkta sensör verisi yok",
+        },
+      };
     }
-
-    // Kronolojik siraya al ve 100 noktaya dusur
-    allReadings.sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
-    const downsampled = downsampleReadings(allReadings);
 
     return {
       success: true,
       data: {
         zone_id: zoneId,
         period_hours: hours,
-        total_readings: allReadings.length,
-        readings: downsampled,
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+        total_readings: stats.reading_count,
+        note: "Görsel trend için set_timetable_filters kullan.",
+        metrics: {
+          temperature: fmtMetric(
+            stats.avg.temperature,
+            stats.min.temperature,
+            stats.max.temperature,
+            stats.first?.temperature ?? null,
+            stats.last?.temperature ?? null,
+          ),
+          humidity: fmtMetric(
+            stats.avg.humidity,
+            stats.min.humidity,
+            stats.max.humidity,
+            stats.first?.humidity ?? null,
+            stats.last?.humidity ?? null,
+          ),
+          sm_percent: fmtMetric(
+            stats.avg.sm_percent,
+            stats.min.sm_percent,
+            stats.max.sm_percent,
+            stats.first?.sm_percent ?? null,
+            stats.last?.sm_percent ?? null,
+          ),
+        },
       },
     };
   }
 
-  // Tarla genelinde N gunluk gecmis — tum zone'lar zaman bucket'larinda ortalamayla
-  // kompakt bir trend serisine indirilir (Cizelge ekraninin "custom daygap" karsiligi).
-  // get_zone_history'nin 72 saat / tek-zone sinirini asar; analiz/trend sorulari icindir.
+  // Tarla genelinde N gunluk kompakt istatistik — tum zone'lar Postgres'te toplulastirilir
+  // (avg/min/max + pencerenin ilk/son degeri + yon). Ham satir cekilmez; LLM maliyeti
+  // minimum. Gorsel trend icin set_timetable_filters (Cizelge ekrani) kullanilir.
   private async handleGetFieldHistory(
     fieldId: string,
     days: number,
@@ -669,19 +733,21 @@ export class ToolExecutor {
     if (!(await checkFieldAccess(this.userId, fieldId))) {
       return { success: false, error: "Bu tarlaya erişim yetkiniz yok" };
     }
-    const clampedDays = Math.min(Math.max(Math.round(days), 1), 90);
-    const data = await getFieldSensorHistory(fieldId, clampedDays * 24);
-    if (!data) {
+    const info = await getFieldInfo(fieldId);
+    if (!info) {
       return { success: false, error: "Tarla bulunamadı" };
     }
+    const clampedDays = Math.min(Math.max(Math.round(days), 1), 90);
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - clampedDays * 24 * 3600000);
+    const stats = await getSensorStats({ fieldId }, startTime, endTime);
 
-    const readings = data.readings;
-    if (readings.length === 0) {
+    if (stats.reading_count === 0) {
       return {
         success: true,
         data: {
           field_id: fieldId,
-          field_name: data.field_name,
+          field_name: info.name,
           period_days: clampedDays,
           total_readings: 0,
           message: "Bu aralıkta sensör verisi yok",
@@ -689,94 +755,39 @@ export class ToolExecutor {
       };
     }
 
-    // Zaman penceresinin min/max'i (spread yok — cok sayida okuma stack'i tasirabilir)
-    let minT = Infinity;
-    let maxT = -Infinity;
-    for (const r of readings) {
-      const ts = r.created_at ? new Date(r.created_at).getTime() : NaN;
-      if (!isNaN(ts)) {
-        if (ts < minT) minT = ts;
-        if (ts > maxT) maxT = ts;
-      }
-    }
-    const span = Math.max(1, maxT - minT);
-
-    // Esit zaman bucket'lari — her bucket'ta field_avg (null'lar atlanir)
-    const BUCKETS = 60;
-    const acc = Array.from({ length: BUCKETS }, () => ({
-      temp: [] as number[],
-      hum: [] as number[],
-      sm: [] as number[],
-    }));
-    const push = (arr: number[], v: number | null): void => {
-      if (v != null && !isNaN(v)) arr.push(v);
-    };
-    for (const r of readings) {
-      const ts = r.created_at ? new Date(r.created_at).getTime() : NaN;
-      if (isNaN(ts)) continue;
-      const idx = Math.min(
-        BUCKETS - 1,
-        Math.floor(((ts - minT) / span) * BUCKETS),
-      );
-      push(acc[idx]!.temp, r.temperature);
-      push(acc[idx]!.hum, r.humidity);
-      push(acc[idx]!.sm, r.sm_percent);
-    }
-    const avg = (a: number[]): number | null =>
-      a.length
-        ? Math.round((a.reduce((s, v) => s + v, 0) / a.length) * 10) / 10
-        : null;
-    const trend = acc
-      .map((b, i) => ({
-        t: new Date(minT + ((i + 0.5) / BUCKETS) * span).toISOString(),
-        temperature: avg(b.temp),
-        humidity: avg(b.hum),
-        sm_percent: avg(b.sm),
-      }))
-      .filter(
-        (p) =>
-          p.temperature != null || p.humidity != null || p.sm_percent != null,
-      );
-
-    // Genel ozet — her metrik icin avg/min/max + okuma sayisi
-    const stat = (
-      sel: (r: (typeof readings)[number]) => number | null,
-    ): { avg: number; min: number; max: number; count: number } | null => {
-      const vals: number[] = [];
-      for (const r of readings) {
-        const v = sel(r);
-        if (v != null && !isNaN(v)) vals.push(v);
-      }
-      if (!vals.length) return null;
-      let mn = vals[0]!;
-      let mx = vals[0]!;
-      let sum = 0;
-      for (const v of vals) {
-        if (v < mn) mn = v;
-        if (v > mx) mx = v;
-        sum += v;
-      }
-      return {
-        avg: Math.round((sum / vals.length) * 10) / 10,
-        min: mn,
-        max: mx,
-        count: vals.length,
-      };
-    };
-
     return {
       success: true,
       data: {
         field_id: fieldId,
-        field_name: data.field_name,
+        field_name: info.name,
         period_days: clampedDays,
-        total_readings: readings.length,
-        summary: {
-          temperature: stat((r) => r.temperature),
-          humidity: stat((r) => r.humidity),
-          sm_percent: stat((r) => r.sm_percent),
+        start: startTime.toISOString(),
+        end: endTime.toISOString(),
+        total_readings: stats.reading_count,
+        note: "Tarladaki tüm bölgelerin ortalaması. Görsel trend için set_timetable_filters kullan.",
+        metrics: {
+          temperature: fmtMetric(
+            stats.avg.temperature,
+            stats.min.temperature,
+            stats.max.temperature,
+            stats.first?.temperature ?? null,
+            stats.last?.temperature ?? null,
+          ),
+          humidity: fmtMetric(
+            stats.avg.humidity,
+            stats.min.humidity,
+            stats.max.humidity,
+            stats.first?.humidity ?? null,
+            stats.last?.humidity ?? null,
+          ),
+          sm_percent: fmtMetric(
+            stats.avg.sm_percent,
+            stats.min.sm_percent,
+            stats.max.sm_percent,
+            stats.first?.sm_percent ?? null,
+            stats.last?.sm_percent ?? null,
+          ),
         },
-        trend,
       },
     };
   }
