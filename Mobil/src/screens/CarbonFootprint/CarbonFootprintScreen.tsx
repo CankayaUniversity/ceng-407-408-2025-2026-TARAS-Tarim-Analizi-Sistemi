@@ -12,13 +12,12 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
-  Modal,
+
   StyleSheet,
-  TouchableWithoutFeedback,
+
   Dimensions,
 } from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { BlurView } from "expo-blur";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLanguage } from "../../context/LanguageContext";
@@ -608,29 +607,18 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
 
-      {/* ── Category Detail Bottom Sheet ─────────────────────────────────── */}
-      <Modal
+      {/* ── Category Detail — ortak BottomSheet (Cizelge filtresi/folder/kayit ile ayni iskelet).
+          Eski elle yazilmis Modal/BlurView/TouchableWithoutFeedback/merkez-sheet yerine paylasilan
+          bilesen; baslik+X ModalHeader'dan gelir, ikon basliga prefix olarak eklenir. */}
+      <BottomSheet
         visible={detailCategory !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDetailCategory(null)}
+        theme={theme}
+        onClose={() => setDetailCategory(null)}
+        title={detailCategory ? categoryLabel(detailCategory, t.carbon) : ""}
+        scroll
+        contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: vs(4) }}
       >
-        <BlurView
-          intensity={40}
-          tint={theme.isDark ? "dark" : "light"}
-          style={StyleSheet.absoluteFill}
-        />
-        <TouchableWithoutFeedback onPress={() => setDetailCategory(null)}>
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
-        <View style={styles.sheetCenter}>
-          <View
-            style={[
-              styles.sheet,
-              { backgroundColor: theme.surface, borderColor: theme.primary + "30" },
-            ]}
-          >
-            {detailCategory && (() => {
+        {detailCategory && (() => {
               const cfg = catConfig[detailCategory];
               const catTotal = getCategoryTotal(detailCategory);
               const pct = total > 0 ? ((catTotal / total) * 100).toFixed(1) : "0";
@@ -638,19 +626,7 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
               const isFuel = detailCategory === "YAKIT";
 
               return (
-                <>
-                  <View style={styles.sheetHeader}>
-                    <View className="flex-row items-center" style={{ gap: 8 }}>
-                      <MaterialCommunityIcons name={cfg.icon as any} size={22} color={cfg.color} />
-                      <Text style={[styles.sheetTitle, { color: theme.textMain }]}>
-                        {categoryLabel(detailCategory, t.carbon)}
-                      </Text>
-                    </View>
-                    <TouchableOpacity onPress={() => setDetailCategory(null)} hitSlop={10}>
-                      <Ionicons name="close" size={22} color={theme.textSecondary} />
-                    </TouchableOpacity>
-                  </View>
-
+                <View style={{ marginTop: vs(6) }}>
                   {/* Summary row */}
                   <View className="flex-row items-baseline" style={{ gap: 6, marginBottom: vs(4) }}>
                     <Text style={{ fontSize: ms(20, 0.3), fontWeight: "700", color: theme.textMain }}>
@@ -741,12 +717,10 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
                       ))}
                     </View>
                   )}
-                </>
+                </View>
               );
             })()}
-          </View>
-        </View>
-      </Modal>
+      </BottomSheet>
 
       {/* ── Add New Log Bottom Sheet ──────────────────────────────────────── */}
       {/* Kayit ekleme — ortak BottomSheet (alttan kayan sheet + ModalHeader baslik/X + scroll).
@@ -756,10 +730,46 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
         theme={theme}
         onClose={() => setShowAddModal(false)}
         title={t.carbon.addLog}
-        blur
         avoidKeyboard
         scroll
         contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: vs(4) }}
+        footer={
+          // Cizelge filtresiyle ayni: sabit alt cubuk (border-top), scroll'la kaymaz.
+          <View
+            style={{
+              paddingHorizontal: spacing.md,
+              paddingTop: vs(10),
+              borderTopWidth: 1,
+              borderTopColor: theme.divider,
+            }}
+          >
+            <TouchableOpacity
+              style={{
+                backgroundColor: theme.primary,
+                borderRadius: 10,
+                paddingVertical: vs(11),
+                alignItems: "center",
+                opacity: isSubmitting || !selectedType ? 0.5 : 1,
+              }}
+              onPress={handleSubmit}
+              disabled={isSubmitting || !selectedType}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color={theme.textOnPrimary} />
+              ) : (
+                <Text
+                  style={{
+                    fontSize: ms(14, 0.3),
+                    fontWeight: "700",
+                    color: theme.textOnPrimary,
+                  }}
+                >
+                  {t.carbon.logActivity}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        }
       >
               {/* Category buttons */}
               <View className="flex-row" style={{ gap: spacing.sm, marginBottom: spacing.sm, marginTop: vs(6) }}>
@@ -933,34 +943,6 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
                 placeholder={t.carbon.notesPlaceholder}
                 placeholderTextColor={theme.textSecondary}
               />
-
-              {/* Submit */}
-              <TouchableOpacity
-                style={{
-                  backgroundColor: theme.primary,
-                  borderRadius: 10,
-                  paddingVertical: vs(11),
-                  alignItems: "center",
-                  opacity: isSubmitting || !selectedType ? 0.5 : 1,
-                  marginBottom: spacing.sm,
-                }}
-                onPress={handleSubmit}
-                disabled={isSubmitting || !selectedType}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color={theme.textOnPrimary} />
-                ) : (
-                  <Text
-                    style={{
-                      fontSize: ms(14, 0.3),
-                      fontWeight: "700",
-                      color: theme.textOnPrimary,
-                    }}
-                  >
-                    {t.carbon.logActivity}
-                  </Text>
-                )}
-              </TouchableOpacity>
       </BottomSheet>
     </>
   );

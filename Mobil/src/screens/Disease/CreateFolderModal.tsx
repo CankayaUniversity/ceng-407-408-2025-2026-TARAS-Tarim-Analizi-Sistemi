@@ -158,12 +158,37 @@ export const CreateFolderModal = ({ visible, theme, existingFolders, onClose, on
       theme={theme}
       onClose={onClose}
       title={t.disease.folderCreateTitle}
-      blur
       avoidKeyboard
-      // Yazarken disari dokununca kapanmasin; sadece klavye kapansin (ayri X butonu var).
-      closeOnBackdropPress={false}
+      scroll
+      // Bos alana dokununca diger sheet'ler gibi kapansin (klavye de kapanir). Eskiden
+      // closeOnBackdropPress=false ile yalniz klavye kapaniyordu — kullanici talebiyle kaldirildi.
       maxHeightPct={80}
       contentContainerStyle={{ paddingHorizontal: spacing.md }}
+      footer={
+        // Cizelge filtresiyle ayni: sabit alt cubuk (border-top), scroll'la kaymaz.
+        <View style={[styles.buttonRow, {
+          paddingHorizontal: spacing.md,
+          paddingTop: vs(10),
+          borderTopWidth: 1,
+          borderTopColor: theme.divider,
+        }]}>
+          <ActionButton
+            theme={theme}
+            label={t.common.cancel}
+            variant="secondary"
+            disabled={submitting}
+            onPress={onClose}
+          />
+          <ActionButton
+            theme={theme}
+            label={t.disease.folderCreateConfirm}
+            variant="primary"
+            disabled={!selectedZoneId || name.trim().length === 0}
+            loading={submitting}
+            onPress={handleSubmit}
+          />
+        </View>
+      }
     >
       <Text style={[styles.helper, { color: theme.textSecondary }]}>
         {t.disease.folderCreateHelper}
@@ -217,25 +242,6 @@ export const CreateFolderModal = ({ visible, theme, existingFolders, onClose, on
         ]}
         editable={!submitting}
       />
-
-      {/* Buttons */}
-      <View style={styles.buttonRow}>
-        <ActionButton
-          theme={theme}
-          label={t.common.cancel}
-          variant="secondary"
-          disabled={submitting}
-          onPress={onClose}
-        />
-        <ActionButton
-          theme={theme}
-          label={t.disease.folderCreateConfirm}
-          variant="primary"
-          disabled={!selectedZoneId || name.trim().length === 0}
-          loading={submitting}
-          onPress={handleSubmit}
-        />
-      </View>
     </BottomSheet>
   );
 };
