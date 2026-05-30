@@ -198,39 +198,117 @@ export async function getFieldDashboard(
     zoneAgg.set(node.zone_id, agg);
   }
 
-  // Her zone icin tek temsilci node — centroid konumu + zone ortalama okumasi + sensor sayisi.
-  // Sensoru olmayan zone: sensorCount=0 (pin yok) ama hucre/saksi yine cizilir (moisture=0).
-  const allNodes: DashboardNode[] = [];
-  let totalSensorCount = 0;
-  for (const zone of zoneRows) {
-    const poly = zone.polygon as { exterior?: [number, number][] } | null;
-    if (!poly?.exterior?.length) continue;
-    const center = polygonCentroid(poly.exterior);
-    // Pin yayma yaricapi — zone'un kisa kenarinin %28'i (field/dunya birimi).
-    // Pin'ler hucre/saksi icinde kalir; buyuk zone genis, kucuk zone dar yayilim
-    // (oranli). Tek sensorde kullanilmaz (ortalanir).
-    const xs = poly.exterior.map((p) => p[0]);
-    const zs = poly.exterior.map((p) => p[1]);
-    const minDim = Math.min(
-      Math.max(...xs) - Math.min(...xs),
-      Math.max(...zs) - Math.min(...zs),
-    );
-    const spreadRadius = 0.28 * minDim;
-    const agg = zoneAgg.get(zone.zone_id);
-    const sensorCount = agg?.sensorCount ?? 0;
+  // Field polygon — sera icin saklanan polygon; saksi tarlada asagida kanonik
+  // wizard grid'iyle DEGISTIRILIR (saklanan polygon saksi dizilimine uymayabilir).
+  let polygon: PolygonData = field.polygon
+    ? (field.polygon as unknown as PolygonData)
+    : { exterior: [], holes: [] };
+
+  // Saksi tarla tespiti — node yerlesimi buna gore degisir, o yuzden donus objesinden
+  // buraya tasindi. environment_type acikca set edilmisse onu kullan; NULL ise (eski
+  // kayit / DB insert) zone geometrisinden cikar (saksi wizard'i her zone icin 8 koseli).
+  const isPotField =
+    field.environment_type === "pot" ||
+    (!field.environment_type &&
+      zoneRows.length > 0 &&
+      zoneRows.every((z) => {
+        const p = z.polygon as { exterior?: unknown[] } | null;
+        return p?.exterior?.length === 8;
+      }));
+
+  // Her zone icin tek temsilci node — okuma ortalamasi + sensor sayisi ortak.
+  const aggFor = (zoneId: string) => {
+    const agg = zoneAgg.get(zoneId);
     const rc = agg?.readingCount ?? 0;
-    totalSensorCount += sensorCount;
-    allNodes.push({
-      id: `zone-${zone.zone_id}`,
-      zone_id: zone.zone_id,
-      x: center.x,
-      z: center.z,
+    return {
+      sensorCount: agg?.sensorCount ?? 0,
       moisture: rc > 0 ? agg!.sumMoisture / rc : 0,
       airTemperature: rc > 0 ? agg!.sumTemperature / rc : 0,
       airHumidity: rc > 0 ? agg!.sumHumidity / rc : 0,
-      sensorCount,
-      spreadRadius,
+    };
+  };
+
+  const allNodes: DashboardNode[] = [];
+  let totalSensorCount = 0;
+
+  if (isPotField) {
+    // SAKSI TARLA: zone polygon koordinatlari guvenilmez (field polygon'dan farkli
+    // uzayda olabilir veya eksik). "Onceki saksi dizilim mantigi" = wizard'in kullandigi
+    // grid (Mobil/src/screens/AddField/addFieldUtils.ts -> generatePotFieldData):
+    // cols=ceil(sqrt(n)), spacing=12, padding=8, potRadius=3. Hem saksilari HEM de FIELD
+    // polygon'unu bu kanonik grid'den ureticez → dashboard, wizard onizlemesiyle birebir
+    // ayni gorunur. Sira zone_id'ye gore sabit (yenilemede saksilar yer degistirmesin).
+    const sorted = [...zoneRows].sort((a, b) =>
+      a.zone_id.localeCompare(b.zone_id),
+    );
+    const n = sorted.length;
+    // "Akilli" dizilim: n'i en kareye yakin TAM carpanlarina ayir — bos hucre/L-sekli yok.
+    // rows = sqrt(n) altindaki en buyuk bolen, cols = n/rows (cols >= rows → yatay sira).
+    // Ornek: 3 → 3x1 (tek sira), 4 → 2x2, 6 → 3x2, 5/7 (asal) → tek sira, 9 → 3x3.
+    let rows = 1;
+    for (let c = Math.floor(Math.sqrt(n)); c >= 1; c--) {
+      if (n % c === 0) {
+        rows = c;
+        break;
+      }
+    }
+    const cols = n > 0 ? n / rows : 1;
+    const SPACING = 12;
+    // Dar padding — sentezlenen polygon saksilari sikica sarsin. Kamera field'in en buyuk
+    // boyutunu cerceveler; genis kenar bosluklari saksilari kuculttup "zoom out" gosteriyordu.
+    // (Kameranin kendi %15 marji zaten var — HomeScreen FIELD_EXTENT*PADDING.)
+    const PADDING = 2;
+    const POT_RADIUS = 3;
+    const width = PADDING * 2 + (cols - 1) * SPACING + POT_RADIUS * 2;
+    const height = PADDING * 2 + (rows - 1) * SPACING + POT_RADIUS * 2;
+    polygon = {
+      exterior: [
+        [0, 0],
+        [width, 0],
+        [width, height],
+        [0, height],
+      ] as [number, number][],
+      holes: [],
+    };
+    // Pin yayma yaricapi saksi yaricapinin yarisi — cok sensorlu saksida pinler ustte kalir.
+    const spreadRadius = POT_RADIUS * 0.5;
+    sorted.forEach((zone, i) => {
+      const r = aggFor(zone.zone_id);
+      totalSensorCount += r.sensorCount;
+      allNodes.push({
+        id: `zone-${zone.zone_id}`,
+        zone_id: zone.zone_id,
+        x: PADDING + POT_RADIUS + (i % cols) * SPACING,
+        z: PADDING + POT_RADIUS + Math.floor(i / cols) * SPACING,
+        ...r,
+        spreadRadius,
+      });
     });
+  } else {
+    // SERA: zone centroid konumu field ile ayni uzayda, guvenilir. Voronoi hucresi +
+    // pin tabani buradan. Polygon'u olmayan zone atlanir (centroid hesaplanamaz, ama
+    // sera duzlemi yine cizildigi icin ekran bos kalmaz).
+    for (const zone of zoneRows) {
+      const poly = zone.polygon as { exterior?: [number, number][] } | null;
+      if (!poly?.exterior?.length) continue;
+      const center = polygonCentroid(poly.exterior);
+      const xs = poly.exterior.map((p) => p[0]);
+      const zs = poly.exterior.map((p) => p[1]);
+      const minDim = Math.min(
+        Math.max(...xs) - Math.min(...xs),
+        Math.max(...zs) - Math.min(...zs),
+      );
+      const r = aggFor(zone.zone_id);
+      totalSensorCount += r.sensorCount;
+      allNodes.push({
+        id: `zone-${zone.zone_id}`,
+        zone_id: zone.zone_id,
+        x: center.x,
+        z: center.z,
+        ...r,
+        spreadRadius: 0.28 * minDim,
+      });
+    }
   }
 
   // calc averages
@@ -249,11 +327,6 @@ export async function getFieldDashboard(
       isScheduled = true;
     }
   }
-
-  // get polygon data
-  const polygon: PolygonData = field.polygon
-    ? (field.polygon as unknown as PolygonData)
-    : { exterior: [], holes: [] };
 
   return {
     weather: {
@@ -274,17 +347,7 @@ export async function getFieldDashboard(
     field: {
       polygon,
       nodes: allNodes,
-      // environment_type acikca set edilmisse onu kullan.
-      // NULL ise (eski kayitlar, dogrudan DB insert) zone geometrisinden cikar:
-      // Saksi wizard'i her zone icin 8 koseli (octagonal) polygon uretir.
-      isPotField:
-        field.environment_type === "pot" ||
-        (!field.environment_type &&
-          zoneRows.length > 0 &&
-          zoneRows.every((z) => {
-            const p = z.polygon as { exterior?: unknown[] } | null;
-            return p?.exterior?.length === 8;
-          })),
+      isPotField,
     },
   };
 }

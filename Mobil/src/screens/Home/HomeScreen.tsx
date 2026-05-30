@@ -39,7 +39,7 @@ function SceneBackground({ color }: { color: string }) {
 // Kamera otomatik sigdirma — tarla modeli her zaman gorunur kalir
 // Sahne icinden useThree ile gercek viewport ve kamera bilgisine erisir
 const FIELD_EXTENT = 8; // ColorPlane TARGET_SIZE
-const PADDING = 1.15; // %15 bosluk
+const PADDING = 1.02; // kamera marji — dusurmek sahneyi buyutur (kenar bosluklari azalir)
 
 function CameraAutoFit() {
   const { camera, viewport, invalidate } = useThree();
