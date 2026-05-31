@@ -9,16 +9,26 @@ export interface FieldPolygon {
 export interface SensorNode {
   id: string;
   zone_id?: string;
+  // Zone'un gercek adi (ornek "Sera 1"). Backend dashboard'da henuz yok — DashboardContext
+  // zone_id -> zone_name haritasiyla cozuluyor. Backend gonderirse buradan otomatik akar.
+  zone_name?: string;
   x: number;
   z: number;
   moisture: number;
   airTemperature: number;
   airHumidity: number;
+  // Bu zone'da kayitli sensor sayisi. Pin'ler bu sayiya gore zone merkezine
+  // yayilir (1=ortada, 3=ucgen...). 0 → pin yok. Eski veride yoksa 1 varsayilir.
+  sensorCount?: number;
+  // Pin yayma yaricapi (field birimi) — backend zone extent'inden hesaplar.
+  // Yoksa (demo/eski veri) frontend pin boyuna gore fallback kullanir.
+  spreadRadius?: number;
 }
 
 export interface FieldData {
   polygon: FieldPolygon;
   nodes: SensorNode[];
+  isPotField?: boolean;
 }
 
 function getPolygonBounds(polygon: [number, number][]) {

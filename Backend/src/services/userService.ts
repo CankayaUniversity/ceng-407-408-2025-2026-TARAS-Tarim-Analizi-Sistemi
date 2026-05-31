@@ -1,5 +1,6 @@
 import { prisma } from "../config/database";
 import bcrypt from "bcryptjs";
+import logger from "../utils/logger";
 
 export async function createUser(data: {
   username: string;
@@ -24,6 +25,48 @@ export async function createUser(data: {
       role: true,
     },
   });
+}
+
+export async function createUserWithFarm(data: {
+  username: string;
+  email: string;
+  password: string;
+  role_id?: number;
+  farmName: string;
+  farmLocation?: string;
+}) {
+  const hashedPassword = await bcrypt.hash(data.password, 12);
+
+  // Interactive transaction PrismaPg adapter ile baglanti timeout'una neden olabiliyor.
+  // Sirayla olustur, farm hatasi olursa user'i temizle.
+  const user = await prisma.user.create({
+    data: {
+      username: data.username,
+      email: data.email,
+      password_hash: hashedPassword,
+      role_id: data.role_id,
+      is_active: true,
+    },
+    include: { role: true },
+  });
+
+  try {
+    const farm = await prisma.farm.create({
+      data: {
+        user_id: user.user_id,
+        name: data.farmName,
+        ...(data.farmLocation ? { location_text: data.farmLocation } : {}),
+      },
+    });
+    logger.info(`Farm created: ${farm.farm_id} for user ${user.user_id}`);
+  } catch (farmError) {
+    logger.error(`Farm creation failed for user ${user.user_id}:`, farmError);
+    // Farm olusturulamazsa user'i da sil (manual rollback)
+    await prisma.user.delete({ where: { user_id: user.user_id } }).catch(() => {});
+    throw farmError;
+  }
+
+  return user;
 }
 
 export async function authenticateUser(username: string, password: string) {
@@ -100,6 +143,31 @@ export async function updateUserPassword(userId: string, newPassword: string) {
   });
 }
 
+// Kullanici adi ve/veya e-postayi gunceller. Sadece verilen alanlari yazar.
+// Username/email unique oldugu icin cakisma P2002 firlatir (controller 409'a cevirir).
+// role ile doner ki username degistiginde yeni JWT uretilebilsin.
+export async function updateUserProfile(
+  userId: string,
+  data: { username?: string; email?: string },
+) {
+  return prisma.user.update({
+    where: { user_id: userId },
+    data: {
+      ...(data.username !== undefined ? { username: data.username } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+    },
+    include: { role: true },
+  });
+}
+
+export async function updateDatasetConsent(userId: string, consent: boolean) {
+  return prisma.user.update({
+    where: { user_id: userId },
+    data: { dataset_consent: consent },
+    select: { user_id: true, dataset_consent: true },
+  });
+}
+
 export async function ensureAdminRole() {
   return prisma.role.upsert({
     where: { role_name: "admin" },
@@ -120,6 +188,39 @@ export async function ensureFarmerRole() {
       description: "Farm owner with access to their own farms",
     },
   });
+}
+
+export async function ensureStakeholderRole() {
+  return prisma.role.upsert({
+    where: { role_name: "stakeholder" },
+    update: {},
+    create: {
+      role_name: "stakeholder",
+      description: "Read-only viewer invited to a specific farm",
+    },
+  });
+}
+
+export async function getFarmerRoleId(): Promise<number | undefined> {
+  const role = await prisma.role.findUnique({ where: { role_name: "farmer" } });
+  return role?.role_id;
+}
+
+// Kullaniciyi "farmer" rolune yukseltir — ilk ciftligini olusturunca cagrilir.
+// Idempotent: zaten farmer ise ayni degeri yazar. Sadece yukseltir (asla stakeholder'a dusurmez).
+// Guncellenmis kullaniciyi role ile doner ki yeni JWT uretilebilsin.
+export async function promoteToFarmer(userId: string) {
+  const farmerRoleId = await getFarmerRoleId();
+  return prisma.user.update({
+    where: { user_id: userId },
+    data: farmerRoleId != null ? { role_id: farmerRoleId } : {},
+    include: { role: true },
+  });
+}
+
+export async function getRoleIdByName(roleName: string): Promise<number | undefined> {
+  const role = await prisma.role.findUnique({ where: { role_name: roleName } });
+  return role?.role_id;
 }
 
 export async function getAllRoles() {
@@ -220,11 +321,18 @@ export async function getUserChatSessions(userId: string, limit: number = 10) {
 
 export default {
   createUser,
+  createUserWithFarm,
   authenticateUser,
   getUserProfile,
   updateUserPassword,
+  updateUserProfile,
+  updateDatasetConsent,
   ensureAdminRole,
   ensureFarmerRole,
+  ensureStakeholderRole,
+  getFarmerRoleId,
+  promoteToFarmer,
+  getRoleIdByName,
   getAllRoles,
   createAlert,
   markAlertAsRead,

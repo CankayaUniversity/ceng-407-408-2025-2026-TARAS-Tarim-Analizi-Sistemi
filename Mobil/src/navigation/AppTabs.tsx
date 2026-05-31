@@ -54,6 +54,10 @@ export const AppTabs = () => {
         initialRouteName="home"
         tabBar={renderTabBar}
         detachInactiveScreens={false}
+        // Donanim/jest geri tusu: hangi sekmede olursak olalim once HOME'a don
+        // (varsayilan "firstRoute" ilk sekme olan carbon'a donuyordu). Home'dayken
+        // geri tekrar basilirsa uygulamadan cikar.
+        backBehavior="initialRoute"
         screenOptions={{
           headerShown: false,
           lazy: true,

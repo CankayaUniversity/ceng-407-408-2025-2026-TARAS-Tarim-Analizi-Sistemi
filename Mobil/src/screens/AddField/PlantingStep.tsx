@@ -1,0 +1,231 @@
+// Adim: Her zone icin mahsul secimi ve ekim tarihi
+// CropDetail listesini backend'den ceker, zone bazli atama yapar.
+
+import { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Platform,
+  Modal,
+} from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { useLanguage } from "../../context/LanguageContext";
+import { dashboardAPI } from "../../utils/api";
+import { s, vs, ms } from "../../utils/responsive";
+import { OptionDropdown } from "../../components/OptionDropdown";
+import { ActionButton } from "../../components/ActionButton";
+import { StepScaffold } from "./components/StepScaffold";
+import type { StepProps, ZoneDraft } from "./types";
+
+// Mahsul adlarini ilk harfi buyuk goster (DB'de kucuk harf geliyor). Turkce locale-aware.
+const capitalizeCrop = (name: string): string =>
+  name.length > 0 ? name[0]!.toLocaleUpperCase("tr") + name.slice(1) : name;
+
+interface CropItem {
+  crop_id: number;
+  name: string;
+  default_kc: number | null;
+  growth_days: number | null;
+  optimal_sm_min: number | null;
+  optimal_sm_max: number | null;
+}
+
+export const PlantingStep = ({ theme, state, onUpdate, onNext }: StepProps) => {
+  const { t } = useLanguage();
+  const [error, setError] = useState<string | null>(null);
+  const [crops, setCrops] = useState<CropItem[]>([]);
+  const [loadingCrops, setLoadingCrops] = useState(true);
+
+  // DatePicker state
+  const [datePickerZoneId, setDatePickerZoneId] = useState<string | null>(null);
+  const [tempDate, setTempDate] = useState(new Date());
+
+  useEffect(() => {
+    dashboardAPI.getCrops().then((res) => {
+      if (res.success && res.data) setCrops(res.data);
+    }).catch(() => {}).finally(() => setLoadingCrops(false));
+  }, []);
+
+  const updateZone = (zoneId: string, partial: Partial<ZoneDraft>) => {
+    onUpdate({
+      zones: state.zones.map((z) =>
+        z.id === zoneId ? { ...z, ...partial } : z,
+      ),
+    });
+  };
+
+  const handleDateChange = (_: any, selectedDate?: Date) => {
+    if (Platform.OS === "android") {
+      setDatePickerZoneId(null);
+    }
+    if (selectedDate && datePickerZoneId) {
+      setTempDate(selectedDate);
+      updateZone(datePickerZoneId, {
+        plantingDate: selectedDate.toISOString().split("T")[0],
+      });
+    }
+  };
+
+  const handleNext = () => {
+    // Her zone'da planting date zorunlu
+    const missing = state.zones.find((z) => !z.plantingDate);
+    if (missing) {
+      setError(t.addField.plantingDateRequired || "Tüm bölgelerde ekim tarihi zorunludur");
+      return;
+    }
+    setError(null);
+    onNext();
+  };
+
+  // Mahsul dropdown secenekleri — ilk secenek "Temizle" (mahsul opsiyonel; value 0 = sentinel/yok).
+  const cropOptions = [
+    { value: 0, label: t.addField.clearAll },
+    ...crops.map((c) => ({
+      value: c.crop_id,
+      label: capitalizeCrop(c.name),
+      subtitle: c.growth_days ? `${c.growth_days} ${t.addField.growthDays}` : undefined,
+    })),
+  ];
+
+  const zoneColors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336", "#00BCD4", "#795548", "#607D8B"];
+
+  return (
+    <StepScaffold
+      theme={theme}
+      subtitle={t.addField.plantingHint || "Her bölge için mahsul ve ekim tarihini girin"}
+      error={error}
+      footer={
+        <ActionButton
+          theme={theme}
+          label={t.addField.next}
+          trailingIcon="chevron-right"
+          onPress={handleNext}
+        />
+      }
+    >
+      {/* Zone kartlari */}
+      {state.zones.map((zone, i) => {
+        const color = zoneColors[i % zoneColors.length];
+
+        return (
+          <View
+            key={zone.id}
+            style={{
+              marginBottom: vs(16), padding: s(16),
+              backgroundColor: theme.surface, borderRadius: 12,
+              borderLeftWidth: 4, borderLeftColor: color,
+            }}
+          >
+            <Text style={{ fontSize: ms(15, 0.3), fontWeight: "700", color: theme.textMain, marginBottom: vs(12) }}>
+              {zone.name}
+            </Text>
+
+            {/* Mahsul secimi — universal OptionDropdown. value 0 = sentinel (mahsul yok). */}
+            <Text style={{ fontSize: ms(12, 0.3), fontWeight: "600", color: theme.textSecondary, marginBottom: vs(4) }}>
+              {t.addField.cropLabel}
+            </Text>
+            <OptionDropdown
+              theme={theme}
+              label={t.addField.cropLabel}
+              showLabel={false}
+              value={zone.cropId ?? 0}
+              options={cropOptions}
+              onChange={(v) => updateZone(zone.id, { cropId: v === 0 ? undefined : v })}
+              disabled={loadingCrops}
+              displayLabel={zone.cropId ? undefined : t.addField.selectCrop}
+              style={{ marginBottom: vs(12) }}
+              statusBarTranslucent
+            />
+
+            {/* Ekim tarihi */}
+            <Text style={{ fontSize: ms(12, 0.3), fontWeight: "600", color: theme.textSecondary, marginBottom: vs(4) }}>
+              {t.addField.plantingDateLabel || "Ekim Tarihi"}
+            </Text>
+            <TouchableOpacity
+              style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                paddingVertical: vs(12), paddingHorizontal: s(14),
+                borderWidth: 1, borderRadius: 12, borderColor: theme.border,
+                backgroundColor: theme.background,
+              }}
+              onPress={() => {
+                setDatePickerZoneId(zone.id);
+                setTempDate(zone.plantingDate ? new Date(zone.plantingDate) : new Date());
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={{
+                fontSize: ms(14, 0.3),
+                color: zone.plantingDate ? theme.textMain : theme.textMuted,
+              }}>
+                {zone.plantingDate
+                  ? new Date(zone.plantingDate).toLocaleDateString("tr-TR")
+                  : (t.addField.selectDate || "Tarih seçin")}
+              </Text>
+              <MaterialCommunityIcons name="calendar" size={20} color={theme.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Android: inline DatePicker (native dialog — kendi animasyonu var) */}
+            {Platform.OS === "android" && datePickerZoneId === zone.id && (
+              <DateTimePicker
+                value={tempDate}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+              />
+            )}
+          </View>
+        );
+      })}
+
+      {/* iOS: DatePicker popup modal (uzaktan gelen tasarim) */}
+      {Platform.OS === "ios" && (
+        <Modal
+          visible={datePickerZoneId !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setDatePickerZoneId(null)}
+        >
+          <TouchableOpacity
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: s(32) }}
+            activeOpacity={1}
+            onPress={() => setDatePickerZoneId(null)}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={{ backgroundColor: theme.surface, borderRadius: 16, overflow: "hidden" }}>
+                <View style={{ padding: s(16), borderBottomWidth: 1, borderBottomColor: theme.divider }}>
+                  <Text style={{ fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain }}>
+                    {t.addField.plantingDateLabel || "Ekim Tarihi"}
+                  </Text>
+                </View>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  style={{ width: "100%" }}
+                />
+                <TouchableOpacity
+                  style={{
+                    margin: s(16),
+                    paddingVertical: vs(12),
+                    backgroundColor: theme.primary,
+                    borderRadius: 12,
+                    alignItems: "center",
+                  }}
+                  onPress={() => setDatePickerZoneId(null)}
+                >
+                  <Text style={{ fontSize: ms(15, 0.3), color: theme.textOnPrimary, fontWeight: "700" }}>
+                    {t.addField.next || "Tamam"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+      )}
+    </StepScaffold>
+  );
+};

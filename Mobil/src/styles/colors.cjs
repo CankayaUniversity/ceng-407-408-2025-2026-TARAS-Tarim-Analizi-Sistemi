@@ -31,6 +31,21 @@ module.exports = {
       900: '#2a230b',
       950: '#15110a',
     },
+    // Soil-moisture visualization — digital twin humidity overlay.
+    // 100 = driest, 900 = wettest. Do NOT use for decorative UI elements.
+    soilMoisture: {
+      50:  '#e5f6ff',
+      100: '#ccecff',
+      200: '#99daff',
+      300: '#66c7ff',
+      400: '#33b4ff',
+      500: '#00a1ff',
+      600: '#0081cc',
+      700: '#006199',
+      800: '#004166',
+      900: '#002033',
+      950: '#001724',
+    },
     // Warm olive-tinted neutral — hue ~96°, low sat. Replaces slateGrey.
     sageGray: {
       50:  '#f7f8f6',
@@ -50,5 +65,11 @@ module.exports = {
     porcelain:   '#FFFDF8',
     whiteSmoke:  '#F5F5F5',
     carbonBlack: '#1A1A1A',
+
+    // Semantic surface tokens — keep in sync with `light.surface` / `dark.surface`
+    // in colors.ts. Referenced by .surface-bg / .card / .input-field utilities
+    // in global.css. Update both files together.
+    surfaceLight: '#F0EDE5',     // ~5% darker porcelain, no olive cast
+    surfaceDark:  '#252221',     // ~6% lighter than carbonBlack, no olive cast
   },
 };

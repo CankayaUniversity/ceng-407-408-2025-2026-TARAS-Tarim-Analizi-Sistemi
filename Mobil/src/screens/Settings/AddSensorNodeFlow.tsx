@@ -8,11 +8,12 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Theme } from "../../types";
 import { useLanguage } from "../../context/LanguageContext";
+import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useConfirm } from "../../context/ConfirmContext";
 import { gatewayAPI, sensorAPI, socketAPI } from "../../utils/api";
 
 type Step = "gatewaySelect" | "zoneSelect" | "pairing" | "done";
@@ -51,6 +52,8 @@ export const AddSensorNodeFlow = ({
   onBack,
 }: AddSensorNodeFlowProps) => {
   const { t } = useLanguage();
+  const { showPopup } = usePopupMessage();
+  const confirm = useConfirm();
 
   // Adim durumu
   const [step, setStep] = useState<Step>("gatewaySelect");
@@ -119,32 +122,27 @@ export const AddSensorNodeFlow = ({
 
   // Gateway firmware guncelle
   const handleOtaUpdate = useCallback(async (gw: GatewayItem): Promise<void> => {
-    Alert.alert(
-      t.hardware.updateConfirmTitle,
-      t.hardware.updateConfirmMessage.replace("{version}", latestFwVersion || ""),
-      [
-        { text: t.common.cancel, style: "cancel" },
-        {
-          text: t.common.ok,
-          onPress: async () => {
-            setUpdatingGatewayId(gw.gateway_id);
-            try {
-              const res = await gatewayAPI.triggerOta(gw.gateway_id);
-              if (res.success) {
-                Alert.alert(t.hardware.updateSuccess);
-              } else {
-                Alert.alert(t.hardware.updateFailed, res.error);
-              }
-            } catch {
-              Alert.alert(t.hardware.updateFailed);
-            } finally {
-              setUpdatingGatewayId(null);
-            }
-          },
-        },
-      ],
-    );
-  }, [t, latestFwVersion]);
+    const ok = await confirm({
+      title: t.hardware.updateConfirmTitle,
+      message: t.hardware.updateConfirmMessage.replace("{version}", latestFwVersion || ""),
+      confirmLabel: t.common.ok,
+      cancelLabel: t.common.cancel,
+    });
+    if (!ok) return;
+    setUpdatingGatewayId(gw.gateway_id);
+    try {
+      const res = await gatewayAPI.triggerOta(gw.gateway_id);
+      if (res.success) {
+        showPopup(t.hardware.updateSuccess);
+      } else {
+        showPopup(res.error ? `${t.hardware.updateFailed}: ${res.error}` : t.hardware.updateFailed);
+      }
+    } catch {
+      showPopup(t.hardware.updateFailed);
+    } finally {
+      setUpdatingGatewayId(null);
+    }
+  }, [t, latestFwVersion, confirm, showPopup]);
 
   // Gateway sec ve bolge secime gec
   const handleGatewaySelect = useCallback(

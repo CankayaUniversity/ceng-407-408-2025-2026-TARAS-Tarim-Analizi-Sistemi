@@ -32,7 +32,7 @@
 // BACKEND_HOST gateway_config.h dosyasinda tanimli (gitignored).
 // HTTPS uses port 443 with WiFiClientSecure validating against ISRG Root X1
 // (Let's Encrypt root CA, bundled in isrg_root_x1.h).
-#define GW_FW_VERSION      "1.0.3"
+#define GW_FW_VERSION      "1.0.5"
 #define BACKEND_PORT       443
 #define BACKEND_DATA_PATH  "/api/sensors/device/data"
 #define SOCKETIO_PATH      "/socket.io/?EIO=3"
@@ -852,6 +852,7 @@ void handleOtaUpdate(const char *url, const char *version) {
   } else {
     http.begin(url);
   }
+  http.addHeader("X-Device-Key", gw_api_key);
   http.setTimeout(30000);
   int httpCode = http.GET();
 

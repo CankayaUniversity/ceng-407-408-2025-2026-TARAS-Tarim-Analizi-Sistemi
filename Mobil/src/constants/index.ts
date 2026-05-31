@@ -17,7 +17,7 @@ export const NAV_ITEMS = [
   { id: "timetable", icon: "calendar-month" },
   { id: "home", icon: "home" },
   { id: "disease", icon: "leaf" },
-  { id: "settings", icon: "cog" },
+  { id: "settings", icon: "account-circle" },
 ] as const;
 
 export const HEADER_TEXT: Record<Exclude<ScreenType, "login">, string> = {
@@ -25,7 +25,7 @@ export const HEADER_TEXT: Record<Exclude<ScreenType, "login">, string> = {
   timetable: "Çizelge",
   home: "TarasMobil",
   disease: "Hastalık Tespiti",
-  settings: "Ayarlar",
+  settings: "Hesap",
 };
 
 export const SCREEN_TO_INDEX: Record<Exclude<ScreenType, "login">, number> = {

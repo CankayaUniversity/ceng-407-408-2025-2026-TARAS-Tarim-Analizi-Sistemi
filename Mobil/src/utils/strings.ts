@@ -28,6 +28,7 @@ export interface StringDictionary {
     usernamePlaceholder: string;
     passwordPlaceholder: string;
     confirmPasswordPlaceholder: string;
+    farmNamePlaceholder: string;
     loginButton: string;
     registerButton: string;
     skipButton: string;
@@ -62,12 +63,24 @@ export interface StringDictionary {
     dataSourceAWS: string;
     dataSourceDemo: string;
     lastReading: string;
+    noFieldsTitle: string;
+    noFieldsSubtitle: string;
+    addField: string;
+    fieldOverview: string;
+    tapZoneHint: string;
+    irrigation: string;
+    now: string;
+    unitMin: string;
+    unitHr: string;
+    unitDay: string;
+    lastUpdated: string;
   };
 
   // Disease Screen
   disease: {
     noAnalysisYet: string;
     noAnalysisSubtitle: string;
+    takePhotoButton: string;
     loadingResults: string;
     errorLoadingResults: string;
     sentForAnalysis: string;
@@ -140,6 +153,7 @@ export interface StringDictionary {
     foldersSectionTitle: string;
     foldersEmpty: string;
     generalSectionTitle: string;
+    showMore: string;
     folderCreateButton: string;
     folderCreateTitle: string;
     folderCreateHelper: string;
@@ -217,9 +231,13 @@ export interface StringDictionary {
     pullToRefresh: string;
     last72Hours: string;
     table: string;
+    charts: string;
     temperature: string;
+    temperatureShort: string;
     humidity: string;
+    humidityShort: string;
     soilMoisture: string;
+    soilMoistureShort: string;
     shareCSV: string;
     sensorData: string;
     total: string;
@@ -241,6 +259,29 @@ export interface StringDictionary {
     hours: string;
     dateTime: string;
     rawMoisture: string;
+    // Yeni: filtre menusu + multi-series + tablo
+    filters: string;
+    timeRange: string;
+    metrics: string;
+    zones: string;
+    selectAll: string;
+    applyFilters: string;
+    resetFilters: string;
+    aggregationMode: string;
+    modePerNode: string;
+    modePerZone: string;
+    modeFieldAvg: string;
+    allHidden: string;
+    // Stats header (table view)
+    summary: string;
+    avg: string;
+    min: string;
+    max: string;
+    readings: string;
+    // Range dropdown
+    custom: string;
+    // Zone select-all toggle
+    selectNone: string;
   };
 
   // Bottom navigation bar
@@ -255,6 +296,78 @@ export interface StringDictionary {
   // Settings Screen
   settings: {
     title: string;
+    account: string;
+    role: string;
+    roleFarmer: string;
+    roleAdmin: string;
+    roleUser: string;
+    roleStakeholder: string;
+    farmRoleOwner: string;
+    farmRoleStakeholder: string;
+    farmRoleFarmer: string;
+    stakeholder: {
+      manageTitle: string;
+      redeemTitle: string;
+      codePlaceholder: string;
+      redeemButton: string;
+      redeemedMsg: string;
+      invalidMsg: string;
+      generateButton: string;
+      codeHint: string;
+      copiedMsg: string;
+      noneYet: string;
+      revokeButton: string;
+      revokedMsg: string;
+      revokeCodeButton: string;
+      codeRevokedMsg: string;
+      selectFarmFirst: string;
+      viewerNote: string;
+      // Uyeler + Paylas ekranlari (ciftlik satirindaki uyeler/paylas butonlari)
+      membersTitle: string;
+      membersSubtitle: string;
+      invitesTitle: string;
+      invitesSubtitle: string;
+      youLabel: string;
+      expiresLabel: string;
+      noInvitesYet: string;
+      inviteStatusPending: string;
+      inviteStatusAccepted: string;
+      inviteStatusExpired: string;
+      inviteStatusRevoked: string;
+      removeMemberConfirmTitle: string;
+      removeMemberConfirmMessage: string;
+      // Rol degistirme (sahip, uye satirinda rol rozetine dokunur)
+      makeFarmerTitle: string;
+      makeFarmerMessage: string;
+      makeStakeholderTitle: string;
+      makeStakeholderMessage: string;
+      changeRoleButton: string;
+      roleChangedMsg: string;
+      // Davet rolu secimi (Paylas ekraninda kod uretmeden once)
+      inviteRoleLabel: string;
+      inviteRoleHint: string;
+    };
+    locationManagement: string;
+    currentFarm: string;
+    currentField: string;
+    farmManagement: string;
+    activeFarm: string;
+    noFarmSelected: string;
+    noFarmCreated: string;
+    fieldsConnected: string;
+    createNewFarm: string;
+    deleteFarm: string;
+    deleteFarmConfirmTitle: string;
+    deleteFarmConfirmMessage: string;
+    deleteField: string;
+    deleteFieldConfirmTitle: string;
+    deleteFieldConfirmMessage: string;
+    deleteConfirm: string;
+    fieldManagement: string;
+    noFields: string;
+    hardwareSubtitle: string;
+    appPreferences: string;
+    privacySection: string;
     themeMode: string;
     themeLight: string;
     themeDark: string;
@@ -264,6 +377,26 @@ export interface StringDictionary {
     languageEnglish: string;
     datasetConsentTitle: string;
     datasetConsentSubtitle: string;
+    editProfile: string;
+    editProfileTitle: string;
+    usernameLabel: string;
+    emailLabel: string;
+    passwordLabel: string;
+    passwordPlaceholder: string;
+    saveChanges: string;
+    profileUpdated: string;
+    profileUpdateFailed: string;
+    currentPasswordLabel: string;
+    newPasswordLabel: string;
+    confirmPasswordHint: string;
+    passwordChanged: string;
+    wrongPassword: string;
+    usernameOrEmailTaken: string;
+    passwordTooShort: string;
+    enterCurrentPassword: string;
+    datasetConsentDisableTitle: string;
+    datasetConsentDisableMessage: string;
+    datasetConsentDisableConfirm: string;
     logout: string;
   };
 
@@ -330,6 +463,26 @@ export interface StringDictionary {
     history: string;
     historyEmpty: string;
     readMore: string;
+    deleteConfirmTitle: string;
+    deleteConfirmMessage: string;
+    deleteConfirmButton: string;
+    deletedMsg: string;
+    deleteFailedMsg: string;
+    // Mesaj-alti aksiyon butonlari + onay popuplari (LLM tool-call'lari)
+    actionGo: string;
+    actionApply: string;
+    actionAccept: string;
+    actionCancel: string;
+    actionDone: string;
+    actionCancelled: string;
+    actionFieldSelected: string;
+    actionThemeApplied: string;
+    actionLogSaved: string;
+    actionLogFailed: string;
+    // Mesaj-alti buton etiketi: "<fiil> · <hedef>" (hedef bir sonraki ekran/ayar).
+    actionVerbOpen: string;
+    actionVerbSwitch: string;
+    actionVerbSet: string;
   };
 
   // Error Boundary / 3D
@@ -386,6 +539,9 @@ export interface StringDictionary {
     categoryFuel: string;
     categoryFertilizer: string;
     categoryElectricity: string;
+    emissionSources: string;
+    ofTotal: string;
+    fuelBreakdown: string;
   };
 
   // Notifications Screen
@@ -434,6 +590,8 @@ export interface StringDictionary {
     yesFollowedExactly: string;
     noUsedDifferent: string;
     enterActualValues: string;
+    amountQuestion: string;
+    timeQuestion: string;
     amountInvalid: string;
     // Card-level display strings
     pendingRecommendation: string;
@@ -441,7 +599,143 @@ export interface StringDictionary {
     urgencyHigh: string;
     urgencyMedium: string;
     urgencyLow: string;
+    urgencyCritical: string;
     lastIrrigation: string;
+    irrigationRecommended: string;
+    whyRecommended: string;
+    defaultReasoning: string;
+    // Manual irrigation
+    manualIrrigation: string;
+    manualIrrigationDesc: string;
+    manualAmount: string;
+    manualDuration: string;
+    manualTime: string;
+    manualSaved: string;
+    manualSaveFailed: string;
+    recommendButton: string;
+    recommendationRunning: string;
+    recommendationGenerated: string;
+    recommendationFailed: string;
+    noZonesFound: string;
+    noPlantingError: string;
+    zonesSuccess: string;
+    zonesFailed: string;
+    enterDuration: string;
+    cancel: string;
+  };
+
+  // Add Field
+  addField: {
+    addNewField: string;
+    selectFieldType: string;
+    greenhouse: string;
+    greenhouseDesc: string;
+    potArea: string;
+    potAreaDesc: string;
+    fieldName: string;
+    fieldNamePlaceholder: string;
+    cropName: string;
+    cropNamePlaceholder: string;
+    next: string;
+    drawBoundary: string;
+    drawBoundaryHint: string;
+    drawZones: string;
+    drawZonesHint: string;
+    addZone: string;
+    zoneName: string;
+    zoneNamePlaceholder: string;
+    closePolygon: string;
+    undoPoint: string;
+    clearAll: string;
+    deleteZone: string;
+    potCount: string;
+    potCountPlaceholder: string;
+    potCountHint: string;
+    preview: string;
+    fieldNameLabel: string;
+    fieldTypeLabel: string;
+    zoneCountLabel: string;
+    potCountLabel: string;
+    cropLabel: string;
+    createField: string;
+    creating: string;
+    fieldCreated: string;
+    fieldCreateError: string;
+    nameRequired: string;
+    minPoints: string;
+    minOneZone: string;
+    potCountPositive: string;
+    potCountMax: string;
+    zoneNameRequired: string;
+    splitZonesHint: string;
+    splitFailed: string;
+    cancelSplit: string;
+    selectSecondPoint: string;
+    plantingTitle: string;
+    plantingHint: string;
+    plantingDateLabel: string;
+    plantingDateRequired: string;
+    selectCrop: string;
+    selectDate: string;
+    noCrops: string;
+    growthDays: string;
+  };
+
+  // Register Screen
+  register: {
+    stepUserInfo: string;
+    usernamePlaceholder: string;
+    emailPlaceholder: string;
+    passwordPlaceholder: string;
+    confirmPasswordPlaceholder: string;
+    createAccountButton: string;
+    backToLogin: string;
+    connectingToServer: string;
+    registering: string;
+    errorEmptyFields: string;
+    errorInvalidEmail: string;
+    errorPasswordTooShort: string;
+    errorPasswordMismatch: string;
+    errorRegistrationFailed: string;
+    errorConnectionFailed: string;
+  };
+
+  // Empty Farm State / Create Farm
+  farm: {
+    addFarm: string;
+    farmNamePlaceholder: string;
+    createFarm: string;
+    creating: string;
+    farmCreated: string;
+    farmCreateError: string;
+    farmNameRequired: string;
+    selectLocation: string;
+    selectLocationHint: string;
+    latitude: string;
+    longitude: string;
+    altitude: string;
+    altitudeHint: string;
+    altitudeFetchFailed: string;
+    fetchingAltitude: string;
+    locationRequired: string;
+    altitudeRequired: string;
+    searchPlaceholder: string;
+    searchNoResults: string;
+  };
+  onboarding: {
+    chooseTitle: string;
+    chooseSubtitle: string;
+    createCardTitle: string;
+    createCardDesc: string;
+    joinCardTitle: string;
+    joinCardDesc: string;
+    joinTitle: string;
+    joinSubtitle: string;
+    joinCodePlaceholder: string;
+    joinButton: string;
+    joinSuccess: string;
+    joinError: string;
+    joinEmptyCode: string;
   };
 }
 
@@ -468,12 +762,13 @@ const tr: StringDictionary = {
     usernamePlaceholder: "Kullanıcı Adı",
     passwordPlaceholder: "Şifre",
     confirmPasswordPlaceholder: "Şifre Tekrar",
+    farmNamePlaceholder: "Çiftlik Adı",
     loginButton: "Giriş Yap",
     registerButton: "Kayıt Ol",
     skipButton: "Demo modu ile devam et",
-    localDemoButton: "Local Demo",
+    localDemoButton: "Yerel Demo",
     localDemoSubtitle: "Tamamen yerel — hesap gerekmez",
-    awsDemoButton: "Canlı Sunucu Demo",
+    awsDemoButton: "Canlı Demo",
     awsDemoSubtitle: "Bulutta canlı sensör verileriyle örnek hesap",
     demoOnlyHeading: "Demoyu Keşfet",
     demoOnlyBody: "TARAS'ı nasıl deneyimleyeceğini seç",
@@ -502,11 +797,23 @@ const tr: StringDictionary = {
     dataSourceAWS: "AWS",
     dataSourceDemo: "DEMO",
     lastReading: "Son okuma",
+    noFieldsTitle: "Bu çiftlikte henüz tarla yok",
+    noFieldsSubtitle: "Başlamak için yeni bir tarla ekleyin",
+    addField: "Tarla Ekle",
+    fieldOverview: "Tarla Geneli",
+    tapZoneHint: "Detay için bir bölge seçin",
+    irrigation: "Sulama",
+    now: "Şimdi",
+    unitMin: "dk",
+    unitHr: "sa",
+    unitDay: "g",
+    lastUpdated: "Son güncelleme",
   },
 
   disease: {
     noAnalysisYet: "Henüz analiz yok",
     noAnalysisSubtitle: "Yaprak fotoğrafı çekerek hastalık tespiti başlatın",
+    takePhotoButton: "Fotoğraf çek",
     loadingResults: "Yükleniyor...",
     errorLoadingResults: "Hata: Sonuçlar yüklenemedi",
     sentForAnalysis:
@@ -579,14 +886,17 @@ const tr: StringDictionary = {
     correctionTargetSpot: "Hedef leke",
     correctionYellowLeafCurlVirus: "Sarı yaprak kıvırcık virüsü",
     foldersSectionTitle: "Takip Klasörleri",
-    foldersEmpty: "Henüz aktif klasör yok. Bir hastalığı zamanla takip etmek için klasör oluşturun.",
+    foldersEmpty:
+      "Henüz aktif klasör yok. Bir hastalığı zamanla takip etmek için klasör oluşturun.",
     generalSectionTitle: "Genel Tespitler",
+    showMore: "daha göster",
     folderCreateButton: "Yeni",
     folderCreateTitle: "Takip Klasörü Oluştur",
     folderCreateHelper: "Bölge seçin",
     folderCreateZoneLabel: "Bölge",
     folderCreateZoneLoadError: "Bölgeler yüklenemedi.",
-    folderCreateNoZones: "Hiç bölge bulunamadı. Önce çiftlik / tarla / bölge yapınızı kurun.",
+    folderCreateNoZones:
+      "Hiç bölge bulunamadı. Önce çiftlik / tarla / bölge yapınızı kurun.",
     folderCreateNameLabel: "Klasör Adı",
     folderCreateNamePlaceholder: "örn. Domates erken yanıklık takibi",
     folderCreateNamePlaceholderEmpty: "Önce bir bölge seçin",
@@ -594,7 +904,8 @@ const tr: StringDictionary = {
     folderCreatePickZone: "Lütfen önce bir bölge seçin.",
     folderCreateNameRequired: "Klasör adı zorunlu.",
     folderCreateSuccess: "Klasör oluşturuldu.",
-    folderCreateDuplicateName: "Bu bölgenin aktif ekiminde aynı isimli bir klasör zaten var.",
+    folderCreateDuplicateName:
+      "Bu bölgenin aktif ekiminde aynı isimli bir klasör zaten var.",
     folderCreateNoActivePlanting: "Bu bölgede aktif bir ekim yok.",
     folderCreateGenericError: "Klasör oluşturulamadı.",
     folderPhotoSingular: "fotoğraf",
@@ -605,7 +916,8 @@ const tr: StringDictionary = {
     folderDetailTimeline: "Zaman Çizelgesi",
     folderDetailEmpty: "Henüz fotoğraf yok.",
     folderDeactivateTitle: "Klasörü Arşivle?",
-    folderDeactivateConfirmation: "{name} arşivlenecek. Fotoğraflar ve tespitler korunur.",
+    folderDeactivateConfirmation:
+      "{name} arşivlenecek. Fotoğraflar ve tespitler korunur.",
     folderDeactivateConfirm: "Arşivle",
     folderDeactivateSuccess: "Klasör arşivlendi.",
     folderDeactivateError: "Klasör arşivlenemedi.",
@@ -652,21 +964,25 @@ const tr: StringDictionary = {
     noFieldSelected: "Tarla seçilmedi",
     loadingSensorData: "Sensör verileri yükleniyor...",
     loadFailed: "Veri Yüklenemedi",
-    noDataYet: "Bu tarla için henüz veri bulunmuyor",
+    noDataYet: "Henüz veri yok",
     connectionError: "Bağlantı hatası: ",
     unknownError: "Bilinmeyen hata",
     pullToRefresh: "Yenilemek için aşağı çekin",
     last72Hours: "Son 72 Saat",
     table: "Tablo",
+    charts: "Grafikler",
     temperature: "Sıcaklık (°C)",
+    temperatureShort: "Sıcaklık",
     humidity: "Nem (%)",
+    humidityShort: "Nem",
     soilMoisture: "Toprak Nemi (%)",
+    soilMoistureShort: "Toprak Nemi",
     shareCSV: "CSV Paylaş",
     sensorData: "Sensör Verileri",
     total: "Toplam",
     showing: "Gösterilen",
     time: "Zaman",
-    node: "Node",
+    node: "Düğüm",
     interpolated: "Ara Değerli",
     pointsOf: "nokta",
     points: "nokta",
@@ -682,6 +998,25 @@ const tr: StringDictionary = {
     hours: "Saat",
     dateTime: "Tarih/Saat",
     rawMoisture: "Ham Nem",
+    filters: "Filtreler",
+    timeRange: "Zaman Aralığı",
+    metrics: "Ölçümler",
+    zones: "Bölgeler",
+    selectAll: "Tümünü Seç",
+    applyFilters: "Uygula",
+    resetFilters: "Sıfırla",
+    aggregationMode: "Gruplama",
+    modePerNode: "Düğüm Bazında",
+    modePerZone: "Bölge Ortalaması",
+    modeFieldAvg: "Tarla Ortalaması",
+    allHidden: "Tüm seriler gizli — efsane çiplerine dokunarak açın",
+    summary: "Özet",
+    avg: "Ort",
+    min: "Min",
+    max: "Maks",
+    readings: "okuma",
+    custom: "Özel…",
+    selectNone: "Hiçbiri",
   },
 
   nav: {
@@ -689,11 +1024,84 @@ const tr: StringDictionary = {
     timetable: "Çizelge",
     home: "Ana Sayfa",
     disease: "Hastalık",
-    settings: "Ayarlar",
+    settings: "Hesap",
   },
 
   settings: {
-    title: "Ayarlar",
+    title: "Hesap",
+    account: "Hesap",
+    role: "Rol",
+    roleFarmer: "Çiftçi",
+    roleAdmin: "Yönetici",
+    roleUser: "Kullanıcı",
+    roleStakeholder: "Paydaş",
+    farmRoleOwner: "Sahip",
+    farmRoleStakeholder: "Paydaş",
+    farmRoleFarmer: "Çiftçi",
+    stakeholder: {
+      manageTitle: "Paydaş Erişimi",
+      redeemTitle: "Çiftlik Davetini Kullan",
+      codePlaceholder: "Davet kodu",
+      redeemButton: "Kodu Kullan",
+      redeemedMsg: "Erişim verildi",
+      invalidMsg: "Geçersiz veya süresi dolmuş kod",
+      generateButton: "Davet Kodu Oluştur",
+      codeHint: "Bu kodu paydaşla paylaşın (7 gün geçerli, tek kullanımlık).",
+      copiedMsg: "Kod kopyalandı",
+      noneYet: "Henüz paydaş yok",
+      revokeButton: "Kaldır",
+      revokedMsg: "Erişim kaldırıldı",
+      revokeCodeButton: "Bu kodu iptal et",
+      codeRevokedMsg: "Kod iptal edildi",
+      selectFarmFirst: "Önce bir çiftlik seçin",
+      viewerNote: "Salt-okunur erişiminiz var.",
+      membersTitle: "Üyeler",
+      membersSubtitle: "Bu çiftliği görebilen kişiler ve rolleri.",
+      invitesTitle: "Davet Kodları",
+      invitesSubtitle: "Bu çiftlik için ürettiğiniz davet kodları.",
+      youLabel: "Siz",
+      expiresLabel: "Sona erer",
+      noInvitesYet: "Henüz davet kodu yok",
+      inviteStatusPending: "Aktif",
+      inviteStatusAccepted: "Kullanıldı",
+      inviteStatusExpired: "Süresi doldu",
+      inviteStatusRevoked: "İptal edildi",
+      removeMemberConfirmTitle: "Üyeyi kaldır",
+      removeMemberConfirmMessage: "bu çiftliğe erişimini kaybedecek.",
+      makeFarmerTitle: "Çiftçi yap",
+      makeFarmerMessage:
+        "Foto gönderme, karbon girişi ve sulama işlemleri yapabilecek. Silme, üye yönetimi ve tarla oluşturma yalnızca sahibe açıktır.",
+      makeStakeholderTitle: "Paydaş yap",
+      makeStakeholderMessage: "Yalnızca görüntüleme ve sohbet erişimi kalacak.",
+      changeRoleButton: "Değiştir",
+      roleChangedMsg: "Rol güncellendi",
+      inviteRoleLabel: "Davet rolü",
+      inviteRoleHint:
+        "Çiftçi: foto, karbon ve sulama. Paydaş: salt-okunur görüntüleme + sohbet.",
+    },
+    locationManagement: "Konum Yönetimi",
+    currentFarm: "Mevcut Çiftlik",
+    currentField: "Mevcut Tarla",
+    farmManagement: "Çiftlik Yönetimi",
+    activeFarm: "Aktif Çiftlik",
+    noFarmSelected: "Henüz çiftlik seçilmedi",
+    noFarmCreated: "Henüz çiftlik oluşturulmadı",
+    fieldsConnected: "tarla bağlı",
+    createNewFarm: "Yeni Çiftlik Oluştur",
+    deleteFarm: "Çiftliği Sil",
+    deleteFarmConfirmTitle: "Çiftliği Sil",
+    deleteFarmConfirmMessage:
+      "Bu çiftlik ve tüm tarlalar kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    deleteField: "Tarlayı Sil",
+    deleteFieldConfirmTitle: "Tarlayı Sil",
+    deleteFieldConfirmMessage:
+      "Bu tarla kalıcı olarak silinecek. Bu işlem geri alınamaz.",
+    deleteConfirm: "Sil",
+    fieldManagement: "Tarla Yönetimi",
+    noFields: "Bu çiftlikte henüz tarla yok",
+    hardwareSubtitle: "Sensör ve gateway bağlantılarını yönet",
+    appPreferences: "Uygulama Ayarları",
+    privacySection: "Gizlilik ve Katkı",
     themeMode: "Tema Modu",
     themeLight: "Açık",
     themeDark: "Koyu",
@@ -702,7 +1110,29 @@ const tr: StringDictionary = {
     languageTurkish: "Türkçe",
     languageEnglish: "English",
     datasetConsentTitle: "TARAS'ı geliştirmeye yardım et",
-    datasetConsentSubtitle: "Çektiğin yaprak fotoğrafları gelecekteki model eğitiminde kullanılabilir. İstediğin zaman kapatabilirsin.",
+    datasetConsentSubtitle:
+      "İzin verirsen, analize gönderdiğin fotoğraflar sonuçlarımızı iyileştirmek için kullanılabilir.",
+    editProfile: "Düzenle",
+    editProfileTitle: "Profil Detayları",
+    usernameLabel: "Kullanıcı Adı",
+    emailLabel: "E-posta",
+    passwordLabel: "Şifre",
+    passwordPlaceholder: "Değiştirmek istemiyorsan boş bırak",
+    saveChanges: "Kaydet",
+    profileUpdated: "Profil güncellendi",
+    profileUpdateFailed: "Profil güncellenemedi",
+    currentPasswordLabel: "Mevcut Şifre",
+    newPasswordLabel: "Yeni Şifre",
+    confirmPasswordHint: "Bu değişikliği onaylamak için mevcut şifreni gir",
+    passwordChanged: "Şifre değiştirildi",
+    wrongPassword: "Mevcut şifre yanlış",
+    usernameOrEmailTaken: "Bu kullanıcı adı veya e-posta zaten kullanımda",
+    passwordTooShort: "Şifre en az 8 karakter olmalı",
+    enterCurrentPassword: "Lütfen mevcut şifreni gir",
+    datasetConsentDisableTitle: "Emin misin?",
+    datasetConsentDisableMessage:
+      "Bundan sonra gönderdiğin fotoğraflar TARAS'ı iyileştirmek için kullanılmayacak. Daha önce gönderilenler için verdiğin izin geçerliliğini korur.",
+    datasetConsentDisableConfirm: "Kapat",
     logout: "Çıkış Yap",
   },
 
@@ -744,7 +1174,8 @@ const tr: StringDictionary = {
     waitingGateway: "Gateway bekleniyor...",
     testingWifi: "WiFi test ediliyor...",
     wifiFailed: "WiFi bağlantısı başarısız. SSID ve şifreyi kontrol edin.",
-    backendUnreachable: "Backend sunucusuna ulaşılamıyor. İnternet bağlantısını kontrol edin.",
+    backendUnreachable:
+      "Backend sunucusuna ulaşılamıyor. İnternet bağlantısını kontrol edin.",
     provisionFailed: "Yapılandırma başarısız.",
     online: "Çevrimiçi",
     offline: "Çevrimdışı",
@@ -753,7 +1184,8 @@ const tr: StringDictionary = {
     firmwareUpToDate: "Güncel",
     updateAvailable: "Güncelleme mevcut",
     updateConfirmTitle: "Yazılım Güncellemesi",
-    updateConfirmMessage: "Gateway v{version} sürümüne güncellensin mi? Gateway yeniden başlatılacak.",
+    updateConfirmMessage:
+      "Gateway v{version} sürümüne güncellensin mi? Gateway yeniden başlatılacak.",
     updating: "Yazılım güncelleniyor...",
     updateSuccess: "Yazılım başarıyla güncellendi!",
     updateFailed: "Yazılım güncellemesi başarısız",
@@ -767,6 +1199,24 @@ const tr: StringDictionary = {
     history: "Geçmiş Sohbetler",
     historyEmpty: "Henüz sohbet geçmişi yok",
     readMore: "Tümünü gör",
+    deleteConfirmTitle: "Sohbeti sil",
+    deleteConfirmMessage: "Bu sohbet kalıcı olarak silinecek. Devam et?",
+    deleteConfirmButton: "Sil",
+    deletedMsg: "Sohbet silindi",
+    deleteFailedMsg: "Sohbet silinemedi",
+    actionGo: "Git",
+    actionApply: "Uygula",
+    actionAccept: "Onayla",
+    actionCancel: "İptal",
+    actionDone: "Tamamlandı",
+    actionCancelled: "İptal edildi",
+    actionFieldSelected: "seçildi",
+    actionThemeApplied: "Tema uygulandı",
+    actionLogSaved: "Karbon kaydı eklendi",
+    actionLogFailed: "Kayıt eklenemedi",
+    actionVerbOpen: "Aç",
+    actionVerbSwitch: "Geç",
+    actionVerbSet: "Ayarla",
   },
 
   errors: {
@@ -820,6 +1270,9 @@ const tr: StringDictionary = {
     categoryFuel: "Yakıt",
     categoryFertilizer: "Gübre",
     categoryElectricity: "Elektrik",
+    emissionSources: "Emisyon Kaynakları",
+    ofTotal: "toplam",
+    fuelBreakdown: "Yakıt Detayları",
   },
 
   notifications: {
@@ -858,7 +1311,8 @@ const tr: StringDictionary = {
     reasoning: "Gerekçe",
     recommendationTime: "Öneri Zamanı",
     noActiveRecommendation: "Aktif öneri yok",
-    noActiveRecommendationSub: "Bu bölge için bekleyen sulama önerisi bulunmuyor.",
+    noActiveRecommendationSub:
+      "Bu bölge için bekleyen sulama önerisi bulunmuyor.",
     noIrrigationNeeded: "Sulama gerekmiyor",
     noIrrigationNeededSub: "Sistem kontrol etti, şu an sulama gerekmiyor.",
     lastChecked: "Son kontrol",
@@ -866,13 +1320,147 @@ const tr: StringDictionary = {
     yesFollowedExactly: "Evet, öneri miktarı ve zamanında suladım",
     noUsedDifferent: "Hayır, farklı değerler kullandım",
     enterActualValues: "Gerçek değerleri girin",
+    amountQuestion: "Sulamayı önerdiğimiz miktarda mı yaptınız?",
+    timeQuestion: "Sulamayı önerdiğimiz zamanda mı yaptınız?",
     amountInvalid: "Geçerli bir miktar girin (0'dan büyük)",
     pendingRecommendation: "Sulama önerisi mevcut",
     noSuggestion: "Yeni öneri yok",
     urgencyHigh: "Yüksek",
     urgencyMedium: "Orta",
     urgencyLow: "Düşük",
+    urgencyCritical: "Kritik",
+    irrigationRecommended: "sulama öneriliyor",
+    whyRecommended: "Neden önerildi?",
+    defaultReasoning:
+      "Toprak nemi hedef seviyenin altında olduğu için sulama önerildi. Miktar, bölge kalibrasyonuna göre hesaplandı.",
     lastIrrigation: "Son Sulama",
+    manualIrrigation: "Manuel Sulama",
+    manualIrrigationDesc: "Öneri olmadan sulama kaydı oluşturun",
+    manualAmount: "Sulama Miktarı (ml)",
+    manualDuration: "Sulama Süresi (dk)",
+    manualTime: "Sulama Zamanı",
+    manualSaved: "Manuel sulama kaydedildi!",
+    manualSaveFailed: "Manuel sulama kaydedilemedi",
+    recommendButton: "Sulama Öner",
+    recommendationRunning: "Hesaplanıyor...",
+    recommendationGenerated: "Sulama önerileri oluşturuldu",
+    recommendationFailed: "Öneri oluşturulamadı",
+    noZonesFound: "Bu tarlada bölge bulunamadı",
+    noPlantingError: "Bölgelerde aktif ekim kaydı yok. Önce ekim ekleyin.",
+    zonesSuccess: "bölge başarılı",
+    zonesFailed: "başarısız",
+    enterDuration: "Süreyi girin",
+    cancel: "İptal",
+  },
+
+  addField: {
+    addNewField: "Yeni Tarla Ekle",
+    selectFieldType: "Tarla Tipi Seçin",
+    greenhouse: "Sera",
+    greenhouseDesc: "Poligon sınırı ve bölgeler çizin",
+    potArea: "Saksı Alanı",
+    potAreaDesc: "Saksı sayısını girin, otomatik yerleşim",
+    fieldName: "Tarla Adı",
+    fieldNamePlaceholder: "örn. Sera 1",
+    cropName: "Mahsul Tipi",
+    cropNamePlaceholder: "örn. Domates",
+    next: "İleri",
+    drawBoundary: "Dış Sınırı Çizin",
+    drawBoundaryHint: "Dokunarak en az 3 nokta ekleyin",
+    drawZones: "Bölgeleri Çizin",
+    drawZonesHint: "Sınır içinde bölge poligonları çizin",
+    addZone: "Bölge Ekle",
+    zoneName: "Bölge Adı",
+    zoneNamePlaceholder: "örn. Bölge 1",
+    closePolygon: "Poligonu Kapat",
+    undoPoint: "Geri Al",
+    clearAll: "Temizle",
+    deleteZone: "Sil",
+    potCount: "Saksı Sayısı",
+    potCountPlaceholder: "örn. 20",
+    potCountHint: "Her saksı bir bölge olarak oluşturulur",
+    preview: "Ön İzleme",
+    fieldNameLabel: "Tarla Adı",
+    fieldTypeLabel: "Tarla Tipi",
+    zoneCountLabel: "Bölge Sayısı",
+    potCountLabel: "Saksı Sayısı",
+    cropLabel: "Mahsul",
+    createField: "Tarlayı Oluştur",
+    creating: "Oluşturuluyor...",
+    fieldCreated: "Tarla başarıyla oluşturuldu!",
+    fieldCreateError: "Tarla oluşturulamadı",
+    nameRequired: "Tarla adı zorunludur",
+    minPoints: "En az 3 nokta gereklidir",
+    minOneZone: "En az 1 bölge gereklidir",
+    potCountPositive: "Saksı sayısı pozitif bir sayı olmalıdır",
+    potCountMax: "En fazla 32 saksı eklenebilir",
+    zoneNameRequired: "Bölge adı zorunludur",
+    splitZonesHint: "Bölmek istediğiniz iki noktaya dokunun",
+    splitFailed: "Bölme başarısız — farklı noktalar seçin",
+    cancelSplit: "İptal",
+    selectSecondPoint: "İkinci noktayı seçin",
+    plantingTitle: "Ekim Bilgileri",
+    plantingHint: "Her bölge için mahsul ve ekim tarihini girin",
+    plantingDateLabel: "Ekim Tarihi",
+    plantingDateRequired: "Tüm bölgelerde ekim tarihi zorunludur",
+    selectCrop: "Mahsul seçin (opsiyonel)",
+    selectDate: "Tarih seçin",
+    noCrops: "Henüz mahsul tanımlanmamış",
+    growthDays: "gün",
+  },
+  register: {
+    stepUserInfo: "Hesap Bilgileri",
+    usernamePlaceholder: "Kullanıcı Adı",
+    emailPlaceholder: "E-posta",
+    passwordPlaceholder: "Şifre",
+    confirmPasswordPlaceholder: "Şifre Tekrar",
+    createAccountButton: "Hesap Oluştur",
+    backToLogin: "Zaten hesabınız var mı? Giriş Yapın",
+    connectingToServer: "Sunucuya bağlanılıyor...",
+    registering: "Hesap oluşturuluyor...",
+    errorEmptyFields: "Lütfen tüm alanları doldurun",
+    errorInvalidEmail: "Geçerli bir e-posta adresi girin",
+    errorPasswordTooShort: "Şifre en az 8 karakter olmalıdır",
+    errorPasswordMismatch: "Şifreler eşleşmiyor",
+    errorRegistrationFailed: "Kayıt başarısız oldu",
+    errorConnectionFailed: "Sunucuya bağlanılamadı",
+  },
+  farm: {
+    addFarm: "Çiftlik Ekle",
+    farmNamePlaceholder: "Çiftlik Adı",
+    createFarm: "Çiftlik Oluştur",
+    creating: "Oluşturuluyor...",
+    farmCreated: "Çiftlik başarıyla oluşturuldu!",
+    farmCreateError: "Çiftlik oluşturulamadı",
+    farmNameRequired: "Çiftlik adı zorunludur",
+    selectLocation: "Konum Seçin",
+    selectLocationHint: "Haritada çiftlik konumuna dokunun",
+    latitude: "Enlem",
+    longitude: "Boylam",
+    altitude: "Yükseklik (m)",
+    altitudeHint: "Koordinat seçildikten sonra otomatik doldurulur",
+    altitudeFetchFailed: "Yükseklik otomatik alınamadı. Lütfen elle girin.",
+    fetchingAltitude: "Yükseklik alınıyor...",
+    locationRequired: "Haritadan konum seçmelisiniz",
+    altitudeRequired: "Yükseklik değeri gereklidir",
+    searchPlaceholder: "İl veya ilçe ara...",
+    searchNoResults: "Sonuç bulunamadı",
+  },
+  onboarding: {
+    chooseTitle: "Nasıl başlamak istersiniz?",
+    chooseSubtitle:
+      "Kendi çiftliğinizi oluşturun ya da bir davet koduyla mevcut bir çiftliğe katılın.",
+    createCardTitle: "Çiftlik Oluştur",
+    createCardDesc: "Kendi çiftliğinizi kurun ve yönetin.",
+    joinCardTitle: "Çiftliğe Katıl",
+    joinCardDesc: "Davet koduyla bir çiftliği görüntüleyin.",
+    joinTitle: "Davet Kodu Gir",
+    joinSubtitle: "Çiftçinin sizinle paylaştığı kodu girin.",
+    joinCodePlaceholder: "Davet kodu",
+    joinButton: "Katıl",
+    joinSuccess: "Çiftliğe katıldınız!",
+    joinError: "Kod geçersiz veya süresi dolmuş.",
+    joinEmptyCode: "Lütfen bir davet kodu girin.",
   },
 };
 
@@ -899,12 +1487,13 @@ const en: StringDictionary = {
     usernamePlaceholder: "Username",
     passwordPlaceholder: "Password",
     confirmPasswordPlaceholder: "Confirm Password",
+    farmNamePlaceholder: "Farm Name",
     loginButton: "Log In",
     registerButton: "Sign Up",
     skipButton: "Continue with Demo Mode",
     localDemoButton: "Local Demo",
     localDemoSubtitle: "Fully offline — no account needed",
-    awsDemoButton: "Live Server Demo",
+    awsDemoButton: "Live Demo",
     awsDemoSubtitle: "Sample cloud account with live sensor data",
     demoOnlyHeading: "Try TARAS",
     demoOnlyBody: "Choose how to explore TARAS",
@@ -934,11 +1523,23 @@ const en: StringDictionary = {
     dataSourceAWS: "AWS",
     dataSourceDemo: "DEMO",
     lastReading: "Last reading",
+    noFieldsTitle: "No fields in this farm yet",
+    noFieldsSubtitle: "Add a new field to get started",
+    addField: "Add Field",
+    fieldOverview: "Field Overview",
+    tapZoneHint: "Tap a zone for details",
+    irrigation: "Irrigation",
+    now: "Now",
+    unitMin: "m",
+    unitHr: "h",
+    unitDay: "d",
+    lastUpdated: "Last updated",
   },
 
   disease: {
     noAnalysisYet: "No analysis yet",
     noAnalysisSubtitle: "Take a leaf photo to start disease detection",
+    takePhotoButton: "Take photo",
     loadingResults: "Loading...",
     errorLoadingResults: "Error: Could not load results",
     sentForAnalysis:
@@ -1010,14 +1611,17 @@ const en: StringDictionary = {
     correctionTargetSpot: "Target spot",
     correctionYellowLeafCurlVirus: "Yellow leaf curl virus",
     foldersSectionTitle: "Tracking Folders",
-    foldersEmpty: "No active folders yet. Create one to track a disease over time.",
+    foldersEmpty:
+      "No active folders yet. Create one to track a disease over time.",
     generalSectionTitle: "General Detections",
+    showMore: "more",
     folderCreateButton: "New",
     folderCreateTitle: "Create Tracking Folder",
     folderCreateHelper: "Select a zone",
     folderCreateZoneLabel: "Zone",
     folderCreateZoneLoadError: "Failed to load zones.",
-    folderCreateNoZones: "No zones found. Set up your farm / field / zone structure first.",
+    folderCreateNoZones:
+      "No zones found. Set up your farm / field / zone structure first.",
     folderCreateNameLabel: "Folder Name",
     folderCreateNamePlaceholder: "e.g. Tomato early blight watch",
     folderCreateNamePlaceholderEmpty: "Pick a zone first",
@@ -1025,7 +1629,8 @@ const en: StringDictionary = {
     folderCreatePickZone: "Please pick a zone first.",
     folderCreateNameRequired: "Folder name is required.",
     folderCreateSuccess: "Folder created.",
-    folderCreateDuplicateName: "A folder with this name already exists for this zone's planting.",
+    folderCreateDuplicateName:
+      "A folder with this name already exists for this zone's planting.",
     folderCreateNoActivePlanting: "This zone has no active planting.",
     folderCreateGenericError: "Could not create folder.",
     folderPhotoSingular: "photo",
@@ -1036,7 +1641,8 @@ const en: StringDictionary = {
     folderDetailTimeline: "Timeline",
     folderDetailEmpty: "No photos yet.",
     folderDeactivateTitle: "Archive Folder?",
-    folderDeactivateConfirmation: "{name} will be archived. Photos and detections are preserved.",
+    folderDeactivateConfirmation:
+      "{name} will be archived. Photos and detections are preserved.",
     folderDeactivateConfirm: "Archive",
     folderDeactivateSuccess: "Folder archived.",
     folderDeactivateError: "Could not archive folder.",
@@ -1083,15 +1689,19 @@ const en: StringDictionary = {
     noFieldSelected: "No field selected",
     loadingSensorData: "Loading sensor data...",
     loadFailed: "Load Failed",
-    noDataYet: "No data available for this field yet",
+    noDataYet: "No data yet",
     connectionError: "Connection error: ",
     unknownError: "Unknown error",
     pullToRefresh: "Pull down to refresh",
     last72Hours: "Last 72 Hours",
     table: "Table",
+    charts: "Charts",
     temperature: "Temperature (°C)",
+    temperatureShort: "Temperature",
     humidity: "Humidity (%)",
+    humidityShort: "Humidity",
     soilMoisture: "Soil Moisture (%)",
+    soilMoistureShort: "Soil Moisture",
     shareCSV: "Share CSV",
     sensorData: "Sensor Data",
     total: "Total",
@@ -1113,6 +1723,25 @@ const en: StringDictionary = {
     hours: "Hours",
     dateTime: "Date/Time",
     rawMoisture: "Raw Moisture",
+    filters: "Filters",
+    timeRange: "Time Range",
+    metrics: "Metrics",
+    zones: "Zones",
+    selectAll: "Select All",
+    applyFilters: "Apply",
+    resetFilters: "Reset",
+    aggregationMode: "Grouping",
+    modePerNode: "Per Node",
+    modePerZone: "Zone Average",
+    modeFieldAvg: "Field Average",
+    allHidden: "All series hidden — tap legend chips to show",
+    summary: "Summary",
+    avg: "Avg",
+    min: "Min",
+    max: "Max",
+    readings: "readings",
+    custom: "Custom…",
+    selectNone: "None",
   },
 
   nav: {
@@ -1120,11 +1749,86 @@ const en: StringDictionary = {
     timetable: "Schedule",
     home: "Home",
     disease: "Disease",
-    settings: "Settings",
+    settings: "Account",
   },
 
   settings: {
-    title: "Settings",
+    title: "Account",
+    account: "Account",
+    role: "Role",
+    roleFarmer: "Farmer",
+    roleAdmin: "Admin",
+    roleUser: "User",
+    roleStakeholder: "Stakeholder",
+    farmRoleOwner: "Owner",
+    farmRoleStakeholder: "Stakeholder",
+    farmRoleFarmer: "Farmer",
+    stakeholder: {
+      manageTitle: "Stakeholder Access",
+      redeemTitle: "Redeem Farm Invite",
+      codePlaceholder: "Invite code",
+      redeemButton: "Redeem",
+      redeemedMsg: "Access granted",
+      invalidMsg: "Invalid or expired code",
+      generateButton: "Generate Invite Code",
+      codeHint:
+        "Share this code with the stakeholder (valid 7 days, single use).",
+      copiedMsg: "Code copied",
+      noneYet: "No stakeholders yet",
+      revokeButton: "Revoke",
+      revokedMsg: "Access revoked",
+      revokeCodeButton: "Revoke this code",
+      codeRevokedMsg: "Code revoked",
+      selectFarmFirst: "Select a farm first",
+      viewerNote: "You have read-only access.",
+      membersTitle: "Members",
+      membersSubtitle: "People who can view this farm and their roles.",
+      invitesTitle: "Invite Codes",
+      invitesSubtitle: "Invite codes you've generated for this farm.",
+      youLabel: "You",
+      expiresLabel: "Expires",
+      noInvitesYet: "No invite codes yet",
+      inviteStatusPending: "Active",
+      inviteStatusAccepted: "Used",
+      inviteStatusExpired: "Expired",
+      inviteStatusRevoked: "Revoked",
+      removeMemberConfirmTitle: "Remove member",
+      removeMemberConfirmMessage: "will lose access to this farm.",
+      makeFarmerTitle: "Make Farmer",
+      makeFarmerMessage:
+        "They'll be able to submit photos, log carbon, and run irrigation. Deleting, member management, and field creation stay owner-only.",
+      makeStakeholderTitle: "Make Stakeholder",
+      makeStakeholderMessage:
+        "They'll be limited to view and chat access only.",
+      changeRoleButton: "Change",
+      roleChangedMsg: "Role updated",
+      inviteRoleLabel: "Invite role",
+      inviteRoleHint:
+        "Farmer: photos, carbon, and irrigation. Stakeholder: read-only view + chat.",
+    },
+    locationManagement: "Location Management",
+    currentFarm: "Current Farm",
+    currentField: "Current Field",
+    farmManagement: "Farm Management",
+    activeFarm: "Active Farm",
+    noFarmSelected: "No farm selected",
+    noFarmCreated: "No farm created yet",
+    fieldsConnected: "fields connected",
+    createNewFarm: "Create New Farm",
+    deleteFarm: "Delete Farm",
+    deleteFarmConfirmTitle: "Delete Farm",
+    deleteFarmConfirmMessage:
+      "This farm and all its fields will be permanently deleted. This action cannot be undone.",
+    deleteField: "Delete Field",
+    deleteFieldConfirmTitle: "Delete Field",
+    deleteFieldConfirmMessage:
+      "This field will be permanently deleted. This action cannot be undone.",
+    deleteConfirm: "Delete",
+    fieldManagement: "Field Management",
+    noFields: "No fields in this farm yet",
+    hardwareSubtitle: "Manage sensor and gateway connections",
+    appPreferences: "App Preferences",
+    privacySection: "Privacy & Improvement",
     themeMode: "Theme Mode",
     themeLight: "Light",
     themeDark: "Dark",
@@ -1133,7 +1837,29 @@ const en: StringDictionary = {
     languageTurkish: "Türkçe",
     languageEnglish: "English",
     datasetConsentTitle: "Help improve TARAS",
-    datasetConsentSubtitle: "Your leaf photos may be used to train future disease-detection models. You can turn this off anytime.",
+    datasetConsentSubtitle:
+      "If you allow it, photos you upload for analysis may be used to improve our results.",
+    editProfile: "Edit",
+    editProfileTitle: "Profile Details",
+    usernameLabel: "Username",
+    emailLabel: "Email",
+    passwordLabel: "Password",
+    passwordPlaceholder: "Leave blank to keep current",
+    saveChanges: "Save",
+    profileUpdated: "Profile updated",
+    profileUpdateFailed: "Failed to update profile",
+    currentPasswordLabel: "Current Password",
+    newPasswordLabel: "New Password",
+    confirmPasswordHint: "Enter your current password to confirm this change",
+    passwordChanged: "Password changed",
+    wrongPassword: "Current password is incorrect",
+    usernameOrEmailTaken: "This username or email is already in use",
+    passwordTooShort: "Password must be at least 8 characters",
+    enterCurrentPassword: "Please enter your current password",
+    datasetConsentDisableTitle: "Are you sure?",
+    datasetConsentDisableMessage:
+      "From now on, photos you upload won't be used to improve TARAS. Photos you've already sent keep the consent you gave at the time.",
+    datasetConsentDisableConfirm: "Turn off",
     logout: "Log Out",
   },
 
@@ -1175,7 +1901,8 @@ const en: StringDictionary = {
     waitingGateway: "Waiting for gateway...",
     testingWifi: "Testing WiFi...",
     wifiFailed: "WiFi connection failed. Check SSID and password.",
-    backendUnreachable: "Cannot reach backend server. Check internet connection.",
+    backendUnreachable:
+      "Cannot reach backend server. Check internet connection.",
     provisionFailed: "Configuration failed.",
     online: "Online",
     offline: "Offline",
@@ -1184,7 +1911,8 @@ const en: StringDictionary = {
     firmwareUpToDate: "Up to date",
     updateAvailable: "Update available",
     updateConfirmTitle: "Firmware Update",
-    updateConfirmMessage: "Update gateway to v{version}? The gateway will restart.",
+    updateConfirmMessage:
+      "Update gateway to v{version}? The gateway will restart.",
     updating: "Updating firmware...",
     updateSuccess: "Firmware updated successfully!",
     updateFailed: "Firmware update failed",
@@ -1198,6 +1926,24 @@ const en: StringDictionary = {
     history: "Past Conversations",
     historyEmpty: "No conversation history yet",
     readMore: "Read more",
+    deleteConfirmTitle: "Delete chat",
+    deleteConfirmMessage: "This chat will be permanently deleted. Continue?",
+    deleteConfirmButton: "Delete",
+    deletedMsg: "Chat deleted",
+    deleteFailedMsg: "Failed to delete chat",
+    actionGo: "Go",
+    actionApply: "Apply",
+    actionAccept: "Accept",
+    actionCancel: "Cancel",
+    actionDone: "Done",
+    actionCancelled: "Cancelled",
+    actionFieldSelected: "selected",
+    actionThemeApplied: "Theme applied",
+    actionLogSaved: "Carbon log added",
+    actionLogFailed: "Could not add log",
+    actionVerbOpen: "Open",
+    actionVerbSwitch: "Switch to",
+    actionVerbSet: "Set",
   },
 
   errors: {
@@ -1251,6 +1997,9 @@ const en: StringDictionary = {
     categoryFuel: "Fuel",
     categoryFertilizer: "Fertilizer",
     categoryElectricity: "Electricity",
+    emissionSources: "Emission Sources",
+    ofTotal: "of total",
+    fuelBreakdown: "Fuel Breakdown",
   },
 
   notifications: {
@@ -1289,21 +2038,159 @@ const en: StringDictionary = {
     reasoning: "Reason",
     recommendationTime: "Recommendation Time",
     noActiveRecommendation: "No active recommendation",
-    noActiveRecommendationSub: "There is no pending irrigation recommendation for this zone.",
+    noActiveRecommendationSub:
+      "There is no pending irrigation recommendation for this zone.",
     noIrrigationNeeded: "No irrigation needed",
-    noIrrigationNeededSub: "System checked — no irrigation is required right now.",
+    noIrrigationNeededSub:
+      "System checked — no irrigation is required right now.",
     lastChecked: "Last checked",
-    confirmIrrigationQuestion: "Did you follow the irrigation recommendation exactly?",
+    confirmIrrigationQuestion:
+      "Did you follow the irrigation recommendation exactly?",
     yesFollowedExactly: "Yes, I irrigated with the recommended amount and time",
     noUsedDifferent: "No, I used different values",
     enterActualValues: "Enter your actual values",
+    amountQuestion: "Did you irrigate with our recommended amount?",
+    timeQuestion: "Did you irrigate at our recommended time?",
     amountInvalid: "Enter a valid amount (greater than 0)",
     pendingRecommendation: "Irrigation recommendation pending",
     noSuggestion: "No new irrigation suggestion",
     urgencyHigh: "High",
     urgencyMedium: "Medium",
     urgencyLow: "Low",
+    urgencyCritical: "Critical",
+    irrigationRecommended: "irrigation recommended",
+    whyRecommended: "Why recommended?",
+    defaultReasoning:
+      "Irrigation was recommended because soil moisture is below the target level. The amount was calculated based on zone calibration.",
     lastIrrigation: "Last Irrigation",
+    manualIrrigation: "Manual Irrigation",
+    manualIrrigationDesc: "Log irrigation without a recommendation",
+    manualAmount: "Irrigation Amount (ml)",
+    manualDuration: "Irrigation Duration (min)",
+    manualTime: "Irrigation Time",
+    manualSaved: "Manual irrigation saved!",
+    manualSaveFailed: "Manual irrigation save failed",
+    recommendButton: "Recommend Irrigation",
+    recommendationRunning: "Calculating...",
+    recommendationGenerated: "Irrigation recommendations generated",
+    recommendationFailed: "Failed to generate recommendations",
+    noZonesFound: "No zones found in this field",
+    noPlantingError: "No active planting in zones. Add a planting first.",
+    zonesSuccess: "zones succeeded",
+    zonesFailed: "failed",
+    enterDuration: "Enter duration",
+    cancel: "Cancel",
+  },
+
+  addField: {
+    addNewField: "Add New Field",
+    selectFieldType: "Select Field Type",
+    greenhouse: "Greenhouse",
+    greenhouseDesc: "Draw polygon boundary and zones",
+    potArea: "Pot Area",
+    potAreaDesc: "Enter pot count, auto-layout",
+    fieldName: "Field Name",
+    fieldNamePlaceholder: "e.g. Greenhouse 1",
+    cropName: "Crop Type",
+    cropNamePlaceholder: "e.g. Tomato",
+    next: "Next",
+    drawBoundary: "Draw Outer Boundary",
+    drawBoundaryHint: "Tap to place at least 3 points",
+    drawZones: "Draw Zones",
+    drawZonesHint: "Draw zone polygons inside the boundary",
+    addZone: "Add Zone",
+    zoneName: "Zone Name",
+    zoneNamePlaceholder: "e.g. Zone 1",
+    closePolygon: "Close Polygon",
+    undoPoint: "Undo",
+    clearAll: "Clear",
+    deleteZone: "Delete",
+    potCount: "Pot Count",
+    potCountPlaceholder: "e.g. 20",
+    potCountHint: "Each pot will be created as a zone",
+    preview: "Preview",
+    fieldNameLabel: "Field Name",
+    fieldTypeLabel: "Field Type",
+    zoneCountLabel: "Zone Count",
+    potCountLabel: "Pot Count",
+    cropLabel: "Crop",
+    createField: "Create Field",
+    creating: "Creating...",
+    fieldCreated: "Field created successfully!",
+    fieldCreateError: "Failed to create field",
+    nameRequired: "Field name is required",
+    minPoints: "At least 3 points are required",
+    minOneZone: "At least 1 zone is required",
+    potCountPositive: "Pot count must be a positive number",
+    potCountMax: "Maximum 32 pots allowed",
+    zoneNameRequired: "Zone name is required",
+    splitZonesHint: "Tap two points to split a zone",
+    splitFailed: "Split failed — try different points",
+    cancelSplit: "Cancel",
+    selectSecondPoint: "Select second point",
+    plantingTitle: "Planting Info",
+    plantingHint: "Set crop and planting date for each zone",
+    plantingDateLabel: "Planting Date",
+    plantingDateRequired: "Planting date is required for all zones",
+    selectCrop: "Select crop (optional)",
+    selectDate: "Select date",
+    noCrops: "No crops defined yet",
+    growthDays: "days",
+  },
+  register: {
+    stepUserInfo: "Account Details",
+    usernamePlaceholder: "Username",
+    emailPlaceholder: "Email",
+    passwordPlaceholder: "Password",
+    confirmPasswordPlaceholder: "Confirm Password",
+    createAccountButton: "Create Account",
+    backToLogin: "Already have an account? Log In",
+    connectingToServer: "Connecting to server...",
+    registering: "Creating account...",
+    errorEmptyFields: "Please fill in all required fields",
+    errorInvalidEmail: "Please enter a valid email address",
+    errorPasswordTooShort: "Password must be at least 8 characters",
+    errorPasswordMismatch: "Passwords do not match",
+    errorRegistrationFailed: "Registration failed",
+    errorConnectionFailed: "Could not connect to server",
+  },
+  farm: {
+    addFarm: "Add Farm",
+    farmNamePlaceholder: "Farm Name",
+    createFarm: "Create Farm",
+    creating: "Creating...",
+    farmCreated: "Farm created successfully!",
+    farmCreateError: "Failed to create farm",
+    farmNameRequired: "Farm name is required",
+    selectLocation: "Select Location",
+    selectLocationHint: "Tap on the map to pick farm location",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    altitude: "Altitude (m)",
+    altitudeHint: "Auto-filled after selecting a coordinate",
+    altitudeFetchFailed:
+      "Could not fetch altitude automatically. Please enter it manually.",
+    fetchingAltitude: "Fetching altitude...",
+    locationRequired: "You must select a location on the map",
+    altitudeRequired: "Altitude value is required",
+    searchPlaceholder: "Search city or district...",
+    searchNoResults: "No results found",
+  },
+  onboarding: {
+    chooseTitle: "How would you like to start?",
+    chooseSubtitle:
+      "Create your own farm, or join an existing one with an invite code.",
+    createCardTitle: "Create a Farm",
+    createCardDesc: "Set up and manage your own farm.",
+    joinCardTitle: "Join a Farm",
+    joinCardDesc: "View a farm with an invite code.",
+    joinTitle: "Enter Invite Code",
+    joinSubtitle: "Enter the code the farmer shared with you.",
+    joinCodePlaceholder: "Invite code",
+    joinButton: "Join",
+    joinSuccess: "Joined the farm!",
+    joinError: "Invalid or expired code.",
+    joinEmptyCode: "Please enter an invite code.",
   },
 };
 

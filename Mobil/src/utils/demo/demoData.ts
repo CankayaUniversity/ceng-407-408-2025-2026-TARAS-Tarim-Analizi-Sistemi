@@ -8,7 +8,7 @@ import type {
   Zone,
 } from "../api";
 import type { CarbonLog, ActivityType, CarbonSummary } from "../../screens/CarbonFootprint/types";
-import { recommendationsFor } from "./demoStorage";
+import { recommendationsFor, mapDiseaseLabelToTarget } from "./demoStorage";
 
 type PolygonGenerator = () => FieldPolygon;
 
@@ -219,6 +219,8 @@ export function generateDemoFieldData(
           moisture,
           airTemperature: 15 + rng() * 25,
           airHumidity: 20 + Math.floor(rng() * 70),
+          // Demo: bir zone 2, bir zone 3 sensor — pin yayilimini (cizgi/ucgen) goster
+          sensorCount: i === 1 ? 2 : i === 2 ? 3 : 1,
         });
         break;
       }
@@ -332,7 +334,8 @@ export function generateDemoDashboardData(fieldId: string): DashboardData {
     },
     sensors: {
       soilMoisture: avgMoisture,
-      nodeCount: fieldData.nodes.length,
+      // Toplam sensor sayisi (zone sayisi degil) — backend ile ayni semantik
+      nodeCount: fieldData.nodes.reduce((s, n) => s + (n.sensorCount ?? 1), 0),
       lastReadingTime: lastReadingDate.toISOString(),
     },
     field: fieldData,
@@ -674,7 +677,7 @@ function makeDetection(
     uploaded_at: completedAt,
     processing_started_at: completedAt,
     completed_at: completedAt,
-    detected_disease: topLabel,
+    detected_disease: mapDiseaseLabelToTarget(topLabel) ?? "OTHER",
     confidence: topConf,
     confidence_score: topConf,
     all_predictions: allPreds,

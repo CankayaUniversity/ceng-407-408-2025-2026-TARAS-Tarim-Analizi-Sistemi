@@ -3,6 +3,9 @@ import { getFieldContextForLLM } from "../services/tarasData.service";
 import { generateAdvisory, generateAdvisoryStream } from "../services/llm.service";
 import { saveMessage, getFieldSession, getSessionMessages } from "../services/chatMemory.service";
 import { asyncHandler } from "../middleware/error.middleware";
+import { resolveFieldAccess } from "../services/accessService";
+import { isDemoReadonlyUser } from "../middleware/demoReadonly";
+import type { TimetableFilterPayload, ChatAction } from "../services/llm/toolExecutor";
 import prisma from "../config/database";
 import logger from "../utils/logger";
 
@@ -22,14 +25,35 @@ try {
 const useAgenticGroq = ext && LLM_MODE === "groq";
 const useAgenticAnthropic = ext && LLM_MODE !== "groq";
 
+// Kaydedilmis mesaj metadata'sindan ({ events: [...] }) ham SSE event dizisini cikar.
+// Gecersiz/yok ise undefined — mobil bunu butonsuz mesaj olarak ele alir.
+function extractEvents(metadata: unknown): Record<string, unknown>[] | undefined {
+  if (
+    metadata &&
+    typeof metadata === "object" &&
+    Array.isArray((metadata as { events?: unknown }).events)
+  ) {
+    return (metadata as { events: Record<string, unknown>[] }).events;
+  }
+  return undefined;
+}
+
 async function resolveSession(
   sessionId: string | undefined,
   userId: string | undefined,
   fieldId: string,
 ): Promise<string> {
-  if (sessionId) {
-    logger.debug(`[CHAT] mevcut session: ${sessionId.slice(0, 8)}...`);
-    return sessionId;
+  if (sessionId && userId) {
+    // Session sahibini dogrula — baska kullanicinin session'ina yazmayi engelle
+    const owned = await prisma.chatSession.findFirst({
+      where: { session_id: sessionId, user_id: userId },
+      select: { session_id: true },
+    });
+    if (owned) {
+      logger.debug(`[CHAT] mevcut session: ${sessionId.slice(0, 8)}...`);
+      return owned.session_id;
+    }
+    logger.debug(`[CHAT] session sahibi dogrulanamadi, yeni session aciliyor`);
   }
   const newSession = await prisma.chatSession.create({
     data: { user_id: userId, field_id: fieldId },
@@ -51,8 +75,23 @@ export const getTarasAdvice = asyncHandler(
     }
 
     const userId = (req as any).user?.user_id;
-    const currentSessionId = await resolveSession(session_id, userId, field_id);
-    await saveMessage(currentSessionId, "user", message);
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+    // Tarla erisim kontrolu — sahip VEYA paydas. Paydas sohbeti buradan gecer; ayni zamanda
+    // eskiden hic kontrol olmayan IDOR'u kapatir.
+    if (!(await resolveFieldAccess(userId, field_id))) {
+      res.status(403).json({ success: false, error: "Bu tarlaya erişiminiz yok." });
+      return;
+    }
+
+    // Kilitli demo: oturum + mesaj KAYDETME yok (paylasilan hesaba sohbet birikmesin).
+    const demoRO = isDemoReadonlyUser(userId);
+    const currentSessionId = demoRO
+      ? ""
+      : await resolveSession(session_id, userId, field_id);
+    if (!demoRO) await saveMessage(currentSessionId, "user", message);
 
     let llmResponse: string;
 
@@ -69,7 +108,7 @@ export const getTarasAdvice = asyncHandler(
       llmResponse = await generateAdvisory(fieldContext, message, currentSessionId);
     }
 
-    await saveMessage(currentSessionId, "assistant", llmResponse);
+    if (!demoRO) await saveMessage(currentSessionId, "assistant", llmResponse);
 
     res.status(200).json({
       success: true,
@@ -92,8 +131,22 @@ export const getTarasAdviceStream = asyncHandler(
     }
 
     const userId = (req as any).user?.user_id;
-    const currentSessionId = await resolveSession(session_id, userId, field_id);
-    await saveMessage(currentSessionId, "user", message);
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+    if (!(await resolveFieldAccess(userId, field_id))) {
+      res.status(403).json({ success: false, error: "Bu tarlaya erişiminiz yok." });
+      return;
+    }
+
+    // Kilitli demo: oturum + mesaj KAYDETME yok (paylasilan hesaba sohbet birikmesin).
+    // LLM yine yanit verir; gecmis bos gecer (currentSessionId="" -> getSessionHistory []).
+    const demoRO = isDemoReadonlyUser(userId);
+    const currentSessionId = demoRO
+      ? ""
+      : await resolveSession(session_id, userId, field_id);
+    if (!demoRO) await saveMessage(currentSessionId, "user", message);
 
     // SSE basliklari
     res.setHeader("Content-Type", "text/event-stream");
@@ -104,21 +157,51 @@ export const getTarasAdviceStream = asyncHandler(
     try {
       let fullText: string;
 
+      // Mesaj-alti buton ureten event'ler — SSE ile gonderirken AYRICA topla; asistan
+      // mesajinin metadata'sina kaydedilir, boylece sohbet yeniden acildiginda butonlar
+      // geri gelir. Saklanan sekil ham SSE yuku (mobil canli stream'le ayni parser'i kullanir).
+      const collectedActions: Record<string, unknown>[] = [];
+      const emit = (event: Record<string, unknown>): void => {
+        collectedActions.push(event);
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      };
+
+      // navigate / highlight — ekran/zone vurgusu
+      const emitNavigate = (
+        screen: string,
+        section: string | null,
+        zoneId?: string,
+      ): void => {
+        emit({ navigate: screen, section, ...(zoneId ? { zone_id: zoneId } : {}) });
+      };
+
+      // set_timetable_filters → ekrani Cizelge sekmesine acar (navigate) + filtre yukunu tasir.
+      const emitSetFilters = (filters: TimetableFilterPayload): void => {
+        emit({ navigate: "timetable", section: null, set_filters: filters });
+      };
+
+      // Buton ile onaylanan eylemler (select_field / set_theme / set_language / add_carbon_log).
+      const emitAction = (action: ChatAction): void => {
+        emit({ action });
+      };
+
       if (useAgenticAnthropic) {
         fullText = await ext.generateAdvisoryStream(
           userId, field_id, message, currentSessionId,
           (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
           (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
-          (screen: string, section: string | null) =>
-            res.write(`data: ${JSON.stringify({ navigate: screen, section })}\n\n`),
+          emitNavigate,
+          emitSetFilters,
+          emitAction,
         );
       } else if (useAgenticGroq) {
         fullText = await ext.generateAdvisoryStreamGroq(
           userId, field_id, message, currentSessionId,
           (chunk: string) => res.write(`data: ${JSON.stringify({ chunk })}\n\n`),
           (status: string) => res.write(`data: ${JSON.stringify({ status })}\n\n`),
-          (screen: string, section: string | null) =>
-            res.write(`data: ${JSON.stringify({ navigate: screen, section })}\n\n`),
+          emitNavigate,
+          emitSetFilters,
+          emitAction,
         );
       } else {
         const fieldContext = await getFieldContextForLLM(field_id);
@@ -133,7 +216,14 @@ export const getTarasAdviceStream = asyncHandler(
         );
       }
 
-      await saveMessage(currentSessionId, "assistant", fullText);
+      if (!demoRO) {
+        await saveMessage(
+          currentSessionId,
+          "assistant",
+          fullText,
+          collectedActions.length > 0 ? { events: collectedActions } : undefined,
+        );
+      }
       res.write(
         `data: ${JSON.stringify({ done: true, session_id: currentSessionId })}\n\n`,
       );
@@ -155,6 +245,13 @@ export const getFieldChatSession = asyncHandler(
 
     if (!userId || (!fieldId && !sessionId)) {
       res.status(400).json({ success: false, error: "field_id veya session_id gerekli." });
+      return;
+    }
+
+    // fieldId ile cagriliyorsa erisim dogrula (sahip VEYA paydas). sessionId yolu zaten
+    // user_id ile filtreli oldugu icin izolasyon korunur.
+    if (fieldId && !(await resolveFieldAccess(userId, fieldId))) {
+      res.status(403).json({ success: false, error: "Bu tarlaya erişiminiz yok." });
       return;
     }
 
@@ -189,6 +286,9 @@ export const getFieldChatSession = asyncHandler(
           text: m.content || "",
           sender: m.sender === "user" ? "user" : "assistant",
           timestamp: m.created_at,
+          // Kaydedilmis aksiyon butonlari (ham SSE event'leri) — mobil canli stream'le
+          // ayni parser'la butona cevirir; yoksa undefined.
+          events: extractEvents((m as { metadata?: unknown }).metadata),
         })),
       },
     });
@@ -221,5 +321,40 @@ export const getChatHistory = asyncHandler(
     } catch {
       res.status(200).json({ success: true, data: [] });
     }
+  },
+);
+
+// Bir sohbet oturumunu sil — kullanici yalnizca KENDI oturumlarini silebilir.
+// Mesajlar + oturum atomik silinir (FK cascade tanimli olmasa bile guvenli).
+export const deleteChatSession = asyncHandler(
+  async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
+    const userId = (req as any).user?.user_id;
+    const sessionId = req.params.sessionId as string;
+
+    if (!userId) {
+      res.status(401).json({ success: false, error: "Auth required" });
+      return;
+    }
+    if (!sessionId) {
+      res.status(400).json({ success: false, error: "session_id gerekli." });
+      return;
+    }
+
+    const owned = await prisma.chatSession.findFirst({
+      where: { session_id: sessionId, user_id: userId },
+      select: { session_id: true },
+    });
+    if (!owned) {
+      res.status(404).json({ success: false, error: "Sohbet bulunamadı." });
+      return;
+    }
+
+    await prisma.$transaction([
+      prisma.chatMessage.deleteMany({ where: { session_id: sessionId } }),
+      prisma.chatSession.deleteMany({ where: { session_id: sessionId, user_id: userId } }),
+    ]);
+
+    logger.debug(`[CHAT] session silindi: ${sessionId.slice(0, 8)}... user=${userId.slice(0, 8)}...`);
+    res.status(200).json({ success: true });
   },
 );

@@ -6,21 +6,23 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
-  StyleSheet,
 } from "react-native";
 import { useThree } from "@react-three/fiber/native";
-import { ColorPlane, NodeInfo, computeFieldKey } from "../../components/ColorPlane";
+import { useSharedValue } from "react-native-reanimated";
+import { ColorPlane, NodeInfo, computeFieldKey, ZoneScreenPos, moistureToColor } from "../../components/ColorPlane";
+import { ConnectorOverlay, Rect } from "../../components/ConnectorOverlay";
 import { usePlaneWarmupOverlay } from "../../hooks/usePlaneWarmupOverlay";
 import { appStyles } from "../../styles";
 
 import { Theme } from "../../utils/theme";
-import { DashboardData, irrigationAPI } from "../../utils/api";
+import { DashboardData, irrigationAPI, IrrigationJob } from "../../utils/api";
 import { IrrigationSuggestion } from "./types";
+import { useSectionFocusFor } from "../../context/SectionFocusContext";
+import { useDashboard } from "../../context/DashboardContext";
 
-import { spacing } from "../../utils/responsive";
-import { WelcomeHeader } from "./WelcomeHeader";
+import { spacing, TAB_H_PADDING } from "../../utils/responsive";
 import { FeaturedZoneCard } from "./FeaturedZoneCard";
-import { IrrigationDetailScreen } from "../Irrigation/IrrigationDetailScreen";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Safe3DCanvas } from "../../components/Safe3DCanvas";
 import { useScreenReset } from "../../hooks/useScreenReset";
 import { useState } from "react";
@@ -37,7 +39,7 @@ function SceneBackground({ color }: { color: string }) {
 // Kamera otomatik sigdirma — tarla modeli her zaman gorunur kalir
 // Sahne icinden useThree ile gercek viewport ve kamera bilgisine erisir
 const FIELD_EXTENT = 8; // ColorPlane TARGET_SIZE
-const PADDING = 1.15; // %15 bosluk
+const PADDING = 1.02; // kamera marji — dusurmek sahneyi buyutur (kenar bosluklari azalir)
 
 function CameraAutoFit() {
   const { camera, viewport, invalidate } = useThree();
@@ -78,6 +80,39 @@ function CameraAutoFit() {
   return null;
 }
 
+// Bir zone'un sulama ozeti — tum zone'lar icin basta hesaplanip haritada tutulur
+interface ZoneIrrigation {
+  pendingSuggestion: IrrigationSuggestion | null;
+  noActionEvaluation: { reasoning: string | null; created_at: string } | null;
+  lastIrrigationTime: string | null;
+}
+
+// Ham sulama islerini kart ozetine cevir (en yeni PENDING / NO_ACTION / EXECUTED)
+function deriveZoneIrrigation(jobs: IrrigationJob[]): ZoneIrrigation {
+  const sorted = [...jobs].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  const pending = sorted.find((j) => j.status === "PENDING" && j.should_irrigate);
+  const noAction = pending ? null : sorted.find((j) => j.status === "NO_ACTION");
+  const lastExecuted = sorted.find((j) => j.status === "EXECUTED");
+  return {
+    pendingSuggestion: pending
+      ? {
+          job_id: pending.job_id,
+          status: pending.status,
+          reasoning: pending.reasoning,
+          water_amount_ml: pending.water_amount_ml,
+          start_time: pending.start_time,
+          urgency_level: pending.urgency_level as IrrigationSuggestion["urgency_level"],
+        }
+      : null,
+    noActionEvaluation: noAction
+      ? { reasoning: noAction.reasoning, created_at: noAction.created_at }
+      : null,
+    lastIrrigationTime: lastExecuted?.actual_start_time ?? lastExecuted?.start_time ?? null,
+  };
+}
+
 interface HomeScreenProps {
   theme: Theme;
   isDark: boolean;
@@ -96,16 +131,43 @@ export const HomeScreen = memo(({
   onRefresh,
 }: HomeScreenProps) => {
   const [selectedNode, setSelectedNode] = useState<NodeInfo | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
+  // Paydas (salt-okunur, secili ciftligi sahiplenmeyen): sulama onerisi/parlama/tiklama gizlenir.
+  const { canEditSelectedFarm, zoneNameById } = useDashboard();
 
-  // Sulama verisi — secili zone icin
-  const [pendingSuggestion, setPendingSuggestion] = useState<IrrigationSuggestion | null>(null);
-  const [lastIrrigationTime, setLastIrrigationTime] = useState<string | null>(null);
-  const [noActionEvaluation, setNoActionEvaluation] = useState<{
-    reasoning: string | null;
-    created_at: string;
-  } | null>(null);
+  // Sulama verisi — TUM zone'lar icin BASTA bir kez cekilir (zone tiklamasinda yeni sorgu YOK).
+  // Harita: zoneKey → ozet. Secili zone bu haritadan okunur.
+  const [zoneIrrigation, setZoneIrrigation] = useState<Record<string, ZoneIrrigation>>({});
+  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const [irrigationRefreshKey, setIrrigationRefreshKey] = useState(0);
+
+  // ─── Zone → kart baglanti cizgisi (ConnectorOverlay) ───
+  // Secili zone'un canvas icindeki konumu (0..1) — ColorPlane her frame yazar, overlay okur
+  const zonePosSV = useSharedValue<ZoneScreenPos>({ fx: 0.5, fy: 0.5, visible: false });
+  const [cardRect, setCardRect] = useState<Rect | null>(null);
+  const [canvasRect, setCanvasRect] = useState<Rect | null>(null);
+  const [planeReady, setPlaneReady] = useState(false);
+  const rootRef = useRef<View>(null);
+  const cardWrapRef = useRef<View>(null);
+  const canvasWrapRef = useRef<View>(null);
+  const pendingZoneIdRef = useRef<string | null>(null);
+  const lastHandledFocusNonceRef = useRef(-1);
+  const homeFocus = useSectionFocusFor("home");
+
+  // Kart + canvas dikdortgenlerini olc, overlay-yerel koordinata cevir (root orijinini cikar)
+  const measureConnector = useCallback(() => {
+    const root = rootRef.current;
+    const card = cardWrapRef.current;
+    const canvas = canvasWrapRef.current;
+    if (!root || !card || !canvas) return;
+    root.measureInWindow((rx, ry) => {
+      card.measureInWindow((cx, cy, cw, ch) => {
+        setCardRect({ x: cx - rx, y: cy - ry, w: cw, h: ch });
+      });
+      canvas.measureInWindow((vx, vy, vw, vh) => {
+        setCanvasRect({ x: vx - rx, y: vy - ry, w: vw, h: vh });
+      });
+    });
+  }, []);
 
   // Secili node her zaman mevcut tarlanin node'larindan biri olmali.
   // isActive degistiginde (ekrana donus) veya dashboardData (tarla degisimi)
@@ -116,7 +178,14 @@ export const HomeScreen = memo(({
     setSelectedNode((prev) => {
       if (nodes.length === 0) return null;
       const isValid = prev !== null && nodes.some((n) => n.id === prev.id);
-      return isValid ? prev : nodes[0];
+      if (isValid) return prev;
+      // Boot/tarla degisimi: en yuksek oncelikli = en kuru zone (en dusuk nem).
+      // ?? Infinity — eksik nem degeri olan node "en kuru" yarisini kazanmasin.
+      return nodes.reduce(
+        (driest, n) =>
+          (n.moisture ?? Infinity) < (driest.moisture ?? Infinity) ? n : driest,
+        nodes[0],
+      );
     });
   }, [isActive, dashboardData?.field?.nodes]);
 
@@ -124,6 +193,11 @@ export const HomeScreen = memo(({
     () => (dashboardData?.field ? computeFieldKey(dashboardData.field) : ""),
     [dashboardData?.field],
   );
+
+  // Tarla degisince eski projeksiyon konumunu gizle — bir frame'lik bayat tail cizilmesin
+  useEffect(() => {
+    zonePosSV.value = { ...zonePosSV.value, visible: false };
+  }, [currentFieldKey, zonePosSV]);
 
   const {
     overlay: warmupOverlay,
@@ -136,14 +210,23 @@ export const HomeScreen = memo(({
     currentFieldKey,
   });
 
+  // Connector cizgisi plane hazir olana kadar gosterilmez (warmup fade biter bitmez gosterilir)
+  const handlePlaneReadyAll = useCallback(() => {
+    handlePlaneReady();
+    setPlaneReady(true);
+  }, [handlePlaneReady]);
+
+  // Tab'dan cikinca yeniden silah — donuste ColorPlane onPlaneReady'yi tekrar fire eder
+  useEffect(() => {
+    if (!isActive) setPlaneReady(false);
+  }, [isActive]);
+
   // 3D Canvas — FOV CameraAutoFit tarafindan sahne icinden ayarlanir
   const cameraConfig = useMemo(() => ({ position: [0, 16, 22.6], fov: 22 }), []);
   const canvasStyle = useMemo(() => ({ flex: 1 }), []);
 
   useScreenReset(isActive, {
-    onDeactivate: () => {
-      setShowDetail(false);
-    },
+    onDeactivate: () => {},
   });
 
   // Real field data only — placeholder yok. ColorPlane sadece valid polygon ile
@@ -152,73 +235,134 @@ export const HomeScreen = memo(({
   // kadar yanlis poz kaliyordu).
   const fieldData = dashboardData?.field;
 
-  // Secili node'un indeksi — zone adi icin
+  // Secili node'un indeksi — zone adi cozulemezse fallback "Bölge N" icin
   const nodeIndex = useMemo(() => {
     if (!selectedNode || !fieldData?.nodes?.length) return 0;
     const idx = fieldData.nodes.findIndex((n) => n.id === selectedNode.id);
     return idx >= 0 ? idx : 0;
   }, [selectedNode, fieldData?.nodes]);
 
-  // Secili zone degistiginde veya detay ekranindan donuste sulama verilerini cek
+  // Secili node'un gercek bolge adi — once node'un kendi alani (backend gonderirse),
+  // sonra context'teki zone_id -> zone_name haritasi. Ikisi de yoksa null (kart index'e duser).
+  const selectedZoneName = useMemo(() => {
+    if (!selectedNode) return null;
+    if (selectedNode.zone_name) return selectedNode.zone_name;
+    const byId = selectedNode.zone_id ? zoneNameById[selectedNode.zone_id] : undefined;
+    return byId ?? null;
+  }, [selectedNode, zoneNameById]);
+
+  // Connector balonu rengi — secili zone'un nem renginden turetilir (overlay'de pastel + saydam)
+  const zoneColor = useMemo(
+    () => (selectedNode ? moistureToColor(selectedNode.moisture, isDark) : theme.primary),
+    [selectedNode, theme.primary, isDark],
+  );
+
+  // Kartta gosterilecek sensor ortalamasi — zone secili ise O ZONE'un node'lari (zone_id ile
+  // gruplanir), secili degilse tum tarla. "zone'un sensor node ortalamasi" = bu.
+  const displaySensor = useMemo(() => {
+    const all = fieldData?.nodes ?? [];
+    if (all.length === 0) return null;
+    const src = selectedNode
+      ? all.filter((n) =>
+          selectedNode.zone_id ? n.zone_id === selectedNode.zone_id : n.id === selectedNode.id,
+        )
+      : all;
+    const ns = src.length > 0 ? src : all;
+    const avg = (sel: (n: NodeInfo) => number) =>
+      ns.reduce((sum, n) => sum + sel(n), 0) / ns.length;
+    return {
+      moisture: avg((n) => n.moisture),
+      airTemp: avg((n) => n.airTemperature),
+      airHumidity: avg((n) => n.airHumidity),
+      count: ns.length,
+    };
+  }, [fieldData?.nodes, selectedNode]);
+
+  // TUM zone'larin sulama verisini tek seferde cek — basta, tarla degisince, manuel yenilemede
+  // ve detay ekranindan donuste (irrigationRefreshKey). Zone TIKLAMASINDA sorgu YOK.
   useEffect(() => {
-    if (!selectedNode) {
-      setPendingSuggestion(null);
-      setLastIrrigationTime(null);
-      setNoActionEvaluation(null);
+    const nodes = dashboardData?.field?.nodes ?? [];
+    if (nodes.length === 0) {
+      setZoneIrrigation({});
       return;
     }
-
-    irrigationAPI.getZoneJobs(selectedNode.zone_id ?? selectedNode.id, nodeIndex).then((res) => {
-      if (!res.success || !res.data) return;
-
-      const sorted = [...res.data].sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        nodes.map(async (n, idx) => {
+          const zid = n.zone_id ?? n.id;
+          const res = await irrigationAPI.getZoneJobs(zid, idx);
+          return [zid, deriveZoneIrrigation(res.success && res.data ? res.data : [])] as const;
+        }),
       );
+      if (cancelled) return;
+      setZoneIrrigation(Object.fromEntries(entries));
+      setLastFetchedAt(new Date());
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFieldKey, irrigationRefreshKey]);
 
-      const pending = sorted.find((j) => j.status === "PENDING" && j.should_irrigate);
-      setPendingSuggestion(
-        pending
-          ? {
-              job_id: pending.job_id,
-              status: pending.status,
-              reasoning: pending.reasoning,
-              water_amount_ml: pending.water_amount_ml,
-              start_time: pending.start_time,
-              urgency_level: pending.urgency_level as IrrigationSuggestion["urgency_level"],
-            }
-          : null,
-      );
+  // Secili zone'un sulama ozeti — haritadan okunur (sorgu yok)
+  const currentIrrigation = selectedNode
+    ? zoneIrrigation[selectedNode.zone_id ?? selectedNode.id] ?? null
+    : null;
 
-      // PENDING yoksa en yeni NO_ACTION'i goster — "sistem kontrol etti, sulama gerekmiyor"
-      const noAction = pending
-        ? null
-        : sorted.find((j) => j.status === "NO_ACTION");
-      setNoActionEvaluation(
-        noAction
-          ? { reasoning: noAction.reasoning, created_at: noAction.created_at }
-          : null,
-      );
+  // Manuel yenileme — sensor (onRefresh) + tum zone sulama (irrigationRefreshKey++) + zaman damgasi
+  const handleDataRefresh = useCallback(() => {
+    setIrrigationRefreshKey((k) => k + 1);
+    onRefresh?.();
+  }, [onRefresh]);
 
-      const lastExecuted = sorted.find((j) => j.status === "EXECUTED");
-      setLastIrrigationTime(
-        lastExecuted?.actual_start_time ?? lastExecuted?.start_time ?? null,
-      );
-    });
-  }, [selectedNode, nodeIndex, irrigationRefreshKey]);
-
-  // 3D model'den node tiklamasi — secili kalir, bos tiklamada degisim yok
+  // 3D model'den node secimi — null gelirse (secili zone'a tekrar dokunma) secimi temizle:
+  // connector + 3D pulse kapanir, kart FIELD MODE'a (tarla geneli) duser
   const handleNodeSelect = useCallback((node: NodeInfo | null) => {
-    if (node) setSelectedNode(node);
+    setSelectedNode(node);
   }, []);
 
-  // FeaturedZoneCard tiklamasi — detay ekranini ac
+  // LLM highlight_zone — home.fieldVisualization focus + zoneId gelirse o zone'u sec.
+  // Node'lar henuz yoksa pendingZoneIdRef'te beklet, geldiklerinde uygula (cold-launch yarisI).
+  useEffect(() => {
+    // Sadece YENI focus istegini (nonce) stash et — eski direktif tarla degisiminde
+    // manuel secimi ezmesin
+    if (
+      homeFocus?.section === "fieldVisualization" &&
+      homeFocus.zoneId &&
+      homeFocus.nonce !== lastHandledFocusNonceRef.current
+    ) {
+      pendingZoneIdRef.current = homeFocus.zoneId;
+      lastHandledFocusNonceRef.current = homeFocus.nonce;
+    }
+    const zid = pendingZoneIdRef.current;
+    if (!zid) return;
+    const nodes = fieldData?.nodes ?? [];
+    const node = nodes.find((n) => (n.zone_id ?? n.id) === zid || n.id === zid);
+    if (node) {
+      pendingZoneIdRef.current = null;
+      setSelectedNode(node);
+    }
+  }, [homeFocus, fieldData?.nodes]);
+
+  // FeaturedZoneCard tiklamasi — IrrigationDetail stack screen'ine git
+  const navigation = useNavigation<any>();
   const handleOpenDetail = useCallback(() => {
-    if (selectedNode && dashboardData) setShowDetail(true);
-  }, [selectedNode, dashboardData]);
+    if (selectedNode && dashboardData) {
+      navigation.navigate("IrrigationDetail", { node: selectedNode, nodeIndex });
+    }
+  }, [selectedNode, dashboardData, nodeIndex, navigation]);
+
+  // IrrigationDetail'den donunce sulama verilerini yenile
+  useFocusEffect(
+    useCallback(() => {
+      setIrrigationRefreshKey((k) => k + 1);
+    }, []),
+  );
 
   return (
-    <View className="flex-1 relative" style={{ backgroundColor: theme.background }}>
-      <View className="flex-1" style={{ marginHorizontal: spacing.sm }}>
+    <View ref={rootRef} className="flex-1 relative" style={{ backgroundColor: theme.background }}>
+      <View className="flex-1" style={{ marginHorizontal: TAB_H_PADDING }}>
         <ScrollView
           style={{ flexGrow: 0, flexShrink: 0 }}
           showsVerticalScrollIndicator={false}
@@ -228,29 +372,46 @@ export const HomeScreen = memo(({
             ) : undefined
           }
         >
-          <WelcomeHeader theme={theme} dashboardData={dashboardData} />
-          <FeaturedZoneCard
-            theme={theme}
-            node={selectedNode}
-            nodeIndex={nodeIndex}
-            nextIrrigationTime={dashboardData?.irrigation?.nextIrrigationTime ?? null}
-            pendingSuggestion={pendingSuggestion}
-            noActionEvaluation={noActionEvaluation}
-            lastIrrigationTime={lastIrrigationTime}
-            onPress={handleOpenDetail}
-          />
+          {/* Kart sarici — connector cizgisi icin olculur (collapsable=false Android'de gerekli).
+              Margin'ler kartin kendisinde DEGIL burada → cardRect = kartin gorunur siniri,
+              cizgi karta bosluksuz degsin. */}
+          <View
+            ref={cardWrapRef}
+            collapsable={false}
+            onLayout={measureConnector}
+            style={{ marginBottom: spacing.sm }}
+          >
+            <FeaturedZoneCard
+              theme={theme}
+              node={selectedNode}
+              nodeIndex={nodeIndex}
+              zoneName={selectedZoneName}
+              sensor={displaySensor}
+              pendingSuggestion={currentIrrigation?.pendingSuggestion ?? null}
+              noActionEvaluation={currentIrrigation?.noActionEvaluation ?? null}
+              lastIrrigationTime={currentIrrigation?.lastIrrigationTime ?? null}
+              highlightColor={selectedNode ? zoneColor : null}
+              fetchedAt={lastFetchedAt}
+              onRefreshData={handleDataRefresh}
+              onPress={handleOpenDetail}
+              readOnly={!canEditSelectedFarm}
+            />
+          </View>
         </ScrollView>
 
-        {/* 3D Canvas — yatay margin'lari ekrana kadar uzat (outer wrapper'in spacing.sm'sini ters ceviriyoruz) */}
+        {/* 3D Canvas — yatay margin'lari ekrana kadar uzat (outer wrapper'in TAB_H_PADDING'ini ters ceviriyoruz) */}
         <View
+          ref={canvasWrapRef}
+          collapsable={false}
+          onLayout={measureConnector}
           style={[
             appStyles.canvasContainer,
             {
               position: "relative",
               flex: 1,
-              marginLeft: -spacing.sm,
-              marginRight: -spacing.sm,
-              borderRadius: 14,
+              marginLeft: -TAB_H_PADDING,
+              marginRight: -TAB_H_PADDING,
+              borderRadius: 10,
             },
           ]}
         >
@@ -290,7 +451,8 @@ export const HomeScreen = memo(({
                     onNodeSelect={handleNodeSelect}
                     selectedNodeId={selectedNode?.id ?? null}
                     isActive={isActive}
-                    onPlaneReady={handlePlaneReady}
+                    onPlaneReady={handlePlaneReadyAll}
+                    zonePosSV={zonePosSV}
                   />
                 </Suspense>
               </Safe3DCanvas>
@@ -308,20 +470,15 @@ export const HomeScreen = memo(({
         </View>
       </View>
 
-      {/* Sulama detay overlay */}
-      {showDetail && selectedNode && dashboardData && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.background, zIndex: 200 }]}>
-          <IrrigationDetailScreen
-            node={selectedNode}
-            nodeIndex={nodeIndex}
-            dashboardData={dashboardData}
-            theme={theme}
-            onBack={() => {
-              setShowDetail(false);
-              setIrrigationRefreshKey((k) => k + 1);
-            }}
-          />
-        </View>
+      {/* Secili zone'u kart ile baglayan kesintisiz cizgi — canvas + kart uzerinde, dokunmaz */}
+      {fieldData && (
+        <ConnectorOverlay
+          zonePosSV={zonePosSV}
+          cardRect={cardRect}
+          canvasRect={canvasRect}
+          active={isActive && planeReady && selectedNode !== null}
+          zoneColor={zoneColor}
+        />
       )}
     </View>
   );

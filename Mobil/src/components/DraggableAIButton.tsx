@@ -1,4 +1,6 @@
-// Suruklenebilir AI butonu — safe spot'lara yayli snap, LLM tetiklemeli hareket
+// Suruklenebilir AI butonu — yayli (bouncy) snap. Kullanici surukleyebilir ama SADECE sag
+// (varsayilan) spota geri yapisir; SOL spot manuel yerlestirilemez, yalnizca programatik
+// (popup yaniti sirasinda moveToSpot ile) kullanilir. 2026-05-30: nearest-snap kaldirildi.
 import { useRef, useEffect, useCallback } from "react";
 import {
   Animated,
@@ -6,7 +8,7 @@ import {
   GestureResponderEvent,
   PanResponderGestureState,
 } from "react-native";
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { RobotLeafIcon } from "./RobotLeafIcon";
 import { Theme } from "../types";
 import { s } from "../utils/responsive";
 
@@ -18,10 +20,10 @@ export interface SafeSpot {
 interface DraggableAIButtonProps {
   theme: Theme;
   onPress: () => void;
+  // [0]=sag (varsayilan/manuel home), [1]=sol (yalniz programatik popup konumu)
   safeSpots: SafeSpot[];
   moveToSpot?: number | null;
   onMoveComplete?: () => void;
-  onSpotChanged?: (spotIndex: number) => void;
 }
 
 const BUTTON_SIZE = s(54);
@@ -33,28 +35,12 @@ const SPRING_CONFIG = {
   useNativeDriver: true,
 };
 
-function nearestSpotIndex(x: number, y: number, spots: SafeSpot[]): number {
-  let minDist = Infinity;
-  let minIdx = 0;
-  for (let i = 0; i < spots.length; i++) {
-    const dx = x - spots[i]!.x;
-    const dy = y - spots[i]!.y;
-    const dist = dx * dx + dy * dy;
-    if (dist < minDist) {
-      minDist = dist;
-      minIdx = i;
-    }
-  }
-  return minIdx;
-}
-
 export const DraggableAIButton = ({
   theme,
   onPress,
   safeSpots,
   moveToSpot,
   onMoveComplete,
-  onSpotChanged,
 }: DraggableAIButtonProps) => {
   const position = useRef(new Animated.ValueXY({
     x: safeSpots[0]?.x ?? 0,
@@ -63,7 +49,6 @@ export const DraggableAIButton = ({
 
   const currentSpot = useRef(0);
   const isDragging = useRef(false);
-  const dragStartPos = useRef({ x: 0, y: 0 });
   // Gercek pozisyonu izle (Animated degerler okunabilir degil)
   const lastPos = useRef({ x: safeSpots[0]?.x ?? 0, y: safeSpots[0]?.y ?? 0 });
 
@@ -84,12 +69,10 @@ export const DraggableAIButton = ({
     Animated.spring(position, {
       toValue: { x: spot.x, y: spot.y },
       ...SPRING_CONFIG,
-    }).start(() => {
-      onSpotChanged?.(idx);
-    });
-  }, [safeSpots, position, onSpotChanged]);
+    }).start();
+  }, [safeSpots, position]);
 
-  // LLM tetiklemeli hareket
+  // LLM tetiklemeli hareket — popup sirasinda sola (1), balon gidince saga (0)
   useEffect(() => {
     if (moveToSpot == null || moveToSpot === currentSpot.current) return;
     if (!safeSpots[moveToSpot]) return;
@@ -111,7 +94,6 @@ export const DraggableAIButton = ({
 
       onPanResponderGrant: () => {
         isDragging.current = false;
-        dragStartPos.current = { ...lastPos.current };
         position.setOffset({ x: lastPos.current.x, y: lastPos.current.y });
         position.setValue({ x: 0, y: 0 });
       },
@@ -125,22 +107,19 @@ export const DraggableAIButton = ({
         }
       },
 
-      onPanResponderRelease: (_: GestureResponderEvent, gesture: PanResponderGestureState) => {
+      onPanResponderRelease: () => {
         position.flattenOffset();
 
         if (!isDragging.current) {
-          // Tap — suruklemeden birakti
-          // Orijinal pozisyona geri don
+          // Tap — surukleme yok; mevcut spota geri yapis + sohbeti ac
           snapToSpot(currentSpot.current);
           onPress();
           return;
         }
 
-        // Surukle-birak — en yakin safe spot'a snap
-        const finalX = dragStartPos.current.x + gesture.dx;
-        const finalY = dragStartPos.current.y + gesture.dy;
-        const nearest = nearestSpotIndex(finalX, finalY, safeSpots);
-        snapToSpot(nearest);
+        // Surukle-birak — manuel olarak HER ZAMAN sag (varsayilan) spota geri yapis.
+        // Sol spot manuel yerlestirilemez; yalnizca popup yaniti icin (moveToSpot) ayrilmistir.
+        snapToSpot(0);
       },
     }),
   ).current;
@@ -168,7 +147,7 @@ export const DraggableAIButton = ({
       }}
       {...panResponder.panHandlers}
     >
-      <MaterialCommunityIcons name="robot" size={s(22)} color={theme.textOnPrimary} />
+      <RobotLeafIcon size={s(28)} color={theme.textOnPrimary} />
     </Animated.View>
   );
 };

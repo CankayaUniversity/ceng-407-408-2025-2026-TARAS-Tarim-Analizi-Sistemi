@@ -1,37 +1,62 @@
+# Model weights — re-train via RECREATE_FROM_SCRATCH.md
+models/**/*.pt
+models/**/*.onnx
+models/**/*.tflite
+models/**/*.safetensors
+
+# Dataset images — too big for git (1.6 GB); symlink to your local dataset_clean/
+data/images
+data/images/
+data/_provenance/
+
+# Data manifests + split CSVs — 35k rows each, regenerable via build_manifest.py + build_splits.py
+data/*.csv
+
+# KD target cache (regenerable, ~110 MB)
+data/*_targets_train_val.npy
+
+# Local training output (use models/ as the canonical location for finished weights)
+checkpoints/
+models/*/training/
+models/*/*_training/
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# Virtual environments
+*.so
+.Python
 .venv/
 venv/
 env/
+.pytest_cache/
+.mypy_cache/
 
-# Data and model artefacts (never commit)
-data/
-outputs/
-checkpoints/
-wandb/
-*.onnx
-*.pt
-*.pth
-*.bin
-*.h5
-*.keras
-*.tflite
-*.npz
-
-# Logs
-*.log
-logs/
-
-# OS / editor
-.DS_Store
-Thumbs.db
+# Editors
 .vscode/
 .idea/
+*.swp
+*~
+.DS_Store
+
+# Logs / temp
+*.log
+*.tmp
+*.bak
+*.crashed_run*
+checkpoints/*.crashed*
+checkpoints/*.run*
+
+# Wandb / experiment trackers
+wandb/
+mlruns/
+
+# Large generated outputs
+outputs/
+!outputs/.gitkeep
+
+# Generated plots / confusion matrices
+*.png
+
+# Local notebooks scratch
+*.ipynb_checkpoints

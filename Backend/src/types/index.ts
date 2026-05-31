@@ -144,6 +144,7 @@ export interface FieldListItem {
   id: string;
   name: string;
   area: number;
+  farm_id: string;
 }
 
 export interface DashboardWeather {
@@ -171,11 +172,17 @@ export interface DashboardNode {
   moisture: number;
   airTemperature: number;
   airHumidity: number;
+  // Zone'da kayitli sensor node sayisi — frontend pin'leri buna gore yayar (0 ise pin yok).
+  sensorCount: number;
+  // Pin yayma yaricapi (field/dunya birimi) — zone extent'inin orani. Frontend
+  // N-gen halka yaricapi olarak kullanir; yoksa pin boyuna gore fallback hesaplar.
+  spreadRadius: number;
 }
 
 export interface DashboardFieldData {
   polygon: PolygonData;
   nodes: DashboardNode[];
+  isPotField?: boolean;
 }
 
 export interface DashboardResponse {

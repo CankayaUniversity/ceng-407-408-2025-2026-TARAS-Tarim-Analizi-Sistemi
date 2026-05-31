@@ -1,0 +1,29 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    TF_CPP_MIN_LOG_LEVEL=2 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        libgl1 \
+        libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir --timeout 600 --retries 5 \
+        --index-url https://download.pytorch.org/whl/cpu \
+        "torch==2.4.1" "torchvision==0.19.1" \
+ && pip install --no-cache-dir --timeout 600 --retries 5 \
+        "timm==1.0.11" \
+        "numpy>=1.26,<2.0" \
+        "pillow>=10.0" \
+        "onnx==1.17.0" \
+        "onnxsim==0.4.36" \
+        "onnx-graphsurgeon==0.5.2" \
+        "onnxruntime==1.19.2" \
+        "tensorflow==2.16.1" \
+        "tf_keras==2.16.0" \
+        "ai_edge_litert==1.0.1" \
+        "onnx2tf==1.22.3"
+
+WORKDIR /work

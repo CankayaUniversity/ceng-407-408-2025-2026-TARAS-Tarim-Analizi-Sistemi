@@ -29,6 +29,21 @@ export const palette = {
     900: '#2a230b',
     950: '#15110a',
   },
+  // Soil-moisture visualization — digital twin humidity overlay.
+  // 100 = driest, 900 = wettest. Do NOT use for decorative UI elements.
+  soilMoisture: {
+    50:  '#e5f6ff',
+    100: '#ccecff',
+    200: '#99daff',
+    300: '#66c7ff',
+    400: '#33b4ff',
+    500: '#00a1ff',
+    600: '#0081cc',
+    700: '#006199',
+    800: '#004166',
+    900: '#002033',
+    950: '#001724',
+  },
   // Warm olive-tinted neutral — hue ~96°, low sat. Replaces slateGrey.
   // Used for secondary text, muted text, borders, dividers.
   sageGray: {
@@ -56,8 +71,8 @@ export const palette = {
 
 export const light = {
   background:     palette.porcelain,        // #FFFDF8  large page backgrounds
-  surface:        palette.whiteSmoke,       // #F5F5F5  cards, inputs, sections
-  card:           palette.porcelain,        // #FFFDF8  elevated cards — warm white, no pure white
+  surface:        '#F0EDE5',               //          ~5% darker porcelain — same warm hue, no olive cast
+  card:           '#F0EDE5',               //          elevated cards — same tone
   border:         '#D5D0C0',               //          warm olive-tinted borders
   divider:        '#E8E5DC',              //          subtle list dividers
   overlay:        'rgba(26,26,26,0.50)',  //          modal / sheet backdrop
@@ -69,8 +84,8 @@ export const light = {
   primary:        palette.olive[800],     // #2D5016  brand / CTAs / active states
   primaryPressed: palette.olive[700],     // #3D6B1F  pressed / hover emphasis
   accent:         palette.gold[500],      // #D4AF37  highlights, badges, small CTAs
-  success:        '#22C55E',
-  successSoft:    '#DCFCE7',
+  success:        palette.olive[500],     // #5a9422  vivid olive — in-family with primary
+  successSoft:    palette.olive[100],     // #dceeca
   warning:        '#F59E0B',
   warningSoft:    '#FEF9C3',
   danger:         '#EF4444',
@@ -85,8 +100,8 @@ export const light = {
 
 export const dark = {
   background:     palette.carbonBlack,   // #1A1A1A
-  surface:        '#252221',             //          warm dark surface
-  card:           '#2E2B28',             //          slightly elevated dark card
+  surface:        '#252221',             //          ~6% lighter than background — warm dark, no olive cast
+  card:           '#2E2B28',             //          slightly elevated warm dark card
   border:         'rgba(245,245,245,0.12)',
   divider:        'rgba(245,245,245,0.06)',
   overlay:        'rgba(0,0,0,0.70)',
@@ -98,8 +113,8 @@ export const dark = {
   primary:        palette.olive[700],    // #3D6B1F  brighter olive for dark bg
   primaryPressed: palette.olive[800],    // #2D5016
   accent:         palette.gold[500],     // #D4AF37
-  success:        '#4ADE80',
-  successSoft:    '#0D2D18',
+  success:        palette.olive[400],     // #73bb2b  brighter olive for dark bg
+  successSoft:    palette.olive[900],     // #1e3710
   warning:        '#FCD34D',
   warningSoft:    '#2D2010',
   danger:         '#F87171',

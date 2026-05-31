@@ -23,8 +23,6 @@ export interface CaptureMetadata {
     class: string;
     confidence: number;
   } | null;
-  // Settings'teki "TARAS'i gelistirmeye yardim et" toggle'inin capture anindaki degeri.
-  consent_dataset: boolean;
 }
 
 export async function loadDatasetConsent(): Promise<boolean> {
@@ -56,7 +54,6 @@ interface BuildOpts {
 }
 
 export async function buildCaptureMetadata(opts: BuildOpts = {}): Promise<CaptureMetadata> {
-  const consent = await loadDatasetConsent();
   return {
     device: {
       // Platform.constants.Model sadece Android'de typedlanmamis sekilde mevcut.
@@ -79,6 +76,5 @@ export async function buildCaptureMetadata(opts: BuildOpts = {}): Promise<Captur
             confidence: opts.liveScanResult.confidence,
           }
         : null,
-    consent_dataset: consent,
   };
 }

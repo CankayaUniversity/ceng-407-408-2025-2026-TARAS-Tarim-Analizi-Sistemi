@@ -1,26 +1,7 @@
 import { Request, Response } from 'express';
-import jwt from 'jsonwebtoken';
 import userService from '../services/userService';
+import { generateToken } from '../utils/jwt';
 import logger from '../utils/logger';
-
-const _JWT_SECRET_RAW = process.env.JWT_SECRET;
-if (!_JWT_SECRET_RAW || _JWT_SECRET_RAW === 'change-me-in-production' || _JWT_SECRET_RAW.length < 32) {
-  throw new Error('JWT_SECRET env var must be set to a strong random value (>=32 chars, not the default placeholder)');
-}
-const JWT_SECRET: string = _JWT_SECRET_RAW;
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN;
-if (!JWT_EXPIRES_IN) throw new Error("JWT_EXPIRES_IN not configured");
-
-interface JwtPayload {
-  user_id: string;
-  username: string;
-  email: string;
-  role_name?: string;
-}
-
-function generateToken(payload: JwtPayload): string {
-  return jwt.sign(payload as any, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as jwt.SignOptions);
-}
 
 export async function login(req: Request, res: Response): Promise<void> {
   try {
@@ -65,12 +46,57 @@ export async function login(req: Request, res: Response): Promise<void> {
   }
 }
 
+// Demo girisi — kimlik bilgisi istemciye GOMULMEZ. Sunucu, DEMO_READONLY_USER_ID
+// hesabi icin parolasiz token uretir (hesap zaten salt-okunur kilitli, bkz.
+// middleware/demoReadonly). user_id ile calisir → kullanici adi degisse bile gecerli.
+// DEMO_READONLY_USER_ID bos ise uc devre disidir (404). Rate-limit route'ta (authLimiter).
+export async function demoLogin(_req: Request, res: Response): Promise<void> {
+  try {
+    const demoId = process.env.DEMO_READONLY_USER_ID || '';
+    if (!demoId) {
+      res.status(404).json({ success: false, error: 'Demo girişi etkin değil' });
+      return;
+    }
+
+    const user = await userService.getUserProfile(demoId);
+    if (!user) {
+      res.status(404).json({ success: false, error: 'Demo hesabı bulunamadı' });
+      return;
+    }
+
+    const token = generateToken({
+      user_id: user.user_id,
+      username: user.username,
+      email: user.email,
+      role_name: user.role?.role_name,
+    });
+
+    logger.info('Demo login issued');
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          user_id: user.user_id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Demo login error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
 export async function register(req: Request, res: Response): Promise<void> {
   try {
-    const { username, email, password, role_id } = req.body;
+    const { username, email, password } = req.body;
 
     if (!username || !email || !password) {
-      res.status(400).json({ success: false, error: 'Username, email, and password required' });
+      res.status(400).json({ success: false, error: 'Username, email and password required' });
       return;
     }
 
@@ -85,11 +111,16 @@ export async function register(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Yeni kullanicilar salt-okunur "stakeholder" olarak baslar (henuz hicbir ciftlige
+    // erisimi yok). Ilk ciftligini olusturunca createFarm onu "farmer"a yukseltir; davet
+    // koduyla katilirsa stakeholder kalir. Rol kayit ekraninda secilmez.
+    const resolvedRoleId = await userService.getRoleIdByName("stakeholder");
+
     const user = await userService.createUser({
       username,
       email,
       password,
-      role_id: role_id || 2,
+      role_id: resolvedRoleId,
     });
 
     logger.info(`New user registered: ${user.username}`);
@@ -119,11 +150,16 @@ export async function register(req: Request, res: Response): Promise<void> {
     // Generic error for both unique-constraint violations AND unexpected failures —
     // prevents username/email enumeration via differential responses.
     if (error.code === 'P2002') {
-      res.status(400).json({ success: false, error: 'Registration failed' });
+      res.status(400).json({ success: false, error: 'Bu kullanıcı adı veya e-posta zaten kullanımda' });
       return;
     }
 
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    if (error.code === 'P2003') {
+      res.status(400).json({ success: false, error: 'Geçersiz rol. Lütfen tekrar deneyin.' });
+      return;
+    }
+
+    res.status(500).json({ success: false, error: 'Internal server error', debug: String(error) });
   }
 }
 
@@ -154,10 +190,33 @@ export async function getProfile(req: Request, res: Response): Promise<void> {
         last_login: profile.last_login,
         farms: profile.farms,
         unread_alerts: profile.alerts?.length || 0,
+        dataset_consent: profile.dataset_consent,
       },
     });
   } catch (error) {
     logger.error('Get profile error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+export async function updateDatasetConsent(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'User not authenticated' });
+      return;
+    }
+
+    const { consent } = req.body;
+    if (typeof consent !== 'boolean') {
+      res.status(400).json({ success: false, error: 'consent must be boolean' });
+      return;
+    }
+
+    const updated = await userService.updateDatasetConsent(userId, consent);
+    res.json({ success: true, data: { dataset_consent: updated.dataset_consent } });
+  } catch (error) {
+    logger.error('Update dataset consent error:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -204,4 +263,115 @@ export async function changePassword(req: Request, res: Response): Promise<void>
   }
 }
 
-export default { login, register, getProfile, changePassword };
+// PATCH /me — kullanici adi ve/veya e-postayi gunceller. Mevcut sifre dogrulamasi
+// ZORUNLU (email-only degisiklikte bile: email-rebind -> sifre-sifirlama ile hesap
+// ele gecirmeyi engeller). Username degisirse yeni token + user doner (mobil saklanan
+// user'dan username okudugu icin tazelenmeli). Sifre degisikligi ayri: /change-password.
+export async function updateProfile(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = (req as any).user?.user_id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'User not authenticated' });
+      return;
+    }
+
+    const { username, email, currentPassword } = req.body;
+
+    if (username === undefined && email === undefined) {
+      res.status(400).json({ success: false, error: 'No fields to update' });
+      return;
+    }
+
+    if (!currentPassword) {
+      res.status(400).json({ success: false, error: 'Current password required' });
+      return;
+    }
+
+    // Trim + bos reddet + uzunluk siniri (DB: username VarChar(100), email VarChar(255)).
+    const updates: { username?: string; email?: string } = {};
+
+    if (username !== undefined) {
+      const trimmed = String(username).trim();
+      if (!trimmed) {
+        res.status(400).json({ success: false, error: 'Username cannot be empty' });
+        return;
+      }
+      if (trimmed.length > 100) {
+        res.status(400).json({ success: false, error: 'Username too long' });
+        return;
+      }
+      updates.username = trimmed;
+    }
+
+    if (email !== undefined) {
+      const trimmed = String(email).trim();
+      if (!trimmed) {
+        res.status(400).json({ success: false, error: 'Email cannot be empty' });
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmed) || trimmed.length > 255) {
+        res.status(400).json({ success: false, error: 'Invalid email format' });
+        return;
+      }
+      updates.email = trimmed;
+    }
+
+    const profile = await userService.getUserProfile(userId);
+    if (!profile) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    // Mevcut sifreyi dogrula (changePassword ile ayni desen).
+    const authResult = await userService.authenticateUser(profile.username, currentPassword);
+    if (!authResult.authenticated) {
+      res.status(401).json({ success: false, error: 'Current password is incorrect' });
+      return;
+    }
+
+    const updated = await userService.updateUserProfile(userId, updates);
+    logger.info(`Profile updated for user: ${updated.username}`);
+
+    const usernameChanged =
+      updates.username !== undefined && updates.username !== profile.username;
+
+    const responseData: {
+      username: string;
+      email: string;
+      token?: string;
+      user?: { user_id: string; username: string; email: string; role: unknown };
+    } = {
+      username: updated.username,
+      email: updated.email,
+    };
+
+    // Username degisince token icindeki username bayatlar -> yeni token + user uret.
+    if (usernameChanged) {
+      responseData.token = generateToken({
+        user_id: updated.user_id,
+        username: updated.username,
+        email: updated.email,
+        role_name: updated.role?.role_name,
+      });
+      responseData.user = {
+        user_id: updated.user_id,
+        username: updated.username,
+        email: updated.email,
+        role: updated.role,
+      };
+    }
+
+    res.json({ success: true, data: responseData });
+  } catch (error: any) {
+    logger.error('Update profile error:', error);
+    // Generic error — username/email enumeration'i engeller (register ile ayni mesaj).
+    if (error.code === 'P2002') {
+      res.status(409).json({ success: false, error: 'Bu kullanıcı adı veya e-posta zaten kullanımda' });
+      return;
+    }
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
+export default { login, demoLogin, register, getProfile, changePassword, updateProfile, updateDatasetConsent };

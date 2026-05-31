@@ -1,0 +1,19 @@
+FROM public.ecr.aws/lambda/python:3.13-arm64
+
+COPY Backend/Lambda_v6/requirements-onnx.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --only-binary=:all: -r /tmp/requirements.txt && \
+    rm /tmp/requirements.txt
+
+RUN mkdir -p /var/task/code /var/task/shared
+COPY ML/inference/inference_lambda_onnx.py /var/task/code/inference_lambda.py
+COPY ML/inference/ensemble_config.json     /var/task/code/
+COPY ML/inference/labels.json              /var/task/shared/labels.json
+
+COPY ML/models/ensemble_v8/v20_convnextv2_best.onnx   /var/task/code/
+COPY ML/models/ensemble_v8/v26r_swin_s_384_best.onnx  /var/task/code/
+COPY ML/models/ensemble_v8/v32_swin_b_field_best.onnx /var/task/code/
+
+COPY Backend/Lambda_v6/handler.py /var/task/
+
+CMD ["handler.lambda_handler"]

@@ -1,0 +1,139 @@
+{
+  "schema_version": 2,
+  "task": "14-class plant disease classification",
+  "classes": [
+    "bacterial_spot",
+    "corn_common_rust",
+    "corn_gray_leaf_spot",
+    "corn_northern_leaf_blight",
+    "early_blight",
+    "healthy",
+    "late_blight",
+    "leaf_mold",
+    "mosaic_virus",
+    "powdery_mildew",
+    "septoria_leaf_spot",
+    "spider_mites",
+    "target_spot",
+    "yellow_leaf_curl_virus"
+  ],
+  "class_to_index": {
+    "bacterial_spot": 0,
+    "corn_common_rust": 1,
+    "corn_gray_leaf_spot": 2,
+    "corn_northern_leaf_blight": 3,
+    "early_blight": 4,
+    "healthy": 5,
+    "late_blight": 6,
+    "leaf_mold": 7,
+    "mosaic_virus": 8,
+    "powdery_mildew": 9,
+    "septoria_leaf_spot": 10,
+    "spider_mites": 11,
+    "target_spot": 12,
+    "yellow_leaf_curl_virus": 13
+  },
+
+  "class_crops": {
+    "bacterial_spot": ["tomato", "pepper"],
+    "corn_common_rust": ["corn"],
+    "corn_gray_leaf_spot": ["corn"],
+    "corn_northern_leaf_blight": ["corn"],
+    "early_blight": ["tomato", "potato"],
+    "healthy": ["tomato", "pepper", "peach"],
+    "late_blight": ["tomato", "potato"],
+    "leaf_mold": ["tomato"],
+    "mosaic_virus": ["tomato"],
+    "powdery_mildew": ["squash"],
+    "septoria_leaf_spot": ["tomato"],
+    "spider_mites": ["tomato"],
+    "target_spot": ["tomato"],
+    "yellow_leaf_curl_virus": ["tomato"]
+  },
+  "_class_crops_doc": "Per-class crops with FULL coverage (train+val+test_field examples). These are the (crop, disease) pairs the model is empirically validated to detect with measured field performance. The app should expose only these pairs in its disease-detection UI.",
+
+  "class_crops_train_only": {
+    "bacterial_spot": ["peach"],
+    "healthy": ["potato", "corn", "cherry"],
+    "powdery_mildew": ["tomato", "cherry"]
+  },
+  "_class_crops_train_only_doc": "Per-class crops with train+val examples but ZERO test_field examples — the model has SEEN these (crop, disease) pairs during training but their field-deployment performance is unverified. Treat predictions on these pairs with lower confidence and flag them for manual review until test data is collected.",
+
+  "supported_crops": [
+    "tomato",
+    "potato",
+    "pepper",
+    "corn",
+    "squash"
+  ],
+  "_supported_crops_doc": "Crops with at least one DISEASE class (excluding healthy) having full train+val+test coverage. The app should expose disease-detection workflows only for these 5 crops. Peach is healthy-only (see healthy_only_crops). Cherry is train-only and NOT recommended for production routing.",
+
+  "healthy_only_crops": [
+    "peach"
+  ],
+  "_healthy_only_crops_doc": "Crops where ONLY the 'healthy' class has full train+val+test coverage. The app should accept photos of these crops for healthy-vs-not classification but should NOT route them to disease-specific advice flows. Peach has 1,957 training bacterial_spot images but no test_field bacterial_spot images, so peach disease detection is unverified.",
+
+  "crops": [
+    "cherry",
+    "corn",
+    "peach",
+    "pepper",
+    "potato",
+    "squash",
+    "tomato"
+  ],
+  "_crops_doc": "All crops the model has been exposed to in any data split. Cherry has 1,740+ training images (580 healthy + 743 powdery_mildew + 131 val healthy + 155 val PM) but ZERO test_field examples — predictions on cherry inputs are technically possible but field performance is unverified.",
+
+  "crop_to_index": {
+    "cherry": 0,
+    "corn": 1,
+    "peach": 2,
+    "pepper": 3,
+    "potato": 4,
+    "squash": 5,
+    "tomato": 6,
+    "UNKNOWN": 7
+  },
+
+  "preprocessing": {
+    "color_space": "RGB",
+    "resize_short_side": 256,
+    "center_crop": [224, 224],
+    "normalize_mean": [0.485, 0.456, 0.406],
+    "normalize_std": [0.229, 0.224, 0.225],
+    "tensor_layout": "NCHW",
+    "tensor_dtype": "float32"
+  },
+
+  "test_time_augmentation": {
+    "recommended": "horizontal_flip_average",
+    "description": "For best accuracy at inference, run forward twice (original + horizontal flip), average the softmax. ~+0.5pp."
+  },
+
+  "inference_confidence_thresholds": {
+    "auto_classify": 0.90,
+    "show_top3_for_confirmation": 0.70,
+    "request_better_photo": 0.0,
+    "rationale": "Calibrated on cleaned 510-img test. Mean confidence on correct predictions ≈0.85, on incorrect ≈0.53. The gap supports threshold-based routing."
+  },
+
+  "training_data_distribution": {
+    "_doc": "Per-class per-crop training row counts derived from data/processed/splits_v15_clean_balanced.csv joined to v6_pool_manifest.csv. Use this to interpret the labels.json claims against the actual model exposure. 'unk' rows are PV/PD images whose original-path crop annotation didn't match a known crop string (often PD plantdoc_test/<class>/<file> paths where class doesn't encode crop).",
+    "counts": {
+      "bacterial_spot":            { "tomato": 1547, "pepper":   46, "peach": 1625, "unk":  716, "total": 3934 },
+      "corn_common_rust":          { "corn":    926,                                              "total":  926 },
+      "corn_gray_leaf_spot":       { "corn":    406,                                              "total":  406 },
+      "corn_northern_leaf_blight": { "corn":    824, "unk":      6,                               "total":  830 },
+      "early_blight":              { "tomato":  760, "potato":  779, "unk":   212,                "total": 1751 },
+      "healthy":                   { "tomato": 1149, "pepper": 1077, "corn":  828, "cherry": 580, "peach": 330, "potato": 104, "unk": 287, "total": 4355 },
+      "late_blight":               { "tomato": 1403, "potato":  777, "unk":   255,                "total": 2435 },
+      "leaf_mold":                 { "tomato":  729, "unk":    243,                               "total":  972 },
+      "mosaic_virus":              { "tomato":  299,                                              "total":  299 },
+      "powdery_mildew":            { "squash": 1369, "cherry": 743, "tomato":   2, "unk":  11,    "total": 2125 },
+      "septoria_leaf_spot":        { "tomato": 1349, "unk":    231,                               "total": 1580 },
+      "spider_mites":              { "tomato": 1167, "unk":    287,                               "total": 1454 },
+      "target_spot":               { "tomato":  983,                                              "total":  983 },
+      "yellow_leaf_curl_virus":    { "tomato": 3802,                                              "total": 3802 }
+    }
+  }
+}

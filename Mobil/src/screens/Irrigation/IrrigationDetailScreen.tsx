@@ -1,5 +1,5 @@
 // Sulama detay/giris ekrani — zone ozeti, sulama sorulari, gercek deger girisi, gecmis
-// HomeScreen icinden tam ekran overlay olarak render edilir
+// HomeStack icinde pageSheet (iOS) / card (Android) navigation screen olarak render edilir
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
@@ -10,21 +10,21 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { Ionicons, FontAwesome6, MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import Svg, { Path, Defs, ClipPath, Rect } from "react-native-svg";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Theme } from "../../utils/theme";
-import { DashboardData, IrrigationJob, irrigationAPI, sensorAPI, ZoneDetailsData } from "../../utils/api";
-import { NodeInfo } from "../../components/ColorPlane";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { IrrigationJob, irrigationAPI, sensorAPI, ZoneDetailsData } from "../../utils/api";
+import { palette } from "../../styles/colors";
+import type { Theme } from "../../utils/theme";
 import { useLanguage } from "../../context/LanguageContext";
-import { ms, s, spacing } from "../../utils/responsive";
-
-interface IrrigationDetailProps {
-  node: NodeInfo;
-  nodeIndex: number;
-  dashboardData: DashboardData;
-  theme: Theme;
-  onBack: () => void;
-}
+import { useTheme } from "../../context/ThemeContext";
+import { useDashboard } from "../../context/DashboardContext";
+import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useAuth } from "../../context/AuthContext";
+import { ms, s, vs, spacing } from "../../utils/responsive";
+import { getUrgencyLabel, getUrgencyColor } from "../../utils/labels";
+import type { IrrigationDetailNavProps } from "../Home/HomeStack";
 
 // Tarih/saat formatla
 const formatDateTime = (iso: string | null, language: string): string => {
@@ -33,6 +33,19 @@ const formatDateTime = (iso: string | null, language: string): string => {
   return d.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
     day: "numeric",
     month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+};
+
+// Tarih/saat formatla — tam ay adi ("26 Mayıs, 03:00")
+const formatDateTimeLong = (iso: string | null, language: string): string => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
+    day: "numeric",
+    month: "long",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -85,14 +98,22 @@ const YesNoToggle = ({
   </View>
 );
 
-export const IrrigationDetailScreen = ({
-  node,
-  nodeIndex,
-  dashboardData,
-  theme,
-  onBack,
-}: IrrigationDetailProps) => {
+export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNavProps) => {
+  const { node, nodeIndex } = route.params;
+  const { theme } = useTheme();
+  const { dashboardData, selectedFieldId, canEditSelectedFarm, zoneNameById } = useDashboard();
   const { t, language } = useLanguage();
+  const { showPopup } = usePopupMessage();
+  // Kilitli canli demo'da sulama tetikleme (yazma) gizli (paylasilan hesap; API de engeller).
+  const { isLockedDemo } = useAuth();
+
+  // Bolge basligi — FeaturedZoneCard ile AYNI cozum sirasi (kullanicinin tikladigi adla esit kalsin):
+  // node'un kendi adi → context zone_id->zone_name haritasi → "Bölge N" index fallback'i.
+  const zoneTitle = useMemo(() => {
+    if (node?.zone_name) return node.zone_name;
+    const byId = node?.zone_id ? zoneNameById[node.zone_id] : undefined;
+    return byId ?? `${t.irrigation.zone} ${nodeIndex + 1}`;
+  }, [node, zoneNameById, nodeIndex, t.irrigation.zone]);
 
   // Sulama is verileri
   const [jobs, setJobs] = useState<IrrigationJob[]>([]);
@@ -100,8 +121,8 @@ export const IrrigationDetailScreen = ({
   const [loading, setLoading] = useState(true);
 
   // Form durumu
-  // followedRecommendation: true = öneriyi tam uyguladım, false = farklı değer girdim
-  const [followedRecommendation, setFollowedRecommendation] = useState<boolean | null>(null);
+  const [followedAmount, setFollowedAmount] = useState<boolean | null>(null);
+  const [followedTime, setFollowedTime] = useState<boolean | null>(null);
   const [actualAmount, setActualAmount] = useState("");
   const [actualTime, setActualTime] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -110,6 +131,20 @@ export const IrrigationDetailScreen = ({
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<"success" | "error" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Manuel sulama form durumu
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualAmount, setManualAmount] = useState("");
+  const [manualDuration, setManualDuration] = useState("");
+  const [manualTime, setManualTime] = useState(new Date());
+  const [showManualDatePicker, setShowManualDatePicker] = useState(false);
+  const [showManualTimePicker, setShowManualTimePicker] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualSaveResult, setManualSaveResult] = useState<"success" | "error" | null>(null);
+  const [manualValidationError, setManualValidationError] = useState<string | null>(null);
+  const [runningRecommendation, setRunningRecommendation] = useState(false);
+
+  const isPotField = dashboardData?.field?.isPotField === true;
 
   // Mevcut/beklenen is — en yeni PENDING+should_irrigate jobunu sec
   const pendingJob = useMemo(
@@ -128,7 +163,7 @@ export const IrrigationDetailScreen = ({
     [jobs],
   );
   const historyJobs = useMemo(
-    () => jobs.filter((j) => j.status === "EXECUTED"),
+    () => jobs.filter((j) => j.status === "EXECUTED" || j.status === "ANALYZED"),
     [jobs],
   );
 
@@ -147,6 +182,7 @@ export const IrrigationDetailScreen = ({
       sensorAPI.getZoneDetails(zoneId),
     ]);
     if (jobsRes.success && jobsRes.data) {
+      console.log("[IRRIGATION] jobs loaded:", jobsRes.data.length, "statuses:", jobsRes.data.map((j) => j.status));
       setJobs(jobsRes.data);
     } else if (!jobsRes.success) {
       setError(jobsRes.error ?? "Error");
@@ -161,13 +197,71 @@ export const IrrigationDetailScreen = ({
     loadData();
   }, [loadData]);
 
+  // Sulama onerisi olustur — secili field'in tum zone'lari icin
+  const handleRunRecommendation = useCallback(async () => {
+    if (!selectedFieldId || runningRecommendation) return;
+    setRunningRecommendation(true);
+    try {
+      // Zone ID'lerini topla
+      const zoneIds: string[] = [];
+      const jobsRes = await irrigationAPI.getFieldJobs(selectedFieldId);
+      if (jobsRes.success && jobsRes.data) {
+        const fromJobs = [...new Set(
+          jobsRes.data.map((j) => j.zone_id).filter((id): id is string => id != null),
+        )];
+        zoneIds.push(...fromJobs);
+      }
+      if (zoneIds.length === 0) {
+        const fromNodes = [...new Set(
+          (dashboardData?.field?.nodes ?? [])
+            .map((n) => n.zone_id).filter((id): id is string => id != null),
+        )];
+        zoneIds.push(...fromNodes);
+      }
+      if (zoneIds.length === 0) {
+        showPopup(t.irrigation.noZonesFound);
+        setRunningRecommendation(false);
+        return;
+      }
+      let successCount = 0;
+      let failCount = 0;
+      let noPlantingCount = 0;
+      await Promise.all(
+        zoneIds.map(async (zoneId) => {
+          try {
+            const res = await irrigationAPI.runForZone(zoneId);
+            if (res.success) successCount++;
+            else {
+              failCount++;
+              if (res.error?.includes("No active planting")) noPlantingCount++;
+            }
+          } catch {
+            failCount++;
+          }
+        }),
+      );
+      if (noPlantingCount > 0 && noPlantingCount === failCount) {
+        showPopup(t.irrigation.noPlantingError);
+      } else if (failCount > 0) {
+        showPopup(`${successCount} ${t.irrigation.zonesSuccess}, ${failCount} ${t.irrigation.zonesFailed}`);
+      } else {
+        showPopup(t.irrigation.recommendationGenerated);
+      }
+      await loadData();
+    } catch {
+      showPopup(t.irrigation.recommendationFailed);
+    } finally {
+      setRunningRecommendation(false);
+    }
+  }, [selectedFieldId, runningRecommendation, dashboardData, showPopup, t, loadData]);
+
   // Kaydet
   const handleSave = useCallback(async () => {
     if (!pendingJob) return;
     setValidationError(null);
 
-    // "No" yolu: kullanıcı girişlerini doğrula
-    if (followedRecommendation === false) {
+    // "No" miktarı yolu: kullanıcı girişlerini doğrula
+    if (followedAmount === false) {
       const amountVal = parseFloat(actualAmount);
       if (!actualAmount.trim() || isNaN(amountVal) || amountVal <= 0) {
         setValidationError(t.irrigation.amountInvalid);
@@ -178,20 +272,30 @@ export const IrrigationDetailScreen = ({
     setSaving(true);
     setSaveResult(null);
 
-    const payload: { actual_water_amount_ml?: number; actual_start_time?: string } = {};
+    const payload: { actual_water_amount_ml?: number; actual_start_time?: string; actual_duration_min?: number } = {};
 
-    if (followedRecommendation === true) {
-      payload.actual_water_amount_ml = pendingJob.water_amount_ml ?? 0;
-      payload.actual_start_time = pendingJob.start_time ?? new Date().toISOString();
-    } else if (followedRecommendation === false) {
-      payload.actual_water_amount_ml = parseFloat(actualAmount);
-      payload.actual_start_time = actualTime.toISOString();
+    if (isPotField) {
+      payload.actual_water_amount_ml =
+        followedAmount === true
+          ? (pendingJob.water_amount_ml ?? 0)
+          : parseFloat(actualAmount);
+    } else {
+      payload.actual_duration_min =
+        followedAmount === true
+          ? (pendingJob.recommended_duration_min ?? 0)
+          : parseFloat(actualAmount);
     }
+
+    payload.actual_start_time =
+      followedTime === true
+        ? (pendingJob.start_time ?? new Date().toISOString())
+        : actualTime.toISOString();
 
     const res = await irrigationAPI.updateJobActual(pendingJob.job_id, payload);
     if (res.success) {
       setSaveResult("success");
-      setFollowedRecommendation(null);
+      setFollowedAmount(null);
+      setFollowedTime(null);
       setActualAmount("");
       setValidationError(null);
       await loadData();
@@ -199,7 +303,7 @@ export const IrrigationDetailScreen = ({
       setSaveResult("error");
     }
     setSaving(false);
-  }, [pendingJob, followedRecommendation, actualAmount, actualTime, loadData, t.irrigation.amountInvalid]);
+  }, [pendingJob, followedAmount, followedTime, actualAmount, actualTime, loadData, t.irrigation.amountInvalid]);
 
   // DateTimePicker handler
   const onDateChange = (_: any, selected?: Date) => {
@@ -225,42 +329,168 @@ export const IrrigationDetailScreen = ({
   };
 
   const canSave =
-    followedRecommendation === true ||
-    (followedRecommendation === false &&
-      actualAmount.trim().length > 0 &&
-      parseFloat(actualAmount) > 0);
+    followedAmount !== null &&
+    followedTime !== null &&
+    (followedAmount === true ||
+      (actualAmount.trim().length > 0 && parseFloat(actualAmount) > 0));
+
+  // Manuel sulama kaydet
+  const handleManualSave = useCallback(async () => {
+    setManualValidationError(null);
+
+    if (isPotField) {
+      const val = parseFloat(manualAmount);
+      if (!manualAmount.trim() || isNaN(val) || val <= 0) {
+        setManualValidationError(t.irrigation.amountInvalid);
+        return;
+      }
+    } else {
+      const val = parseFloat(manualDuration);
+      if (!manualDuration.trim() || isNaN(val) || val <= 0) {
+        setManualValidationError(t.irrigation.amountInvalid);
+        return;
+      }
+    }
+
+    if (manualTime.getTime() > Date.now() + 60_000) {
+      setManualValidationError(t.irrigation.amountInvalid);
+      return;
+    }
+
+    const zoneId = node.zone_id;
+    if (!zoneId) return;
+
+    setManualSaving(true);
+    setManualSaveResult(null);
+
+    const payload: {
+      actual_start_time: string;
+      actual_water_amount_ml?: number;
+      actual_duration_min?: number;
+    } = {
+      actual_start_time: manualTime.toISOString(),
+    };
+
+    if (isPotField) {
+      payload.actual_water_amount_ml = parseFloat(manualAmount);
+    } else {
+      payload.actual_duration_min = parseFloat(manualDuration);
+    }
+
+    console.log("[MANUAL_IRRIGATION] zone_id:", zoneId, "isPotField:", isPotField, "pendingJob:", !!pendingJob, "payload:", payload);
+
+    const res = await irrigationAPI.createManualActual(zoneId, payload);
+
+    console.log("[MANUAL_IRRIGATION] response:", res.success, res.data?.job?.job_id, res.data?.job?.status);
+
+    if (res.success) {
+      setManualSaveResult("success");
+      setManualAmount("");
+      setManualDuration("");
+      setManualValidationError(null);
+      await loadData();
+    } else {
+      setManualSaveResult("error");
+    }
+    setManualSaving(false);
+  }, [isPotField, manualAmount, manualDuration, manualTime, node.zone_id, pendingJob, loadData, t.irrigation.amountInvalid]);
+
+  // Manuel sulama DateTimePicker handler'lari
+  const onManualDateChange = (_: any, selected?: Date) => {
+    setShowManualDatePicker(false);
+    if (selected) {
+      const merged = new Date(manualTime);
+      merged.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+      setManualTime(merged);
+      if (Platform.OS === "android") {
+        setTimeout(() => setShowManualTimePicker(true), 300);
+      }
+    }
+  };
+
+  const onManualTimeChange = (_: any, selected?: Date) => {
+    setShowManualTimePicker(false);
+    if (selected) {
+      const merged = new Date(manualTime);
+      merged.setHours(selected.getHours(), selected.getMinutes());
+      setManualTime(merged);
+    }
+  };
+
+  const canManualSave = isPotField
+    ? manualAmount.trim().length > 0 && parseFloat(manualAmount) > 0
+    : manualDuration.trim().length > 0 && parseFloat(manualDuration) > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      {/* Baslik */}
+      {/* Baslik — bolge adi birincil, mahsul ikincil */}
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: spacing.md,
-          paddingTop: spacing.lg,
+          paddingTop: spacing.sm,
           paddingBottom: spacing.sm,
           borderBottomWidth: 1,
           borderBottomColor: theme.divider,
         }}
       >
         <TouchableOpacity
-          onPress={onBack}
+          onPress={() => navigation.goBack()}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           style={{ marginRight: spacing.sm }}
         >
-          <Ionicons name="arrow-back" size={24} color={theme.textMain} />
+          <Ionicons name="chevron-down" size={26} color={theme.textMain} />
         </TouchableOpacity>
-        <Text
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontSize: ms(18, 0.3),
+              fontWeight: "700",
+              color: theme.textMain,
+            }}
+          >
+            {zoneTitle}
+          </Text>
+          {zoneDetails?.active_plantings?.[0]?.crop_name ? (
+            <Text
+              style={{
+                fontSize: ms(13, 0.3),
+                color: theme.textSecondary,
+                marginTop: 1,
+              }}
+            >
+              {zoneDetails.active_plantings[0].crop_name}
+            </Text>
+          ) : null}
+        </View>
+        {/* Sulama onerisi calistir — yalnizca secili ciftligi sahiplenen (paydas salt-okunur).
+            Kilitli demoda da gizli (yazma engelli). */}
+        {canEditSelectedFarm && !isLockedDemo && (
+        <TouchableOpacity
+          onPress={handleRunRecommendation}
+          disabled={runningRecommendation}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           style={{
-            fontSize: ms(18, 0.3),
-            fontWeight: "700",
-            color: theme.textMain,
-            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: runningRecommendation ? theme.border : theme.primary,
+            borderRadius: 8,
+            paddingVertical: vs(6),
+            paddingHorizontal: s(10),
+            gap: s(4),
           }}
         >
-          {t.irrigation.detail}
-        </Text>
+          {runningRecommendation ? (
+            <ActivityIndicator size="small" color={theme.textOnPrimary} />
+          ) : (
+            <MaterialCommunityIcons name="water-check" size={16} color={theme.textOnPrimary} />
+          )}
+          <Text style={{ fontSize: ms(12, 0.3), fontWeight: "600", color: theme.textOnPrimary }}>
+            {t.irrigation.recommendButton}
+          </Text>
+        </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -306,157 +536,266 @@ export const IrrigationDetailScreen = ({
           </View>
         ) : (
           <>
-            {/* Zone Ozeti */}
-            <View
-              style={{
-                backgroundColor: theme.surface,
-                borderRadius: 14,
-                padding: spacing.md,
-                borderWidth: 1,
-                borderColor: theme.primary + "20",
-                marginBottom: spacing.md,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: ms(17, 0.3),
-                  fontWeight: "700",
-                  color: theme.textMain,
-                  marginBottom: spacing.sm,
-                }}
-              >
-                {t.irrigation.zone} {nodeIndex + 1}
-              </Text>
+            {/* ── 1. Oneri ozeti — yan yana: damla (sol) + miktar (sag) ── */}
+            {(() => {
+              const moisture = Math.round(node.moisture);
+              const moistureClamped = Math.min(Math.max(moisture, 0), 100);
+              const targetMoisture =
+                zoneDetails?.adaptive_config?.target_sm_percent ??
+                pendingJob?.target_sm;
+              const dropColor =
+                moistureClamped < 30
+                  ? palette.soilMoisture[300]
+                  : moistureClamped < 60
+                    ? palette.soilMoisture[500]
+                    : palette.soilMoisture[700];
+              const svgSize = s(104);
+              const fillY = 100 - moistureClamped;
+              const hasRecommendation = pendingJob?.water_amount_ml != null;
 
-              <SummaryRow
-                icon={<Ionicons name="water" size={16} color={theme.primary} />}
-                label={t.irrigation.currentMoisture}
-                value={`${Math.round(node.moisture)}%`}
-                theme={theme}
-              />
-              <SummaryRow
-                icon={<FontAwesome6 name="clock" size={14} color={theme.primary} />}
-                label={t.irrigation.recommendedTime}
-                value={formatDateTime(
-                  pendingJob?.start_time ?? dashboardData.irrigation.nextIrrigationTime,
-                  language,
-                )}
-                theme={theme}
-              />
-              <SummaryRow
-                icon={<MaterialIcons name="water-drop" size={16} color={theme.primary} />}
-                label={t.irrigation.recommendedAmount}
-                value={
-                  pendingJob?.water_amount_ml != null
-                    ? `${Math.round(pendingJob.water_amount_ml)} ${t.irrigation.ml}`
-                    : t.irrigation.noRecommendation
-                }
-                theme={theme}
-                isLast={false}
-              />
-              {pendingJob && (
-                <SummaryRow
-                  icon={<Ionicons name="checkmark-circle-outline" size={16} color={theme.primary} />}
-                  label={t.irrigation.status}
-                  value={pendingJob.status}
-                  theme={theme}
-                  isLast={
-                    !pendingJob.urgency_level &&
-                    !pendingJob.recommendation_time &&
-                    !pendingJob.reasoning &&
-                    zoneDetails?.adaptive_config?.target_sm_percent == null &&
-                    !zoneDetails?.active_plantings?.length
-                  }
-                />
-              )}
-              {pendingJob?.urgency_level && (
-                <SummaryRow
-                  icon={<Ionicons name="alert-circle-outline" size={16} color={theme.primary} />}
-                  label={t.irrigation.urgencyLevel}
-                  value={pendingJob.urgency_level}
-                  theme={theme}
-                  isLast={
-                    !pendingJob.recommendation_time &&
-                    !pendingJob.reasoning &&
-                    zoneDetails?.adaptive_config?.target_sm_percent == null &&
-                    !zoneDetails?.active_plantings?.length
-                  }
-                />
-              )}
-              {pendingJob?.recommendation_time && (
-                <SummaryRow
-                  icon={<FontAwesome6 name="clock" size={14} color={theme.primary} />}
-                  label={t.irrigation.recommendationTime}
-                  value={formatDateTime(pendingJob.recommendation_time, language)}
-                  theme={theme}
-                  isLast={
-                    !pendingJob.reasoning &&
-                    zoneDetails?.adaptive_config?.target_sm_percent == null &&
-                    !zoneDetails?.active_plantings?.length
-                  }
-                />
-              )}
-              {zoneDetails?.adaptive_config?.target_sm_percent != null && (
-                <SummaryRow
-                  icon={<MaterialIcons name="track-changes" size={16} color={theme.primary} />}
-                  label={t.irrigation.targetMoisture}
-                  value={`${Math.round(zoneDetails.adaptive_config.target_sm_percent)}%`}
-                  theme={theme}
-                  isLast={!zoneDetails?.active_plantings?.length && !pendingJob?.reasoning}
-                />
-              )}
-              {zoneDetails?.active_plantings?.[0] && (
-                <SummaryRow
-                  icon={<MaterialIcons name="grass" size={16} color={theme.primary} />}
-                  label={t.irrigation.crop}
-                  value={zoneDetails.active_plantings[0].crop_name}
-                  theme={theme}
-                  isLast={!zoneDetails.active_plantings[0].growth_stage && !pendingJob?.reasoning}
-                />
-              )}
-              {zoneDetails?.active_plantings?.[0]?.growth_stage && (
-                <SummaryRow
-                  icon={<Ionicons name="leaf-outline" size={16} color={theme.primary} />}
-                  label={t.irrigation.growthStage}
-                  value={zoneDetails.active_plantings[0].growth_stage}
-                  theme={theme}
-                  isLast={!pendingJob?.reasoning}
-                />
-              )}
-              {pendingJob?.reasoning && (
+              return (
                 <View
                   style={{
-                    marginTop: spacing.xs,
-                    paddingTop: spacing.xs,
-                    borderTopWidth: 1,
-                    borderTopColor: theme.divider,
+                    flexDirection: "row",
+                    alignItems: "stretch",
+                    paddingVertical: spacing.sm,
+                    marginBottom: spacing.xs,
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: ms(12, 0.3),
-                      color: theme.textSecondary,
-                      marginBottom: 2,
-                    }}
-                  >
-                    {t.irrigation.reasoning}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: ms(13, 0.3),
-                      color: theme.textMain,
-                      lineHeight: ms(18, 0.3),
-                    }}
-                  >
-                    {pendingJob.reasoning}
-                  </Text>
+                  {/* Sol kolon: Damla (%40) */}
+                  <View style={{ width: "40%", alignItems: "center" }}>
+                    {/* Ust: damla */}
+                    <View style={{ flex: 1, justifyContent: "center" }}>
+                      <View style={{ width: svgSize, height: svgSize }}>
+                        <Svg
+                          width={svgSize}
+                          height={svgSize}
+                          viewBox="0 0 100 100"
+                        >
+                          <Defs>
+                            <ClipPath id="dropClip">
+                              <Path d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z" />
+                            </ClipPath>
+                          </Defs>
+                          <Path
+                            d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z"
+                            fill={dropColor + "18"}
+                          />
+                          <Rect
+                            x="0"
+                            y={fillY}
+                            width="100"
+                            height={100 - fillY}
+                            fill={dropColor + "40"}
+                            clipPath="url(#dropClip)"
+                          />
+                          <Path
+                            d="M50 5 C50 5,15 45,15 65 C15 84,31 95,50 95 C69 95,85 84,85 65 C85 45,50 5,50 5Z"
+                            fill="none"
+                            stroke={dropColor + "50"}
+                            strokeWidth="2"
+                          />
+                        </Svg>
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: svgSize * 0.6,
+                            left: 0,
+                            right: 0,
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: ms(20, 0.3),
+                              fontWeight: "800",
+                              color: dropColor,
+                            }}
+                          >
+                            {moisture}%
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                    {/* Alt: etiketler */}
+                    <Text
+                      style={{
+                        fontSize: ms(12, 0.3),
+                        color: theme.textSecondary,
+                        marginTop: s(3),
+                      }}
+                    >
+                      {t.irrigation.currentMoisture}
+                    </Text>
+                    {targetMoisture != null ? (
+                      <Text
+                        style={{
+                          fontSize: ms(11, 0.3),
+                          color: theme.textMuted,
+                          marginTop: 1,
+                        }}
+                      >
+                        {t.irrigation.targetMoisture}: {Math.round(targetMoisture)}%
+                      </Text>
+                    ) : (
+                      <View style={{ height: ms(13, 0.3) }} />
+                    )}
+                  </View>
+
+                  {/* Sag kolon: Oneri (%60) */}
+                  <View style={{ width: "60%", alignItems: "center" }}>
+                    {hasRecommendation ? (
+                      <>
+                        {/* Ust: aciliyet */}
+                        {pendingJob!.urgency_level ? (
+                          <View
+                            style={{
+                              backgroundColor:
+                                theme[
+                                  getUrgencyColor(pendingJob!.urgency_level)
+                                ] + "18",
+                              paddingHorizontal: s(10),
+                              paddingVertical: s(3),
+                              borderRadius: s(8),
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: ms(12, 0.3),
+                                fontWeight: "700",
+                                color:
+                                  theme[
+                                    getUrgencyColor(pendingJob!.urgency_level)
+                                  ],
+                              }}
+                            >
+                              {getUrgencyLabel(
+                                pendingJob!.urgency_level,
+                                t.irrigation,
+                              )}
+                            </Text>
+                          </View>
+                        ) : null}
+
+                        {/* Orta: miktar + etiket */}
+                        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "baseline",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: ms(52, 0.3),
+                                fontWeight: "800",
+                                color: theme.primary,
+                              }}
+                            >
+                              {Math.round(pendingJob!.water_amount_ml!)}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: ms(19, 0.3),
+                                fontWeight: "600",
+                                color: theme.primary,
+                                marginLeft: s(4),
+                              }}
+                            >
+                              {t.irrigation.ml}
+                            </Text>
+                          </View>
+                          <Text
+                            style={{
+                              fontSize: ms(13, 0.3),
+                              color: theme.textSecondary,
+                              marginTop: vs(1),
+                            }}
+                          >
+                            {t.irrigation.irrigationRecommended}
+                          </Text>
+                        </View>
+
+                        {/* Alt: zaman */}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color={theme.textSecondary}
+                          />
+                          <Text
+                            style={{
+                              fontSize: ms(13, 0.3),
+                              color: theme.textSecondary,
+                              marginLeft: s(3),
+                            }}
+                          >
+                            {formatDateTimeLong(
+                              pendingJob!.start_time,
+                              language,
+                            )}
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={{ flex: 1, justifyContent: "center" }}>
+                        <Text
+                          style={{
+                            fontSize: ms(14, 0.3),
+                            color: theme.textMuted,
+                          }}
+                        >
+                          {t.irrigation.noRecommendation}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-              )}
-            </View>
+              );
+            })()}
+
+            {/* ── 2. Aciklama karti (ayri) ── */}
+            {pendingJob ? (
+              <View
+                style={{
+                  backgroundColor: theme.surface,
+                  borderRadius: 14,
+                  padding: spacing.md,
+                  borderWidth: 1,
+                  borderColor: theme.primary + "15",
+                  marginBottom: spacing.md,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: ms(14, 0.3),
+                    fontWeight: "700",
+                    color: theme.textMain,
+                    marginBottom: s(6),
+                  }}
+                >
+                  {t.irrigation.whyRecommended}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: ms(13, 0.3),
+                    color: theme.textSecondary,
+                    lineHeight: ms(19, 0.3),
+                  }}
+                >
+                  {t.irrigation.defaultReasoning}
+                </Text>
+              </View>
+            ) : null}
 
             {pendingJob ? (
               <>
-            {/* Sulama onayı — tek soru */}
+            {/* Soru 1: Miktar */}
             <Text
               style={{
                 fontSize: ms(14, 0.3),
@@ -465,202 +804,177 @@ export const IrrigationDetailScreen = ({
                 marginBottom: spacing.sm,
               }}
             >
-              {t.irrigation.confirmIrrigationQuestion}
+              {t.irrigation.amountQuestion}
             </Text>
+            <YesNoToggle
+              value={followedAmount}
+              onChange={(val) => {
+                setFollowedAmount(val);
+                setValidationError(null);
+                setSaveResult(null);
+              }}
+              theme={theme}
+              yesLabel={t.common.yes}
+              noLabel={t.common.no}
+            />
 
-            {/* Seçenek kartları */}
-            <View style={{ gap: s(8) }}>
-              {([true, false] as const).map((option) => {
-                const isSelected = followedRecommendation === option;
-                const label = option
-                  ? t.irrigation.yesFollowedExactly
-                  : t.irrigation.noUsedDifferent;
-                return (
-                  <TouchableOpacity
-                    key={String(option)}
-                    onPress={() => {
-                      setFollowedRecommendation(option);
-                      setValidationError(null);
-                      setSaveResult(null);
-                    }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingVertical: spacing.sm,
-                      paddingHorizontal: spacing.md,
-                      borderRadius: 12,
-                      borderWidth: 1.5,
-                      borderColor: isSelected ? theme.primary : theme.border,
-                      backgroundColor: isSelected
-                        ? theme.primary + "12"
-                        : theme.surface,
-                      gap: s(10),
-                    }}
-                  >
-                    <Ionicons
-                      name={
-                        isSelected
-                          ? option
-                            ? "checkmark-circle"
-                            : "close-circle"
-                          : "radio-button-off-outline"
-                      }
-                      size={22}
-                      color={isSelected ? theme.primary : theme.textMuted}
-                    />
-                    <Text
-                      style={{
-                        flex: 1,
-                        fontSize: ms(13, 0.3),
-                        fontWeight: isSelected ? "600" : "500",
-                        color: isSelected ? theme.primary : theme.textMain,
-                      }}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* "Hayır" seçilince: miktar + zaman girişi */}
-            {followedRecommendation === false && (
+            {/* Miktar girişi — "Hayır" seçilince */}
+            {followedAmount === false && (
               <View
                 style={{
-                  marginTop: spacing.md,
+                  marginTop: spacing.sm,
                   padding: spacing.md,
                   backgroundColor: theme.surface,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: theme.border,
-                  gap: spacing.md,
                 }}
               >
                 <Text
                   style={{
-                    fontSize: ms(13, 0.3),
-                    fontWeight: "600",
-                    color: theme.textMain,
-                    marginBottom: spacing.xs,
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
                   }}
                 >
-                  {t.irrigation.enterActualValues}
+                  {t.irrigation.actualAmount}
                 </Text>
-
-                {/* Gerçek miktar */}
-                <View>
+                <TextInput
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: validationError ? theme.danger : theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    fontSize: ms(16, 0.3),
+                    color: theme.textMain,
+                  }}
+                  value={actualAmount}
+                  onChangeText={(v) => {
+                    setActualAmount(v);
+                    setValidationError(null);
+                  }}
+                  placeholder={t.irrigation.enterAmount}
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="numeric"
+                />
+                {validationError ? (
                   <Text
                     style={{
-                      fontSize: ms(12, 0.3),
-                      color: theme.textSecondary,
-                      marginBottom: 4,
+                      fontSize: ms(11, 0.3),
+                      color: theme.danger,
+                      marginTop: 4,
                     }}
                   >
-                    {t.irrigation.actualAmount}
+                    {validationError}
                   </Text>
-                  <TextInput
-                    style={{
-                      backgroundColor: theme.background,
-                      borderWidth: 1,
-                      borderColor: validationError ? theme.danger : theme.border,
-                      borderRadius: 10,
-                      paddingHorizontal: spacing.sm,
-                      paddingVertical: spacing.sm,
-                      fontSize: ms(16, 0.3),
-                      color: theme.textMain,
-                    }}
-                    value={actualAmount}
-                    onChangeText={(v) => {
-                      setActualAmount(v);
-                      setValidationError(null);
-                    }}
-                    placeholder={t.irrigation.enterAmount}
-                    placeholderTextColor={theme.textMuted}
-                    keyboardType="numeric"
-                  />
-                  {validationError ? (
-                    <Text
-                      style={{
-                        fontSize: ms(11, 0.3),
-                        color: theme.danger,
-                        marginTop: 4,
-                      }}
-                    >
-                      {validationError}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* Gerçek zaman */}
-                <View>
-                  <Text
-                    style={{
-                      fontSize: ms(12, 0.3),
-                      color: theme.textSecondary,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {t.irrigation.actualTime}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setShowDatePicker(true)}
-                    style={{
-                      backgroundColor: theme.background,
-                      borderWidth: 1,
-                      borderColor: theme.border,
-                      borderRadius: 10,
-                      paddingHorizontal: spacing.sm,
-                      paddingVertical: spacing.sm,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Text style={{ fontSize: ms(15, 0.3), color: theme.textMain }}>
-                      {actualTime.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
-                    </Text>
-                    <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
-                  </TouchableOpacity>
-
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={actualTime}
-                      mode="date"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={onDateChange}
-                      maximumDate={new Date()}
-                    />
-                  )}
-                  {showTimePicker && (
-                    <DateTimePicker
-                      value={actualTime}
-                      mode="time"
-                      display={Platform.OS === "ios" ? "spinner" : "default"}
-                      onChange={onTimeChange}
-                      is24Hour={true}
-                    />
-                  )}
-                  {/* iOS: tarih ve saat picker'ı aynı anda göster */}
-                  {Platform.OS === "ios" && showDatePicker && (
-                    <DateTimePicker
-                      value={actualTime}
-                      mode="time"
-                      display="spinner"
-                      onChange={onTimeChange}
-                      is24Hour={true}
-                    />
-                  )}
-                </View>
+                ) : null}
               </View>
             )}
 
-            {/* Kaydet butonu */}
+            {/* Soru 2: Zaman */}
+            <Text
+              style={{
+                fontSize: ms(14, 0.3),
+                fontWeight: "600",
+                color: theme.textMain,
+                marginTop: spacing.md,
+                marginBottom: spacing.sm,
+              }}
+            >
+              {t.irrigation.timeQuestion}
+            </Text>
+            <YesNoToggle
+              value={followedTime}
+              onChange={(val) => {
+                setFollowedTime(val);
+                setSaveResult(null);
+              }}
+              theme={theme}
+              yesLabel={t.common.yes}
+              noLabel={t.common.no}
+            />
+
+            {/* Zaman girişi — "Hayır" seçilince */}
+            {followedTime === false && (
+              <View
+                style={{
+                  marginTop: spacing.sm,
+                  padding: spacing.md,
+                  backgroundColor: theme.surface,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: theme.border,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
+                  }}
+                >
+                  {t.irrigation.actualTime}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(true)}
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ fontSize: ms(15, 0.3), color: theme.textMain }}>
+                    {actualTime.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+
+                {showDatePicker && (
+                  <DateTimePicker
+                    value={actualTime}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onDateChange}
+                    maximumDate={new Date()}
+                  />
+                )}
+                {showTimePicker && (
+                  <DateTimePicker
+                    value={actualTime}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onTimeChange}
+                    is24Hour={true}
+                  />
+                )}
+                {Platform.OS === "ios" && showDatePicker && (
+                  <DateTimePicker
+                    value={actualTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={onTimeChange}
+                    is24Hour={true}
+                  />
+                )}
+              </View>
+            )}
+
+            {/* Kaydet butonu — yalnizca secili ciftligi sahiplenen (paydas salt-okunur) */}
+            {canEditSelectedFarm && (
             <TouchableOpacity
               onPress={handleSave}
               disabled={!canSave || saving}
@@ -686,6 +1000,7 @@ export const IrrigationDetailScreen = ({
                 </Text>
               )}
             </TouchableOpacity>
+            )}
 
             {/* Kayit sonucu */}
             {saveResult === "success" && (
@@ -720,7 +1035,7 @@ export const IrrigationDetailScreen = ({
               <View
                 style={{
                   backgroundColor: theme.surface,
-                  borderRadius: 14,
+                  borderRadius: 10,
                   padding: spacing.md,
                   borderWidth: 1,
                   borderColor: theme.success + "40",
@@ -765,6 +1080,37 @@ export const IrrigationDetailScreen = ({
                   {t.irrigation.lastChecked}:{" "}
                   {formatDateTime(noActionJob.created_at, language)}
                 </Text>
+                {!showManualForm && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowManualForm(true);
+                      setManualSaveResult(null);
+                    }}
+                    style={{
+                      marginTop: spacing.sm,
+                      paddingVertical: spacing.sm,
+                      borderRadius: 10,
+                      borderWidth: 1.5,
+                      borderColor: theme.primary,
+                      backgroundColor: theme.primary + "12",
+                      alignItems: "center",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: s(6),
+                    }}
+                  >
+                    <MaterialIcons name="water-drop" size={16} color={theme.primary} />
+                    <Text
+                      style={{
+                        fontSize: ms(14, 0.3),
+                        fontWeight: "600",
+                        color: theme.primary,
+                      }}
+                    >
+                      {t.irrigation.manualIrrigation}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <View
@@ -794,6 +1140,266 @@ export const IrrigationDetailScreen = ({
                 >
                   {t.irrigation.noActiveRecommendationSub}
                 </Text>
+                {!showManualForm && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowManualForm(true);
+                      setManualSaveResult(null);
+                    }}
+                    style={{
+                      marginTop: spacing.sm,
+                      paddingVertical: spacing.sm,
+                      paddingHorizontal: spacing.lg,
+                      borderRadius: 10,
+                      borderWidth: 1.5,
+                      borderColor: theme.primary,
+                      backgroundColor: theme.primary + "12",
+                      alignItems: "center",
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      gap: s(6),
+                    }}
+                  >
+                    <MaterialIcons name="water-drop" size={16} color={theme.primary} />
+                    <Text
+                      style={{
+                        fontSize: ms(14, 0.3),
+                        fontWeight: "600",
+                        color: theme.primary,
+                      }}
+                    >
+                      {t.irrigation.manualIrrigation}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {/* Manuel sulama formu */}
+            {!pendingJob && showManualForm && (
+              <View
+                style={{
+                  backgroundColor: theme.surface,
+                  borderRadius: 14,
+                  padding: spacing.md,
+                  borderWidth: 1,
+                  borderColor: theme.primary + "30",
+                  marginTop: spacing.md,
+                }}
+              >
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: spacing.sm,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: ms(15, 0.3),
+                      fontWeight: "700",
+                      color: theme.textMain,
+                    }}
+                  >
+                    {t.irrigation.manualIrrigation}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowManualForm(false);
+                      setManualSaveResult(null);
+                      setManualValidationError(null);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: ms(13, 0.3),
+                        color: theme.textSecondary,
+                        fontWeight: "500",
+                      }}
+                    >
+                      {t.irrigation.cancel}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: spacing.md,
+                  }}
+                >
+                  {t.irrigation.manualIrrigationDesc}
+                </Text>
+
+                {/* Zaman secici */}
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
+                  }}
+                >
+                  {t.irrigation.manualTime}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowManualDatePicker(true)}
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: spacing.md,
+                  }}
+                >
+                  <Text style={{ fontSize: ms(15, 0.3), color: theme.textMain }}>
+                    {manualTime.toLocaleString(language === "tr" ? "tr-TR" : "en-US", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                    })}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={20} color={theme.textSecondary} />
+                </TouchableOpacity>
+
+                {showManualDatePicker && (
+                  <DateTimePicker
+                    value={manualTime}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onManualDateChange}
+                    maximumDate={new Date()}
+                  />
+                )}
+                {showManualTimePicker && (
+                  <DateTimePicker
+                    value={manualTime}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onManualTimeChange}
+                    is24Hour={true}
+                  />
+                )}
+                {Platform.OS === "ios" && showManualDatePicker && (
+                  <DateTimePicker
+                    value={manualTime}
+                    mode="time"
+                    display="spinner"
+                    onChange={onManualTimeChange}
+                    is24Hour={true}
+                  />
+                )}
+
+                {/* Miktar veya sure girisi */}
+                <Text
+                  style={{
+                    fontSize: ms(12, 0.3),
+                    color: theme.textSecondary,
+                    marginBottom: 4,
+                  }}
+                >
+                  {isPotField ? t.irrigation.manualAmount : t.irrigation.manualDuration}
+                </Text>
+                <TextInput
+                  style={{
+                    backgroundColor: theme.background,
+                    borderWidth: 1,
+                    borderColor: manualValidationError ? theme.danger : theme.border,
+                    borderRadius: 10,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                    fontSize: ms(16, 0.3),
+                    color: theme.textMain,
+                  }}
+                  value={isPotField ? manualAmount : manualDuration}
+                  onChangeText={(v) => {
+                    if (isPotField) {
+                      setManualAmount(v);
+                    } else {
+                      setManualDuration(v);
+                    }
+                    setManualValidationError(null);
+                  }}
+                  placeholder={isPotField ? t.irrigation.enterAmount : t.irrigation.enterDuration}
+                  placeholderTextColor={theme.textMuted}
+                  keyboardType="numeric"
+                />
+                {manualValidationError && (
+                  <Text
+                    style={{
+                      fontSize: ms(11, 0.3),
+                      color: theme.danger,
+                      marginTop: 4,
+                    }}
+                  >
+                    {manualValidationError}
+                  </Text>
+                )}
+
+                {/* Kaydet butonu — yalnizca secili ciftligi sahiplenen (paydas salt-okunur) */}
+                {canEditSelectedFarm && (
+                <TouchableOpacity
+                  onPress={handleManualSave}
+                  disabled={!canManualSave || manualSaving}
+                  style={{
+                    backgroundColor: canManualSave && !manualSaving ? theme.primary : theme.border,
+                    borderRadius: 12,
+                    paddingVertical: spacing.md,
+                    alignItems: "center",
+                    marginTop: spacing.lg,
+                  }}
+                >
+                  {manualSaving ? (
+                    <ActivityIndicator size="small" color={theme.textOnPrimary} />
+                  ) : (
+                    <Text
+                      style={{
+                        fontSize: ms(15, 0.3),
+                        fontWeight: "700",
+                        color: canManualSave ? theme.textOnPrimary : theme.textMuted,
+                      }}
+                    >
+                      {t.irrigation.save}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+                )}
+
+                {/* Sonuc mesaji */}
+                {manualSaveResult === "success" && (
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      marginTop: spacing.sm,
+                      fontSize: ms(13, 0.3),
+                      color: theme.success,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {t.irrigation.manualSaved}
+                  </Text>
+                )}
+                {manualSaveResult === "error" && (
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      marginTop: spacing.sm,
+                      fontSize: ms(13, 0.3),
+                      color: theme.danger,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {t.irrigation.manualSaveFailed}
+                  </Text>
+                )}
               </View>
             )}
 
@@ -838,14 +1444,36 @@ export const IrrigationDetailScreen = ({
                     }}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text
-                        style={{
-                          fontSize: ms(12, 0.3),
-                          color: theme.textSecondary,
-                        }}
-                      >
-                        {formatDateTime(job.actual_start_time ?? job.start_time ?? job.created_at, language)}
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: s(6) }}>
+                        <Text
+                          style={{
+                            fontSize: ms(12, 0.3),
+                            color: theme.textSecondary,
+                          }}
+                        >
+                          {formatDateTime(job.actual_start_time ?? job.start_time ?? job.created_at, language)}
+                        </Text>
+                        {job.urgency_level === "manual" && (
+                          <View
+                            style={{
+                              backgroundColor: theme.info + "20",
+                              paddingHorizontal: s(6),
+                              paddingVertical: 1,
+                              borderRadius: 6,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: ms(10, 0.3),
+                                fontWeight: "600",
+                                color: theme.info,
+                              }}
+                            >
+                              {t.irrigation.manualIrrigation}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                       <Text
                         style={{
                           fontSize: ms(14, 0.3),
@@ -856,9 +1484,11 @@ export const IrrigationDetailScreen = ({
                       >
                         {job.actual_water_amount_ml != null
                           ? `${Math.round(job.actual_water_amount_ml)} ${t.irrigation.ml}`
-                          : job.water_amount_ml != null
-                            ? `${Math.round(job.water_amount_ml)} ${t.irrigation.ml}`
-                            : "—"}
+                          : job.actual_duration_min != null
+                            ? `${Math.round(job.actual_duration_min)} ${language === "tr" ? "dk" : "min"}`
+                            : job.water_amount_ml != null
+                              ? `${Math.round(job.water_amount_ml)} ${t.irrigation.ml}`
+                              : "—"}
                       </Text>
                     </View>
                     <Ionicons
@@ -877,47 +1507,5 @@ export const IrrigationDetailScreen = ({
   );
 };
 
-// Ozet satiri yardimci bileşeni
-const SummaryRow = ({
-  icon,
-  label,
-  value,
-  theme,
-  isLast = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  theme: Theme;
-  isLast?: boolean;
-}) => (
-  <View
-    style={{
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: spacing.xs,
-      borderBottomWidth: isLast ? 0 : 1,
-      borderBottomColor: theme.divider,
-    }}
-  >
-    <View style={{ marginRight: s(8) }}>{icon}</View>
-    <Text
-      style={{
-        flex: 1,
-        fontSize: ms(13, 0.3),
-        color: theme.textSecondary,
-      }}
-    >
-      {label}
-    </Text>
-    <Text
-      style={{
-        fontSize: ms(13, 0.3),
-        fontWeight: "600",
-        color: theme.textMain,
-      }}
-    >
-      {value}
-    </Text>
-  </View>
-);
+
+

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import carbonController from "../controllers/carbon.controller";
-import { authenticateToken } from "../middleware/auth.middleware";
+import { authenticateToken, requireFarmer } from "../middleware/auth.middleware";
 
 const router = Router();
 
@@ -18,8 +18,9 @@ router.delete("/farm/:farmId/logs/:logId", carbonController.deleteCarbonLog);
 router.get("/farm/:farmId/summary", carbonController.getFarmSummary);
 router.get("/farm/:farmId/carbon-footprint/yearly", carbonController.getYearlyTotal);
 
-// emission factors
+// emission factors (carbon log create/delete are owner-gated in the controller via
+// checkFarmAccess; emission-factor create is global config so guard it with requireFarmer)
 router.get("/emission-factors", carbonController.getEmissionFactors);
-router.post("/emission-factors", carbonController.createEmissionFactor);
+router.post("/emission-factors", requireFarmer, carbonController.createEmissionFactor);
 
 export default router;

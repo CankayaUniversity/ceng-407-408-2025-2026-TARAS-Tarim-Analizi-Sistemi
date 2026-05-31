@@ -9,13 +9,16 @@ import {
   Keyboard,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import Markdown from "@ronradtke/react-native-markdown-display";
-import { ChatMessage, Theme } from "../types";
+import { ChatMessage, ChatMessageAction, Theme } from "../types";
 import { ChatSessionSummary } from "../hooks/useChat";
 import { useKeyboard } from "../hooks/useKeyboard";
 import { useLanguage } from "../context/LanguageContext";
+import { useConfirm } from "../context/ConfirmContext";
+import { usePopupMessage } from "../context/PopupMessageContext";
 import { s, vs, ms } from "../utils/responsive";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -24,15 +27,23 @@ interface ChatWindowProps {
   chatInput: string;
   theme: Theme;
   isLoading?: boolean;
-  onClose: () => void;
+  // Header + kapat/gecmis/yeni-sohbet kontrolleri FullScreenModal'a tasindi.
+  // Bu bilesen yalnizca govdeyi (mesajlar/giris ya da gecmis paneli) cizer.
+  showHistory: boolean;
   onSendMessage: () => void;
   onInputChange: (text: string) => void;
-  onNewChat?: () => void;
   // Gecmis
   historySessions: ChatSessionSummary[];
   isLoadingHistory: boolean;
-  onLoadHistory: () => void;
   onSelectSession: (sessionId: string) => void;
+  /** Bir gecmis oturumu sil — onay sonrasi cagrilir. Verilmezse silme butonu cizilmez. */
+  onDeleteSession?: (sessionId: string) => Promise<boolean>;
+  /** Mesaj-alti aksiyon butonu tap'i — LLM tool-call eylemini calistirir. */
+  onRunAction?: (
+    messageId: string,
+    action: ChatMessageAction,
+    choice?: "accept" | "cancel",
+  ) => void;
 }
 
 // Zaman formatlama — "2 dk once", "Dun", "3 Nis"
@@ -48,27 +59,211 @@ const formatSessionTime = (iso: string | null): string => {
   return `${d.getDate()} ${["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"][d.getMonth()]}`;
 };
 
+// Tek bir aksiyon icin buton metni + ikon. add_carbon_log haric hepsi tek buton;
+// add_carbon_log Onayla/İptal cifti olarak ayri ele alinir (asagida).
+const actionLabel = (
+  action: ChatMessageAction,
+  t: ReturnType<typeof useLanguage>["t"],
+): string => {
+  // "<fiil> · <hedef>" — kullanici butonun NEREYE goturecegini gorur. Hedef adlari lokalize:
+  // ekranlar t.nav.*, tema/dil t.settings.*, tarla action.fieldName.
+  const navName = (screen: string): string =>
+    (t.nav as Record<string, string>)[screen] ?? screen;
+  switch (action.kind) {
+    case "navigate":
+      return `${t.chat.actionVerbOpen} · ${navName(action.screen)}`;
+    case "set_filters":
+      return `${t.chat.actionVerbOpen} · ${t.nav.timetable}`;
+    case "select_field":
+      return `${t.chat.actionVerbSwitch} · ${action.fieldName || t.nav.home}`;
+    case "set_theme": {
+      const mode =
+        action.mode === "dark"
+          ? t.settings.themeDark
+          : action.mode === "light"
+            ? t.settings.themeLight
+            : t.settings.themeSystem;
+      return `${t.chat.actionVerbSwitch} · ${mode}`;
+    }
+    case "set_language":
+      return `${t.chat.actionVerbSet} · ${action.lang === "tr" ? t.settings.languageTurkish : t.settings.languageEnglish}`;
+    case "add_carbon_log":
+      return t.chat.actionAccept;
+  }
+};
+
+const actionIcon = (action: ChatMessageAction): string => {
+  switch (action.kind) {
+    case "navigate":
+    case "set_filters":
+      return "arrow-right-circle-outline";
+    case "select_field":
+      return "swap-horizontal";
+    case "set_theme":
+      return "theme-light-dark";
+    case "set_language":
+      return "translate";
+    case "add_carbon_log":
+      return "check";
+  }
+};
+
+// Mesaj govdesinin altinda cizilen aksiyon butonlari. consumed=true ise butonlar
+// yerine sadece "Tamamlandı" rozeti gosterilir (tekrar tetiklemeyi onler).
+// LLM yanit uretirken (henuz gosterilecek metin yokken) bos asistan balonunda gosterilen
+// yukleniyor gostergesi — ESKI metin-bazli "..." dongusu (500ms'de bir nokta ekler, 1→2→3→1).
+// Opsiyonel label: arac calisirken etiket ("📊 Tarla verilerini çekiyor") + cycling dots.
+// label yoksa sadece dots (ilk dusunme bekleyisi).
+const TypingDots = ({ theme, label }: { theme: Theme; label?: string }) => {
+  const [dotCount, setDotCount] = useState(1);
+
+  useEffect(() => {
+    const id = setInterval(() => setDotCount((c) => (c % 3) + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <Text style={{ fontSize: ms(13, 0.3), color: theme.textSecondary }}>
+      {label ? `${label}${".".repeat(dotCount)}` : ".".repeat(dotCount)}
+    </Text>
+  );
+};
+
+interface MessageActionsProps {
+  theme: Theme;
+  actions: ChatMessageAction[];
+  consumed: boolean;
+  cancelled: boolean;
+  onRun: (action: ChatMessageAction, choice?: "accept" | "cancel") => void;
+}
+
+const MessageActions = ({ theme, actions, consumed, cancelled, onRun }: MessageActionsProps) => {
+  const { t } = useLanguage();
+
+  if (consumed) {
+    // İptal edilen create/log: notr "İptal edildi" rozeti (yesil "Tamamlandı" check'i DEGIL).
+    const badgeColor = cancelled ? theme.textSecondary : theme.primary;
+    return (
+      <View className="flex-row" style={{ marginTop: vs(6), marginLeft: s(2) }}>
+        <View
+          className="flex-row items-center"
+          style={{
+            paddingHorizontal: s(10),
+            paddingVertical: vs(5),
+            borderRadius: s(10),
+            backgroundColor: badgeColor + "12",
+          }}
+        >
+          <MaterialCommunityIcons
+            name={cancelled ? "close-circle" : "check-circle"}
+            size={ms(13, 0.3)}
+            color={badgeColor}
+          />
+          <Text style={{ marginLeft: s(5), fontSize: ms(12, 0.3), color: badgeColor, fontWeight: "600" }}>
+            {cancelled ? t.chat.actionCancelled : t.chat.actionDone}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View
+      className="flex-row flex-wrap"
+      style={{ marginTop: vs(6), marginLeft: s(2), gap: s(8) }}
+    >
+      {actions.map((action, idx) => {
+        if (action.kind === "add_carbon_log") {
+          // Onayla (dolu) + İptal (cizgili) cifti — tahmin metniyle
+          return (
+            <View key={idx} style={{ width: "100%", gap: vs(6) }}>
+              <Text style={{ fontSize: ms(11.5, 0.3), color: theme.textSecondary, marginLeft: s(2) }}>
+                {action.activityAmount} {action.unit} · ≈{action.estimatedEmission} kg CO₂
+              </Text>
+              <View className="flex-row" style={{ gap: s(8) }}>
+                <TouchableOpacity
+                  onPress={() => onRun(action, "accept")}
+                  activeOpacity={0.85}
+                  className="flex-row items-center"
+                  style={{
+                    paddingHorizontal: s(14),
+                    paddingVertical: vs(7),
+                    borderRadius: s(10),
+                    backgroundColor: theme.primary,
+                  }}
+                >
+                  <MaterialCommunityIcons name="check" size={ms(15, 0.3)} color={theme.textOnPrimary} />
+                  <Text style={{ marginLeft: s(5), fontSize: ms(13, 0.3), color: theme.textOnPrimary, fontWeight: "700" }}>
+                    {t.chat.actionAccept}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => onRun(action, "cancel")}
+                  activeOpacity={0.85}
+                  className="flex-row items-center"
+                  style={{
+                    paddingHorizontal: s(14),
+                    paddingVertical: vs(7),
+                    borderRadius: s(10),
+                    borderWidth: 1,
+                    borderColor: theme.primary + "40",
+                  }}
+                >
+                  <Text style={{ fontSize: ms(13, 0.3), color: theme.textMain, fontWeight: "600" }}>
+                    {t.chat.actionCancel}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        }
+        // Tek butonlu eylemler (Git / Uygula)
+        return (
+          <TouchableOpacity
+            key={idx}
+            onPress={() => onRun(action)}
+            activeOpacity={0.85}
+            className="flex-row items-center"
+            style={{
+              paddingHorizontal: s(14),
+              paddingVertical: vs(7),
+              borderRadius: s(10),
+              backgroundColor: theme.primary,
+            }}
+          >
+            <MaterialCommunityIcons name={actionIcon(action) as any} size={ms(15, 0.3)} color={theme.textOnPrimary} />
+            <Text style={{ marginLeft: s(5), fontSize: ms(13, 0.3), color: theme.textOnPrimary, fontWeight: "700" }}>
+              {actionLabel(action, t)}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+
 export const ChatWindow = ({
   messages,
   chatInput,
   theme,
   isLoading,
-  onClose,
+  showHistory,
   onSendMessage,
   onInputChange,
-  onNewChat,
   historySessions,
   isLoadingHistory,
-  onLoadHistory,
   onSelectSession,
+  onDeleteSession,
+  onRunAction,
 }: ChatWindowProps) => {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const confirm = useConfirm();
+  const { showPopup } = usePopupMessage();
+  const { keyboardHeight, isKeyboardVisible } = useKeyboard();
   const scrollViewRef = useRef<ScrollView>(null);
   const chatInputRef = useRef<TextInput>(null);
-  const { keyboardHeight } = useKeyboard();
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
 
   const scrollToEnd = () =>
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 60);
@@ -78,14 +273,24 @@ export const ChatWindow = ({
     setTimeout(() => onSendMessage(), 80);
   };
 
-  const handleHistoryToggle = () => {
-    if (!showHistory) onLoadHistory();
-    setShowHistory(!showHistory);
+  const handleSelectSession = (sid: string) => {
+    onSelectSession(sid);
   };
 
-  const handleSelectSession = (sid: string) => {
-    setShowHistory(false);
-    onSelectSession(sid);
+  // Gecmis listesindeki bir oturumu sil — once onay sorulur, sonra parent'a cagri.
+  // Sonucu kisa bir popup ile bildiririz; basariliysa useChat zaten yerel listeyi gunceller.
+  const handleDeleteSession = async (sid: string) => {
+    if (!onDeleteSession) return;
+    const ok = await confirm({
+      title: t.chat.deleteConfirmTitle,
+      message: t.chat.deleteConfirmMessage,
+      confirmLabel: t.chat.deleteConfirmButton,
+      cancelLabel: t.common.cancel,
+      destructive: true,
+    });
+    if (!ok) return;
+    const success = await onDeleteSession(sid);
+    showPopup(success ? t.chat.deletedMsg : t.chat.deleteFailedMsg);
   };
 
   // Android: OS klavye kapatma butonu TextInput'u blur etmez
@@ -102,59 +307,23 @@ export const ChatWindow = ({
   }, [messages]);
 
   const hasInput = chatInput.trim().length > 0;
-  const bottomPadding = keyboardHeight > 0 ? keyboardHeight : insets.bottom + vs(8);
+  // Klavye kacinma iki platformda FARKLI ele alinir:
+  //  • iOS: chat bir RN Modal'in icinde (transparent → klavyeyle OTOMATIK resize OLMAZ), bu yuzden
+  //    asagida govdeyi <KeyboardAvoidingView behavior="padding"> ile sariyoruz; KAV gercek frame'i
+  //    olcup klavye ortusmesi kadar alttan padding ekler → input klavyenin uzerine cikar. Burada
+  //    input kabinin KENDI paddingBottom'una keyboardHeight EKLEMEYIZ (yoksa cift sayim olur);
+  //    klavye aciksa kucuk vs(8) nefes payi, kapaliyken safe-area insets.bottom.
+  //  • Android: Modal adjustResize'a uymadigindan KAV guvenilir degil; manuel keyboardHeight
+  //    padding'i (gesture-nav handle icin +insets.bottom, vs(6) nefes payi) calismaya devam eder.
+  const isIOS = Platform.OS === "ios";
+  const bottomPadding = isIOS
+    ? (isKeyboardVisible ? vs(8) : insets.bottom + vs(8))
+    : keyboardHeight > 0
+      ? keyboardHeight + insets.bottom + vs(6)
+      : insets.bottom + vs(8);
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.background }}>
-      {/* Header */}
-      <View
-        className="row-between border-b"
-        style={{
-          paddingHorizontal: s(14),
-          paddingTop: insets.top + vs(8),
-          paddingBottom: vs(10),
-          borderBottomColor: theme.primary + "15",
-        }}
-      >
-        <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <MaterialCommunityIcons name="chevron-down" size={ms(24, 0.3)} color={theme.textSecondary} />
-        </TouchableOpacity>
-
-        <View className="row" style={{ gap: s(6) }}>
-          <View className="rounded-full bg-olive-800 dark:bg-olive-700" style={{ width: s(6), height: s(6) }} />
-          <Text
-            className="font-semibold uppercase tracking-wider"
-            style={{ fontSize: ms(12, 0.3), color: theme.textSecondary }}
-          >
-            {showHistory ? t.chat.history : t.chat.title}
-          </Text>
-        </View>
-
-        <View className="row">
-          <TouchableOpacity
-            onPress={handleHistoryToggle}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={{ opacity: 0.7 }}
-          >
-            <MaterialCommunityIcons
-              name={showHistory ? "chat" : "history"}
-              size={ms(18, 0.3)}
-              color={theme.textSecondary}
-            />
-          </TouchableOpacity>
-          {!showHistory && onNewChat && (
-            <TouchableOpacity
-              onPress={onNewChat}
-              disabled={isLoading}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              style={{ opacity: isLoading ? 0.3 : 0.7, marginLeft: s(12) }}
-            >
-              <MaterialCommunityIcons name="refresh" size={ms(18, 0.3)} color={theme.textSecondary} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
       {showHistory ? (
         /* Gecmis panel */
         <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: s(14) }}>
@@ -169,37 +338,54 @@ export const ChatWindow = ({
             </Text>
           ) : (
             historySessions.map((session) => (
-              <TouchableOpacity
+              <View
                 key={session.session_id}
-                className="border-b"
-                style={{ paddingVertical: vs(12), borderBottomColor: theme.primary + "10" }}
-                onPress={() => handleSelectSession(session.session_id)}
-                activeOpacity={0.7}
+                className="flex-row items-center border-b"
+                style={{ borderBottomColor: theme.primary + "10" }}
               >
-                <View className="flex-row justify-between items-center" style={{ marginBottom: vs(4) }}>
-                  <Text
-                    className="font-semibold flex-1"
-                    style={{ fontSize: ms(14, 0.3), color: theme.textMain }}
-                    numberOfLines={1}
-                  >
-                    {session.field_name}
-                  </Text>
-                  <Text style={{ fontSize: ms(11, 0.3), marginLeft: s(8), color: theme.textSecondary }}>
-                    {formatSessionTime(session.last_message_at || session.started_at)}
-                  </Text>
-                </View>
-                <Text
-                  style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3), color: theme.textSecondary }}
-                  numberOfLines={2}
+                <TouchableOpacity
+                  className="flex-1"
+                  style={{ paddingVertical: vs(12) }}
+                  onPress={() => handleSelectSession(session.session_id)}
+                  activeOpacity={0.7}
                 >
-                  {session.last_message || "\u2014"}
-                </Text>
-              </TouchableOpacity>
+                  <View className="flex-row justify-between items-center" style={{ marginBottom: vs(4) }}>
+                    <Text
+                      className="font-semibold flex-1"
+                      style={{ fontSize: ms(14, 0.3), color: theme.textMain }}
+                      numberOfLines={1}
+                    >
+                      {session.field_name}
+                    </Text>
+                    <Text style={{ fontSize: ms(11, 0.3), marginLeft: s(8), color: theme.textSecondary }}>
+                      {formatSessionTime(session.last_message_at || session.started_at)}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{ fontSize: ms(13, 0.3), lineHeight: ms(18, 0.3), color: theme.textSecondary }}
+                    numberOfLines={2}
+                  >
+                    {session.last_message || "\u2014"}
+                  </Text>
+                </TouchableOpacity>
+                {onDeleteSession && (
+                  <TouchableOpacity
+                    onPress={() => handleDeleteSession(session.session_id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{ paddingLeft: s(12), paddingVertical: vs(12) }}
+                  >
+                    <MaterialCommunityIcons name="trash-can-outline" size={20} color={theme.danger} />
+                  </TouchableOpacity>
+                )}
+              </View>
             ))
           )}
         </ScrollView>
       ) : (
-        <>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={isIOS ? "padding" : undefined}
+        >
           {/* Mesajlar */}
           <ScrollView
             ref={scrollViewRef}
@@ -214,41 +400,71 @@ export const ChatWindow = ({
           >
             {messages.map((msg) => {
               const isUser = msg.sender === "user";
+              const hasActions =
+                !isUser && !!msg.actions && msg.actions.length > 0;
               return (
-                <View key={msg.id} className={`flex-row ${isUser ? "justify-end" : "justify-start"}`}>
-                  <View
-                    className="rounded-[14px]"
-                    style={[
-                      {
-                        maxWidth: "82%",
-                        paddingHorizontal: s(12),
-                        paddingVertical: vs(8),
-                      },
-                      isUser
-                        ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
-                        : { backgroundColor: theme.surface, borderColor: theme.primary + "12", borderWidth: 1, borderBottomLeftRadius: 4 },
-                    ]}
-                  >
-                    {isUser ? (
-                      <Text style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3), color: theme.textOnPrimary }}>{msg.text}</Text>
-                    ) : (
-                      <Markdown style={{
-                        body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3) },
-                        strong: { fontWeight: "700", color: theme.textMain },
-                        bullet_list: { marginVertical: vs(4) },
-                        ordered_list: { marginVertical: vs(4) },
-                        list_item: { marginVertical: vs(1) },
-                        paragraph: { marginVertical: vs(2) },
-                        heading1: { fontSize: ms(18, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(4) },
-                        heading2: { fontSize: ms(16, 0.3), fontWeight: "700", color: theme.textMain, marginVertical: vs(3) },
-                        heading3: { fontSize: ms(15, 0.3), fontWeight: "600", color: theme.textMain, marginVertical: vs(2) },
-                        code_inline: { backgroundColor: theme.primary + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
-                        fence: { backgroundColor: theme.primary + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
-                      }}>
-                        {msg.text}
-                      </Markdown>
-                    )}
+                <View key={msg.id} style={{ width: "100%" }}>
+                  {/* Tool-call mesajinda LLM metni CHAT'te gizli — o metin "ekrandaki X'e bak"
+                      gibi popup'a yonelik; sadece popup toast'ta gosterilir. Chat'te yalniz
+                      hedefi belirten butonlar durur. Diger mesajlarda normal balon. */}
+                  {!hasActions && (
+                  <View className={`flex-row ${isUser ? "justify-end" : "justify-start"}`}>
+                    <View
+                      className="rounded-[14px]"
+                      style={[
+                        {
+                          maxWidth: "82%",
+                          paddingHorizontal: s(12),
+                          // Kullanici balonu daha kalin (vs7), LLM balonu daha ince (vs2) —
+                          // kullanici talebi. Yatay padding ikisinde de ayni.
+                          paddingVertical: isUser ? vs(7) : vs(2),
+                        },
+                        isUser
+                          ? { backgroundColor: theme.primary, borderBottomRightRadius: 4 }
+                          : { backgroundColor: theme.surface, borderColor: theme.primary + "12", borderWidth: 1, borderBottomLeftRadius: 4 },
+                      ]}
+                    >
+                      {isUser ? (
+                        <Text style={{ fontSize: ms(14, 0.3), lineHeight: ms(19, 0.3), color: theme.textOnPrimary }}>{msg.text}</Text>
+                      ) : msg.text.length === 0 ? (
+                        // LLM yanit uretiyor ama henuz gosterilecek metin yok -> uc-nokta loader.
+                        // statusLabel varsa arac etiketi + animasyonlu dots (eski metin "..." yerine).
+                        <TypingDots theme={theme} label={msg.statusLabel} />
+                      ) : (
+                        // Markdown bosluklari sikistirildi: liste/baslik margin'leri 0, bolumler
+                        // arasi bosluk = yalniz baslik-ust margin'i (kucuk). paragraph margin 0 (lib default 10).
+                        <Markdown style={{
+                          body: { color: theme.textMain, fontSize: ms(14, 0.3), lineHeight: ms(17, 0.3) },
+                          strong: { fontWeight: "700", color: theme.textMain },
+                          bullet_list: { marginVertical: 0 },
+                          ordered_list: { marginVertical: 0 },
+                          list_item: { marginVertical: 0 },
+                          paragraph: { marginVertical: 0 },
+                          heading1: { fontSize: ms(16.5, 0.3), fontWeight: "700", color: theme.textMain, marginTop: vs(2), marginBottom: 0 },
+                          heading2: { fontSize: ms(15, 0.3), fontWeight: "700", color: theme.textMain, marginTop: vs(2), marginBottom: 0 },
+                          heading3: { fontSize: ms(14, 0.3), fontWeight: "600", color: theme.textMain, marginTop: vs(1.5), marginBottom: 0 },
+                          code_inline: { backgroundColor: theme.primary + "15", paddingHorizontal: s(4), borderRadius: 4, fontSize: ms(13, 0.3) },
+                          fence: { backgroundColor: theme.primary + "10", padding: s(8), borderRadius: 8, fontSize: ms(12, 0.3) },
+                        }}>
+                          {msg.text}
+                        </Markdown>
+                      )}
+                    </View>
                   </View>
+                  )}
+
+                  {/* Mesaj-alti aksiyon butonlari — LLM tool-call'lari icin */}
+                  {hasActions && (
+                    <MessageActions
+                      theme={theme}
+                      actions={msg.actions!}
+                      consumed={!!msg.actionsConsumed}
+                      cancelled={!!msg.actionsCancelled}
+                      onRun={(action, choice) =>
+                        onRunAction?.(msg.id, action, choice)
+                      }
+                    />
+                  )}
                 </View>
               );
             })}
@@ -301,7 +517,7 @@ export const ChatWindow = ({
                 style={{
                   width: s(28),
                   height: s(28),
-                  borderRadius: 14,
+                  borderRadius: 10,
                   backgroundColor: hasInput ? theme.primary : "transparent",
                   marginBottom: 1,
                 }}
@@ -317,7 +533,7 @@ export const ChatWindow = ({
               </TouchableOpacity>
             </View>
           </View>
-        </>
+        </KeyboardAvoidingView>
       )}
     </View>
   );

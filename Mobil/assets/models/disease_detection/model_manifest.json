@@ -1,10 +1,10 @@
 {
-  "name": "effnet_b0_distilled_v3",
-  "version": "3.0.0",
+  "name": "effnet_b0_distilled_v8",
+  "version": "8.0.0",
   "file": "disease_model.tflite",
   "format": "tflite",
   "precision": "fp16",
-  "size_mb": 7.7,
+  "size_mb": 7.71,
   "params_m": 5.3,
   "runtime": "react-native-fast-tflite",
   "min_runtime_version": "1.6.0",
@@ -50,11 +50,12 @@
     {"index": 13, "name": "yellow_leaf_curl_virus",    "crops": ["tomato"]}
   ],
   "benchmarks": {
-    "fair_v2_leakage_free_macro_f1": 0.5098,
-    "fair_v2_n": 44,
-    "distilled_from": "cc_v16_final M1",
-    "training_provenance": "deployment_bundle_v3 (2026-05-08)",
-    "tflite_fp16_vs_pt_fp32_max_softmax_drift": "<= 0.003",
+    "test_field_macro_f1": 0.7937,
+    "test_field_bact_f1": 0.6250,
+    "distilled_from": "v19_v17_best (taras_release ensemble_v8 teacher)",
+    "training_provenance": "taras_release/models/mobile/disease_model.pt (2026-05-17)",
+    "exported_via": "PT -> ONNX opset 17 -> TFLite fp16 (onnx2tf 1.22.3, ML/scripts/export_mobile_to_tflite.py, 2026-05-18)",
+    "tflite_fp16_vs_pt_fp32_max_softmax_drift": 0.000477,
     "ref_mobile_cpu_inference_ms": {
       "snapdragon_7_series": 30,
       "snapdragon_8_gen3": 15,

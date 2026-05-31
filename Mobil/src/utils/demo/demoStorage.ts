@@ -13,6 +13,7 @@ import type {
   UserFeedback,
   DiseaseCorrection,
   FieldSummary,
+  BilingualRecommendations,
 } from "../api";
 import type { CarbonLog } from "../../screens/CarbonFootprint/types";
 
@@ -219,7 +220,12 @@ export async function applyFeedback(
   await upsertDetection(detection);
 
   // Klasore bagli mi? Target disease'i auto-update et
-  if (feedback === "DEFINITELY_CORRECT" && detection.detected_disease) {
+  if (
+    feedback === "DEFINITELY_CORRECT" &&
+    detection.detected_disease &&
+    detection.detected_disease !== "UNCERTAIN" &&
+    detection.detected_disease !== "OTHER"
+  ) {
     const folders = await listFolders();
     for (const folder of folders) {
       const inFolder = folder.detections.some(
@@ -228,12 +234,9 @@ export async function applyFeedback(
       if (!inFolder) continue;
       if (folder.targetDisease !== "UNCERTAIN") continue;
 
-      const target = mapDiseaseLabelToTarget(detection.detected_disease);
-      if (target) {
-        folder.targetDisease = target;
-        folder.updatedAt = nowIso();
-        await upsertFolder(folder);
-      }
+      folder.targetDisease = detection.detected_disease;
+      folder.updatedAt = nowIso();
+      await upsertFolder(folder);
       break;
     }
   }
@@ -412,6 +415,19 @@ export async function startNewSession(
   await saveChatStore(store);
 }
 
+// Bir oturumu (gecmis dahil) sil. Aktif oturum siliniyorsa activeByField referansi da kalkar
+// ki sonraki acilis WELCOME ile baslasin (yeni-sohbet hissi).
+export async function deleteSession(sessionId: string): Promise<void> {
+  const store = await loadChatStore();
+  const session = store.sessions[sessionId];
+  if (!session) return;
+  if (store.activeByField[session.field_id] === sessionId) {
+    delete store.activeByField[session.field_id];
+  }
+  delete store.sessions[sessionId];
+  await saveChatStore(store);
+}
+
 // ── Carbon logs (in-memory backed) ───────────────────────────────────────
 
 export async function listCarbonLogs(): Promise<CarbonLog[]> {
@@ -480,7 +496,7 @@ export async function seedIfEmpty(fields: FieldSummary[]): Promise<void> {
         uploaded_at: uploadedAt,
         processing_started_at: uploadedAt,
         completed_at: uploadedAt,
-        detected_disease: sample.label,
+        detected_disease: mapDiseaseLabelToTarget(sample.label) ?? "OTHER",
         confidence: sample.conf,
         confidence_score: sample.conf,
         all_predictions: buildSyntheticAllPreds(sample.label, sample.conf),
@@ -551,45 +567,83 @@ function buildSyntheticAllPreds(
   return result;
 }
 
-export function recommendationsFor(label: string | null): string[] {
+export function recommendationsFor(label: string | null): BilingualRecommendations {
   switch (label) {
     case "healthy":
-      return [
-        "Yapraklar saglikli görünüyor.",
-        "Sulama programını koruyun.",
-      ];
+      return {
+        tr: ["Yapraklar saglikli görünüyor.", "Sulama programını koruyun."],
+        en: ["The leaves look healthy.", "Keep your watering schedule."],
+      };
     case "early_blight":
-      return [
-        "Etkilenen yaprakları toplayıp imha edin.",
-        "Bakır esaslı fungisit uygulamasını değerlendirin.",
-        "Bitkilerin altından sulayın, yaprakları ıslatmayın.",
-      ];
+      return {
+        tr: [
+          "Etkilenen yaprakları toplayıp imha edin.",
+          "Bakır esaslı fungisit uygulamasını değerlendirin.",
+          "Bitkilerin altından sulayın, yaprakları ıslatmayın.",
+        ],
+        en: [
+          "Collect and destroy affected leaves.",
+          "Consider applying a copper-based fungicide.",
+          "Water from below; do not wet the leaves.",
+        ],
+      };
     case "late_blight":
-      return [
-        "Yayılım hızlı — etkilenen bitkileri hemen izole edin.",
-        "Mancozeb veya bakır oksiklorür uygulayın.",
-        "Hava akımını arttırmak için bitkileri seyreltin.",
-      ];
+      return {
+        tr: [
+          "Yayılım hızlı — etkilenen bitkileri hemen izole edin.",
+          "Mancozeb veya bakır oksiklorür uygulayın.",
+          "Hava akımını arttırmak için bitkileri seyreltin.",
+        ],
+        en: [
+          "Spread is fast — isolate affected plants immediately.",
+          "Apply mancozeb or copper oxychloride.",
+          "Thin plants out to improve air circulation.",
+        ],
+      };
     case "bacterial_spot":
-      return [
-        "Bakır spreyi ile bakteriyel yayılımı yavaşlatın.",
-        "Sulama sırasında yapraklara su değdirmeyin.",
-      ];
+      return {
+        tr: [
+          "Bakır spreyi ile bakteriyel yayılımı yavaşlatın.",
+          "Sulama sırasında yapraklara su değdirmeyin.",
+        ],
+        en: [
+          "Use a copper spray to slow bacterial spread.",
+          "Avoid wetting leaves when watering.",
+        ],
+      };
     case "powdery_mildew":
-      return [
-        "Sulu sodyum bikarbonat (1 L su + 1 yk) uygulaması yardımcı olur.",
-        "Bitkiler arasında 30+ cm boşluk bırakın.",
-      ];
+      return {
+        tr: [
+          "Sulu sodyum bikarbonat (1 L su + 1 yk) uygulaması yardımcı olur.",
+          "Bitkiler arasında 30+ cm boşluk bırakın.",
+        ],
+        en: [
+          "A diluted sodium bicarbonate spray (1 L water + 1 tbsp) can help.",
+          "Leave 30+ cm of space between plants.",
+        ],
+      };
     case "leaf_mold":
-      return [
-        "Sera havalandırmasını artırın, nemi %75 altına indirin.",
-        "Tutulmus hava cepleri olusmasin diye seyreltme yapin.",
-      ];
+      return {
+        tr: [
+          "Sera havalandırmasını artırın, nemi %75 altına indirin.",
+          "Tutulmus hava cepleri olusmasin diye seyreltme yapin.",
+        ],
+        en: [
+          "Increase greenhouse ventilation; keep humidity below 75%.",
+          "Thin plants out so stagnant air pockets don't form.",
+        ],
+      };
     default:
-      return [
-        "Bir tarım uzmanına başvurun.",
-        "Yayılımı takip etmek için 2-3 günde bir yeni fotoğraf çekin.",
-      ];
+      return {
+        tr: [
+          "Bir tarım uzmanına başvurun.",
+          "Yayılımı takip etmek için 2-3 günde bir yeni fotoğraf çekin.",
+        ],
+        en: [
+          "Consult an agriculture specialist.",
+          "Take a new photo every 2–3 days to track progression.",
+        ],
+      };
   }
 }
 

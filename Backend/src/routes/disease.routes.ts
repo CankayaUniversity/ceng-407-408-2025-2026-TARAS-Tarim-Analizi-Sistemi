@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import * as diseaseController from '../controllers/disease.controller';
-import { authenticateToken } from '../middleware/auth.middleware';
+import { authenticateToken, denyStakeholder } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -31,6 +31,7 @@ router.use(authenticateToken);
 // Form-data: image (full original, required) + thumbnail (mobile-generated, required)
 router.post(
   '/submit',
+  denyStakeholder,
   upload.fields([
     { name: 'image', maxCount: 1 },
     { name: 'thumbnail', maxCount: 1 },
@@ -52,21 +53,21 @@ router.get('/requests/:detectionId/image', diseaseController.getDetectionImage);
 
 // Delete a disease detection request
 // DELETE /api/disease/requests/:detectionId
-router.delete('/requests/:detectionId', diseaseController.deleteDetectionRequest);
+router.delete('/requests/:detectionId', denyStakeholder, diseaseController.deleteDetectionRequest);
 
 // Record user feedback on a completed detection
 // PUT /api/disease/requests/:detectionId/feedback
 // Body: { feedback: "DEFINITELY_WRONG" | "LIKELY_WRONG" | "UNSURE" | "LIKELY_CORRECT" | "DEFINITELY_CORRECT", correction?: DiseaseTarget }
-router.put('/requests/:detectionId/feedback', diseaseController.recordFeedback);
+router.put('/requests/:detectionId/feedback', denyStakeholder, diseaseController.recordFeedback);
 
 // Disease tracking folders
-router.post('/folders', diseaseController.createTrackingFolder);
+router.post('/folders', denyStakeholder, diseaseController.createTrackingFolder);
 
 router.get('/folders', diseaseController.getTrackingFolders);
 
 router.get('/folders/:folderId/history', diseaseController.getTrackingFolderHistory);
 
-router.patch('/folders/:folderId/deactivate', diseaseController.deactivateTrackingFolder);
+router.patch('/folders/:folderId/deactivate', denyStakeholder, diseaseController.deactivateTrackingFolder);
 
 router.get('/folders/:folderId', diseaseController.getTrackingFolderById);
 

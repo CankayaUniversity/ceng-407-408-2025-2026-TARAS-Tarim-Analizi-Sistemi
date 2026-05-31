@@ -1,0 +1,36 @@
+# Build directories
+**/build/
+**/dist/
+
+# ESP-IDF build artifacts
+**/*.elf
+**/*.bin
+**/*.map
+**/*.o
+**/*.a
+**/*.so
+
+# ESP-IDF generated config
+**/sdkconfig
+**/sdkconfig.old
+**/sdkconfig.defaults
+**/sdkconfig.defaults.*
+**/dependencies.lock
+**/managed_components/
+
+# CMake
+**/CMakeCache.txt
+**/CMakeFiles/
+**/cmake_install.cmake
+
+# IDE
+**/.vscode/
+**/.idea/
+
+# Misc
+**/__pycache__/
+**/*.log
+
+# Local config (contains real backend host + LE root cert)
+arduino ide/gateway/gateway_config.h
+arduino ide/gateway/isrg_root_x1.h

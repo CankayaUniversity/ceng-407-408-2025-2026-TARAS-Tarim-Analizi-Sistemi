@@ -1,7 +1,7 @@
 import { Client } from "pg";
 import { prisma } from "../config/database";
 
-const TOMATO_POT_RULES = {
+export const TOMATO_POT_RULES = {
   thresholds_by_stage: {
     seedling: {
       rec_sm_min: 45,
@@ -42,6 +42,51 @@ const TOMATO_POT_RULES = {
 
 
 
+// KCLER
+export const TOMATO_GREENHOUSE_RULES = {
+  kc_by_stage: {
+    seedling: 0.6,
+    vegetative: 0.85,
+    flowering: 1.15,
+    fruiting: 1.15,
+    ripening: 0.86,
+  },
+  safety_limits: {
+    min_duration_min: 0,
+    max_duration_min: 120,
+  },
+} as const;
+
+// LLM/context katmani icin paylasilan okuma API'si: buyume evresi → motorun
+// (TOMATO_POT_RULES + TOMATO_GREENHOUSE_RULES) GERCEKTEN kullandigi target/critical/Kc.
+// MOTORLA AYNI davranir: (1) ekine bakmaz — motor da crop branch'i yok, MVP'de tum
+// ekinlere domates kurallari uygulanir; (2) growth_stage yoksa resolveGrowthStage ile
+// planting_date'ten evre turetir. Evre cozulemezse (ikisi de yoksa) null → cagiran
+// ZoneDetail'e duser (motorun "growth_stage cannot be determined" throw'una karsilik gelir).
+export type StageAgronomy = { target_sm: number; critical_sm: number; kc: number };
+
+export function getStageAgronomy(
+  growthStage: string | null | undefined,
+  plantingDate: Date | null | undefined,
+  now: Date,
+): StageAgronomy | null {
+  const resolved = resolveGrowthStage(
+    { growth_stage: growthStage ?? null, planting_date: plantingDate ?? null },
+    now,
+  );
+  if (!resolved) return null;
+  const stage = resolved.trim().toLowerCase();
+  const th =
+    TOMATO_POT_RULES.thresholds_by_stage[
+      stage as keyof typeof TOMATO_POT_RULES.thresholds_by_stage
+    ];
+  if (!th) return null;
+  const kc =
+    TOMATO_GREENHOUSE_RULES.kc_by_stage[
+      stage as keyof typeof TOMATO_GREENHOUSE_RULES.kc_by_stage
+    ];
+  return { target_sm: th.target_sm, critical_sm: th.critical_min, kc: kc ?? 1.0 };
+}
 
 
 type RecommendationOutput = {
@@ -49,6 +94,7 @@ type RecommendationOutput = {
   start_time: Date | null;
   irrigation_mode: string | null;
   water_amount_ml: number;
+  recommended_duration_min: number | null;
   required_water_mm: number;
   predicted_sm_after_check: number;
   recommended_check_after_min: number | null;
@@ -58,6 +104,8 @@ type RecommendationOutput = {
   current_sm: number;
   target_sm: number | null;
   sm_deficit: number;
+  estimated_eto_mm_day?: number;
+  etc_mm_day?: number;
 };
 
 
@@ -65,6 +113,7 @@ type CalibrationResult = {
   record_count: number;
   learned_ml_per_sm_percent: number | null;
   learned_sm_percent_per_100ml: number | null;
+  learned_sm_percent_per_10_min: number | null;
   median_prediction_error: number;
 };
 
@@ -90,10 +139,10 @@ function getGrowthStageFromPlantingDate(
 
 
 
-function resolveGrowthStage(
+export function resolveGrowthStage(
   plantingRow: {
     growth_stage: string | null;
-    planting_date: Date;
+    planting_date: Date | null;
   },
   currentTime: Date
 ): string | null {
@@ -117,6 +166,122 @@ function getStageThresholds(growthStage: string) {
     growthStage as keyof typeof TOMATO_POT_RULES.thresholds_by_stage
   ] ?? null;
 }
+
+
+
+function getGreenhouseKc(growthStage: string): number | null {
+  return (
+    TOMATO_GREENHOUSE_RULES.kc_by_stage[
+      growthStage as keyof typeof TOMATO_GREENHOUSE_RULES.kc_by_stage
+    ] ?? null
+  );
+}
+
+
+function estimateGreenhouseEtoMmPerDay(input: {
+  tMin: number;
+  tMax: number;
+  tMean: number;
+  humidity: number;
+  latitude: number;
+  altitudeM: number;
+  date: Date;
+}): number {
+  const { tMin, tMax, tMean, humidity, latitude, altitudeM, date } = input;
+
+  const dayOfYear = Math.floor(
+    (Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()) -
+      Date.UTC(date.getUTCFullYear(), 0, 0)) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  const latRad = (Math.PI / 180) * latitude;
+  const dr = 1 + 0.033 * Math.cos((2 * Math.PI * dayOfYear) / 365);
+  const solarDeclination =
+    0.409 * Math.sin((2 * Math.PI * dayOfYear) / 365 - 1.39);
+
+  const acosInput = clamp(
+  -Math.tan(latRad) * Math.tan(solarDeclination),
+  -1,
+  1
+);
+
+const sunsetHourAngle = Math.acos(acosInput);
+
+  const gsc = 0.0820;
+
+  const ra =
+    ((24 * 60) / Math.PI) *
+    gsc *
+    dr *
+    (sunsetHourAngle * Math.sin(latRad) * Math.sin(solarDeclination) +
+      Math.cos(latRad) *
+        Math.cos(solarDeclination) *
+        Math.sin(sunsetHourAngle));
+
+  const pressure = 101.3 * Math.pow((293 - 0.0065 * altitudeM) / 293, 5.26);
+  const psychrometricConstant = 0.000665 * pressure;
+
+  const saturationVaporPressureTmax =
+    0.6108 * Math.exp((17.27 * tMax) / (tMax + 237.3));
+  const saturationVaporPressureTmin =
+    0.6108 * Math.exp((17.27 * tMin) / (tMin + 237.3));
+
+  const saturationVaporPressure =
+    (saturationVaporPressureTmax + saturationVaporPressureTmin) / 2;
+
+  const actualVaporPressure = saturationVaporPressure * (humidity / 100);
+
+  const delta =
+    (4098 *
+      (0.6108 * Math.exp((17.27 * tMean) / (tMean + 237.3)))) /
+    Math.pow(tMean + 237.3, 2);
+
+  const windSpeed = 0.5;
+
+  const temperatureRange = Math.max(0.1, tMax - tMin);
+  const rs = 0.16 * Math.sqrt(temperatureRange) * ra;
+
+  const rso = (0.75 + 2e-5 * altitudeM) * ra;
+  const rns = (1 - 0.23) * rs;
+
+  const sigma = 4.903e-9;
+  const tMaxK = tMax + 273.16;
+  const tMinK = tMin + 273.16;
+
+  const cloudinessFactor = clamp(rs / rso, 0.3, 1.0);
+
+  const rnl =
+    sigma *
+    ((Math.pow(tMaxK, 4) + Math.pow(tMinK, 4)) / 2) *
+    (0.34 - 0.14 * Math.sqrt(actualVaporPressure)) *
+    (1.35 * cloudinessFactor - 0.35);
+
+  const rn = rns - rnl;
+  const soilHeatFlux = 0;
+
+  const eto =
+    (0.408 * delta * (rn - soilHeatFlux) +
+      psychrometricConstant *
+        (900 / (tMean + 273)) *
+        windSpeed *
+        (saturationVaporPressure - actualVaporPressure)) /
+    (delta + psychrometricConstant * (1 + 0.34 * windSpeed));
+
+  return clamp(eto, 0.5, 7.0);
+}
+
+
+
+
+function applyGreenhouseDurationLimits(durationMin: number): number {
+  return clamp(
+    durationMin,
+    TOMATO_GREENHOUSE_RULES.safety_limits.min_duration_min,
+    TOMATO_GREENHOUSE_RULES.safety_limits.max_duration_min
+  );
+}
+
 
 
 function getUrgency(
@@ -146,6 +311,12 @@ function applySafetyLimits(waterAmountMl: number): number {
 }
 
 
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+
 function calculateFollowupTimeFromActual(
   actualStartTime: Date,
   minutes = 60
@@ -154,14 +325,182 @@ function calculateFollowupTimeFromActual(
 }
 
 
+// average sm
+
+async function getZoneLatestAverageReading(zoneId: string) {
+  const nodes = await prisma.sensorNode.findMany({
+    where: {
+      zone_id: zoneId,
+    },
+    select: {
+      node_id: true,
+    },
+  });
+
+  if (nodes.length === 0) {
+    throw new Error("No sensor node found for zone");
+  }
+
+  const latestReadings = await Promise.all(
+    nodes.map((node) =>
+      prisma.sensorReading.findFirst({
+        where: {
+          node_id: node.node_id,
+        },
+        orderBy: {
+          created_at: "desc",
+        },
+      })
+    )
+  );
+
+  const validReadings = latestReadings.filter(
+    (reading): reading is NonNullable<typeof reading> =>
+      reading !== null &&
+      reading.sm_percent !== null &&
+      reading.temperature !== null &&
+      reading.humidity !== null
+  );
+
+  if (validReadings.length === 0) {
+    throw new Error("No valid sensor reading found for zone");
+  }
+
+  const avgSm =
+    validReadings.reduce((sum, reading) => sum + reading.sm_percent!, 0) /
+    validReadings.length;
+
+  const avgTemperature =
+    validReadings.reduce((sum, reading) => sum + reading.temperature!, 0) /
+    validReadings.length;
+
+  const avgHumidity =
+    validReadings.reduce((sum, reading) => sum + reading.humidity!, 0) /
+    validReadings.length;
+
+
+const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+const last24hReadings = await prisma.sensorReading.findMany({
+  where: {
+    node_id: {
+      in: nodes.map((node) => node.node_id),
+    },
+    created_at: {
+      gte: since24h,
+    },
+    temperature: {
+      not: null,
+    },
+  },
+  select: {
+    temperature: true,
+  },
+});
+
+const temperatures24h = last24hReadings
+  .map((reading) => reading.temperature)
+  .filter((value): value is number => value !== null);
+
+const minTemperature24h =
+  temperatures24h.length > 0
+    ? Math.min(...temperatures24h)
+    : avgTemperature;
+
+const maxTemperature24h =
+  temperatures24h.length > 0
+    ? Math.max(...temperatures24h)
+    : avgTemperature;
+
+  const latestCreatedAt = validReadings.reduce((latest, reading) => {
+
+    return reading.created_at! > latest ? reading.created_at! : latest;
+  }, validReadings[0]!.created_at!);
+
+  return {
+    reading_count: validReadings.length,
+    node_count: nodes.length,
+    sm_percent: Number(avgSm.toFixed(2)),
+    temperature: Number(avgTemperature.toFixed(2)),
+    humidity: Number(avgHumidity.toFixed(2)),
+    created_at: latestCreatedAt,
+    min_temperature_24h: Number(minTemperature24h.toFixed(2)),
+    max_temperature_24h: Number(maxTemperature24h.toFixed(2)),
+  };
+}
+
+
+
+async function getZoneAverageReadingAfter(zoneId: string, afterTime: Date) {
+  const nodes = await prisma.sensorNode.findMany({
+    where: {
+      zone_id: zoneId,
+    },
+    select: {
+      node_id: true,
+    },
+  });
+
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  const readings = await Promise.all(
+    nodes.map((node) =>
+      prisma.sensorReading.findFirst({
+        where: {
+          node_id: node.node_id,
+          created_at: {
+            gte: afterTime,
+          },
+          sm_percent: {
+            not: null,
+          },
+        },
+        orderBy: {
+          created_at: "asc",
+        },
+      })
+    )
+  );
+
+  const validReadings = readings.filter(
+    (reading): reading is NonNullable<typeof reading> =>
+      reading !== null && reading.sm_percent !== null
+  );
+
+  if (validReadings.length === 0) {
+    return null;
+  }
+
+  const avgSm =
+    validReadings.reduce((sum, reading) => sum + reading.sm_percent!, 0) /
+    validReadings.length;
+
+  const checkTime = validReadings.reduce((latest, reading) => {
+    return reading.created_at! > latest ? reading.created_at! : latest;
+  }, validReadings[0]!.created_at!);
+
+  return {
+    reading_count: validReadings.length,
+    node_count: nodes.length,
+    result_reading_id: validReadings[0]!.id,
+    sm_percent: Number(avgSm.toFixed(2)),
+    check_time: checkTime,
+  };
+}
 
 export async function getIrrigationPreviewInput(zoneId: string) {
   const zone = await prisma.zone.findUnique({
-    where: { zone_id: zoneId },
-    include: {
-      field: true,
+  where: { zone_id: zoneId },
+  include: {
+    field: {
+      include: {
+        farm: true,
+      },
     },
-  });
+  },
+});
 
   if (!zone) {
     throw new Error("Zone not found");
@@ -185,31 +524,7 @@ export async function getIrrigationPreviewInput(zoneId: string) {
     throw new Error("No active planting found for zone");
   }
 
-  const node = await prisma.sensorNode.findFirst({
-    where: {
-      zone_id: zoneId,
-    },
-    orderBy: {
-      created_at: "asc",
-    },
-  });
-
-  if (!node) {
-    throw new Error("No sensor node found for zone");
-  }
-
-  const latestReading = await prisma.sensorReading.findFirst({
-    where: {
-      node_id: node.node_id,
-    },
-    orderBy: {
-      created_at: "desc",
-    },
-  });
-
-  if (!latestReading) {
-    throw new Error("No sensor reading found for zone");
-  }
+  const averageReading = await getZoneLatestAverageReading(zoneId);
 
   const fieldRow = {
     zone_id: zone.zone_id,
@@ -221,16 +536,22 @@ export async function getIrrigationPreviewInput(zoneId: string) {
     sm_percent_per_100ml: zone.field.sm_percent_per_100ml,
     irrigation_gain_mm_per_100ml: zone.field.irrigation_gain_mm_per_100ml,
     default_check_after_min: zone.field.default_check_after_min ?? 60,
+    irrigation_gain_mm_per_10_min:zone.field.irrigation_gain_mm_per_10_min,
+    latitude: zone.field.farm?.latitude,
+    longitude: zone.field.farm?.longitude,
+    altitude_m: zone.field.farm?.altitude_m,
   };
 
-  const sensorRow = {
-    id: latestReading.id.toString(),
-    node_id: latestReading.node_id,
-    sm_percent: latestReading.sm_percent,
-    temperature: latestReading.temperature,
-    humidity: latestReading.humidity,
-    created_at: latestReading.created_at,
-  };
+ const sensorRow = {
+  id: "zone-average",
+  node_id: null,
+  sm_percent: averageReading.sm_percent,
+  temperature: averageReading.temperature,
+  humidity: averageReading.humidity,
+  min_temperature_24h: averageReading.min_temperature_24h,
+  max_temperature_24h: averageReading.max_temperature_24h,
+  created_at: averageReading.created_at,
+};
 
   const plantingRow = {
     planting_id: planting.planting_id,
@@ -244,7 +565,7 @@ export async function getIrrigationPreviewInput(zoneId: string) {
   return {
     zone_id: zone.zone_id,
     field_id: zone.field_id,
-    node_id: node.node_id,
+    node_id: null,
     fieldRow,
     sensorRow,
     plantingRow,
@@ -263,8 +584,13 @@ export async function getIrrigationPythonPayload(zoneId: string) {
       irrigation_mode: preview.fieldRow.irrigation_mode,
       ml_per_sm_percent: preview.fieldRow.ml_per_sm_percent,
       sm_percent_per_100ml: preview.fieldRow.sm_percent_per_100ml,
-      irrigation_gain_mm_per_100ml: preview.fieldRow.irrigation_gain_mm_per_100ml,
+      irrigation_gain_mm_per_100ml:          preview.fieldRow.irrigation_gain_mm_per_100ml,
       default_check_after_min: preview.fieldRow.default_check_after_min,
+latitude: preview.fieldRow.latitude,
+longitude: preview.fieldRow.longitude,
+altitude_m: preview.fieldRow.altitude_m,
+     irrigation_gain_mm_per_10_min:
+  preview.fieldRow.irrigation_gain_mm_per_10_min,
     },
     sensor_row: {
       id: preview.sensorRow.id,
@@ -300,8 +626,11 @@ export async function generateAndSaveIrrigationJob(zoneId: string) {
     };
   }
 
-  const preview = await getIrrigationPreviewInput(zoneId);
-  const calibration = await getCalibrationForZone(zoneId);
+ const preview = await getIrrigationPreviewInput(zoneId);
+ const calibration = await getCalibrationForZone(
+  zoneId,
+  preview.fieldRow.environment_type
+);
 
   const { output, resolvedGrowthStage } =
     buildRecommendationFromPreview(preview, calibration);
@@ -409,40 +738,22 @@ export async function processDueFollowups() {
       continue;
     }
 
-    const node = await prisma.sensorNode.findFirst({
-      where: {
-        zone_id: job.zone_id,
-      },
-      orderBy: {
-        created_at: "asc",
-      },
-    });
 
-    if (!node) {
-      continue;
-    }
 
-    if (!job.followup_check_time) {
-      continue;
-    }
+   if (!job.followup_check_time) {
+  continue;
+}
 
-    const resultReading = await prisma.sensorReading.findFirst({
-      where: {
-        node_id: node.node_id,
-        created_at: {
-          gte: job.followup_check_time,
-        },
-      },
-      orderBy: {
-        created_at: "asc",
-      },
-    });
+const followupReading = await getZoneAverageReadingAfter(
+  job.zone_id,
+  job.followup_check_time
+);
 
-    if (!resultReading || resultReading.sm_percent == null) {
-      continue;
-    }
+if (!followupReading) {
+  continue;
+}
 
-    const smAfterCheck = resultReading.sm_percent;
+    const smAfterCheck = followupReading.sm_percent;
     const smBefore = job.current_sm ?? 0;
     const predictedSmAfterCheck = job.predicted_sm_after_check ?? 0;
 
@@ -453,8 +764,8 @@ export async function processDueFollowups() {
       data: {
         job_id: job.job_id,
         zone_id: job.zone_id,
-        result_reading_id: resultReading.id,
-        check_time: resultReading.created_at ?? now,
+        result_reading_id: followupReading.result_reading_id,
+        check_time: followupReading.check_time ?? now,
         sm_after_check: smAfterCheck,
         sm_gain: smGain,
         prediction_error: predictionError,
@@ -495,8 +806,9 @@ function getMedian(values: number[]): number {
 }
 
 
+// POT KALİBRASYONU
 
-async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult> {
+async function getPotCalibrationForZone(zoneId: string): Promise<CalibrationResult> {
   const followups = await prisma.irrigationFollowup.findMany({
     where: {
       zone_id: zoneId,
@@ -505,6 +817,11 @@ async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult>
         status: "ANALYZED",
         actual_water_amount_ml: { gt: 0 },
         current_sm: { not: null },
+        zone: {
+           field: {
+              environment_type: "pot",
+           },
+        },
       },
     },
     include: {
@@ -541,8 +858,26 @@ async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult>
     }
 
     const smPercentPer100ml = (smGain / waterAmount) * 100;
-    effectValues.push(smPercentPer100ml);
+const mlPerSmPercent = waterAmount / smGain;
 
+// Pot calibration outlier filter
+// Normal observed values are around 7-11 ml per 1% SM.
+// Values like 33 are likely bad followups/sensor mismatch.
+if (mlPerSmPercent < 4 || mlPerSmPercent > 15) {
+  console.warn("[Pot Calibration] Ignored outlier followup", {
+    zoneId,
+    jobId: followup.job_id,
+    waterAmount,
+    smBefore,
+    smAfter,
+    smGain,
+    mlPerSmPercent,
+    smPercentPer100ml,
+  });
+  continue;
+}
+
+effectValues.push(smPercentPer100ml);
     if (predictionError != null) {
       predictionErrors.push(predictionError);
     }
@@ -553,6 +888,7 @@ async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult>
       record_count: effectValues.length,
       learned_ml_per_sm_percent: null,
       learned_sm_percent_per_100ml: null,
+      learned_sm_percent_per_10_min: null,
       median_prediction_error: 0,
     };
   }
@@ -568,10 +904,272 @@ async function getCalibrationForZone(zoneId: string): Promise<CalibrationResult>
     record_count: effectValues.length,
     learned_ml_per_sm_percent: learnedMlPerSmPercent,
     learned_sm_percent_per_100ml: learnedSmPercentPer100ml,
+    learned_sm_percent_per_10_min: null,
     median_prediction_error:
       predictionErrors.length > 0 ? getMedian(predictionErrors) : 0,
   };
 }
+
+
+
+
+// GREENHOUSE KALİBRASYONU
+
+async function getGreenhouseCalibrationForZone(
+  zoneId: string
+): Promise<CalibrationResult> {
+  const followups = await prisma.irrigationFollowup.findMany({
+    where: {
+      zone_id: zoneId,
+      sm_after_check: { not: null },
+      job: {
+        status: "ANALYZED",
+        actual_duration_min: { gt: 0 },
+        current_sm: { not: null },
+        zone: {
+          field: {
+            environment_type: "greenhouse",
+          },
+        },
+      },
+    },
+    include: {
+      job: true,
+    },
+    orderBy: {
+      check_time: "desc",
+    },
+    take: 10,
+  });
+
+  const effectValues: number[] = [];
+  const predictionErrors: number[] = [];
+
+  for (const followup of followups) {
+    const smAfter = followup.sm_after_check;
+    const smBefore = followup.job.current_sm;
+    const durationMin = followup.job.actual_duration_min;
+    const predictionError = followup.prediction_error;
+
+    if (
+      smAfter == null ||
+      smBefore == null ||
+      durationMin == null ||
+      durationMin <= 0
+    ) {
+      continue;
+    }
+
+    const smGain = smAfter - smBefore;
+
+    if (smGain <= 0) {
+      continue;
+    }
+
+    const smPercentPer10Min = (smGain / durationMin) * 10;
+    effectValues.push(smPercentPer10Min);
+
+    if (predictionError != null) {
+      predictionErrors.push(predictionError);
+    }
+  }
+
+  if (effectValues.length < 5) {
+    return {
+      record_count: effectValues.length,
+      learned_ml_per_sm_percent: null,
+      learned_sm_percent_per_100ml: null,
+      learned_sm_percent_per_10_min: null,
+      median_prediction_error: 0,
+    };
+  }
+
+  return {
+    record_count: effectValues.length,
+    learned_ml_per_sm_percent: null,
+    learned_sm_percent_per_100ml: null,
+    learned_sm_percent_per_10_min: getMedian(effectValues),
+    median_prediction_error:
+      predictionErrors.length > 0 ? getMedian(predictionErrors) : 0,
+  };
+}
+
+
+// environmente göre ayrılır
+
+async function getCalibrationForZone(
+  zoneId: string,
+  environmentType: string | null
+): Promise<CalibrationResult> {
+  // "outdoor" tipi henuz ayri implemente edilmedi — gecici olarak sera gibi davranir.
+  if (environmentType === "greenhouse") {
+    return getGreenhouseCalibrationForZone(zoneId);
+  }
+
+  return getPotCalibrationForZone(zoneId);
+}
+
+
+
+// greenhouse için
+
+function buildGreenhouseRecommendation(
+  preview: Awaited<ReturnType<typeof getIrrigationPreviewInput>>,
+  calibration: CalibrationResult,
+  resolvedGrowthStage: string,
+  recommendationTime: Date
+): RecommendationOutput {
+  const field = preview.fieldRow;
+  const sensor = preview.sensorRow;
+
+  const thresholds = getStageThresholds(resolvedGrowthStage);
+
+  if (!thresholds) {
+    throw new Error(`unsupported growth_stage: ${resolvedGrowthStage}`);
+  }
+
+  const greenhouseKc = getGreenhouseKc(resolvedGrowthStage);
+
+  if (greenhouseKc == null || greenhouseKc <= 0) {
+    throw new Error(`greenhouse Kc missing for growth_stage: ${resolvedGrowthStage}`);
+  }
+
+  if (
+    field.irrigation_gain_mm_per_10_min == null ||
+    field.irrigation_gain_mm_per_10_min <= 0
+  ) {
+    throw new Error(
+      "Greenhouse irrigation setup missing: irrigation_gain_mm_per_10_min is required."
+    );
+  }
+
+  const { rec_sm_min, rec_sm_max, critical_min, target_sm } = thresholds;
+
+  if (sensor.sm_percent == null) {
+    throw new Error("sm_percent missing");
+  }
+
+  if (sensor.temperature == null) {
+    throw new Error("temperature missing");
+  }
+
+  if (sensor.humidity == null) {
+    throw new Error("humidity missing");
+  }
+
+  if (sensor.sm_percent >= rec_sm_max) {
+    return {
+      should_irrigate: false,
+      start_time: null,
+      irrigation_mode: field.irrigation_mode,
+      water_amount_ml: 0,
+      recommended_duration_min: null,
+      required_water_mm: 0,
+      predicted_sm_after_check: sensor.sm_percent,
+      recommended_check_after_min: null,
+      followup_check_time: null,
+      urgency_level: "low",
+      reason: "Current soil moisture is already above recommended range.",
+      current_sm: sensor.sm_percent,
+      target_sm,
+      sm_deficit: 0,
+    };
+  }
+
+  const urgency = getUrgency(sensor.sm_percent, rec_sm_min, critical_min);
+  const shouldIrrigate = sensor.sm_percent <= rec_sm_min;
+
+  if (!shouldIrrigate) {
+    return {
+      should_irrigate: false,
+      start_time: null,
+      irrigation_mode: field.irrigation_mode,
+      water_amount_ml: 0,
+      recommended_duration_min: null,
+      required_water_mm: 0,
+      predicted_sm_after_check: sensor.sm_percent,
+      recommended_check_after_min: null,
+      followup_check_time: null,
+      urgency_level: urgency,
+      reason: "Soil moisture is still within acceptable range.",
+      current_sm: sensor.sm_percent,
+      target_sm,
+      sm_deficit: 0,
+    };
+  }
+
+  if (
+  field.latitude == null ||
+  field.altitude_m == null ||
+  sensor.min_temperature_24h == null ||
+  sensor.max_temperature_24h == null
+) {
+  throw new Error(
+    "Greenhouse ET0 setup missing: latitude, altitude_m, min_temperature_24h, and max_temperature_24h are required."
+  );
+}
+
+const estimatedEto = estimateGreenhouseEtoMmPerDay({
+  tMin: sensor.min_temperature_24h,
+  tMax: sensor.max_temperature_24h,
+  tMean: sensor.temperature,
+  humidity: sensor.humidity,
+  latitude: field.latitude,
+  altitudeM: field.altitude_m,
+  date: recommendationTime,
+});
+
+  const etc = estimatedEto * greenhouseKc;
+const hourlyEtcMm = etc / 24;
+
+const smDeficit = Math.max(0, target_sm - sensor.sm_percent);
+
+const etoPressureMultiplier = clamp(estimatedEto / 3.5, 0.75, 1.25);
+const deficitAdjustmentMm = smDeficit * 0.18 * etoPressureMultiplier;
+
+const requiredWaterMm = hourlyEtcMm + deficitAdjustmentMm;
+
+  let durationMin =
+    (requiredWaterMm / field.irrigation_gain_mm_per_10_min) * 10;
+
+  durationMin = applyGreenhouseDurationLimits(durationMin);
+
+  const learnedSmPercentPer10Min = calibration.learned_sm_percent_per_10_min;
+
+  let predictedSmAfterCheck = sensor.sm_percent;
+
+  if (learnedSmPercentPer10Min != null && learnedSmPercentPer10Min > 0) {
+    predictedSmAfterCheck =
+      sensor.sm_percent + (durationMin / 10) * learnedSmPercentPer10Min;
+  }
+
+  if (predictedSmAfterCheck > 100) predictedSmAfterCheck = 100;
+
+  const recommendedCheckAfterMin = field.default_check_after_min ?? 60;
+
+  return {
+    should_irrigate: true,
+    start_time: recommendationTime,
+    irrigation_mode: field.irrigation_mode,
+    water_amount_ml: 0,
+    recommended_duration_min: Number(durationMin.toFixed(2)),
+    required_water_mm: Number(requiredWaterMm.toFixed(2)),
+    predicted_sm_after_check: Number(predictedSmAfterCheck.toFixed(2)),
+    recommended_check_after_min: recommendedCheckAfterMin,
+    followup_check_time: null,
+    urgency_level: urgency,
+    reason:
+  `Irrigation is recommended using FAO-inspired ET0 (${estimatedEto.toFixed(
+    2
+  )} mm/day), crop coefficient, soil moisture deficit, and irrigation duration calibration.`,
+    current_sm: sensor.sm_percent,
+    target_sm,
+    sm_deficit: Number(smDeficit.toFixed(2)),
+estimated_eto_mm_day: Number(estimatedEto.toFixed(2)),
+etc_mm_day: Number(etc.toFixed(2)),
+  };
+}
+
 
 
 
@@ -617,13 +1215,7 @@ function buildRecommendationFromPreview(
     throw new Error("humidity missing");
   }
 
-  if (field.environment_type !== "pot") {
-    throw new Error("V1 only supports pot environment");
-  }
 
-  if (field.irrigation_mode !== "manual") {
-    throw new Error("V1 only supports manual irrigation");
-  }
 
   const resolvedGrowthStage = resolveGrowthStage(
     {
@@ -637,7 +1229,32 @@ function buildRecommendationFromPreview(
     throw new Error("growth_stage cannot be determined");
   }
 
-  const thresholds = getStageThresholds(resolvedGrowthStage);
+
+// "outdoor" tipi henuz ayri implemente edilmedi — gecici olarak sera gibi davranir.
+if (field.environment_type === "greenhouse") {
+  return {
+    resolvedGrowthStage,
+    recommendationTime,
+    output: buildGreenhouseRecommendation(
+      preview,
+      calibration,
+      resolvedGrowthStage,
+      recommendationTime
+    ),
+  };
+}
+
+if (field.environment_type !== "pot") {
+  throw new Error(`Unsupported environment_type: ${field.environment_type}`);
+}
+
+if (field.irrigation_mode !== "manual") {
+  throw new Error("Pot irrigation only supports manual irrigation mode.");
+}
+
+const thresholds = getStageThresholds(resolvedGrowthStage);
+
+
 
   if (!thresholds) {
     throw new Error(`unsupported growth_stage: ${resolvedGrowthStage}`);
@@ -654,6 +1271,7 @@ function buildRecommendationFromPreview(
         start_time: null,
         irrigation_mode: field.irrigation_mode,
         water_amount_ml: 0,
+        recommended_duration_min: null,
         required_water_mm: 0,
         predicted_sm_after_check: sensor.sm_percent,
         recommended_check_after_min: null,
@@ -679,6 +1297,7 @@ function buildRecommendationFromPreview(
         start_time: null,
         irrigation_mode: field.irrigation_mode,
         water_amount_ml: 0,
+        recommended_duration_min: null,
         required_water_mm: 0,
         predicted_sm_after_check: sensor.sm_percent,
         recommended_check_after_min: null,
@@ -733,6 +1352,7 @@ function buildRecommendationFromPreview(
       start_time: recommendationTime,
       irrigation_mode: field.irrigation_mode,
       water_amount_ml: Number(waterAmountMl.toFixed(2)),
+      recommended_duration_min: null,
       required_water_mm: Number(requiredWaterMm.toFixed(2)),
       predicted_sm_after_check: Number(predictedSmAfterCheck.toFixed(2)),
       recommended_check_after_min: recommendedCheckAfterMin,
@@ -790,13 +1410,16 @@ function buildIrrigationJobData(
 
   return {
     zone_id: preview.zone_id,
-    trigger_reading_id: BigInt(preview.sensorRow.id),
+    trigger_reading_id:
+  preview.sensorRow.id !== "zone-average"
+    ? BigInt(preview.sensorRow.id)
+    : null,
     reasoning: output.reason,
     should_irrigate: output.should_irrigate,
     start_time: output.start_time,
     growth_stage: resolvedGrowthStage,
     water_amount_ml: output.water_amount_ml,
-    recommended_duration_min: null,
+    recommended_duration_min: output.recommended_duration_min,
     current_sm: output.current_sm,
     target_sm: output.target_sm,
     sm_deficit: output.sm_deficit,
@@ -977,6 +1600,7 @@ export type FieldZoneLatestJob = {
     status: string | null;
     reasoning: string | null;
     water_amount_ml: number | null;
+    recommended_duration_min: number | null;
     start_time: Date | null;
     urgency_level: string | null;
   } | null;
@@ -986,15 +1610,28 @@ export async function getLatestIrrigationJobsByField(
   fieldId: string,
   userId: string
 ): Promise<FieldZoneLatestJob[]> {
-  const field = await prisma.field.findUnique({
-    where: { field_id: fieldId },
+  // Field'in kendisi + ciftligi aktif olmali — soft-deleted field/ciftlik donmesin (404).
+  const field = await prisma.field.findFirst({
+    where: { field_id: fieldId, is_active: { not: false }, farm: { is_active: true } },
     include: { farm: true },
   });
 
-  if (!field || field.farm?.user_id !== userId) {
+  if (!field?.farm) {
     const err = new Error("FIELD_NOT_FOUND_OR_FORBIDDEN");
     (err as any).status = 404;
     throw err;
+  }
+  // Okuma: sahip VEYA paydas erisebilir
+  if (field.farm.user_id !== userId) {
+    const membership = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: field.farm.farm_id, user_id: userId } },
+      select: { id: true },
+    });
+    if (!membership) {
+      const err = new Error("FIELD_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
   }
 
   const zones = await prisma.zone.findMany({
@@ -1010,6 +1647,7 @@ export async function getLatestIrrigationJobsByField(
           status: true,
           reasoning: true,
           water_amount_ml: true,
+	  recommended_duration_min: true,
           start_time: true,
           urgency_level: true,
         },
@@ -1024,11 +1662,154 @@ export async function getLatestIrrigationJobsByField(
   }));
 }
 
+
+// without a recommendation
+
+export type CreateManualIrrigationActualInput = {
+  actual_start_time: Date;
+  actual_water_amount_ml?: number;
+  actual_duration_min?: number;
+};
+
 export type SubmitActualInput = {
-  actual_water_amount_ml: number;
+  actual_water_amount_ml?: number;
   actual_start_time: Date;
   actual_duration_min?: number;
 };
+
+
+
+export async function createManualIrrigationActual(
+  zoneId: string,
+  userId: string,
+  input: CreateManualIrrigationActualInput
+) {
+  const zone = await prisma.zone.findUnique({
+    where: { zone_id: zoneId },
+    include: {
+      field: {
+        include: {
+          farm: true,
+        },
+      },
+    },
+  });
+
+  if (!zone || !zone.field?.farm) {
+    const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+    (err as any).status = 404;
+    throw err;
+  }
+  // Operasyonel yazma: sahip VEYA farmer-uye. Stakeholder/erisimsiz -> 404 (varlik sizdirmaz).
+  if (zone.field.farm.user_id !== userId) {
+    const member = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: zone.field.farm.farm_id, user_id: userId } },
+      select: { role: true },
+    });
+    if (member?.role !== "farmer") {
+      const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
+  }
+
+  const environmentType = zone.field.environment_type;
+  const isPot = environmentType === "pot";
+  const isGreenhouse = environmentType === "greenhouse" || environmentType === "outdoor";
+
+  if (isPot) {
+    if (
+      input.actual_water_amount_ml == null ||
+      input.actual_water_amount_ml <= 0
+    ) {
+      const err = new Error(
+        "Pot manual irrigation requires actual_water_amount_ml."
+      );
+      (err as any).status = 400;
+      throw err;
+    }
+  }
+
+  if (isGreenhouse) {
+    if (
+      input.actual_duration_min == null ||
+      input.actual_duration_min <= 0
+    ) {
+      const err = new Error(
+        "Greenhouse manual irrigation requires actual_duration_min."
+      );
+      (err as any).status = 400;
+      throw err;
+    }
+  }
+
+  if (!isPot && !isGreenhouse) {
+    const err = new Error(
+      `Unsupported environment_type for manual irrigation actual: ${environmentType}`
+    );
+    (err as any).status = 400;
+    throw err;
+  }
+
+  let averageReading: Awaited<ReturnType<typeof getZoneLatestAverageReading>> | null = null;
+  try {
+    averageReading = await getZoneLatestAverageReading(zoneId);
+  } catch {
+    // Zone may have no sensor nodes (e.g. pot fields with synthetic nodes).
+    // Sensor data is informational for manual irrigation — proceed without it.
+  }
+
+  const followupCheckTime = calculateFollowupTimeFromActual(
+    input.actual_start_time
+  );
+
+  const createdJob = await prisma.irrigationJob.create({
+    data: {
+      zone_id: zoneId,
+      status: "EXECUTED",
+      should_irrigate: true,
+      reasoning: "Manual irrigation recorded without recommendation.",
+      start_time: null,
+      actual_start_time: input.actual_start_time,
+      ...(input.actual_water_amount_ml != null
+        ? { actual_water_amount_ml: input.actual_water_amount_ml }
+        : {}),
+      ...(input.actual_duration_min != null
+        ? { actual_duration_min: input.actual_duration_min }
+        : {}),
+      followup_check_time: followupCheckTime,
+      // Pot fields use synthetic (visual-only) nodes with no sensor_node rows in DB,
+      // so getZoneLatestAverageReading may return null. current_sm is informational
+      // for manual irrigation — null is safe here; the Prisma schema allows Float?.
+      current_sm: averageReading?.sm_percent ?? null,
+      target_sm: null,
+      sm_deficit: 0,
+      predicted_sm_after_check: averageReading?.sm_percent ?? null,
+      recommended_check_after_min: zone.field.default_check_after_min ?? 60,
+      water_amount_ml: 0,
+      recommended_duration_min: null,
+      urgency_level: "manual",
+    },
+    select: {
+      job_id: true,
+      zone_id: true,
+      status: true,
+      actual_water_amount_ml: true,
+      actual_duration_min: true,
+      actual_start_time: true,
+      followup_check_time: true,
+      current_sm: true,
+      reasoning: true,
+    },
+  });
+
+  return {
+    job: createdJob,
+    reading_summary: averageReading,
+  };
+}
+
+
 
 export async function submitIrrigationJobActual(
   jobId: string,
@@ -1048,10 +1829,22 @@ export async function submitIrrigationJobActual(
     },
   });
 
-  if (!job || job.zone?.field?.farm?.user_id !== userId) {
+  if (!job || !job.zone?.field?.farm) {
     const err = new Error("JOB_NOT_FOUND_OR_FORBIDDEN");
     (err as any).status = 404;
     throw err;
+  }
+  // Operasyonel yazma: sahip VEYA farmer-uye. Stakeholder/erisimsiz -> 404 (varlik sizdirmaz).
+  if (job.zone.field.farm.user_id !== userId) {
+    const member = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: job.zone.field.farm.farm_id, user_id: userId } },
+      select: { role: true },
+    });
+    if (member?.role !== "farmer") {
+      const err = new Error("JOB_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
   }
 
   if (job.status !== "PENDING") {
@@ -1062,22 +1855,86 @@ export async function submitIrrigationJobActual(
     throw err;
   }
 
+
+
+
+
+const environmentType = job.zone?.field?.environment_type;
+const isPot = environmentType === "pot";
+const isGreenhouse = environmentType === "greenhouse" || environmentType === "outdoor";
+
+if (isPot) {
+  if (
+    input.actual_water_amount_ml == null ||
+    input.actual_water_amount_ml <= 0
+  ) {
+    const err = new Error(
+      "Pot irrigation requires actual_water_amount_ml."
+    );
+    (err as any).status = 400;
+    throw err;
+  }
+}
+
+
+
+if (isGreenhouse) {
+  if (
+    input.actual_duration_min == null ||
+    input.actual_duration_min <= 0
+  ) {
+    const err = new Error(
+      "Greenhouse irrigation requires actual_duration_min."
+    );
+    (err as any).status = 400;
+    throw err;
+  }
+}
+
+if (!isPot && !isGreenhouse) {
+  const err = new Error(
+    `Unsupported environment_type for irrigation actuals: ${environmentType}`
+  );
+  (err as any).status = 400;
+  throw err;
+}
+
+// pot ise amount zorunlu
+// greenhouse ise duration zorunlu
+
+
+
+const followupCheckTime = calculateFollowupTimeFromActual(
+  input.actual_start_time
+);
+
+
+
+
+
   const updated = await prisma.irrigationJob.update({
     where: { job_id: jobId },
     data: {
-      actual_water_amount_ml: input.actual_water_amount_ml,
-      actual_start_time: input.actual_start_time,
-      ...(input.actual_duration_min != null
-        ? { actual_duration_min: input.actual_duration_min }
-        : {}),
-      status: "EXECUTED",
-    },
+  ...(input.actual_water_amount_ml != null
+    ? { actual_water_amount_ml: input.actual_water_amount_ml }
+    : {}),
+  actual_start_time: input.actual_start_time,
+  ...(input.actual_duration_min != null
+    ? { actual_duration_min: input.actual_duration_min }
+    : {}),
+  followup_check_time: followupCheckTime,
+  status: "EXECUTED",
+},
+
+
+
     select: {
       job_id: true,
       status: true,
       actual_water_amount_ml: true,
       actual_start_time: true,
       actual_duration_min: true,
+      followup_check_time: true,
     },
   });
 
@@ -1096,8 +1953,9 @@ export async function getZoneIrrigationJobs(zoneId: string, userId: string) {
     throw err;
   }
 
-  const zone = await prisma.zone.findUnique({
-    where: { zone_id: zoneId },
+  // field aktif + ciftligi aktif olmali — soft-deleted field/ciftligin zone'u donmesin (404).
+  const zone = await prisma.zone.findFirst({
+    where: { zone_id: zoneId, field: { is_active: { not: false }, farm: { is_active: true } } },
     include: {
       field: {
         include: { farm: true },
@@ -1105,10 +1963,23 @@ export async function getZoneIrrigationJobs(zoneId: string, userId: string) {
     },
   });
 
-  if (!zone || zone.field?.farm?.user_id !== userId) {
+  const jobsFarm = zone?.field?.farm;
+  if (!jobsFarm) {
     const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
     (err as any).status = 404;
     throw err;
+  }
+  // Okuma: sahip VEYA paydas erisebilir
+  if (jobsFarm.user_id !== userId) {
+    const membership = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: jobsFarm.farm_id, user_id: userId } },
+      select: { id: true },
+    });
+    if (!membership) {
+      const err = new Error("ZONE_NOT_FOUND_OR_FORBIDDEN");
+      (err as any).status = 404;
+      throw err;
+    }
   }
 
   const jobs = await prisma.irrigationJob.findMany({
@@ -1120,6 +1991,7 @@ export async function getZoneIrrigationJobs(zoneId: string, userId: string) {
       status: true,
       should_irrigate: true,
       water_amount_ml: true,
+      recommended_duration_min: true,
       start_time: true,
       current_sm: true,
       target_sm: true,

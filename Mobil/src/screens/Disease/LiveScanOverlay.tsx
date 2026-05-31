@@ -4,6 +4,7 @@
 import { memo, useEffect, useRef } from "react";
 import { View, Text, Animated, ActivityIndicator, StyleSheet } from "react-native";
 import { BlurView } from "expo-blur";
+import Svg, { Circle } from "react-native-svg";
 import { Theme } from "../../utils/theme";
 import type { LocalInferenceResult } from "../../utils/diseaseInference";
 import { useLanguage } from "../../context/LanguageContext";
@@ -70,8 +71,15 @@ const LiveScanOverlayBase = ({ result, modelLoading, theme, bottomOffset }: Live
   })();
 
   const confidence = result?.status === "confident" ? (result.confidence ?? 0) : 0;
-  const confPct = Math.round(confidence * 100);
-  const showBar = result?.status === "confident" && confidence > 0;
+  const confPctText = (confidence * 100).toFixed(1);
+  const showProgress = result?.status === "confident" && confidence > 0;
+
+  // SVG progress ring geometry
+  const RING_SIZE = 44;
+  const STROKE = 2.5;
+  const radius = (RING_SIZE - STROKE) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - confidence);
 
   return (
     <Animated.View
@@ -89,28 +97,43 @@ const LiveScanOverlayBase = ({ result, modelLoading, theme, bottomOffset }: Live
         {modelLoading ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <View style={[styles.ring, { borderColor: statusColor }]} />
+          <View style={{ width: RING_SIZE, height: RING_SIZE, justifyContent: "center", alignItems: "center" }}>
+            <Svg width={RING_SIZE} height={RING_SIZE} style={StyleSheet.absoluteFill}>
+              {/* track */}
+              <Circle
+                cx={RING_SIZE / 2}
+                cy={RING_SIZE / 2}
+                r={radius}
+                stroke="rgba(255,255,255,0.18)"
+                strokeWidth={STROKE}
+                fill="none"
+              />
+              {/* progress — 12 o'clock start, clockwise */}
+              {showProgress && (
+                <Circle
+                  cx={RING_SIZE / 2}
+                  cy={RING_SIZE / 2}
+                  r={radius}
+                  stroke={statusColor}
+                  strokeWidth={STROKE}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray={`${circumference} ${circumference}`}
+                  strokeDashoffset={dashOffset}
+                  transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+                />
+              )}
+            </Svg>
+            {showProgress && (
+              <Text style={styles.ringPct}>{confPctText}</Text>
+            )}
+          </View>
         )}
 
-        <View style={{ flex: 1, gap: 4 }}>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.label, { color: "#fff" }]} numberOfLines={1}>
             {label}
           </Text>
-          {showBar && (
-            <View style={styles.barRow}>
-              <View style={styles.barBg}>
-                <View
-                  style={{
-                    height: "100%",
-                    width: `${confPct}%`,
-                    backgroundColor: statusColor,
-                    borderRadius: 2,
-                  }}
-                />
-              </View>
-              <Text style={styles.barPct}>{confPct}%</Text>
-            </View>
-          )}
         </View>
       </BlurView>
     </Animated.View>
@@ -135,27 +158,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
-  ring: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 4,
-    backgroundColor: "transparent",
-  },
   label: { fontSize: ms(14, 0.3), fontWeight: "600" },
-  barRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  barBg: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    overflow: "hidden",
-  },
-  barPct: {
-    color: "rgba(255,255,255,0.9)",
+  ringPct: {
+    color: "#fff",
     fontSize: ms(11, 0.3),
     fontWeight: "700",
-    minWidth: 32,
-    textAlign: "right",
+    letterSpacing: -0.3,
   },
 });

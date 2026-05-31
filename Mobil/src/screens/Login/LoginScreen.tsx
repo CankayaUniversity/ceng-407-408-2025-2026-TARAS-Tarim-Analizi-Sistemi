@@ -1,5 +1,6 @@
-// Giris ekrani - kullanici girisi ve kayit islemi
-// Props: theme, onLoginSuccess, onSkip
+// Giris ekrani - sadece kullanici girisi
+// Kayit islemi ayri RegisterScreen'e tasindi
+// Props: theme, onLoginSuccess, onSkip, onGoToRegister
 
 import { useState } from "react";
 import Constants from "expo-constants";
@@ -8,46 +9,60 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  LayoutAnimation,
   View,
-  KeyboardAvoidingView,
   ScrollView,
-  Platform,
+  Animated,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { authAPI, healthAPI } from "../../utils/api";
 import { LoginScreenProps } from "./types";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useLanguage } from "../../context/LanguageContext";
+import { useKeyboard } from "../../hooks/useKeyboard";
 import { vs, ms, s } from "../../utils/responsive";
 
 import LogoLight from "../../assets/Taras-logo-light.svg";
 import LogoDark from "../../assets/Taras-logo-dark.svg";
 
+// Surum bilgisi — app.config.js'den okunur
+const APP_VERSION = Constants.expoConfig?.version ?? "?";
+
 export const LoginScreen = ({
   theme,
   onLoginSuccess,
   onSkip,
+  onGoToRegister,
 }: LoginScreenProps) => {
   const { showPopup } = usePopupMessage();
   const { t, language, setLanguage } = useLanguage();
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [username, setUsername] = useState("");
   const [serverStatus, setServerStatus] = useState<string | null>(null);
 
-  // AWS demo credentials from env
-  const awsDemoUsername = Constants.expoConfig?.extra?.awsDemoUsername || "";
-  const awsDemoPassword = Constants.expoConfig?.extra?.awsDemoPassword || "";
+  // Klavye yonetimi: KeyboardAvoidingView KULLANILMAZ (ChatWindow ile ayni yaklasim).
+  // Android manifest adjustResize + KAV "height" klavye payini CIFT sayiyordu (icerik
+  // klavyenin cok ustune kayiyordu — "cok kotu" davranisin sebebi). Yerine olculen
+  // yukseklikten ust/alt bosluklar animate edilir:
+  //   - Klavye kapali: icerik dikeyde ortali (topSpace = (viewport - kolon)/2).
+  //   - Klavye acik:   topSpace -> 0 (logo en uste, ustunde bosluk yok), alt bosluk klavye
+  //     yuksekligi kadar buyur ki alttaki alanlar klavyenin uzerine kaydirilabilsin.
+  // Logo TAM boyutta kalir — yalnizca tum icerik yukari kayar (kucukmez/gizlenmez).
+  const { animatedPadding, keyboardHeight } = useKeyboard();
+  const [viewportH, setViewportH] = useState(0);
+  const [columnH, setColumnH] = useState(0);
+  const topSpace = animatedPadding.interpolate({
+    inputRange: [0, 1],
+    outputRange: [Math.max(vs(16), (viewportH - columnH) / 2), 0],
+  });
+  const bottomSpace = animatedPadding.interpolate({
+    inputRange: [0, 1],
+    outputRange: [vs(24), keyboardHeight + vs(24)],
+  });
 
-  const toggleRegisterMode = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setIsRegisterMode(!isRegisterMode);
-    setConfirmPassword("");
-  };
+  // Canli demo butonu gorunurluk bayragi — kimlik bilgisi uygulamada YOK; giris
+  // sunucudan (authAPI.demoLogin) token alir. Sir degil, sadece butonu acar/kapatir.
+  const liveDemoEnabled = Constants.expoConfig?.extra?.liveDemoEnabled === true;
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -83,51 +98,15 @@ export const LoginScreen = ({
     }
   };
 
-  const handleRegister = async () => {
-    if (
-      !username.trim() ||
-      !email.trim() ||
-      !password.trim() ||
-      !confirmPassword.trim()
-    ) {
-      showPopup(t.login.errorEmptyFields);
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      showPopup(t.login.errorPasswordMismatch);
-      return;
-    }
-
-    setIsLoading(true);
-    const response = await authAPI.register(
-      username.trim(),
-      email.trim(),
-      password,
-    );
-    setIsLoading(false);
-
-    if (response.success) {
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-      setUsername("");
-      const displayName = response.data?.user.username || "";
-      onLoginSuccess(displayName);
-    } else {
-      showPopup(response.error || t.login.errorRegistrationFailed);
-    }
-  };
-
   const handleSkip = () => {
-    setEmail("");
     setPassword("");
     onSkip();
   };
 
-  // AWS demo login - sunucuya baglanir
+  // Canli demo — sunucu DEMO_READONLY_USER_ID hesabi icin token uretir (parola
+  // istemcide degil). Buton yalnizca liveDemoEnabled ise gosterilir.
   const handleAwsDemo = async () => {
-    if (!awsDemoUsername || !awsDemoPassword) {
+    if (!liveDemoEnabled) {
       showPopup("AWS demo credentials not configured");
       return;
     }
@@ -137,7 +116,7 @@ export const LoginScreen = ({
 
     await authAPI.logout();
 
-    const response = await authAPI.login(awsDemoUsername, awsDemoPassword);
+    const response = await authAPI.demoLogin();
     setIsLoading(false);
     setServerStatus(null);
 
@@ -151,28 +130,41 @@ export const LoginScreen = ({
   };
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 center px-6 bg-porcelain dark:bg-carbonBlack"
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View className="flex-1 bg-porcelain dark:bg-carbonBlack">
       <ScrollView
+        style={{ flex: 1, width: "100%" }}
+        onLayout={(e) => setViewportH(e.nativeEvent.layout.height)}
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: "center",
           alignItems: "center",
-          width: "100%",
-          paddingVertical: 20,
+          paddingHorizontal: s(24),
         }}
-        style={{ width: "100%" }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {theme.isDark ? (
-          <LogoDark width={220} height={220} />
-        ) : (
-          <LogoLight width={220} height={220} />
-        )}
+        {/* Ust bosluk: klavye kapaliyken icerigi ortalar, acilinca 0'a iner (logo en uste). */}
+        <Animated.View style={{ height: topSpace }} />
+
+        {/* Olculen kolon (logo + form) — dikey ortalama hesabi icin yuksekligi olculur.
+            Olculmeden once gizli (opacity 0) — boylece ilk karede ust-hizadan ortaya
+            sicrama gorunmez (onLayout opacity'den bagimsiz tetiklenir). */}
+        <View
+          onLayout={(e) => setColumnH(e.nativeEvent.layout.height)}
+          style={{
+            width: "100%",
+            alignItems: "center",
+            opacity: viewportH && columnH ? 1 : 0,
+          }}
+        >
+          {/* Logo — en ust eleman, ustunde bosluk yok. Tam boyutta kalir, sadece yukari kayar. */}
+          <View style={{ alignItems: "center", justifyContent: "center" }}>
+            {theme.isDark ? (
+              <LogoDark width={220} height={220} />
+            ) : (
+              <LogoLight width={220} height={220} />
+            )}
+          </View>
 
         {serverStatus && (
           <Text
@@ -180,25 +172,6 @@ export const LoginScreen = ({
           >
             {serverStatus}
           </Text>
-        )}
-
-        {isRegisterMode && (
-          <TextInput
-            className="w-full rounded-xl border mb-3 surface-bg text-primary"
-            style={{
-              paddingVertical: vs(12),
-              paddingHorizontal: s(16),
-              borderColor: theme.border,
-              fontSize: ms(16, 0.3),
-            }}
-            placeholder={t.login.emailPlaceholder}
-            placeholderTextColor={theme.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!isLoading}
-          />
         )}
 
         <TextInput
@@ -231,23 +204,6 @@ export const LoginScreen = ({
           secureTextEntry
           editable={!isLoading}
         />
-        {isRegisterMode && (
-          <TextInput
-            className="w-full rounded-xl border mb-3 surface-bg text-primary"
-            style={{
-              paddingVertical: vs(12),
-              paddingHorizontal: s(16),
-              borderColor: theme.border,
-              fontSize: ms(16, 0.3),
-            }}
-            placeholder={t.login.confirmPasswordPlaceholder}
-            placeholderTextColor={theme.textSecondary}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            editable={!isLoading}
-          />
-        )}
         <TouchableOpacity
           className="w-full rounded-xl center mt-6"
           style={{
@@ -256,7 +212,7 @@ export const LoginScreen = ({
             paddingHorizontal: s(24),
             opacity: isLoading ? 0.6 : 1,
           }}
-          onPress={isRegisterMode ? handleRegister : handleLogin}
+          onPress={handleLogin}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -266,21 +222,21 @@ export const LoginScreen = ({
               className="text-center font-bold"
               style={{ color: theme.textOnPrimary, fontSize: ms(16, 0.3) }}
             >
-              {isRegisterMode ? t.login.registerButton : t.login.loginButton}
+              {t.login.loginButton}
             </Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity
           className="mt-4"
-          onPress={toggleRegisterMode}
+          onPress={onGoToRegister}
           disabled={isLoading}
         >
           <Text
             className="text-center font-semibold"
             style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
           >
-            {isRegisterMode ? t.login.switchToLogin : t.login.switchToRegister}
+            {t.login.switchToRegister}
           </Text>
         </TouchableOpacity>
 
@@ -290,7 +246,7 @@ export const LoginScreen = ({
             style={{
               paddingVertical: 10,
               paddingHorizontal: 16,
-              borderColor: theme.border,
+              borderColor: theme.primary,
             }}
             onPress={() => {
               // onLoginSuccess cagirma — dataSource'u "aws"a override eder, demo dallarini bozar
@@ -300,26 +256,26 @@ export const LoginScreen = ({
           >
             <Text
               className="text-center font-semibold"
-              style={{ color: theme.border, fontSize: ms(14, 0.3) }}
+              style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
             >
               {t.login.localDemoButton}
             </Text>
           </TouchableOpacity>
 
-          {awsDemoUsername && awsDemoPassword && (
+          {liveDemoEnabled && (
             <TouchableOpacity
               className="rounded-lg border"
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 16,
-                borderColor: theme.border,
+                borderColor: theme.primary,
               }}
               onPress={handleAwsDemo}
               disabled={isLoading}
             >
               <Text
                 className="text-center font-semibold"
-                style={{ color: theme.border, fontSize: ms(14, 0.3) }}
+                style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
               >
                 {t.login.awsDemoButton}
               </Text>
@@ -344,7 +300,23 @@ export const LoginScreen = ({
             {language === "tr" ? "English" : "Türkçe"}
           </Text>
         </TouchableOpacity>
+
+        {/* Surum numarasi — logonun altinda soluk gosterilir */}
+        <Text
+          className="text-center"
+          style={{
+            fontSize: ms(11, 0.3),
+            color: theme.textSecondary,
+            opacity: 0.5,
+          }}
+        >
+          v{APP_VERSION}
+        </Text>
+        </View>
+
+        {/* Alt bosluk: klavye acilinca formun alti klavyenin uzerine kaydirilabilir kalir. */}
+        <Animated.View style={{ height: bottomSpace }} />
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };

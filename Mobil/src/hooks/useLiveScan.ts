@@ -20,19 +20,10 @@ import type { TensorflowModel } from "react-native-fast-tflite";
 import manifest from "../../assets/models/disease_detection/model_manifest.json";
 import {
   loadDiseaseModel,
-  loadLeafDetectorModel,
   loadArchFallbackPreference,
   persistArchFallback,
-  saveLeafToggle,
   type LocalInferenceResult,
 } from "../utils/diseaseInference";
-import {
-  LEAF_INPUT_SIZE,
-  parseLeafDetectorOutputs,
-  leafBoxToCropPx,
-  normalizeLeafInputInPlace,
-  type LeafBox,
-} from "../utils/leafDetection";
 
 // ── Sabitler ─────────────────────────────────────────────────────────────
 const SMOOTH_WINDOW = 5;
@@ -61,14 +52,11 @@ export interface UseLiveScanReturn {
   currentIntervalMs: number;
   /** Photo capture'in worklet'in bitmesini beklemek icin kullandigi promise */
   waitForInflightDrained: (timeoutMs?: number) => Promise<void>;
-  /** Yaprak cascade aktif mi (model yuklenebildi mi)? */
-  leafCascadeActive: boolean;
 }
 
 export function useLiveScan(
   isActive: boolean,
   pauseRef?: ISharedValue<boolean>,
-  useLeafDetection: boolean = false,
 ): UseLiveScanReturn {
   // ── React state ──────────────────────────────────────────────────────
   const [liveResult, setLiveResult] = useState<LocalInferenceResult | null>(null);
@@ -76,8 +64,6 @@ export function useLiveScan(
   const [currentIntervalMs, setCurrentIntervalMs] = useState<number>(MIN_INTERVAL_MS);
   const [model, setModel] = useState<TensorflowModel | undefined>(undefined);
   const [modelLoading, setModelLoading] = useState(false);
-  const [leafModel, setLeafModel] = useState<TensorflowModel | undefined>(undefined);
-  const [leafCascadeActive, setLeafCascadeActive] = useState(false);
 
   // ── Resize plugin ─────────────────────────────────────────────────────
   const { resize } = useResizePlugin();
@@ -94,8 +80,6 @@ export function useLiveScan(
   // kaldigi surece stableSinceMs > 0; throttle interval check'inde okunur.
   const stableSinceMsShared = useSharedValue(0);
   const stableLumaShared = useSharedValue(0);
-  // Yaprak cascade flag — JS effect bunu setLeafShared.value ile gunceller
-  const useLeafShared = useSharedValue(false);
 
   // ── JS-side refs ──────────────────────────────────────────────────────
   const modelRef = useRef<TensorflowModel | null>(null);
@@ -323,59 +307,6 @@ export function useLiveScan(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
 
-  // ── Yaprak modeli yukleme (toggle aktif + ekran aktifken) ─────────────
-  // Sema dogrulama loadLeafDetectorModel icinde yapilir; null donerse
-  // toggle JS state'inde OFF'a doner ve persist edilir (kullanici elle
-  // tekrar acmazsa bir daha denenmez).
-  useEffect(() => {
-    if (!isActive) return;
-    if (!useLeafDetection) {
-      // Toggle OFF — cascade flag'i indir, model state'i temizle (model JS-side
-      // singleton'da kalir, gereksiz reload yok).
-      useLeafShared.value = false;
-      setLeafCascadeActive(false);
-      return;
-    }
-    if (leafModel) {
-      // Zaten yuklenmis
-      useLeafShared.value = true;
-      setLeafCascadeActive(true);
-      return;
-    }
-
-    let cancelled = false;
-    loadLeafDetectorModel()
-      .then((m) => {
-        if (cancelled) return;
-        if (!m) {
-          // Sema yanlis veya tum delegate'ler basarisiz — toggle'i OFF'a dusur
-          console.log("[DISEASE] leaf cascade unavailable — toggle reverting to OFF");
-          saveLeafToggle(false);
-          useLeafShared.value = false;
-          setLeafCascadeActive(false);
-          return;
-        }
-        setLeafModel(m);
-        useLeafShared.value = true;
-        setLeafCascadeActive(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.log(
-          "[ERR] leaf model load:",
-          (err as { message?: string })?.message,
-        );
-        saveLeafToggle(false);
-        useLeafShared.value = false;
-        setLeafCascadeActive(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, useLeafDetection]);
-
   // ── AppState: arka plan/on plan ──────────────────────────────────────
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -462,73 +393,20 @@ export function useLiveScan(
       try {
         inflightShared.value = true;
 
-        // ── 0) YAPRAK CASCADE — toggle ON + leafModel hazir + Mimari A ──
-        // Once leaf detector. Yaprak yoksa siniflandirici cagrilmaz (enerji + dogruluk).
-        // Yaprak varsa kutu kare crop'a donusturulur; classifier bu crop uzerinde calisir.
-        // Mimari B (JS-thread fallback) cascade'i atlar — leaf inference worklet sync gerektiriyor.
-        let cropPx: { x: number; y: number; width: number; height: number } | undefined;
-        let detectedLeafBox: LeafBox | undefined;
-        if (useLeafShared.value && leafModel && !useFallbackShared.value) {
-          const leafInput = resize(frame, {
-            scale: { width: LEAF_INPUT_SIZE, height: LEAF_INPUT_SIZE },
-            pixelFormat: "rgb",
-            dataType: "float32",
-          }) as Float32Array;
-          normalizeLeafInputInPlace(leafInput);
-
-          const leafOutputs = leafModel.runSync([leafInput]);
-          const leafResult = parseLeafDetectorOutputs(leafOutputs);
-
-          if (!leafResult.available) {
-            // Sema dogrulamasi yukleme zamaninda yapildi; buraya dusmemeli.
-            // Defansif: bu frame'de cascade'i atla, classifier full frame'le calissin.
-          } else if (!leafResult.topBox) {
-            const k = "no_leaf:";
-            const keyChanged = lastEmittedKeyShared.value !== k;
-            if (keyChanged) {
-              lastEmittedKeyShared.value = k;
-              emitResult({ status: "no_leaf" }, 0);
-              stableSinceMsShared.value = 0;
-            } else if (stableSinceMsShared.value === 0) {
-              stableSinceMsShared.value = now;
-            }
-            inflightShared.value = false;
-            return;
-          } else {
-            cropPx = leafBoxToCropPx(leafResult.topBox, frame.width, frame.height);
-            detectedLeafBox = leafResult.topBox;
-          }
-        }
-
         // 1) Resize — options inline (worklet runtime alocate eder)
-        // Mimari B icin uint8, Mimari A icin float32 — secim worklet basinda
-        // cropPx varsa (cascade aktif + yaprak bulundu) o bolge resize edilir
+        // Mimari B icin uint8, Mimari A icin float32
         const useB = useFallbackShared.value;
         const f32OrU8 = useB
-          ? (cropPx
-              ? resize(frame, {
-                  crop: cropPx,
-                  scale: { width: 224, height: 224 },
-                  pixelFormat: "rgb",
-                  dataType: "uint8",
-                })
-              : resize(frame, {
-                  scale: { width: 224, height: 224 },
-                  pixelFormat: "rgb",
-                  dataType: "uint8",
-                }))
-          : (cropPx
-              ? resize(frame, {
-                  crop: cropPx,
-                  scale: { width: 224, height: 224 },
-                  pixelFormat: "rgb",
-                  dataType: "float32",
-                })
-              : resize(frame, {
-                  scale: { width: 224, height: 224 },
-                  pixelFormat: "rgb",
-                  dataType: "float32",
-                }));
+          ? resize(frame, {
+              scale: { width: 224, height: 224 },
+              pixelFormat: "rgb",
+              dataType: "uint8",
+            })
+          : resize(frame, {
+              scale: { width: 224, height: 224 },
+              pixelFormat: "rgb",
+              dataType: "float32",
+            });
 
         const len = f32OrU8.length;
 
@@ -665,12 +543,11 @@ export function useLiveScan(
                 className: resultName,
                 confidence: topProb,
                 allProbs,
-                leafBox: detectedLeafBox,
               },
               ms,
             );
           } else {
-            emitResult({ status: "uncertain", leafBox: detectedLeafBox }, ms);
+            emitResult({ status: "uncertain" }, ms);
           }
         }
         if (keyChanged) {
@@ -697,7 +574,6 @@ export function useLiveScan(
     },
     [
       model,
-      leafModel,
       resize,
       pauseRef,
       emitResult,
@@ -723,6 +599,5 @@ export function useLiveScan(
     inferenceMs,
     currentIntervalMs,
     waitForInflightDrained,
-    leafCascadeActive,
   };
 }

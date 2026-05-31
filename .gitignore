@@ -16,111 +16,10 @@ Thumbs.db
 *.bat
 *.sh
 
-# Donanim specific ignores
-# Build directories
-Donanim/**/build/
-Donanim/**/dist/
-
-# ESP-IDF build artifacts
-Donanim/**/*.elf
-Donanim/**/*.bin
-Donanim/**/*.map
-Donanim/**/*.o
-Donanim/**/*.a
-Donanim/**/*.so
-
-# ESP-IDF generated config
-Donanim/**/sdkconfig
-Donanim/**/sdkconfig.old
-Donanim/**/sdkconfig.defaults
-Donanim/**/sdkconfig.defaults.*
-Donanim/**/dependencies.lock
-Donanim/**/managed_components/
-
-# CMake
-Donanim/**/CMakeCache.txt
-Donanim/**/CMakeFiles/
-Donanim/**/cmake_install.cmake
-
-# IDE
-Donanim/**/.vscode/
-Donanim/**/.idea/
-
-# Misc
-Donanim/**/__pycache__/
-Donanim/**/*.log
-
-
-
-# Mobil specific ignores
-Mobil/android/
-Mobil/ios/
-
-# Node/npm
-Mobil/node_modules/
-Mobil/npm-debug.log*
-Mobil/yarn-debug.log*
-Mobil/yarn-error.log*
-Mobil/package-lock.json
-
-# Android
-Mobil/android/build/
-Mobil/.gradle/
-Mobil/local.properties
-Mobil/*.iml
-Mobil/*.hprof
-Mobil/.cxx/
-Mobil/*.keystore
-Mobil/.kotlin/
-
-# iOS
-Mobil/ios/build/
-Mobil/build/
-Mobil/*.pbxuser
-Mobil/*.mode1v3
-Mobil/*.mode2v3
-Mobil/*.perspectivev3
-Mobil/xcuserdata/
-Mobil/*.xccheckout
-Mobil/*.moved-aside
-Mobil/DerivedData/
-Mobil/*.hmap
-Mobil/*.ipa
-Mobil/*.xcuserstate
-Mobil/**/.xcode.env.local
-Mobil/**/Pods/
-
-# React Native / Expo
-Mobil/*.jsbundle
-Mobil/.metro-health-check*
-Mobil/.expo/
-Mobil/.expo-shared/
-Mobil/dist/
-Mobil/web-build/
-
-# IDE - Mobil
-Mobil/.vscode/
-Mobil/.idea/
-Mobil/*.swp
-Mobil/*.swo
-Mobil/*~
-
-# Environment - Mobil
-Mobil/.env
-Mobil/.env.local
-Mobil/.env.*.local
-
-# Logs - Mobil
-Mobil/logs/
-Mobil/vendor/bundle/
-
-# Backups - Mobil
-Mobil/*.backup
-Mobil/*.old
-Mobil/*.bak
-
-# TypeScript - Mobil
-Mobil/*.tsbuildinfo
+# Subfolder-specific rules live in their respective .gitignore files:
+#   Donanim/.gitignore — ESP-IDF / Arduino / firmware build artifacts
+#   Mobil/.gitignore   — Expo / React Native / Android / iOS
+#   ML/.gitignore      — model weights, dataset images, training caches
 
 */package-lock.json
 *.backup
@@ -128,11 +27,6 @@ Mobil/*.tsbuildinfo
 
 *.html
 *.docx
-
-# Hardware local config (contains real backend host)
-Donanim/arduino ide/gateway/gateway_config.h
-Donanim/arduino ide/gateway/isrg_root_x1.h
-
 
 !taras_website/
 !taras_website/**
@@ -145,3 +39,4 @@ Donanim/arduino ide/gateway/isrg_root_x1.h
 !taras_website/**/*.webp
 !taras_website/**/*.gif
 !taras_website/**/*.svg
+*.stackdump

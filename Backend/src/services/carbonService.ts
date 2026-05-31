@@ -1,18 +1,24 @@
 import { prisma } from "../config/database";
 import { ActivityTypeCategory } from "../generated/prisma";
 import logger from "../utils/logger";
+import { resolveFarmAccess, isWriteAccess } from "./accessService";
 
-// bir farm'ın bu user'a ait olup olmadığını kontrol et
+// YAZMA erisimi: sahip VEYA farmer-uye (karbon girisi farmer rolune acik). Carbon log
+// olusturma/silme bu kontrolu kullanir — stakeholder + erisimsiz gecemez. (Global emission
+// factor yazma route-seviyesinde requireFarmer ile korunur, bu kontrolu kullanmaz.)
 export async function checkFarmAccess(
   userId: string,
   farmId: string,
 ): Promise<boolean> {
-  const farm = await prisma.farm.findUnique({
-    where: { farm_id: farmId },
-    select: { user_id: true },
-  });
+  return isWriteAccess(await resolveFarmAccess(userId, farmId));
+}
 
-  return farm?.user_id === userId;
+// OKUMA erisimi: sahip VEYA paydas. Yalnizca carbon GET uclari + sohbet araci kullanir.
+export async function checkFarmReadAccess(
+  userId: string,
+  farmId: string,
+): Promise<boolean> {
+  return (await resolveFarmAccess(userId, farmId)) !== null;
 }
 
 // tüm aktif activity type'ları kategoriye göre grupla
@@ -105,6 +111,32 @@ export async function createCarbonLog(
   });
 
   return log;
+}
+
+// add_carbon_log onayi (proposal) — DB'ye YAZMADAN emission tahmini + activity tipi bilgisi
+// doner. Chat asistani once bunu cagirir; kullanici "Onayla" butonuna basinca gercek
+// createCarbonLog (POST /carbon/farm/:id/logs) calisir. null = bilinmeyen/pasif tip ya da
+// o tarih icin gecerli emission factor yok.
+export async function previewCarbonLog(
+  activityTypeId: number,
+  activityDate: Date,
+): Promise<{
+  activity_type: { name: string; unit: string; category: string };
+  emission_factor: number;
+} | null> {
+  const at = await prisma.activityType.findUnique({
+    where: { activity_type_id: activityTypeId },
+    select: { name: true, unit: true, category: true, is_active: true },
+  });
+  if (!at || !at.is_active) return null;
+
+  const factor = await findEmissionFactor(activityTypeId, activityDate);
+  if (factor === null) return null;
+
+  return {
+    activity_type: { name: at.name, unit: at.unit, category: at.category },
+    emission_factor: factor,
+  };
 }
 
 interface FarmLogFilters {
@@ -315,8 +347,10 @@ export async function createEmissionFactor(
 
 export default {
   checkFarmAccess,
+  checkFarmReadAccess,
   getActivityTypes,
   createCarbonLog,
+  previewCarbonLog,
   getFarmLogs,
   deleteCarbonLog,
   getFarmSummary,

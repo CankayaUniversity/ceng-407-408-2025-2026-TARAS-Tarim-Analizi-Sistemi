@@ -5,6 +5,7 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Readable } from 'stream';
 import logger from '../utils/logger';
 
 interface S3UploadOptions {
@@ -124,6 +125,37 @@ export async function deleteFromS3(bucket: string, key: string): Promise<void> {
   }
 }
 
+export interface S3ObjectStream {
+  stream: Readable;
+  contentLength: number;
+  contentType: string;
+}
+
+export async function getS3ObjectStream(
+  bucket: string,
+  key: string,
+): Promise<S3ObjectStream> {
+  try {
+    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+    const response = await s3Client.send(command);
+
+    if (!response.Body) {
+      throw new Error('S3 response body is empty');
+    }
+
+    return {
+      stream: response.Body as Readable,
+      contentLength: response.ContentLength ?? 0,
+      contentType: response.ContentType ?? 'application/octet-stream',
+    };
+  } catch (error) {
+    logger.error('S3 stream open failed:', error);
+    throw new Error(
+      `Failed to open S3 stream: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    );
+  }
+}
+
 export async function downloadFromS3(bucket: string, key: string): Promise<Buffer> {
   try {
     const command = new GetObjectCommand({
@@ -156,4 +188,5 @@ export default {
   generatePresignedDownloadUrl,
   deleteFromS3,
   downloadFromS3,
+  getS3ObjectStream,
 };

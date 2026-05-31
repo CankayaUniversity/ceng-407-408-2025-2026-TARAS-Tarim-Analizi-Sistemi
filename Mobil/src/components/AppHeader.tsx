@@ -2,24 +2,29 @@
 // Tum state'i context'ten okuyor, prop almiyor
 
 import React from "react";
-import { View, Text, TouchableOpacity, ScrollView, Modal } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { View } from "react-native";
 import { useTheme } from "../context/ThemeContext";
 import { useDashboard } from "../context/DashboardContext";
 import { useLanguage } from "../context/LanguageContext";
 import {
   spacing,
-  s,
-  vs,
-  ms,
   getHeaderDimensions,
   getProfileButtonSize,
   useResponsive,
 } from "../utils/responsive";
 import LogoLight from "../assets/Taras-logo-light.svg";
 import LogoDark from "../assets/Taras-logo-dark.svg";
+import { OptionDropdown } from "./OptionDropdown";
+import { FullScreenModal } from "./FullScreenModal";
 import { NotificationsButton } from "./NotificationsButton";
 import { NotificationsScreen } from "../screens";
+import { AddFieldModal } from "../screens/AddField";
+
+// Taras logosu kare degil — viewBox 240.75 x 147 (~1.64:1). Kare kutuda (logoSize x logoSize)
+// render edilince preserveAspectRatio="meet" logoyu genislige sigdiriyor, alt/ust letterbox
+// boslugu birakiyordu. Yuksekligi logoSize'a sabitleyip genisligi orana gore vererek logo
+// header'da dikeyde tamamen doluyor.
+const LOGO_ASPECT = 240.75 / 147;
 
 export const AppHeader = () => {
   const { theme, isDark } = useTheme();
@@ -27,97 +32,52 @@ export const AppHeader = () => {
     fields,
     selectedFieldId,
     selectField,
-    fieldSelectorOpen,
-    setFieldSelectorOpen,
+    addFieldModalOpen,
+    setAddFieldModalOpen,
   } = useDashboard();
   const { t } = useLanguage();
   const { screenWidth } = useResponsive();
   const headerDims = getHeaderDimensions(screenWidth);
+
+  // Ayarlar sekmesinde field selector'i gizle
+  const [hideFieldSelector, setHideFieldSelector] = React.useState(false);
+  React.useEffect(() => {
+    const { navigationRef } = require("../navigation/navigationRef");
+    const update = () => {
+      const name = navigationRef.getCurrentRoute()?.name;
+      setHideFieldSelector(name === "settings");
+    };
+    const unsub = navigationRef.addListener("state", update);
+    return unsub;
+  }, []);
   const notificationsButtonSize = getProfileButtonSize(headerDims.logoSize);
   const [notificationsOpen, setNotificationsOpen] = React.useState(false);
 
-  const fieldSelectorJSX =
-    fields.length > 0 ? (
-      <View className="flex-1 relative">
-        <TouchableOpacity
-          onPress={() => setFieldSelectorOpen(!fieldSelectorOpen)}
-          className="row-between rounded-lg border"
-          style={{
-            paddingVertical: vs(6),
-            paddingHorizontal: s(12),
-            backgroundColor: theme.surface,
-            borderColor: theme.primary + "30",
-          }}
-        >
-          <View className="row flex-1" style={{ gap: s(6) }}>
-            <Ionicons name="leaf" size={ms(14, 0.3)} color={theme.primary} />
-            <Text
-              className="font-semibold flex-1"
-              style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
-              numberOfLines={1}
-            >
-              {fields.find((f) => f.id === selectedFieldId)?.name ?? t.home.selectField}
-            </Text>
-          </View>
-          <Ionicons
-            name={fieldSelectorOpen ? "chevron-up" : "chevron-down"}
-            size={ms(14, 0.3)}
-            color={theme.textSecondary}
-            style={{ marginLeft: s(6) }}
-          />
-        </TouchableOpacity>
+  // NOT: bildirim badge'i (NotificationsButton hasUnread) GERCEK bir bildirim kaynagina
+  // baglanmali. Profildeki unread_alerts, bos/stub bildirim paneliyle uyusmuyordu (bildirim
+  // yokken bile badge cikiyordu), o yuzden surulmuyor. Bildirim listesi eklenince hasUnread'i
+  // o kaynaga bagla — boylece badge yalnizca gercek bildirim varken cikar.
 
-        {fieldSelectorOpen && (
-          <View
-            className="absolute left-0 right-0 rounded-lg border overflow-hidden z-[1001]"
-            style={{
-              top: vs(38),
-              maxHeight: vs(200),
-              backgroundColor: theme.surface,
-              borderColor: theme.primary + "30",
-              elevation: 10,
-              shadowColor: theme.shadowColor,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 8,
-            }}
-          >
-            <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-              {fields
-                .filter((f) => f.id !== selectedFieldId)
-                .map((field, index, arr) => (
-                  <TouchableOpacity
-                    key={field.id}
-                    onPress={() => selectField(field.id)}
-                    className="row"
-                    style={[
-                      { paddingHorizontal: s(12), paddingVertical: vs(10) },
-                      index < arr.length - 1 && {
-                        borderBottomWidth: 1,
-                        borderBottomColor: theme.primary + "15",
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name="leaf-outline"
-                      size={ms(14, 0.3)}
-                      color={theme.textSecondary}
-                      style={{ marginRight: s(8) }}
-                    />
-                    <Text
-                      className="font-medium"
-                      style={{ fontSize: ms(13, 0.3), color: theme.textMain }}
-                    >
-                      {field.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-    ) : null;
+  // Field secenekleri — yalnizca secim. Tarla EKLEME artik Ayarlar (hesap) sekmesinde.
+  // Universal OptionDropdown; panel kendi modal'inda olculur, kok ekran -> statusBarTranslucent false.
+  const fieldOptions = fields.map((f) => ({ value: f.id, label: f.name, icon: "leaf" }));
+
+  const handleFieldChange = (value: string) => {
+    selectField(value);
+  };
+
+  const fieldSelectorJSX = (
+    <OptionDropdown
+      theme={theme}
+      label={t.home.selectField}
+      showLabel={false}
+      value={selectedFieldId ?? ""}
+      options={fieldOptions}
+      onChange={handleFieldChange}
+      displayLabel={selectedFieldId ? undefined : t.home.selectField}
+      triggerHeight={headerDims.logoSize}
+    />
+  );
 
   return (
     <View
@@ -125,21 +85,23 @@ export const AppHeader = () => {
       style={{
         paddingHorizontal: headerDims.headerPadding,
         paddingTop: headerDims.headerTopPadding,
-        paddingBottom: spacing.xs,
+        paddingBottom: spacing.md,
         backgroundColor: theme.background,
       }}
     >
       <View style={{ marginLeft: headerDims.elementGap }}>
         {isDark ? (
-          <LogoDark width={headerDims.logoSize} height={headerDims.logoSize} />
+          <LogoDark height={headerDims.logoSize} width={headerDims.logoSize * LOGO_ASPECT} />
         ) : (
-          <LogoLight width={headerDims.logoSize} height={headerDims.logoSize} />
+          <LogoLight height={headerDims.logoSize} width={headerDims.logoSize * LOGO_ASPECT} />
         )}
       </View>
 
-      <View className="flex-1 relative" style={{ marginHorizontal: spacing.sm }}>
-        {fieldSelectorJSX}
-      </View>
+      {!hideFieldSelector && (
+        <View className="flex-1 relative" style={{ marginHorizontal: spacing.sm }}>
+          {fieldSelectorJSX}
+        </View>
+      )}
 
       <View className="row gap-2" style={{ marginRight: headerDims.elementGap }}>
         <NotificationsButton
@@ -149,14 +111,22 @@ export const AppHeader = () => {
         />
       </View>
 
-      <Modal
+      <FullScreenModal
         visible={notificationsOpen}
-        animationType="slide"
-        presentationStyle="pageSheet"
+        theme={theme}
+        variant="inline"
+        title={t.notifications.title}
         onRequestClose={() => setNotificationsOpen(false)}
+        onClose={() => setNotificationsOpen(false)}
       >
-        <NotificationsScreen onClose={() => setNotificationsOpen(false)} />
-      </Modal>
+        <NotificationsScreen />
+      </FullScreenModal>
+
+      <AddFieldModal
+        visible={addFieldModalOpen}
+        theme={theme}
+        onClose={() => setAddFieldModalOpen(false)}
+      />
     </View>
   );
 };

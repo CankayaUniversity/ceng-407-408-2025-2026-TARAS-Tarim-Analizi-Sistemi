@@ -7,23 +7,27 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Theme } from "../../utils/theme";
 import { useLanguage } from "../../context/LanguageContext";
-import { s, ms } from "../../utils/responsive";
+import { ms } from "../../utils/responsive";
 import {
   DISEASE_TARGET_LABELS,
 } from "../../utils/diseaseTargetLabels";
 import { formatDate } from "./DiseaseResultCard";
 import type { DiseaseTrackingFolder } from "../../utils/api";
 
-const THUMB_SIZE = 40;
-const THUMB_GAP = 4;
+const THUMB_SIZE = 48;
+const THUMB_GAP = 3;
 
 interface FolderCardProps {
   folder: DiseaseTrackingFolder;
   theme: Theme;
   onPress: () => void;
+  /** Map of detection_id -> cached local file URI (file://...). When provided,
+   *  thumbnails render from the stable local cache so a re-fetch (which
+   *  changes signed S3 URL query params) doesn't trigger a re-download. */
+  imageUrls?: Record<string, string>;
 }
 
-const FolderCardBase = ({ folder, theme, onPress }: FolderCardProps) => {
+const FolderCardBase = ({ folder, theme, onPress, imageUrls }: FolderCardProps) => {
   const { language, t } = useLanguage();
 
   const cropName = folder.planting.cropName ?? "—";
@@ -44,8 +48,8 @@ const FolderCardBase = ({ folder, theme, onPress }: FolderCardProps) => {
   const statusDotColor = isUncertain
     ? theme.textSecondary
     : isHealthy
-      ? (theme.success ?? "#22C55E")
-      : (theme.danger ?? theme.primary);
+      ? theme.success
+      : theme.danger;
 
   return (
     <TouchableOpacity
@@ -118,15 +122,27 @@ const FolderCardBase = ({ folder, theme, onPress }: FolderCardProps) => {
                   { backgroundColor: theme.background, borderColor: theme.primary + "15" },
                 ]}
               >
-                {d.imageUrl ? (
-                  <Image
-                    source={{ uri: d.imageUrl }}
-                    style={styles.thumbImg}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Ionicons name="leaf-outline" size={16} color={theme.textSecondary} />
-                )}
+                {(() => {
+                  // Prefer cached local file URI so signed-URL signature
+                  // rotation on re-fetch doesn't blank the image.
+                  const uri = imageUrls?.[d.detection_id] ?? d.imageUrl;
+                  if (!uri) {
+                    return (
+                      <Ionicons
+                        name="leaf-outline"
+                        size={16}
+                        color={theme.textSecondary}
+                      />
+                    );
+                  }
+                  return (
+                    <Image
+                      source={{ uri }}
+                      style={styles.thumbImg}
+                      resizeMode="cover"
+                    />
+                  );
+                })()}
               </View>
             ))}
             {showDots && (
@@ -154,8 +170,8 @@ export const FolderCard = memo(FolderCardBase);
 
 const styles = StyleSheet.create({
   card: {
-    padding: 12,
-    borderRadius: 14,
+    padding: 8,
+    borderRadius: 10,
     borderWidth: 1,
     marginBottom: 6,
   },
@@ -214,7 +230,7 @@ const styles = StyleSheet.create({
   thumbBox: {
     width: THUMB_SIZE,
     height: THUMB_SIZE,
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
     overflow: "hidden",
     alignItems: "center",
@@ -225,5 +241,3 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 });
-
-void s;

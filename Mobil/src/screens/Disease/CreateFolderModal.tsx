@@ -7,23 +7,18 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
   ActivityIndicator,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
-  TouchableWithoutFeedback,
 } from "react-native";
-import { BlurView } from "expo-blur";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Theme } from "../../utils/theme";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useDashboard } from "../../context/DashboardContext";
-import { spacing, s, vs, ms } from "../../utils/responsive";
+import { spacing, vs, ms } from "../../utils/responsive";
+import { OptionDropdown } from "../../components/OptionDropdown";
+import { BottomSheet } from "../../components/BottomSheet";
+import { ActionButton } from "../../components/ActionButton";
 import { sensorAPI, diseaseAPI, type Zone, type DiseaseTrackingFolder } from "../../utils/api";
 
 const NAME_MAX_LENGTH = 150;
@@ -104,8 +99,6 @@ export const CreateFolderModal = ({ visible, theme, existingFolders, onClose, on
     setName(`${cropName ? `${cropName} ` : ""}${baseName} #${count}`);
   }, [selectedZoneId, existingFolders, language]);
 
-  const canSubmit = !!selectedZoneId && name.trim().length > 0 && !submitting;
-
   const handleSubmit = async () => {
     if (!selectedZoneId) {
       showPopup(t.disease.folderCreatePickZone);
@@ -151,198 +144,109 @@ export const CreateFolderModal = ({ visible, theme, existingFolders, onClose, on
   }, [zones, selectedFieldId]);
   const showFieldSubtitle = !selectedFieldId;
 
+  // Zone secici secenekleri — field secili degilse tarla/ciftlik adini subtitle'da goster.
+  const zoneOptions = filteredZones.map((z) => ({
+    value: z.zone_id,
+    label: z.zone_name,
+    icon: "map-marker",
+    subtitle: showFieldSubtitle ? `${z.field_name} · ${z.farm_name}` : undefined,
+  }));
+
   return (
-    <Modal
+    <BottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <BlurView
-        intensity={40}
-        tint={theme.isDark ? "dark" : "light"}
-        style={StyleSheet.absoluteFill}
-      />
-      {/* Backdrop tap = klavyeyi kapat (modal kapanmasin) */}
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-        <View style={StyleSheet.absoluteFill} />
-      </TouchableWithoutFeedback>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.center}
-        keyboardVerticalOffset={0}
-      >
-        <View
-          style={[
-            styles.sheet,
-            { backgroundColor: theme.surface, borderColor: theme.primary + "30" },
-          ]}
-        >
-          {/* Header */}
-          <View style={styles.headerRow}>
-            <Text style={[styles.title, { color: theme.textMain }]}>
-              {t.disease.folderCreateTitle}
-            </Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
-              <Ionicons name="close" size={24} color={theme.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={[styles.helper, { color: theme.textSecondary }]}>
-            {t.disease.folderCreateHelper}
-          </Text>
-
-          {loadingZones ? (
-            <View style={styles.loadingZones}>
-              <ActivityIndicator size="small" color={theme.primary} />
-            </View>
-          ) : !zones || filteredZones.length === 0 ? (
-            <View style={[styles.emptyZones, { backgroundColor: theme.background }]}>
-              <Ionicons name="alert-circle-outline" size={20} color={theme.textSecondary} />
-              <Text style={[styles.emptyZonesText, { color: theme.textSecondary }]}>
-                {t.disease.folderCreateNoZones}
-              </Text>
-            </View>
-          ) : (
-            <ScrollView
-              style={styles.zoneList}
-              showsVerticalScrollIndicator={false}
-            >
-              {filteredZones.map((z) => {
-                const selected = selectedZoneId === z.zone_id;
-                return (
-                  <TouchableOpacity
-                    key={z.zone_id}
-                    onPress={() => setSelectedZoneId(z.zone_id)}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.zoneRow,
-                      {
-                        backgroundColor: selected ? theme.primary + "15" : theme.background,
-                        borderColor: selected ? theme.primary : theme.primary + "15",
-                      },
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text
-                        style={[styles.zoneName, { color: theme.textMain }]}
-                        numberOfLines={1}
-                      >
-                        {z.zone_name}
-                      </Text>
-                      {showFieldSubtitle && (
-                        <Text
-                          style={[styles.zoneSubtitle, { color: theme.textSecondary }]}
-                          numberOfLines={1}
-                        >
-                          {z.field_name} · {z.farm_name}
-                        </Text>
-                      )}
-                    </View>
-                    {selected && (
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={22}
-                        color={theme.primary}
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-
-          {/* Name input */}
-          <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: spacing.md }]}>
-            {t.disease.folderCreateNameLabel}
-          </Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder={
-              selectedZone
-                ? t.disease.folderCreateNamePlaceholder
-                : t.disease.folderCreateNamePlaceholderEmpty
-            }
-            placeholderTextColor={theme.textSecondary + "80"}
-            maxLength={NAME_MAX_LENGTH}
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.background,
-                borderColor: theme.primary + "25",
-                color: theme.textMain,
-              },
-            ]}
-            editable={!submitting}
+      theme={theme}
+      onClose={onClose}
+      title={t.disease.folderCreateTitle}
+      avoidKeyboard
+      scroll
+      // Bos alana dokununca diger sheet'ler gibi kapansin (klavye de kapanir). Eskiden
+      // closeOnBackdropPress=false ile yalniz klavye kapaniyordu — kullanici talebiyle kaldirildi.
+      maxHeightPct={80}
+      contentContainerStyle={{ paddingHorizontal: spacing.md }}
+      footer={
+        // Cizelge filtresiyle ayni: sabit alt cubuk (border-top), scroll'la kaymaz.
+        <View style={[styles.buttonRow, {
+          paddingHorizontal: spacing.md,
+          paddingTop: vs(10),
+          borderTopWidth: 1,
+          borderTopColor: theme.divider,
+        }]}>
+          <ActionButton
+            theme={theme}
+            label={t.common.cancel}
+            variant="secondary"
+            disabled={submitting}
+            onPress={onClose}
           />
-
-          {/* Buttons */}
-          <View style={styles.buttonRow}>
-            <TouchableOpacity
-              onPress={onClose}
-              disabled={submitting}
-              style={[
-                styles.button,
-                { borderWidth: 1, borderColor: theme.textSecondary + "40", opacity: submitting ? 0.5 : 1 },
-              ]}
-            >
-              <Text style={{ color: theme.textMain, fontWeight: "600", fontSize: ms(14, 0.3) }}>
-                {t.common.cancel}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleSubmit}
-              disabled={!canSubmit}
-              style={[
-                styles.button,
-                {
-                  backgroundColor: canSubmit ? theme.primary : theme.primary + "55",
-                  opacity: canSubmit ? 1 : 0.7,
-                },
-              ]}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={{ color: "#fff", fontWeight: "700", fontSize: ms(14, 0.3) }}>
-                  {t.disease.folderCreateConfirm}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
+          <ActionButton
+            theme={theme}
+            label={t.disease.folderCreateConfirm}
+            variant="primary"
+            disabled={!selectedZoneId || name.trim().length === 0}
+            loading={submitting}
+            onPress={handleSubmit}
+          />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      }
+    >
+      <Text style={[styles.helper, { color: theme.textSecondary }]}>
+        {t.disease.folderCreateHelper}
+      </Text>
+
+      {loadingZones ? (
+        <View style={styles.loadingZones}>
+          <ActivityIndicator size="small" color={theme.primary} />
+        </View>
+      ) : !zones || filteredZones.length === 0 ? (
+        <View style={[styles.emptyZones, { backgroundColor: theme.surface }]}>
+          <Ionicons name="alert-circle-outline" size={20} color={theme.textSecondary} />
+          <Text style={[styles.emptyZonesText, { color: theme.textSecondary }]}>
+            {t.disease.folderCreateNoZones}
+          </Text>
+        </View>
+      ) : (
+        <OptionDropdown
+          theme={theme}
+          label={t.disease.folderCreateHelper}
+          showLabel={false}
+          value={selectedZoneId ?? ""}
+          options={zoneOptions}
+          onChange={(v) => setSelectedZoneId(v)}
+          displayLabel={selectedZoneId ? undefined : t.disease.folderCreateHelper}
+          statusBarTranslucent
+        />
+      )}
+
+      {/* Name input */}
+      <Text style={[styles.sectionLabel, { color: theme.textSecondary, marginTop: spacing.md }]}>
+        {t.disease.folderCreateNameLabel}
+      </Text>
+      <TextInput
+        value={name}
+        onChangeText={setName}
+        placeholder={
+          selectedZone
+            ? t.disease.folderCreateNamePlaceholder
+            : t.disease.folderCreateNamePlaceholderEmpty
+        }
+        placeholderTextColor={theme.textSecondary + "80"}
+        maxLength={NAME_MAX_LENGTH}
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            color: theme.textMain,
+          },
+        ]}
+        editable={!submitting}
+      />
+    </BottomSheet>
   );
 };
 
-void s;
-
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    padding: spacing.md,
-    maxHeight: "80%",
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: vs(4),
-  },
-  title: {
-    fontSize: ms(18, 0.3),
-    fontWeight: "700",
-  },
   helper: {
     fontSize: ms(12, 0.3),
     marginBottom: vs(12),
@@ -363,35 +267,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     padding: spacing.sm,
-    borderRadius: 8,
+    borderRadius: 12,
   },
   emptyZonesText: {
     fontSize: ms(12, 0.3),
     flex: 1,
   },
-  zoneList: {
-    maxHeight: 220,
-  },
-  zoneRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: spacing.sm,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 6,
-  },
-  zoneName: {
-    fontSize: ms(14, 0.3),
-    fontWeight: "600",
-  },
-  zoneSubtitle: {
-    fontSize: ms(11, 0.3),
-    marginTop: 1,
-  },
   input: {
     paddingHorizontal: spacing.sm,
     paddingVertical: vs(12),
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     fontSize: ms(14, 0.3),
   },
@@ -399,12 +284,5 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     marginTop: vs(16),
-  },
-  button: {
-    flex: 1,
-    paddingVertical: vs(13),
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

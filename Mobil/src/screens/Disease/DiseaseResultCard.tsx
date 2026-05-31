@@ -22,6 +22,7 @@ import {
 } from "../../utils/api";
 import { spacing } from "../../utils/responsive";
 import { useLanguage } from "../../context/LanguageContext";
+import { getDiseaseTargetLabel } from "../../utils/diseaseTargetLabels";
 
 interface DiseaseResultCardProps {
   detection: DiseaseDetection;
@@ -325,7 +326,7 @@ export const FeedbackRating = ({
           onPress={handlePickerClose}
           style={{
             flex: 1,
-            backgroundColor: "rgba(0,0,0,0.45)",
+            backgroundColor: theme.overlay,
             justifyContent: "center",
             paddingHorizontal: spacing.lg,
           }}
@@ -334,7 +335,7 @@ export const FeedbackRating = ({
             onPress={(e) => e.stopPropagation()}
             style={{
               backgroundColor: theme.surface,
-              borderRadius: 14,
+              borderRadius: 10,
               maxHeight: "75%",
               overflow: "hidden",
             }}
@@ -505,7 +506,7 @@ export const DiseaseResultCard = ({
   const isUncertain =
     detection.detected_disease != null &&
     (detection.confidence_status === "uncertain" ||
-      detection.detected_disease === "Uncertain");
+      detection.detected_disease === "UNCERTAIN");
 
   const topTier =
     !isUncertain && confidencePct != null
@@ -518,8 +519,8 @@ export const DiseaseResultCard = ({
       <View className="flex-row items-center" style={{ gap: 6 }}>
         <Ionicons name="warning-outline" size={15} color={theme.warning} />
         <Text
-          className="font-bold"
-          style={{ color: theme.warning, fontSize: 15, flex: 1 }}
+          className="font-semibold"
+          style={{ color: theme.warning, fontSize: 16, flex: 1 }}
           numberOfLines={1}
         >
           {t.disease.uncertainTitle}
@@ -528,25 +529,25 @@ export const DiseaseResultCard = ({
     ) : (
       <View>
         <Text
-          className="text-primary font-bold"
-          style={{ fontSize: 15 }}
+          className="text-primary font-semibold"
+          style={{ fontSize: 16 }}
           numberOfLines={1}
         >
-          {detection.detected_disease}
+          {getDiseaseTargetLabel(detection.detected_disease!, language)}
         </Text>
         {topTier && confidencePct != null && (
           <View
             className="rounded self-start"
             style={{
               backgroundColor: topTier.soft,
-              paddingHorizontal: 6,
-              paddingVertical: 2,
-              marginTop: 3,
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              marginTop: 4,
             }}
           >
             <Text
-              className="font-bold"
-              style={{ color: topTier.color, fontSize: 12 }}
+              className="font-semibold"
+              style={{ color: topTier.color, fontSize: 14 }}
             >
               {confidencePct.toFixed(1)}%
             </Text>
@@ -570,7 +571,7 @@ export const DiseaseResultCard = ({
         />
         <Text
           className="font-semibold"
-          style={{ color: statusInfo.color, fontSize: 15, flex: 1 }}
+          style={{ color: statusInfo.color, fontSize: 16, flex: 1 }}
           numberOfLines={1}
         >
           {headlineText}
@@ -588,15 +589,15 @@ export const DiseaseResultCard = ({
       activeOpacity={0.7}
       className="surface-bg rounded-xl"
       style={{
-        padding: 10,
+        padding: 5,
         marginBottom: 6,
         borderWidth: 1,
         borderColor: theme.primary + "20",
         shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.06,
-        shadowRadius: 3,
-        elevation: 2,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.14,
+        shadowRadius: 9,
+        elevation: 9,
       }}
     >
       <View className="flex-row" style={{ gap: 10 }}>

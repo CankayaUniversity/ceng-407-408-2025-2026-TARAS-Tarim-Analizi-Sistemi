@@ -6,13 +6,11 @@ import { io, Socket } from "socket.io-client";
 import type { FieldData } from "./fieldPlaceholder";
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
-import { secureSet, secureGet, secureRemove } from "./secureStorage";
+import { secureSet, secureGet, secureRemove, secureClearKey } from "./secureStorage";
 import type { CarbonLog } from "../screens/CarbonFootprint/types";
 
 // Environment variables from app.config.js
 export const API_HOST = Constants.expoConfig?.extra?.apiHost || "";
-const DEMO_USERNAME = Constants.expoConfig?.extra?.demoUsername || "";
-const DEMO_PASSWORD = Constants.expoConfig?.extra?.demoPassword || "";
 
 const API_BASE_URL = `${API_HOST}/api`;
 const TOKEN_KEY = "auth_token";
@@ -23,12 +21,38 @@ export const DEMO_TOKEN = "DEMO_MODE_TOKEN";
 export const isDemoToken = (t: string | null | undefined): boolean =>
   t === DEMO_TOKEN;
 
+// DEMO_ONLY build bayragi (.env DEMO_ONLY=true → app.config extra.demoOnly).
+const DEMO_ONLY_BUILD = Constants.expoConfig?.extra?.demoOnly === true;
+
+// "Kilitli canli demo": DEMO_ONLY build + GERCEK (paylasilan llm_test) oturum.
+// Bu durumda TUM yazma islemleri engellenir — paylasilan demo hesabi griefing'e karsi
+// korunur (sifre/profil degisikligi, ciftlik/tarla/klasor olusturma-silme, karbon kaydi,
+// gateway eslesme, sulama tetikleme). Yerel demo (DEMO_TOKEN) bundan ETKILENMEZ: zaten
+// offline ve tum mutasyonlari no-op. Normal uretim build'inde (demoOnly=false) HER ZAMAN
+// false — gercek kullanicilar hicbir sekilde etkilenmez.
+// Guvenlik dayanagi: DEMO_ONLY build'de canli oturuma yalnizca "Canli Sunucu Demosu"
+// butonu (awsDemo = paylasilan llm_test) ile girilebilir; baska login/register yoktur.
+// Dolayisiyla demo build'deki her gercek token = paylasilan demo hesabidir.
+export const isLockedLiveDemo = (t: string | null | undefined): boolean =>
+  DEMO_ONLY_BUILD && !!t && !isDemoToken(t);
+
+// Kilitli demoda yazma denemesinde donen standart hata (UI bunu popup'ta gosterebilir).
+export const DEMO_READONLY_ERROR =
+  "Demo modunda bu işlem devre dışı (salt görüntüleme).";
+
+// Kilitli demoda hastalik listesi "bu cihazda gorseli yerel olan tespitler" ile sinirlidir
+// (kaynak: imageCache indeksi). Kullanici kendi taramasini cekince submitDetection gorseli
+// yerele kopyalar; getAllDetections de listeyi imageCache.listCachedIds ile filtreler.
+// Boylece ayri bir ID listesi tutmaya gerek yok — gorselin yerelde olmasi tek olcuttur.
+
 let socket: Socket | null = null;
 
 interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  // HTTP durum kodu — bazi cagrilar (profil duzenleme) hatayi koda gore yerellestirir.
+  status?: number;
 }
 
 interface User {
@@ -46,6 +70,7 @@ interface LoginData {
 interface ProfileData extends User {
   farms: any[];
   unread_alerts: number;
+  dataset_consent?: boolean;
 }
 
 interface SensorReading {
@@ -74,6 +99,7 @@ export interface ZoneDetailsData {
   adaptive_config: {
     current_kc: number;
     target_sm_percent: number;
+    critical_sm_percent?: number;
   } | null;
   active_plantings: Array<{
     crop_name: string;
@@ -95,6 +121,19 @@ async function authFetch<T>(
 ): Promise<ApiResponse<T>> {
   const headers = await getAuthHeaders();
   if (!headers) return { success: false, error: "Oturum bulunamadı" };
+
+  // Kilitli canli demo: paylasilan hesabi korumak icin yazma metodlarini (POST/PUT/PATCH/
+  // DELETE) engelle. GET'ler serbest — goruntuleme tam calisir. Bu tek kontrol dashboard
+  // create/delete, klasor, karbon, gateway, sulama ve asistanin onayli yazmalarini birden
+  // kapsar. (Disease submit authFetch KULLANMAZ; taramalar bundan etkilenmez.)
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET") {
+    const tok = await secureGet(TOKEN_KEY);
+    if (isLockedLiveDemo(tok)) {
+      console.log("[DEMO] write blocked:", method, endpoint);
+      return { success: false, error: DEMO_READONLY_ERROR, status: 403 };
+    }
+  }
 
   const url = `${API_BASE_URL}${endpoint}`;
   console.log("[API]", options.method || "GET", endpoint);
@@ -149,15 +188,8 @@ export const authAPI = {
     username: string,
     password: string,
   ): Promise<ApiResponse<LoginData>> {
-    // Demo kullanici - offline mod
-    if (
-      username.toLowerCase() === DEMO_USERNAME.toLowerCase() &&
-      password === DEMO_PASSWORD
-    ) {
-      const demoUser = await persistDemoSession(DEMO_USERNAME);
-      return { success: true, data: { token: DEMO_TOKEN, user: demoUser } };
-    }
-
+    // Cevrimdisi demo artik yalnizca "Yerel Demo" butonuyla (enterDemoMode) acilir;
+    // login formuna gomulu magic-credential yolu kaldirildi (paketteki sir temizligi).
     try {
       console.log("[AUTH] login:", username);
       const res = await fetchWithTimeout(
@@ -184,6 +216,34 @@ export const authAPI = {
     }
   },
 
+  // Canli demo girisi — istemci KIMLIK BILGISI GONDERMEZ. Sunucu, DEMO_READONLY_USER_ID
+  // hesabi icin token uretir (paylasilan demo hesabi; salt-okunur kilitli). Parola
+  // uygulama paketine gomulu degil. Basaride token+user'i saklar (login ile ayni akis).
+  async demoLogin(): Promise<ApiResponse<LoginData>> {
+    try {
+      console.log("[AUTH] demoLogin");
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/demo-login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+        15000,
+      );
+      const data = await res.json();
+      if (data.success && data.data?.token) {
+        await secureSet(TOKEN_KEY, data.data.token);
+        if (data.data?.user) {
+          await secureSet(USER_DATA_KEY, JSON.stringify(data.data.user));
+        }
+      }
+      return data;
+    } catch (error) {
+      console.log("[AUTH] demoLogin err:", error);
+      return { success: false, error: "Sunucuya bağlanılamadı" };
+    }
+  },
+
   async register(
     username: string,
     email: string,
@@ -191,12 +251,18 @@ export const authAPI = {
   ): Promise<ApiResponse<LoginData>> {
     try {
       console.log("[AUTH] register:", username);
+      // Rol kayitta secilmez — herkes stakeholder (salt-okunur) baslar; ilk ciftligini
+      // olusturunca farmer'a yukselir, davet koduyla katilirsa stakeholder kalir.
       const res = await fetchWithTimeout(
         `${API_BASE_URL}/auth/register`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email, password }),
+          body: JSON.stringify({
+            username,
+            email,
+            password,
+          }),
         },
         15000,
       );
@@ -219,6 +285,110 @@ export const authAPI = {
     return authFetch("/auth/me");
   },
 
+  // Profil guncelle (kullanici adi ve/veya e-posta). currentPassword ZORUNLU — backend dogrular.
+  // Username degisirse backend yeni token doner (token icindeki username bayatlamasin); her
+  // durumda saklanan user'in ad/e-postasini tazeleriz (UI buradan okur). login/register gibi
+  // her statuste json'i parse ederiz ki backend'in temiz hata mesaji UI'a ulassin (status da
+  // doner — UI 401/409'u yerellestirir).
+  async updateProfile(data: {
+    username?: string;
+    email?: string;
+    currentPassword: string;
+  }): Promise<ApiResponse<{ username: string; email: string }>> {
+    // Kilitli demoda profil/kullanici-adi degisikligi yok (paylasilan hesap korunur).
+    // Bu fonksiyon authFetch kullanmadigi icin guard'i burada acikca tekrarliyoruz.
+    {
+      const tok = await secureGet(TOKEN_KEY);
+      if (isLockedLiveDemo(tok)) {
+        return { success: false, error: DEMO_READONLY_ERROR, status: 403 };
+      }
+    }
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers) return { success: false, error: "Oturum bulunamadı" };
+
+      console.log("[AUTH] updateProfile");
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/me`,
+        {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+        15000,
+      );
+
+      const body = await res.json();
+      if (body.success && body.data) {
+        if (body.data.token) {
+          await secureSet(TOKEN_KEY, body.data.token);
+        }
+        // Saklanan user'i guncel ad/e-posta ile tazele (token degismese bile)
+        try {
+          const storedJson = await secureGet(USER_DATA_KEY);
+          if (storedJson) {
+            const stored = JSON.parse(storedJson);
+            stored.username = body.data.username;
+            stored.email = body.data.email;
+            await secureSet(USER_DATA_KEY, JSON.stringify(stored));
+          }
+        } catch {
+          // sessizce yut
+        }
+      }
+      return { ...body, status: res.status };
+    } catch (error) {
+      console.log("[AUTH] err:", error);
+      return { success: false, error: "Sunucuya bağlanılamadı" };
+    }
+  },
+
+  // Sifre degistir — mevcut + yeni sifre. Backend mevcut sifreyi dogrular, yeni >= 8 olmali.
+  // status doner ki UI "mevcut sifre yanlis" (401) durumunu yerellestirebilsin.
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<ApiResponse<null>> {
+    // Kilitli demoda sifre degisikligi YASAK — testçi sifreyi degistirip herkesi
+    // kilitleyebilirdi. authFetch kullanilmadigi icin guard burada acikca.
+    {
+      const tok = await secureGet(TOKEN_KEY);
+      if (isLockedLiveDemo(tok)) {
+        return { success: false, error: DEMO_READONLY_ERROR, status: 403 };
+      }
+    }
+    try {
+      const headers = await getAuthHeaders();
+      if (!headers) return { success: false, error: "Oturum bulunamadı" };
+
+      console.log("[AUTH] changePassword");
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/change-password`,
+        {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        },
+        15000,
+      );
+      const body = await res.json();
+      return { ...body, status: res.status };
+    } catch (error) {
+      console.log("[AUTH] err:", error);
+      return { success: false, error: "Sunucuya bağlanılamadı" };
+    }
+  },
+
+  async updateDatasetConsent(
+    consent: boolean,
+  ): Promise<ApiResponse<{ dataset_consent: boolean }>> {
+    return authFetch("/auth/me/dataset-consent", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ consent }),
+    });
+  },
+
   async getStoredUser(): Promise<User | null> {
     try {
       const userJson = await secureGet(USER_DATA_KEY);
@@ -232,6 +402,8 @@ export const authAPI = {
     const token = await secureGet(TOKEN_KEY);
     await secureRemove(TOKEN_KEY);
     await secureRemove(USER_DATA_KEY);
+    // Cihaz AES anahtarini da sil — cikista geride cozulebilir kalinti birakma
+    await secureClearKey();
     // Demo oturumu kapatiyorsak yerel demo state'ini de sil
     if (isDemoToken(token)) {
       try {
@@ -244,7 +416,7 @@ export const authAPI = {
   },
 
   async enterDemoMode(): Promise<User> {
-    return persistDemoSession(DEMO_USERNAME || "Demo");
+    return persistDemoSession("Demo");
   },
 
   async getToken() {
@@ -254,6 +426,163 @@ export const authAPI = {
   async isAuthenticated() {
     const token = await secureGet(TOKEN_KEY);
     return !!token;
+  },
+
+  // Saklanan (gercek) token'i backend'e karsi dogrular — acilista bayat/iptal JWT ile
+  // "girisli" kalmayi onler. Demo token bu yoldan GECMEZ (cevrimdisi; /auth/me'ye gitmez).
+  // Backend (auth.middleware): token yok -> 401, gecersiz/suresi gecmis -> 403, sunucu hatasi -> 500.
+  // Donus:
+  //   "valid"    — token gecerli, oturum surdurulur
+  //   "rejected" — 401/403 (token yok/bozuk/suresi gecmis) -> login ekranina don
+  //   "network"  — sunucuya ulasilamadi / 5xx -> mevcut oturuma guven (cevrimdisi acilis)
+  async validateSession(): Promise<"valid" | "rejected" | "network"> {
+    const token = await secureGet(TOKEN_KEY);
+    if (!token) return "rejected";
+    try {
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/me`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        8000,
+      );
+      // 401 (token yok) / 403 (gecersiz veya suresi gecmis) -> kesin reddet
+      if (res.status === 401 || res.status === 403) return "rejected";
+      // 5xx vb. -> sunucu sorunu, oturumu silme
+      if (!res.ok) return "network";
+      const body = await res.json();
+      return body.success ? "valid" : "network";
+    } catch {
+      // timeout / baglanti yok -> cevrimdisi acilisa izin ver
+      return "network";
+    }
+  },
+};
+
+// Paydas (stakeholder) davet + uyelik islemleri
+export interface StakeholderFarm {
+  farm_id: string;
+  name: string;
+  owner_username: string | null;
+}
+
+export interface FarmStakeholderRow {
+  user_id: string;
+  username: string | null;
+  // "owner" (farms.user_id'den) veya FarmRole ("stakeholder")
+  role: string;
+  is_owner: boolean;
+  created_at: string | null;
+}
+
+export type FarmMemberRole = "stakeholder" | "farmer";
+// listFarms'in dondurdugu erisim turu: sahip (Farm.user_id) + uyelik rolleri.
+export type FarmAccessRole = "owner" | FarmMemberRole;
+
+export interface FarmInviteRow {
+  invite_id: string;
+  code: string;
+  role: FarmMemberRole;
+  status: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
+  expires_at: string;
+  created_at: string | null;
+}
+
+export const stakeholderAPI = {
+  // Ciftci: ciftlik icin tek kullanimlik davet kodu uret (invite_id de doner — iptal icin).
+  // role: kodun verecegi rol (stakeholder=salt-okunur, farmer=operasyonel). Vars. stakeholder.
+  async createInvite(
+    farmId: string,
+    role: FarmMemberRole = "stakeholder",
+    ttlDays?: number,
+  ): Promise<ApiResponse<{ invite_id: string; code: string; expires_at: string }>> {
+    return authFetch(`/stakeholder/farms/${farmId}/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role, ...(ttlDays ? { ttlDays } : {}) }),
+    });
+  },
+
+  // Ciftci: henuz kullanilmamis (PENDING) davet kodunu iptal et
+  async revokeInvite(
+    inviteId: string,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return authFetch(`/stakeholder/invites/${inviteId}/revoke`, {
+      method: "POST",
+    });
+  },
+
+  // Davet kodunu kullan, ciftlige erisim kazan. Farmer-davet ise backend yeni token+user doner —
+  // sakla ki hesap rolu (foto gonderme/onboarding kapilari) bu oturumda guncellensin (createFarm
+  // ile ayni desen). Caller sonrasinda AuthContext.refreshFromStorage() cagirmali.
+  async acceptInvite(
+    code: string,
+  ): Promise<ApiResponse<{ farm_id: string; farm_name: string; role?: FarmMemberRole }>> {
+    const res = await authFetch<{
+      farm_id: string;
+      farm_name: string;
+      role?: FarmMemberRole;
+      token?: string;
+      user?: unknown;
+    }>(`/stakeholder/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+
+    if (res.success && res.data?.token) {
+      await secureSet(TOKEN_KEY, res.data.token);
+      if (res.data.user) {
+        await secureSet(USER_DATA_KEY, JSON.stringify(res.data.user));
+      }
+    }
+    if (res.success && res.data) {
+      return {
+        success: true,
+        data: { farm_id: res.data.farm_id, farm_name: res.data.farm_name, role: res.data.role },
+      };
+    }
+    return res as ApiResponse<{ farm_id: string; farm_name: string; role?: FarmMemberRole }>;
+  },
+
+  // Paydas: gorebildigi ciftlikler (uyelik kayitlari)
+  async getMyFarms(): Promise<ApiResponse<StakeholderFarm[]>> {
+    return authFetch(`/stakeholder/farms`);
+  },
+
+  // Uyeler: ciftligin tum uyeleri (sahip + paydaslar) + rolleri — erisimi olan herkes okur
+  async listStakeholders(
+    farmId: string,
+  ): Promise<ApiResponse<FarmStakeholderRow[]>> {
+    return authFetch(`/stakeholder/farms/${farmId}/stakeholders`);
+  },
+
+  // Ciftci: ciftligin tum davet kodlari (kod + durum + son kullanim)
+  async listInvites(
+    farmId: string,
+  ): Promise<ApiResponse<FarmInviteRow[]>> {
+    return authFetch(`/stakeholder/farms/${farmId}/invites`);
+  },
+
+  // Ciftci: bir uyenin erisimini iptal et (kaldir)
+  async revokeStakeholder(
+    farmId: string,
+    userId: string,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return authFetch(`/stakeholder/farms/${farmId}/stakeholders/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
+  // Ciftci: bir uyenin rolunu degistir (stakeholder <-> farmer)
+  async changeMemberRole(
+    farmId: string,
+    userId: string,
+    role: FarmMemberRole,
+  ): Promise<ApiResponse<{ message?: string }>> {
+    return authFetch(`/stakeholder/farms/${farmId}/members/${userId}/role`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
   },
 };
 
@@ -317,7 +646,7 @@ export const sensorAPI = {
         data: {
           zone_id: zoneId,
           name: "Bölge 1",
-          adaptive_config: { current_kc: 1.05, target_sm_percent: 60 },
+          adaptive_config: { current_kc: 1.05, target_sm_percent: 60, critical_sm_percent: 30 },
           active_plantings: [{ crop_name: "Domates", growth_stage: "vegetative" }],
           recent_kc_calibrations: [],
         },
@@ -326,19 +655,28 @@ export const sensorAPI = {
     return authFetch<ZoneDetailsData>(`/sensors/zone/${zoneId}/details`);
   },
 
-  async getFieldHistory(fieldId: string, hours = 72) {
+  async getFieldHistory(
+    fieldId: string,
+    hours = 72,
+    opts?: { startDate?: string; endDate?: string },
+  ) {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
       const { generateDemoSensorHistory } = await import("./demo/demoData");
       return { success: true, data: generateDemoSensorHistory(fieldId, hours) };
     }
+    // Custom takvim araligi verilirse startDate/endDate query'si gonder; yoksa rolling hours.
+    const qs =
+      opts?.startDate && opts?.endDate
+        ? `startDate=${encodeURIComponent(opts.startDate)}&endDate=${encodeURIComponent(opts.endDate)}`
+        : `hours=${hours}`;
     return authFetch<{
       field_id: string;
       field_name: string;
       hours: number;
       reading_count: number;
       readings: SensorReading[];
-    }>(`/sensors/field/${fieldId}/history?hours=${hours}`);
+    }>(`/sensors/field/${fieldId}/history?${qs}`);
   },
 };
 
@@ -503,6 +841,7 @@ export interface FieldSummary {
   id: string;
   name: string;
   area: number;
+  farm_id?: string;
 }
 
 export interface DashboardData {
@@ -520,7 +859,7 @@ export const ERR_UNAUTHENTICATED = "UNAUTHENTICATED";
 
 // Dashboard verileri
 export const dashboardAPI = {
-  getFields: async (): Promise<FieldSummary[]> => {
+  getFields: async (farmId?: string): Promise<FieldSummary[]> => {
     const token = await secureGet(TOKEN_KEY);
 
     // Demo modu: explicit demo token (login ekranindan "skip" veya demo user ile)
@@ -534,7 +873,10 @@ export const dashboardAPI = {
       throw new Error(ERR_UNAUTHENTICATED);
     }
 
-    const res = await authFetch<FieldSummary[]>("/dashboard/fields");
+    const url = farmId
+      ? `/dashboard/fields?farm_id=${encodeURIComponent(farmId)}`
+      : "/dashboard/fields";
+    const res = await authFetch<FieldSummary[]>(url);
     if (res.success && res.data) {
       console.log("[DASHBOARD] fields:", res.data.length);
       return res.data;
@@ -590,6 +932,188 @@ export const dashboardAPI = {
     }
   },
 
+  createField: async (payload: {
+    fieldName: string;
+    fieldType: "greenhouse" | "pot";
+    polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+    area: number;
+    zones: {
+      name: string;
+      polygon: { exterior: [number, number][]; holes?: [number, number][][] };
+      cropId?: number;
+      plantingDate?: string;
+    }[];
+    farmId?: string;
+  }): Promise<ApiResponse<FieldSummary>> => {
+    const token = await secureGet(TOKEN_KEY);
+
+    if (isDemoToken(token)) {
+      // Demo modda sahte ID ile basarili dondur
+      return {
+        success: true,
+        data: {
+          id: `demo-${Date.now()}`,
+          name: payload.fieldName,
+          area: payload.area,
+        },
+      };
+    }
+
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
+    }
+
+    const res = await authFetch<FieldSummary>("/dashboard/fields", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.success && res.data) {
+      return res;
+    }
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to create field");
+  },
+
+  createFarm: async (payload: {
+    name: string;
+    latitude: number;
+    longitude: number;
+    altitude_m: number;
+  }): Promise<ApiResponse<{
+    farm_id: string;
+    name: string;
+    latitude: number | null;
+    longitude: number | null;
+    altitude_m: number | null;
+  }>> => {
+    const token = await secureGet(TOKEN_KEY);
+
+    if (isDemoToken(token)) {
+      return {
+        success: true,
+        data: {
+          farm_id: `demo-farm-${Date.now()}`,
+          name: payload.name,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          altitude_m: payload.altitude_m,
+        },
+      };
+    }
+
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
+    }
+
+    // Backend { farm, token, user } doner: ciftlik olusturmak kullaniciyi farmer'a yukseltir.
+    type FarmData = {
+      farm_id: string;
+      name: string;
+      latitude: number | null;
+      longitude: number | null;
+      altitude_m: number | null;
+    };
+    const res = await authFetch<{
+      farm: FarmData;
+      token?: string;
+      user?: unknown;
+    }>("/dashboard/farms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.success && res.data?.farm) {
+      // Yeni token + user'i sakla ki global rol (salt-okunur kapilari) guncellensin.
+      // AuthContext.refreshFromStorage() bunu okuyup state'i tazeler.
+      if (res.data.token) {
+        await secureSet(TOKEN_KEY, res.data.token);
+        if (res.data.user) {
+          await secureSet(USER_DATA_KEY, JSON.stringify(res.data.user));
+        }
+      }
+      return { success: true, data: res.data.farm };
+    }
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to create farm");
+  },
+
+  getCrops: async (): Promise<ApiResponse<{
+    crop_id: number;
+    name: string;
+    default_kc: number | null;
+    growth_days: number | null;
+    optimal_sm_min: number | null;
+    optimal_sm_max: number | null;
+  }[]>> => {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return { success: true, data: [] };
+    }
+    if (!token) throw new Error(ERR_UNAUTHENTICATED);
+    return authFetch("/dashboard/crops");
+  },
+
+  getElevation: async (
+    latitude: number,
+    longitude: number,
+  ): Promise<ApiResponse<{ altitude_m: number }>> => {
+    const token = await secureGet(TOKEN_KEY);
+
+    if (isDemoToken(token)) {
+      // Demo: approximate elevation for Antalya region
+      return { success: true, data: { altitude_m: 30 } };
+    }
+
+    if (!token) {
+      throw new Error(ERR_UNAUTHENTICATED);
+    }
+
+    return authFetch<{ altitude_m: number }>(
+      `/dashboard/elevation?latitude=${latitude}&longitude=${longitude}`,
+    );
+  },
+
+  deleteFarm: async (farmId: string): Promise<ApiResponse<{ message: string }>> => {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return { success: true, data: { message: "Demo: farm silindi" } };
+    }
+    if (!token) throw new Error(ERR_UNAUTHENTICATED);
+    const res = await authFetch<{ message: string }>(
+      `/dashboard/farms/${encodeURIComponent(farmId)}`,
+      { method: "DELETE" },
+    );
+    if (res.success) return res;
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to delete farm");
+  },
+
+  deleteField: async (fieldId: string): Promise<ApiResponse<{ message: string }>> => {
+    const token = await secureGet(TOKEN_KEY);
+    if (isDemoToken(token)) {
+      return { success: true, data: { message: "Demo: tarla silindi" } };
+    }
+    if (!token) throw new Error(ERR_UNAUTHENTICATED);
+    const res = await authFetch<{ message: string }>(
+      `/dashboard/fields/${encodeURIComponent(fieldId)}`,
+      { method: "DELETE" },
+    );
+    if (res.success) return res;
+    if (res.error?.includes("HTTP 401") || res.error?.includes("HTTP 403")) {
+      throw new Error(ERR_AUTH_EXPIRED);
+    }
+    throw new Error(res.error || "Failed to delete field");
+  },
+
   // Logout sirasinda cagrilir — userlar arasi cache leak'ini onler
   clearCaches: async (): Promise<void> => {
     try {
@@ -618,12 +1142,15 @@ export const gatewayAPI = {
     });
   },
 
-  async getFarms(): Promise<ApiResponse<Array<{ farm_id: string; name: string }>>> {
+  async getFarms(): Promise<
+    ApiResponse<Array<{ farm_id: string; name: string; is_owner?: boolean; access?: FarmAccessRole }>>
+  > {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
+      // Demo: kullanici tam yetkili sahip gibi davranir, trash vs. gosterilsin.
       return {
         success: true,
-        data: [{ farm_id: "demo-farm", name: "Demo Çiftliği" }],
+        data: [{ farm_id: "demo-farm", name: "Demo Çiftliği", is_owner: true, access: "owner" }],
       };
     }
     return authFetch("/gateway/farms");
@@ -895,6 +1422,11 @@ export type DiseaseCorrection =
   | "YELLOW_LEAF_CURL_VIRUS"
   | "OTHER";
 
+export interface BilingualRecommendations {
+  tr: string[];
+  en: string[];
+}
+
 export interface DiseaseDetection {
   detection_id: string;
   user_id: string;
@@ -904,18 +1436,16 @@ export interface DiseaseDetection {
   uploaded_at: string;
   processing_started_at: string | null;
   completed_at: string | null;
-  detected_disease: string | null;
+  detected_disease: DiseaseTarget | null;
   confidence: number | null;
   confidence_score: number | null;
   all_predictions: Record<string, number> | null;
-  recommendations: string[] | null;
+  recommendations: BilingualRecommendations | null;
   error_message: string | null;
   imageUrl?: string | null;
   user_feedback?: UserFeedback | null;
   feedback_at?: string | null;
   user_correction?: DiseaseCorrection | null;
-  // Lambda v5 uncertainty signal - optional, backend forwards if present.
-  // Mobile also falls back to detected_disease === "Uncertain" as a hint.
   confidence_status?: "confident" | "uncertain" | null;
   top_guess?: string | null;
   message_tr?: string | null;
@@ -949,7 +1479,7 @@ export interface FolderDetectionSummary {
   status: DetectionStatus;
   uploaded_at: string;
   completed_at: string | null;
-  detected_disease: string | null;
+  detected_disease: DiseaseTarget | null;
   confidence: number | null;
   confidence_score: number | null;
   error_message: string | null;
@@ -959,7 +1489,7 @@ export interface FolderDetectionSummary {
 /** Detail varyantta ek alanlar (allPredictions + recommendations). */
 export interface FolderDetectionDetail extends FolderDetectionSummary {
   all_predictions?: Record<string, number> | null;
-  recommendations?: string[] | null;
+  recommendations?: BilingualRecommendations | null;
 }
 
 /** Klasore bagli planting bilgisi (response icinde nested). */
@@ -1006,11 +1536,11 @@ export interface DiseaseTrackingFolderHistory {
     detectionId: string;
     uploadedAt: string;
     completedAt: string | null;
-    disease: string | null;
+    disease: DiseaseTarget | null;
     confidence: number | null;
     confidenceScore: number | null;
     allPredictions: Record<string, number> | null;
-    recommendations: string[] | null;
+    recommendations: BilingualRecommendations | null;
   }>;
 }
 
@@ -1173,6 +1703,18 @@ export const diseaseAPI = {
 
       const json = await res.json();
       console.log("[DISEASE] submitted:", json.data?.detectionId?.slice(0, 8));
+      // Kilitli demoda: cekilen gorseli detection_id ile YERELE KOPYALA (indirme yok).
+      // Boylece (a) liste yalnizca bu cihazda gorseli olan tespitleri gosterir — testçiler
+      // birbirinin taramasini gormez; (b) kendi taramasi S3'ten indirilmeden hemen gozukur.
+      // Kaynak tek dogruluk: imageCache indeksi (bkz. getAllDetections + DiseaseScreen).
+      if (json?.success && json?.data?.detectionId && isLockedLiveDemo(token)) {
+        try {
+          const imageCache = await import("./imageCache");
+          await imageCache.saveLocalImage(json.data.detectionId, imageUri);
+        } catch {
+          // kopyalama basarisizsa o tarama listede gozukmez — kritik degil
+        }
+      }
       return json;
     } catch (error) {
       console.log("[DISEASE] submit err:", error);
@@ -1207,7 +1749,9 @@ export const diseaseAPI = {
     });
   },
 
-  async getFolders(): Promise<ApiResponse<DiseaseTrackingFolder[]>> {
+  // farmId: paydas (stakeholder) icin zorunlu — backend ciftlik-kapsamli doner.
+  // Ciftci icin atlanir (kendi user_id'ine gore doner).
+  async getFolders(farmId?: string): Promise<ApiResponse<DiseaseTrackingFolder[]>> {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
       const { listFolders, seedIfEmpty } = await import("./demo/demoStorage");
@@ -1216,11 +1760,19 @@ export const diseaseAPI = {
       const list = await listFolders();
       return { success: true, data: list };
     }
-    return authFetch("/disease/folders");
+    // Kilitli demoda klasorler gizli: olusturma zaten engelli ve paylasilan hesabin
+    // klasorleri (baskasinin verisi) gosterilmemeli. Bos liste → "Klasörler" bolumu bos.
+    if (isLockedLiveDemo(token)) {
+      return { success: true, data: [] };
+    }
+    return authFetch(
+      `/disease/folders${farmId ? `?farm_id=${encodeURIComponent(farmId)}` : ""}`,
+    );
   },
 
   async getFolderDetail(
     folderId: string,
+    farmId?: string,
   ): Promise<ApiResponse<DiseaseTrackingFolderDetail>> {
     const token = await secureGet(TOKEN_KEY);
     if (isDemoToken(token)) {
@@ -1229,7 +1781,9 @@ export const diseaseAPI = {
       if (!detail) return { success: false, error: "Klasör bulunamadı" };
       return { success: true, data: detail };
     }
-    return authFetch(`/disease/folders/${folderId}`);
+    return authFetch(
+      `/disease/folders/${folderId}${farmId ? `?farm_id=${encodeURIComponent(farmId)}` : ""}`,
+    );
   },
 
   async getFolderHistory(
@@ -1334,7 +1888,22 @@ export const diseaseAPI = {
       const detections = await listDetections();
       return { success: true, data: { count: detections.length, detections } };
     }
-    return authFetch("/disease/requests");
+    const res = await authFetch<{ count: number; detections: DiseaseDetection[] }>(
+      "/disease/requests",
+    );
+    // Kilitli demoda: paylasilan hesabin TUM tespitleri yerine YALNIZCA gorseli bu cihazda
+    // yerel cache'te olan tespitler gosterilir (testçiler birbirinin taramalarini gormesin).
+    // Kaynak: imageCache indeksi — kullanici kendi taramasini cekince submitDetection gorseli
+    // yerele kopyalar. Yereldeki gorseli olmayan tespit listelenmez ve indirilmez.
+    if (res.success && res.data && isLockedLiveDemo(token)) {
+      const imageCache = await import("./imageCache");
+      const cachedIds = new Set(await imageCache.listCachedIds());
+      const detections = res.data.detections.filter((d) =>
+        cachedIds.has(d.detection_id),
+      );
+      return { success: true, data: { count: detections.length, detections } };
+    }
+    return res;
   },
 
   async getImageUrl(
@@ -1353,6 +1922,22 @@ export const diseaseAPI = {
           expiresAt: new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
         },
       };
+    }
+    // Kilitli demoda S3'ten gorsel INDIRME yok: yalnizca yerel cache. Gorsel yereldeyse
+    // onun uri'sini don; degilse basarisiz (paylasilan hesabin baska gorselleri cekilmez).
+    if (isLockedLiveDemo(token)) {
+      const imageCache = await import("./imageCache");
+      if (await imageCache.hasLocal(detectionId)) {
+        return {
+          success: true,
+          data: {
+            imageUrl: imageCache.localPath(detectionId),
+            expiresIn: 3600 * 24 * 365,
+            expiresAt: new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
+          },
+        };
+      }
+      return { success: false, error: DEMO_READONLY_ERROR };
     }
     return authFetch(`/disease/requests/${detectionId}/image`);
   },
@@ -1441,6 +2026,7 @@ export interface IrrigationJob {
   status: string;
   should_irrigate: boolean;
   water_amount_ml: number | null;
+  recommended_duration_min: number | null;
   start_time: string | null;
   current_sm: number | null;
   target_sm: number | null;
@@ -1475,6 +2061,7 @@ function generateDemoIrrigationJobs(zoneIndex: number): IrrigationJob[] {
       status: i === 0 ? "PENDING" : "EXECUTED",
       should_irrigate: true,
       water_amount_ml: Math.round(150 + r * 150),
+      recommended_duration_min: Math.round(5 + r * 20),
       start_time: date.toISOString(),
       current_sm: Math.round(30 + r * 25),
       target_sm: Math.round(55 + r * 15),
@@ -1519,7 +2106,7 @@ export const irrigationAPI = {
   // Gercek sulama degerlerini guncelle
   async updateJobActual(
     jobId: string,
-    data: { actual_water_amount_ml?: number; actual_start_time?: string },
+    data: { actual_water_amount_ml?: number; actual_start_time?: string; actual_duration_min?: number },
   ): Promise<ApiResponse<IrrigationJob>> {
     const token = await secureGet(TOKEN_KEY);
     if (!token || isDemoToken(token)) {
@@ -1527,6 +2114,27 @@ export const irrigationAPI = {
     }
     return authFetch<IrrigationJob>(`/irrigation/jobs/${jobId}/actual`, {
       method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Manuel sulama kaydi olustur (oneri olmadan)
+  async createManualActual(
+    zoneId: string,
+    data: {
+      actual_start_time: string;
+      actual_water_amount_ml?: number;
+      actual_duration_min?: number;
+    },
+  ): Promise<ApiResponse<any>> {
+    const token = await secureGet(TOKEN_KEY);
+    if (!token || isDemoToken(token)) {
+      return { success: true, data: { job: { job_id: "demo-manual", status: "EXECUTED", ...data } } };
+    }
+    console.log("[MANUAL_IRRIGATION] createManualActual zoneId:", zoneId, "payload:", data);
+    return authFetch(`/irrigation/zone/${zoneId}/manual-actual`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
@@ -1543,6 +2151,11 @@ export const irrigationAPI = {
     return authFetch<IrrigationZoneRecommendation[]>(
       `/irrigation/field/${fieldId}/recommendations`,
     );
+  },
+
+  // Tarla bazinda tum zone sulama islerini getir
+  async getFieldJobs(fieldId: string): Promise<ApiResponse<IrrigationJob[]>> {
+    return authFetch<IrrigationJob[]>(`/irrigation/field/${fieldId}/jobs`);
   },
 
   // Zone icin sulama isi olustur (mevcut backend endpoint)

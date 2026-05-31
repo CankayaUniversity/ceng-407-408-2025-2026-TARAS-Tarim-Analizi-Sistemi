@@ -120,12 +120,14 @@ model User {
   is_active                Boolean?                @default(true)
   last_login               DateTime?               @db.Timestamptz(6)
   created_at               DateTime?               @default(now()) @db.Timestamptz(6)
+  dataset_consent          Boolean                 @default(true)
   alerts                   Alert[]
   chat_sessions            ChatSession[]
   disease_detections       DiseaseDetection[]
   disease_tracking_folders DiseaseTrackingFolder[]
   farms                    Farm[]
   role                     Role?                   @relation(fields: [role_id], references: [role_id])
+  farm_memberships         FarmMember[]            @relation("UserFarmMemberships")
 
   @@map("users")
 }
@@ -139,13 +141,83 @@ model Farm {
   user_id       String?     @db.Uuid
   name          String      @db.VarChar(100)
   location_text String?
+  latitude      Float?
+  longitude     Float?
+  altitude_m    Float?
+  // Soft-delete bayragi — sahip "sil"ediginde false'a duser; veriler kasaten korunur,
+  // tum okuma uclari (listFarms, resolveFarmAccess, getAccessibleFarmIds, inline owner
+  // kontrolleri) is_active=true filtresi uygular, soft-deleted ciftlik UI/API'den kaybolur.
+  is_active     Boolean     @default(true)
   created_at    DateTime?   @default(now()) @db.Timestamptz(6)
   carbon_logs   CarbonLog[]
   user          User?       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   fields        Field[]
   gateways      Gateway[]
+  members       FarmMember[]      @relation("FarmMembers")
+  invites       FarmInvite[]      @relation("FarmInvites")
 
   @@map("farms")
+}
+
+// Bir kullanicinin bir ciftlikteki rolu (sahip haric — sahip Farm.user_id'de tutulur).
+// Olceklenebilirlik icin tek tablo + rol kolonu: yeni iliski turleri (manager, agronomist,
+// viewer...) FarmRole enum'una eklenir, yeni tablo gerekmez.
+enum FarmRole {
+  stakeholder
+  // Operasyonel uye: foto gonderme, karbon girisi, sulama calistirma/onaylama yapabilir.
+  // Sahip-ozel yapisal/yonetsel islemleri YAPAMAZ (field olustur/sil, ciftlik sil, donanim,
+  // davet/uye yonetimi, rol degistirme). Sahiplik yine farms.user_id'den cikarilir (uye degil).
+  farmer
+
+  @@map("farm_role")
+}
+
+// Bir kullanicinin bir ciftlige (sahip olmadan) erisim uyeligi + rolu.
+// Erisim her istekte bu tablodan kontrol edilir (JWT'deki role degil) — iptal aninda keser.
+model FarmMember {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  farm_id    String    @db.Uuid
+  user_id    String    @db.Uuid
+  role       FarmRole  @default(stakeholder)
+  invited_by String?   @db.Uuid
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+
+  farm Farm @relation("FarmMembers", fields: [farm_id], references: [farm_id], onDelete: Cascade)
+  user User @relation("UserFarmMemberships", fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@unique([farm_id, user_id])
+  @@index([user_id])
+  @@index([farm_id])
+  @@map("farm_members")
+}
+
+enum FarmInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+
+  @@map("farm_invite_status")
+}
+
+// Ciftci tarafindan uretilen tek kullanimlik davet kodu. Kod, verilecek rolu de tasir
+// (varsayilan stakeholder) — kabul edilince uyelik bu rolu alir.
+model FarmInvite {
+  invite_id   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String           @unique @db.VarChar(16)
+  farm_id     String           @db.Uuid
+  created_by  String           @db.Uuid
+  role        FarmRole         @default(stakeholder)
+  status      FarmInviteStatus @default(PENDING)
+  expires_at  DateTime         @db.Timestamptz(6)
+  accepted_by String?          @db.Uuid
+  accepted_at DateTime?        @db.Timestamptz(6)
+  created_at  DateTime?        @default(now()) @db.Timestamptz(6)
+
+  farm Farm @relation("FarmInvites", fields: [farm_id], references: [farm_id], onDelete: Cascade)
+
+  @@index([farm_id, status])
+  @@map("farm_invites")
 }
 
 model Field {
@@ -159,6 +231,7 @@ model Field {
   default_check_after_min      Int?          @default(60)
   environment_type             String?       @db.VarChar(50)
   irrigation_gain_mm_per_100ml Float?
+  irrigation_gain_mm_per_10_min Float?
   irrigation_mode              String?       @db.VarChar(50)
   is_active                    Boolean?      @default(true)
   ml_per_sm_percent            Float?
@@ -439,6 +512,10 @@ model ChatMessage {
   session_id String?      @db.Uuid
   sender     String?      @db.VarChar(10)
   content    String?
+  // LLM tool-call'larindan dogan mesaj-alti aksiyon butonlari ({ events: [...] } ham SSE
+  // event yukleri). Mobil yuklerken ayni parser'la butona cevirir; eski sohbet acildiginda
+  // butonlar geri gelir. LLM gecmisine GIRMEZ (getSessionHistory yalniz content seciyor).
+  metadata   Json?
   created_at DateTime?    @default(now()) @db.Timestamptz(6)
   session    ChatSession? @relation(fields: [session_id], references: [session_id], onDelete: Cascade)
 
@@ -490,11 +567,9 @@ model DiseaseDetection {
   uploaded_at           DateTime               @default(now()) @db.Timestamptz(6)
   processing_started_at DateTime?              @db.Timestamptz(6)
   completed_at          DateTime?              @db.Timestamptz(6)
-  detected_disease      String?                @db.VarChar(100)
-  confidence            Float?
+  detected_disease      DiseaseTarget?
   confidence_score      Float?
   all_predictions       Json?
-  recommendations       Json?
   error_message         String?
   user_feedback         UserFeedback?
   feedback_at           DateTime?              @db.Timestamptz(6)
@@ -515,6 +590,24 @@ model DiseaseDetection {
   // Cleanup cron sorgusu icin — soft-deleted rows + grace period.
   @@index([is_deleted, deleted_at], map: "idx_disease_detection_trash")
   @@map("disease_detections")
+}
+
+// =======================
+// DISEASE RECOMMENDATIONS
+// =======================
+// Per-disease care/treatment advice. Stored bilingually (tr, en); the API
+// returns both arrays and the client picks based on the user's language.
+
+model DiseaseRecommendation {
+  recommendation_id String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disease_target    DiseaseTarget
+  language          String        @db.VarChar(2)
+  order_index       Int
+  text              String
+
+  @@unique([disease_target, language, order_index])
+  @@index([disease_target])
+  @@map("disease_recommendation")
 }
 
 // =======================

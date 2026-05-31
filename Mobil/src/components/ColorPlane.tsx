@@ -16,6 +16,7 @@ import {
   calculatePolygonCentroid,
 } from "../utils/fieldPlaceholder";
 import { palette } from "../styles/colors";
+import type { SharedValue } from "react-native-reanimated";
 const THREE: any = require("three");
 
 const LIGHT_COLORS = [
@@ -47,6 +48,12 @@ const PULSE_SHARPNESS = 1.0;
 const PULSE_BRIGHTNESS_EDGE = 0.05;
 const PULSE_BRIGHTNESS_CENTER = 0.2;
 
+// Pin yayilimi — zone'daki sensor sayisi >1 ise pin'ler merkez etrafinda duzgun
+// cokgen (2=cizgi, 3=ucgen, 4=kare...) seklinde dizilir. Halka yaricapi pin boyuna
+// orantili (sera) ya da saksi ustune oturacak sekilde (saksi). Konum saklanmadigi
+// icin gercek yer degil — "bu zone'da N sensor var" gosterimi.
+const PIN_RING_FACTOR = 1.3;
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LUT_SIZE = 128;
@@ -58,6 +65,19 @@ const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
     r: parseInt(c.substring(0, 2), 16),
     g: parseInt(c.substring(2, 4), 16),
     b: parseInt(c.substring(4, 6), 16),
+  };
+};
+
+// rgb'yi grinin tonuna dogru harmanla (doygunlugu azalt) — t=0 ayni, t=1 tam gri
+const desatRgb = (
+  c: { r: number; g: number; b: number },
+  t: number,
+): { r: number; g: number; b: number } => {
+  const gray = (c.r + c.g + c.b) / 3;
+  return {
+    r: c.r + (gray - c.r) * t,
+    g: c.g + (gray - c.g) * t,
+    b: c.b + (gray - c.b) * t,
   };
 };
 
@@ -76,21 +96,31 @@ const TAP_DISTANCE_THRESHOLD = 10;
 const TAP_TIME_THRESHOLD = 300;
 const PIN_WORLD_SIZE = 0.5;
 
-// Nem → renk: kuru toprak (altin/kum) → yasil zeytinlik (olive)
-const moistureToColor = (m: number): string => {
+// Nem → renk: tema-uyumlu soilMoisture paleti. Connector balonu + cizgi + plane zone'lari + pinler kullanir.
+// AYDINLIK: acik→koyu. KARANLIK: koyu zeminde goz almasin diye doygun orta tonlar (kuru ucu beyaz DEGIL).
+export const moistureToColor = (m: number, isDark = false): string => {
   const clamped = Math.max(0, Math.min(100, m));
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const rgbToHex = (r: number, g: number, b: number) =>
     "#" +
     [r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
 
-  // Kuru: gold[300] → Hafif: olive[400] → Optimal: olive[700] → Doygun: olive[900]
-  const stops = [
-    hexToRgb(palette.gold[300]), // 0%  — kuru, kum renkli
-    hexToRgb(palette.olive[400]), // 33% — hafif nem, acik yesil
-    hexToRgb(palette.olive[700]), // 67% — optimal nem, koyu zeytin
-    hexToRgb(palette.olive[900]), // 100% — doygun, derin zeytin
-  ];
+  // KARANLIK: tum skala MAT (dusuk doygunluk) + koyu zemine uygun. Kuru uc en mat/solgun → "ideal"den
+  // ayrik (yetersiz sulama). Nem arttikca ton KOYULASIR (acik mat mavi → koyu mat mavi), hepsi az doygun.
+  // AYDINLIK: orijinal acik→koyu (100→900) skala — acik zeminde dogru kontrast.
+  const stops = isDark
+    ? [
+        desatRgb(hexToRgb(palette.soilMoisture[400]), 0.55), // 0%  — kuru: en mat/solgun, ideal'den ayrik
+        desatRgb(hexToRgb(palette.soilMoisture[500]), 0.35), // 33% — mat
+        desatRgb(hexToRgb(palette.soilMoisture[700]), 0.4), // 67% — mat + daha koyu
+        desatRgb(hexToRgb(palette.soilMoisture[800]), 0.4), // 100% — mat + en koyu
+      ]
+    : [
+        hexToRgb(palette.soilMoisture[100]), // 0%  — kuru, cok acik mavi
+        hexToRgb(palette.soilMoisture[300]), // 33% — hafif nem, acik mavi
+        hexToRgb(palette.soilMoisture[600]), // 67% — nemli, orta mavi
+        hexToRgb(palette.soilMoisture[900]), // 100% — doygun, derin lacivert
+      ];
 
   const t = clamped / 100;
   const seg = Math.min(2, Math.floor(t * 3));
@@ -109,7 +139,10 @@ export type NodeInfo = SensorNode;
 // Field kimlik anahtari — polygon + node topolojisini ozetler.
 // Snapshot staleness kontrolu icin HomeScreen ile ortak kullanilir.
 export const computeFieldKey = (fieldData: FieldData): string => {
-  const nodeIds = fieldData.nodes.map((n) => n.id).join(",");
+  // sensorCount key'e dahil — pin sayisi degisince snapshot/remount invalidate olsun.
+  const nodeIds = fieldData.nodes
+    .map((n) => `${n.id}:${n.sensorCount ?? 1}`)
+    .join(",");
   const polygonHash = fieldData.polygon.exterior
     .slice(0, 3)
     .flat()
@@ -138,6 +171,13 @@ function calculateCameraConfig(scale: number): CameraConfig {
   return { position: [0, cameraY, baseDistance], fov };
 }
 
+// Secili zone merkezinin canvas icindeki konumu — 0..1 fraction (sol-ust orijin)
+export interface ZoneScreenPos {
+  fx: number;
+  fy: number;
+  visible: boolean;
+}
+
 interface ColorPlaneProps {
   fieldData: FieldData;
   isDark?: boolean;
@@ -146,6 +186,8 @@ interface ColorPlaneProps {
   selectedNodeId?: string | null;
   onCameraConfigChange?: (config: CameraConfig) => void;
   onPlaneReady?: () => void;
+  // Secili zone'un ekran fraction'i — her frame yazilir, ConnectorOverlay okur
+  zonePosSV?: SharedValue<ZoneScreenPos>;
 }
 
 interface Position {
@@ -208,6 +250,7 @@ export const ColorPlane = memo(function ColorPlane({
   selectedNodeId: externalSelectedNodeId,
   onCameraConfigChange,
   onPlaneReady,
+  zonePosSV,
 }: ColorPlaneProps) {
   const COLORS = isDark ? DARK_COLORS : LIGHT_COLORS;
   const nodes = fieldData.nodes;
@@ -216,6 +259,11 @@ export const ColorPlane = memo(function ColorPlane({
     () => computeFieldKey(fieldData),
     [fieldData],
   );
+
+  useEffect(() => {
+    console.log("[3D]", fieldData.isPotField ? "POT" : "GREENHOUSE",
+      "nodes:", nodes.length, "key:", fieldKey.slice(0, 24));
+  }, [fieldKey]);
 
   const meshRef = useRef<any>(null);
   const groupRef = useRef<any>(null);
@@ -271,10 +319,14 @@ export const ColorPlane = memo(function ColorPlane({
     onCameraConfigChange?.(config);
   }, [fieldData, bounds, scale, centerX, centerZ, nodes, onCameraConfigChange]);
 
-  const { invalidate, gl } = useThree();
+  const { invalidate, gl, camera } = useThree();
 
   const invalidateRef = useRef(invalidate);
   invalidateRef.current = invalidate;
+
+  // Secili zone'u ekran fraction'ina projekte etmek icin — tekrar kullanilabilir vektor
+  const projVec = useMemo<any>(() => new THREE.Vector3(), []);
+  const lastZoneEmitRef = useRef({ fx: -1, fy: -1, visible: false });
 
   const lutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -414,6 +466,38 @@ export const ColorPlane = memo(function ColorPlane({
       if (!selectionAppliedRef.current && selectedNodeIdRef.current) {
         selectionAppliedRef.current = true;
         applySelectionRef.current(selectedNodeIdRef.current);
+      }
+    }
+
+    // Secili zone merkezini ekran fraction'ina projekte et — ConnectorOverlay tail'i okur.
+    // Sadece konum gercekten degisince yaz (idle frame'lerde UI thread'i bombalamamak icin).
+    if (zonePosSV && groupRef.current) {
+      const selId = selectedNodeIdRef.current;
+      const node = selId ? nodes.find((n) => n.id === selId) : null;
+      if (node) {
+        // Bu frame'in rotation'i matrixWorld'e islensin (matrisler normalde render'da guncellenir)
+        groupRef.current.updateWorldMatrix(true, false);
+        const pos = getNodeLocalPosition(node);
+        projVec.set(pos.x, pos.y, pos.z);
+        groupRef.current.localToWorld(projVec); // yerel → dunya (scale + rotation)
+        projVec.project(camera); // dunya → NDC [-1, 1]
+        const fx = projVec.x * 0.5 + 0.5;
+        const fy = -projVec.y * 0.5 + 0.5;
+        const visible =
+          Math.abs(projVec.x) <= 1 && Math.abs(projVec.y) <= 1 && projVec.z <= 1;
+        const last = lastZoneEmitRef.current;
+        if (
+          visible !== last.visible ||
+          Math.abs(fx - last.fx) > 0.001 ||
+          Math.abs(fy - last.fy) > 0.001
+        ) {
+          lastZoneEmitRef.current = { fx, fy, visible };
+          zonePosSV.value = { fx, fy, visible };
+        }
+      } else if (lastZoneEmitRef.current.visible) {
+        const last = lastZoneEmitRef.current;
+        lastZoneEmitRef.current = { fx: last.fx, fy: last.fy, visible: false };
+        zonePosSV.value = { fx: last.fx, fy: last.fy, visible: false };
       }
     }
 
@@ -656,7 +740,7 @@ export const ColorPlane = memo(function ColorPlane({
       nodeColors.push(
         N === 0
           ? { r: 60, g: 110, b: 90 }
-          : hexToRgb(moistureToColor(n.moisture)),
+          : hexToRgb(moistureToColor(n.moisture, isDark)),
       );
     }
 
@@ -720,7 +804,7 @@ export const ColorPlane = memo(function ColorPlane({
     }
     bakeLUT();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fieldKey]);
+  }, [fieldKey, isDark]); // isDark → tema degisince LUT yeniden bake (nem renkleri tema-uyumlu)
 
   // Debounced bake — ayni field icinde node mutasyonlari (moisture) icin
   // socket spam'ini koalese eder. fieldKey degisince sync layout effect zaten
@@ -789,7 +873,30 @@ export const ColorPlane = memo(function ColorPlane({
   };
 
   const GEOMETRY_DEPTH = 1.5;
-  const geometrySurfaceY = GEOMETRY_DEPTH / scale;
+  const POT_HEIGHT_LOCAL = 5.0; // local group units — pot height in field coordinate space
+  const POT_REF_SPACING = 12; // addFieldUtils spacing between pot centers
+
+  // Saksi olcek carpani — gercek node araligi / referans aralik (12).
+  // Wizard uretimi tarlalarda 1.0, daha buyuk koordinatli tarlalarda > 1.
+  const potScale = useMemo(() => {
+    if (!fieldData.isPotField || nodes.length < 2) return 1;
+    let minDist = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dx = nodes[i].x - nodes[j].x;
+        const dz = nodes[i].z - nodes[j].z;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d > 0.01 && d < minDist) minDist = d;
+      }
+    }
+    return isFinite(minDist) ? minDist / POT_REF_SPACING : 1;
+  }, [nodes, fieldData.isPotField]);
+
+  const scaledPotHeight = POT_HEIGHT_LOCAL * potScale;
+  // Saksi tarlada: govde ustu (h) + toprak disk yuksekligi (0.3 * potScale)
+  const geometrySurfaceY = fieldData.isPotField
+    ? scaledPotHeight + 0.3 * potScale
+    : GEOMETRY_DEPTH / scale;
   const NODE_HEIGHT = geometrySurfaceY + 0.05;
 
   const getNodeLocalPosition = (node: NodeInfo) => ({
@@ -798,30 +905,75 @@ export const ColorPlane = memo(function ColorPlane({
     z: centerZ - node.z,
   });
 
-  const pinLocalSize = PIN_WORLD_SIZE / scale;
+  // Pin boyutu: sera tarlalarda sabit dunya boyutu, saksi tarlalarda saksi ile orantili
+  // Pin basi yaricapi (pinLocalSize * 0.36) ≈ saksi yaricapinin %25'i (3.5 * potScale)
+  const pinLocalSize = fieldData.isPotField
+    ? 2.5 * potScale
+    : PIN_WORLD_SIZE / scale;
+
+  // Backend spreadRadius yoksa (demo/eski veri) kullanilan yayilim yaricapi
+  // (grup-yerel birim). Saksi: toprak diski (≈3.0*potScale) icinde. Sera: pin boyuna orantili.
+  const fallbackSpreadRadius = fieldData.isPotField
+    ? 1.1 * potScale
+    : pinLocalSize * PIN_RING_FACTOR;
+
+  // Pin yerlesimleri — her zone temsilci node'u icin sensorCount kadar pin uretir.
+  // 1 → merkez; N>1 → merkez etrafinda duzgun N-gen halka (ust noktadan baslar).
+  // Halka yaricapi: backend node.spreadRadius (zone extent orani) varsa onu, yoksa
+  // pin boyuna gore fallback. sensorCount yoksa (eski veri) 1; 0 → pin yok.
+  const pinPlacements = useMemo(() => {
+    const out: { node: NodeInfo; x: number; z: number }[] = [];
+    for (const node of nodes) {
+      const count = node.sensorCount ?? 1;
+      if (count <= 0) continue;
+      const baseX = node.x - centerX;
+      const baseZ = centerZ - node.z;
+      if (count === 1) {
+        out.push({ node, x: baseX, z: baseZ });
+      } else {
+        const ring =
+          node.spreadRadius && node.spreadRadius > 0
+            ? node.spreadRadius
+            : fallbackSpreadRadius;
+        for (let k = 0; k < count; k++) {
+          const ang = (2 * Math.PI * k) / count - Math.PI / 2;
+          out.push({
+            node,
+            x: baseX + Math.cos(ang) * ring,
+            z: baseZ + Math.sin(ang) * ring,
+          });
+        }
+      }
+    }
+    return out;
+  }, [nodes, centerX, centerZ, fallbackSpreadRadius]);
 
   // InstancedMesh refs — head/body/tip pin parcalari
   // 22+ ayri mesh yerine 3 draw call'da render edilir
   const headInstRef = useRef<any>(null);
   const bodyInstRef = useRef<any>(null);
   const tipInstRef = useRef<any>(null);
+  const potBodyInstRef = useRef<any>(null);
+  const potSoilInstRef = useRef<any>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const tmpColor = useMemo(() => new THREE.Color(), []);
 
-  // Node konum/renk degisiminde matrix + instanceColor guncelle
+  // Pin konum/renk degisiminde matrix + instanceColor guncelle.
+  // Artik node basina degil, PIN basina (pinPlacements) — cok-sensorlu zone'da
+  // ayni zone icin birden cok pin matrix slot'u olur.
   useEffect(() => {
     const head = headInstRef.current;
     const body = bodyInstRef.current;
     const tip = tipInstRef.current;
-    if (!head || !body || !tip || nodes.length === 0) return;
+    if (!head || !body || !tip || pinPlacements.length === 0) return;
 
-    for (let i = 0; i < nodes.length; i++) {
-      const node = nodes[i];
-      const pos = getNodeLocalPosition(node);
-      tmpColor.set(moistureToColor(node.moisture));
+    for (let i = 0; i < pinPlacements.length; i++) {
+      const p = pinPlacements[i];
+      const y = NODE_HEIGHT;
+      tmpColor.set(moistureToColor(p.node.moisture, isDark));
 
       // Pin basi (sphere, rotasyon yok)
-      dummy.position.set(pos.x, pos.y + pinLocalSize * 1.1, pos.z);
+      dummy.position.set(p.x, y + pinLocalSize * 1.1, p.z);
       dummy.rotation.set(0, 0, 0);
       dummy.scale.set(1, 1, 1);
       dummy.updateMatrix();
@@ -829,14 +981,14 @@ export const ColorPlane = memo(function ColorPlane({
       head.setColorAt(i, tmpColor);
 
       // Pin govdesi (cone, ters cevrilmis)
-      dummy.position.set(pos.x, pos.y + pinLocalSize * 0.2, pos.z);
+      dummy.position.set(p.x, y + pinLocalSize * 0.2, p.z);
       dummy.rotation.set(Math.PI, 0, 0);
       dummy.updateMatrix();
       body.setMatrixAt(i, dummy.matrix);
       body.setColorAt(i, tmpColor);
 
       // Pin ucu (cone, ters cevrilmis)
-      dummy.position.set(pos.x, pos.y - pinLocalSize * 0.7, pos.z);
+      dummy.position.set(p.x, y - pinLocalSize * 0.7, p.z);
       dummy.updateMatrix();
       tip.setMatrixAt(i, dummy.matrix);
       tip.setColorAt(i, tmpColor);
@@ -851,14 +1003,65 @@ export const ColorPlane = memo(function ColorPlane({
 
     invalidate();
   }, [
-    nodes,
+    pinPlacements,
     pinLocalSize,
-    centerX,
-    centerZ,
-    scale,
+    NODE_HEIGHT,
     dummy,
     tmpColor,
     invalidate,
+    isDark,
+  ]);
+
+  // Saksi instance guncelleme — govde + toprak yuzey
+  // potScale ile olceklenir: wizard tarlalarinda 1, buyuk koordinatli tarlalarda > 1
+  useEffect(() => {
+    if (!fieldData.isPotField) return;
+    const body = potBodyInstRef.current;
+    const soil = potSoilInstRef.current;
+    if (!body || nodes.length === 0) return;
+
+    const h = scaledPotHeight;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      const lx = node.x - centerX;
+      const lz = centerZ - node.z;
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(potScale, potScale, potScale);
+
+      // Saksi govdesi
+      dummy.position.set(lx, h / 2, lz);
+      dummy.updateMatrix();
+      body.setMatrixAt(i, dummy.matrix);
+
+      // Toprak yuzey — saksi ustunde ince disk
+      // Geometri yuksekligi 0.3, merkez Y = h + 0.15*ps → alt yuz h, ust yuz h + 0.3*ps
+      if (soil) {
+        dummy.position.set(lx, h + 0.15 * potScale, lz);
+        dummy.updateMatrix();
+        soil.setMatrixAt(i, dummy.matrix);
+        tmpColor.set(moistureToColor(node.moisture, isDark));
+        soil.setColorAt(i, tmpColor);
+      }
+    }
+
+    body.instanceMatrix.needsUpdate = true;
+    if (soil) {
+      soil.instanceMatrix.needsUpdate = true;
+      if (soil.instanceColor) soil.instanceColor.needsUpdate = true;
+    }
+    invalidate();
+  }, [
+    nodes,
+    fieldData.isPotField,
+    potScale,
+    scaledPotHeight,
+    centerX,
+    centerZ,
+    dummy,
+    tmpColor,
+    invalidate,
+    isDark,
   ]);
 
   // applySelectionRef guncelleme + disaridan gelen secim uygulama
@@ -901,7 +1104,7 @@ export const ColorPlane = memo(function ColorPlane({
 
   return (
     <group ref={groupRef} position={[0, 0, 0]} scale={[scale, scale, scale]}>
-      <mesh
+      {!fieldData.isPotField && <mesh
         ref={meshRef}
         position={[0, 0, 0]}
         geometry={geometry}
@@ -956,7 +1159,32 @@ export const ColorPlane = memo(function ColorPlane({
           vertexShader={vertexShader}
           fragmentShader={fragmentShader}
         />
-      </mesh>
+      </mesh>}
+
+      {/* Saksi tarla: govde + toprak yuzey (nem renkli) */}
+      {fieldData.isPotField && nodes.length > 0 && (
+        <>
+          {/* Saksi govdesi — terracotta */}
+          <instancedMesh
+            key={`pot-body-${nodes.length}`}
+            ref={potBodyInstRef}
+            args={[undefined, undefined, nodes.length]}
+          >
+            <cylinderGeometry args={[3.5, 2.5, POT_HEIGHT_LOCAL, 16]} />
+            <meshStandardMaterial color="#C2784E" roughness={0.85} metalness={0.05} />
+          </instancedMesh>
+
+          {/* Toprak yuzey — saksi ustunde, nem renkli disk */}
+          <instancedMesh
+            key={`pot-soil-${nodes.length}`}
+            ref={potSoilInstRef}
+            args={[undefined, undefined, nodes.length]}
+          >
+            <cylinderGeometry args={[3.0, 3.0, 0.3, 16]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.9} metalness={0.0} />
+          </instancedMesh>
+        </>
+      )}
 
       <ambientLight intensity={0.8} />
       <directionalLight
@@ -969,13 +1197,13 @@ export const ColorPlane = memo(function ColorPlane({
         color={currentColor}
       />
 
-      {nodes.length > 0 && (
+      {pinPlacements.length > 0 && (
         <>
-          {/* Pin basi - tum nodelar tek draw call */}
+          {/* Pin basi - tum pinler tek draw call */}
           <instancedMesh
-            key={`head-${nodes.length}-${pinLocalSize}`}
+            key={`head-${pinPlacements.length}-${pinLocalSize}`}
             ref={headInstRef}
-            args={[undefined, undefined, nodes.length]}
+            args={[undefined, undefined, pinPlacements.length]}
           >
             <sphereGeometry args={[pinLocalSize * 0.36, 8, 6]} />
             <meshStandardMaterial
@@ -985,11 +1213,11 @@ export const ColorPlane = memo(function ColorPlane({
             />
           </instancedMesh>
 
-          {/* Pin govdesi - tum nodelar tek draw call */}
+          {/* Pin govdesi - tum pinler tek draw call */}
           <instancedMesh
-            key={`body-${nodes.length}-${pinLocalSize}`}
+            key={`body-${pinPlacements.length}-${pinLocalSize}`}
             ref={bodyInstRef}
-            args={[undefined, undefined, nodes.length]}
+            args={[undefined, undefined, pinPlacements.length]}
           >
             <coneGeometry args={[pinLocalSize * 0.24, pinLocalSize * 1.4, 8]} />
             <meshStandardMaterial
@@ -999,11 +1227,11 @@ export const ColorPlane = memo(function ColorPlane({
             />
           </instancedMesh>
 
-          {/* Pin ucu - tum nodelar tek draw call */}
+          {/* Pin ucu - tum pinler tek draw call */}
           <instancedMesh
-            key={`tip-${nodes.length}-${pinLocalSize}`}
+            key={`tip-${pinPlacements.length}-${pinLocalSize}`}
             ref={tipInstRef}
-            args={[undefined, undefined, nodes.length]}
+            args={[undefined, undefined, pinPlacements.length]}
           >
             <coneGeometry args={[pinLocalSize * 0.08, pinLocalSize * 0.8, 6]} />
             <meshStandardMaterial
@@ -1015,20 +1243,18 @@ export const ColorPlane = memo(function ColorPlane({
         </>
       )}
 
-      {/* Dokunma alanlari - per-node mesh, neredeyse gorunmez (opacity 0.001) */}
-      {nodes.map((node) => {
-        const pos = getNodeLocalPosition(node);
-        return (
-          <mesh
-            key={`touch-${node.id}`}
-            position={[pos.x, pos.y + pinLocalSize * 0.4, pos.z]}
-            onPointerDown={handleNodePointerDown(node)}
-          >
-            <sphereGeometry args={[pinLocalSize * 1.2, 8, 6]} />
-            <meshBasicMaterial transparent opacity={0.001} depthTest={false} />
-          </mesh>
-        );
-      })}
+      {/* Dokunma alanlari - pin basina mesh, neredeyse gorunmez (opacity 0.001).
+          Ayni zone'un her pini o zone'u secer (handleNodePointerDown(p.node)). */}
+      {pinPlacements.map((p, i) => (
+        <mesh
+          key={`touch-${p.node.id}-${i}`}
+          position={[p.x, NODE_HEIGHT + pinLocalSize * 0.4, p.z]}
+          onPointerDown={handleNodePointerDown(p.node)}
+        >
+          <sphereGeometry args={[pinLocalSize * 1.2, 8, 6]} />
+          <meshBasicMaterial transparent opacity={0.001} depthTest={false} />
+        </mesh>
+      ))}
     </group>
   );
 });

@@ -3,8 +3,9 @@ import sensorNodeService from "../services/sensorNodeService";
 import dashboardService from "../services/dashboardService";
 import { prisma } from "../config/database";
 import logger from "../utils/logger";
-import { getStringParam, getNumberParam } from "../utils/requestHelpers";
+import { getStringParam, getNumberParam, getDateParam } from "../utils/requestHelpers";
 import { emitSensorUpdate } from "../config/socket";
+import { getAccessibleFarmIds } from "../services/accessService";
 
 export async function getUserZones(req: Request, res: Response): Promise<void> {
   try {
@@ -18,8 +19,10 @@ export async function getUserZones(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Sahibi olunan + paydas olarak erisilen ciftliklerin zone'lari
+    const accessibleIds = await getAccessibleFarmIds(userId);
     const farms = await prisma.farm.findMany({
-      where: { user_id: userId },
+      where: { farm_id: { in: accessibleIds } },
       include: {
         fields: {
           include: {
@@ -100,8 +103,9 @@ async function requireZoneAccess(req: Request, res: Response, zoneId: string | u
     return null;
   }
 
-  const zone = await prisma.zone.findUnique({
-    where: { zone_id: zoneId },
+  // field aktif + ciftligi aktif olmali — soft-deleted field/ciftligin zone'u erisilemez.
+  const zone = await prisma.zone.findFirst({
+    where: { zone_id: zoneId, field: { is_active: { not: false }, farm: { is_active: true } } },
     include: {
       field: {
         include: {
@@ -111,9 +115,22 @@ async function requireZoneAccess(req: Request, res: Response, zoneId: string | u
     },
   });
 
-  if (!zone?.field?.farm || zone.field.farm.user_id !== userId) {
+  const farm = zone?.field?.farm;
+  if (!farm) {
     res.status(403).json({ success: false, error: "You do not have access to this zone" });
     return null;
+  }
+
+  // Okuma uclari icin sahip VEYA paydas yeterli. Yazma uclari ayrica owner kontrolu yapar.
+  if (farm.user_id !== userId) {
+    const membership = await prisma.farmMember.findUnique({
+      where: { farm_id_user_id: { farm_id: farm.farm_id, user_id: userId } },
+      select: { id: true },
+    });
+    if (!membership) {
+      res.status(403).json({ success: false, error: "You do not have access to this zone" });
+      return null;
+    }
   }
 
   return zone;
@@ -356,8 +373,9 @@ export async function getNodeReadings(
       return;
     }
 
-    const node = await prisma.sensorNode.findUnique({
-      where: { node_id: nodeId },
+    // field aktif + ciftligi aktif olmali — soft-deleted field/ciftligin node'u erisilemez.
+    const node = await prisma.sensorNode.findFirst({
+      where: { node_id: nodeId, zone: { field: { is_active: { not: false }, farm: { is_active: true } } } },
       include: {
         zone: {
           include: {
@@ -379,12 +397,27 @@ export async function getNodeReadings(
       return;
     }
 
-    if (node.zone?.field?.farm?.user_id !== userId) {
+    // Okuma ucu — sahip VEYA paydas erisebilir
+    const nodeFarm = node.zone?.field?.farm;
+    if (!nodeFarm) {
       res.status(403).json({
         success: false,
         error: "You do not have access to this sensor",
       });
       return;
+    }
+    if (nodeFarm.user_id !== userId) {
+      const membership = await prisma.farmMember.findUnique({
+        where: { farm_id_user_id: { farm_id: nodeFarm.farm_id, user_id: userId } },
+        select: { id: true },
+      });
+      if (!membership) {
+        res.status(403).json({
+          success: false,
+          error: "You do not have access to this sensor",
+        });
+        return;
+      }
     }
 
     let readings;
@@ -459,9 +492,14 @@ export async function getFieldSensorHistory(
     }
 
     const hoursParam = getNumberParam(hours, 72);
+    // Custom takvim araligi (startDate/endDate ISO) verilirse onu kullan; yoksa rolling hours.
+    const startDate = getDateParam(req.query.startDate);
+    const endDate = getDateParam(req.query.endDate);
+    const range = startDate || endDate ? { startDate, endDate } : undefined;
     const result = await sensorNodeService.getFieldSensorHistory(
       fieldId,
       hoursParam,
+      range,
     );
 
     if (!result) {

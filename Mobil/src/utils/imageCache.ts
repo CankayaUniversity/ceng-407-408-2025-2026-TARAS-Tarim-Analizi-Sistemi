@@ -62,6 +62,32 @@ export const resolveImage = async (
   }
 };
 
+// Yerel bir dosyayi (orn. kameradan cekilen gorsel) detection_id ile cache'e KOPYALA —
+// indirme YOK. Kilitli demoda submitDetection bunu cagirir; boylece kullanici kendi
+// taramasini cekince gorsel hemen yerelde olur ve liste/gorunum S3'e gitmeden calisir.
+// Display-quality'ye sikistirir (resolveImage'in indirme sonrasi davranisiyla ayni).
+export const saveLocalImage = async (
+  detectionId: string,
+  sourceUri: string,
+): Promise<string | null> => {
+  try {
+    await ensureDir();
+    const dest = getFile(detectionId);
+    if (dest.exists) dest.delete();
+    let srcUri = sourceUri;
+    try {
+      srcUri = await compressForLocalCache(sourceUri);
+    } catch {
+      // sikistirilamazsa orijinali kopyala
+    }
+    new File(srcUri).copy(dest);
+    return dest.exists ? dest.uri : null;
+  } catch (error) {
+    console.log("[IMG] saveLocal fail:", detectionId, String(error));
+    return null;
+  }
+};
+
 export const deleteLocal = async (detectionId: string): Promise<void> => {
   try {
     await ensureDir();

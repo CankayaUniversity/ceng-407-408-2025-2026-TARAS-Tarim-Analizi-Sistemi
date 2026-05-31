@@ -3,7 +3,8 @@ import { prisma } from "../config/database";
 import logger from "../utils/logger";
 import { getStringParam } from "../utils/requestHelpers";
 import { emitToGateway } from "../config/socket";
-import { uploadToS3, generatePresignedDownloadUrl } from "../services/s3.service";
+import { uploadToS3, getS3ObjectStream } from "../services/s3.service";
+import { getAccessibleFarmIds } from "../services/accessService";
 
 // Erisim kontrolu — gateway verisini dondurur, basarisizsa null dondurur
 async function verifyGatewayAccess(
@@ -14,7 +15,8 @@ async function verifyGatewayAccess(
     where: { gateway_id: gatewayId },
     include: { farm: true },
   });
-  if (!gateway || gateway.farm?.user_id !== userId) return null;
+  // Sahip + ciftlik aktif olmali — soft-deleted ciftligin gateway'lerine de erisilemez.
+  if (!gateway || gateway.farm?.user_id !== userId || !gateway.farm?.is_active) return null;
   return gateway;
 }
 
@@ -702,10 +704,11 @@ export async function triggerOtaUpdate(req: Request, res: Response): Promise<voi
       return;
     }
 
-    // Presigned download URL olustur (1 saat gecerli)
-    const bucket = process.env.AWS_S3_BUCKET;
-    if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
-    const url = await generatePresignedDownloadUrl(bucket, fw.s3_key, 3600);
+    // Backend-served download URL (gateway TLS pins LE root for api.taras-app.com)
+    // S3'in Amazon Trust Services sertifika zincirini gateway dogrulayamiyor.
+    const publicUrl = process.env.AWS_PUBLIC_URL;
+    if (!publicUrl) throw new Error("AWS_PUBLIC_URL not configured");
+    const url = `${publicUrl.replace(/\/$/, "")}/api/gateway/firmware/download/${encodeURIComponent(fw.version)}`;
 
     // Gateway'e OTA komutu gonder
     emitToGateway(gatewayId, "gateway:ota_update", {
@@ -721,6 +724,78 @@ export async function triggerOtaUpdate(req: Request, res: Response): Promise<voi
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Backend stream'i: gateway sadece LE rootu pinli, S3 cert chain Amazon Trust.
+export async function downloadFirmware(req: Request, res: Response): Promise<void> {
+  try {
+    const deviceKey = req.get("x-device-key");
+    if (!deviceKey || !UUID_RE.test(deviceKey)) {
+      res.status(401).json({ success: false, error: "Device key required" });
+      return;
+    }
+
+    const gateway = await prisma.gateway.findUnique({
+      where: { api_key: deviceKey },
+    });
+
+    if (!gateway) {
+      // Generic 401 — anahtarin gecerli olup olmadigini sizdirma
+      res.status(401).json({ success: false, error: "Invalid device key" });
+      return;
+    }
+
+    const version = getStringParam(req.params.version);
+    if (!version) {
+      res.status(400).json({ success: false, error: "Version required" });
+      return;
+    }
+
+    const fw = await prisma.gatewayFirmware.findUnique({ where: { version } });
+    if (!fw) {
+      res.status(404).json({ success: false, error: "Firmware version not found" });
+      return;
+    }
+
+    const bucket = process.env.AWS_S3_BUCKET;
+    if (!bucket) throw new Error("AWS_S3_BUCKET not configured");
+
+    const { stream, contentLength, contentType } = await getS3ObjectStream(bucket, fw.s3_key);
+
+    res.setHeader("Content-Type", contentType || "application/octet-stream");
+    if (contentLength > 0) res.setHeader("Content-Length", String(contentLength));
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=gateway-${version}.bin`,
+    );
+
+    // Hata olursa response'i kapat
+    stream.on("error", (err) => {
+      logger.error(`[GATEWAY] Firmware stream error gw=${gateway.gateway_id} v=${version}:`, err);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: "Stream failed" });
+      } else {
+        res.destroy(err);
+      }
+    });
+
+    stream.on("end", () => {
+      logger.info(
+        `[GATEWAY] Firmware download: gw=${gateway.gateway_id} v=${version} bytes=${contentLength}`,
+      );
+    });
+
+    stream.pipe(res);
+  } catch (error) {
+    logger.error("[GATEWAY] downloadFirmware error:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    } else {
+      res.destroy();
+    }
+  }
+}
+
 export async function listFarms(req: Request, res: Response): Promise<void> {
   try {
     const userId = (req as any).user?.user_id;
@@ -729,9 +804,47 @@ export async function listFarms(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const farms = await prisma.farm.findMany({
-      where: { user_id: userId },
-      select: { farm_id: true, name: true },
+    // Sahibi olunan + paydas olunan ciftliklerin birlesimi (mobil dashboard'un
+    // farm secici listesi buradan beslenir; paydas yoksa liste bos kalirdi).
+    // is_owner her ciftlik icin direkt Farm.user_id eslesmesinden hesaplanir; mobil
+    // tarafta owner-only affordance'lar (trash, vs.) bu flag'e gore gizlenir/gosterilir.
+    const accessibleIds = await getAccessibleFarmIds(userId);
+    // is_active=true defansif filtre — getAccessibleFarmIds zaten soft-deleted'leri eler,
+    // ancak ileride direkt cagri ihtimaline karsi iki katmanli koruma.
+    // Uye olunan ciftliklerin rolunu de cek — mobil owner/farmer/stakeholder ayrimini buna gore yapar.
+    const [farmsRaw, memberships] = await Promise.all([
+      prisma.farm.findMany({
+        where: { farm_id: { in: accessibleIds }, is_active: true },
+        select: {
+          farm_id: true,
+          name: true,
+          latitude: true,
+          longitude: true,
+          altitude_m: true,
+          user_id: true,
+        },
+      }),
+      prisma.farmMember.findMany({
+        where: { user_id: userId, farm_id: { in: accessibleIds } },
+        select: { farm_id: true, role: true },
+      }),
+    ]);
+    const roleByFarm = new Map(memberships.map((m) => [m.farm_id, m.role]));
+    const farms = farmsRaw.map((f) => {
+      const isOwner = f.user_id === userId;
+      // access: owner (Farm.user_id) | uyelik rolu (farmer/stakeholder) | varsayilan stakeholder.
+      const access: "owner" | "farmer" | "stakeholder" = isOwner
+        ? "owner"
+        : roleByFarm.get(f.farm_id) ?? "stakeholder";
+      return {
+        farm_id: f.farm_id,
+        name: f.name,
+        latitude: f.latitude,
+        longitude: f.longitude,
+        altitude_m: f.altitude_m,
+        is_owner: isOwner,
+        access,
+      };
     });
 
     res.status(200).json({ success: true, data: farms });
@@ -756,4 +869,5 @@ export default {
   uploadFirmware,
   getLatestFirmware,
   triggerOtaUpdate,
+  downloadFirmware,
 };
