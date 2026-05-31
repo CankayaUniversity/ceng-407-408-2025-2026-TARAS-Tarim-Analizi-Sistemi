@@ -4,6 +4,7 @@ import { generateAdvisory, generateAdvisoryStream } from "../services/llm.servic
 import { saveMessage, getFieldSession, getSessionMessages } from "../services/chatMemory.service";
 import { asyncHandler } from "../middleware/error.middleware";
 import { resolveFieldAccess } from "../services/accessService";
+import { isDemoReadonlyUser } from "../middleware/demoReadonly";
 import type { TimetableFilterPayload, ChatAction } from "../services/llm/toolExecutor";
 import prisma from "../config/database";
 import logger from "../utils/logger";
@@ -85,8 +86,12 @@ export const getTarasAdvice = asyncHandler(
       return;
     }
 
-    const currentSessionId = await resolveSession(session_id, userId, field_id);
-    await saveMessage(currentSessionId, "user", message);
+    // Kilitli demo: oturum + mesaj KAYDETME yok (paylasilan hesaba sohbet birikmesin).
+    const demoRO = isDemoReadonlyUser(userId);
+    const currentSessionId = demoRO
+      ? ""
+      : await resolveSession(session_id, userId, field_id);
+    if (!demoRO) await saveMessage(currentSessionId, "user", message);
 
     let llmResponse: string;
 
@@ -103,7 +108,7 @@ export const getTarasAdvice = asyncHandler(
       llmResponse = await generateAdvisory(fieldContext, message, currentSessionId);
     }
 
-    await saveMessage(currentSessionId, "assistant", llmResponse);
+    if (!demoRO) await saveMessage(currentSessionId, "assistant", llmResponse);
 
     res.status(200).json({
       success: true,
@@ -135,8 +140,13 @@ export const getTarasAdviceStream = asyncHandler(
       return;
     }
 
-    const currentSessionId = await resolveSession(session_id, userId, field_id);
-    await saveMessage(currentSessionId, "user", message);
+    // Kilitli demo: oturum + mesaj KAYDETME yok (paylasilan hesaba sohbet birikmesin).
+    // LLM yine yanit verir; gecmis bos gecer (currentSessionId="" -> getSessionHistory []).
+    const demoRO = isDemoReadonlyUser(userId);
+    const currentSessionId = demoRO
+      ? ""
+      : await resolveSession(session_id, userId, field_id);
+    if (!demoRO) await saveMessage(currentSessionId, "user", message);
 
     // SSE basliklari
     res.setHeader("Content-Type", "text/event-stream");
@@ -206,12 +216,14 @@ export const getTarasAdviceStream = asyncHandler(
         );
       }
 
-      await saveMessage(
-        currentSessionId,
-        "assistant",
-        fullText,
-        collectedActions.length > 0 ? { events: collectedActions } : undefined,
-      );
+      if (!demoRO) {
+        await saveMessage(
+          currentSessionId,
+          "assistant",
+          fullText,
+          collectedActions.length > 0 ? { events: collectedActions } : undefined,
+        );
+      }
       res.write(
         `data: ${JSON.stringify({ done: true, session_id: currentSessionId })}\n\n`,
       );

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import logger from '../utils/logger';
+import { enforceDemoReadonly } from './demoReadonly';
 
 const _JWT_SECRET_RAW = process.env.JWT_SECRET;
 if (!_JWT_SECRET_RAW || _JWT_SECRET_RAW === 'change-me-in-production' || _JWT_SECRET_RAW.length < 32) {
@@ -49,6 +50,8 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
       }
 
       req.user = decoded as JwtPayload;
+      // Paylasilan demo hesabi salt-okunur ise yazma denemesini burada reddet (tek choke point).
+      if (enforceDemoReadonly(req, res)) return;
       next();
     });
   } catch (error) {
@@ -117,7 +120,7 @@ export function denyStakeholder(req: Request, res: Response, next: NextFunction)
   next();
 }
 
-export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
+export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.startsWith('Bearer ')
     ? authHeader.substring(7)
@@ -132,6 +135,8 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
     }
   }
 
+  // Demo hesabi salt-okunur ise (token gecerli + demo user) yazmayi burada da reddet.
+  if (enforceDemoReadonly(req, res)) return;
   next();
 }
 

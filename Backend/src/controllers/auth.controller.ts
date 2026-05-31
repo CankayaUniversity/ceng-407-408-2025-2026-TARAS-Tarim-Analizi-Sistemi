@@ -46,6 +46,51 @@ export async function login(req: Request, res: Response): Promise<void> {
   }
 }
 
+// Demo girisi — kimlik bilgisi istemciye GOMULMEZ. Sunucu, DEMO_READONLY_USER_ID
+// hesabi icin parolasiz token uretir (hesap zaten salt-okunur kilitli, bkz.
+// middleware/demoReadonly). user_id ile calisir → kullanici adi degisse bile gecerli.
+// DEMO_READONLY_USER_ID bos ise uc devre disidir (404). Rate-limit route'ta (authLimiter).
+export async function demoLogin(_req: Request, res: Response): Promise<void> {
+  try {
+    const demoId = process.env.DEMO_READONLY_USER_ID || '';
+    if (!demoId) {
+      res.status(404).json({ success: false, error: 'Demo girişi etkin değil' });
+      return;
+    }
+
+    const user = await userService.getUserProfile(demoId);
+    if (!user) {
+      res.status(404).json({ success: false, error: 'Demo hesabı bulunamadı' });
+      return;
+    }
+
+    const token = generateToken({
+      user_id: user.user_id,
+      username: user.username,
+      email: user.email,
+      role_name: user.role?.role_name,
+    });
+
+    logger.info('Demo login issued');
+
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          user_id: user.user_id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Demo login error:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+}
+
 export async function register(req: Request, res: Response): Promise<void> {
   try {
     const { username, email, password } = req.body;
@@ -329,4 +374,4 @@ export async function updateProfile(req: Request, res: Response): Promise<void> 
   }
 }
 
-export default { login, register, getProfile, changePassword, updateProfile, updateDatasetConsent };
+export default { login, demoLogin, register, getProfile, changePassword, updateProfile, updateDatasetConsent };
