@@ -40,3 +40,5 @@ Thumbs.db
 !taras_website/**/*.gif
 !taras_website/**/*.svg
 *.stackdump
+/ML/dataset_clean
+/docs
