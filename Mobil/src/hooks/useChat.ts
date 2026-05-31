@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ChatMessage, ChatMessageAction } from "../types";
-import { API_HOST, authAPI, isDemoToken } from "../utils/api";
+import { API_HOST, authAPI, isDemoToken, isLockedLiveDemo } from "../utils/api";
 import type { DiseaseDetection, FieldSummary } from "../utils/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { runDemoTurn, type DemoSseEvent } from "../utils/demo/demoChat";
@@ -219,6 +219,14 @@ export const useChat = (
     try {
       const token = await authAPI.getToken();
       if (!token) return;
+
+      // Kilitli demoda paylasilan hesabin sohbet gecmisini YUKLEME — testçiler
+      // birbirinin konusmalarini gormesin. Yalnizca karsilama mesaji gosterilir.
+      if (isLockedLiveDemo(token)) {
+        setSessionId(null);
+        setMessages([WELCOME]);
+        return;
+      }
 
       if (isDemoToken(token)) {
         const { getActiveSessionForField } = await import("../utils/demo/demoStorage");
@@ -660,6 +668,11 @@ export const useChat = (
     try {
       const token = await authAPI.getToken();
       if (!token) return;
+      // Kilitli demoda gecmis sekmesi bos — paylasilan hesabin konusmalari gosterilmez.
+      if (isLockedLiveDemo(token)) {
+        setHistorySessions([]);
+        return;
+      }
       setIsLoadingHistory(true);
 
       if (isDemoToken(token)) {

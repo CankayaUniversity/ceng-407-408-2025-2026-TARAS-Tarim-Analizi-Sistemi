@@ -9,7 +9,8 @@ const plugins = [
   [
     "react-native-vision-camera",
     {
-      cameraPermissionText: "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
+      cameraPermissionText:
+        "Bitki hastalığı tespiti için kamera erişimi gereklidir.",
       enableMicrophonePermission: false,
     },
   ],
@@ -63,14 +64,16 @@ const plugins = [
 // Yeni surum yayinlarken APP_VERSION ve APP_VERSION_CODE'u guncelle.
 // APP_VERSION: kullaniciya gosterilir (semver)
 // APP_VERSION_CODE: Android internal versionCode — her surumde +1 olmali
-const APP_VERSION = "0.8.2";
-//const APP_VERSION_CODE = 2;
+const APP_VERSION = "0.8.3";
+const APP_VERSION_CODE = 83;
 
 module.exports = {
   expo: {
     name: "Taras",
     slug: "taras",
     version: APP_VERSION,
+    // Universal fallback ikon (olive zemin + TARAS logosu). iOS/Android plus-asset'leri asagida.
+    icon: "./assets/icon.png",
     assetBundlePatterns: ["**/*"],
     userInterfaceStyle: "automatic",
     plugins,
@@ -83,14 +86,33 @@ module.exports = {
       bundleIdentifier: "com.taras.app",
       //buildNumber: String(APP_VERSION_CODE),
       userInterfaceStyle: "automatic",
+      // iOS 18 gorunum-bazli ikon: acik (olive), koyu (olive-950), tinted (sistem renklendirir).
+      // tinted = siyah zemin + acik-gri logo; iOS luminance'i alip kullanici tonuyla boyar.
+      icon: {
+        light: "./assets/icon.png",
+        dark: "./assets/icon-dark.png",
+        tinted: "./assets/icon-tinted.png",
+      },
       infoPlist: {
         CFBundleAllowMixedLocalizations: true,
       },
     },
     android: {
       package: "com.taras.app",
-      //versionCode: APP_VERSION_CODE,
+      versionCode: APP_VERSION_CODE,
+      // Auto Backup KAPALI — acik olunca Android, AsyncStorage'i (sifreli token + AES
+      // anahtari dahil) Google Drive'a yedekler ve yeniden kurulumda geri yukler; bu da
+      // "sifirdan kurdum ama otomatik giris yapti" davranisina yol acar (bkz. secureStorage.ts).
+      allowBackup: false,
       userInterfaceStyle: "automatic",
+      // Adaptive icon: saydam logo (guvenli-bolge) + olive marka zemini.
+      // monochromeImage = Material You temali ikon (Android 13+): launcher siluet'i
+      // duvar kagidi/tema rengine gore yeniden boyar. Alpha maskesi tek kaynak.
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#2D5016",
+        monochromeImage: "./assets/icon-monochrome.png",
+      },
       usesCleartextTraffic: false,
       permissions: [
         "INTERNET",
@@ -103,10 +125,10 @@ module.exports = {
     extra: {
       apiHost,
       useLocalApi: useLocal,
-      demoUsername: process.env.DEMO_USERNAME,
-      demoPassword: process.env.DEMO_PASSWORD,
-      awsDemoUsername: process.env.AWS_DEMO_USERNAME,
-      awsDemoPassword: process.env.AWS_DEMO_PASSWORD,
+      // Canli demo: kimlik bilgisi ARTIK GOMULMEZ — sunucu /auth/demo-login ile token
+      // uretir (bkz. authAPI.demoLogin + backend DEMO_READONLY_USER_ID). Bu yalnizca
+      // "Canli Sunucu Demosu" butonunu gosterip gostermeme bayragidir (sir degil).
+      liveDemoEnabled: process.env.LIVE_DEMO_ENABLED === "true",
       // DEMO_ONLY=true → DemoOnlyLoginScreen render edilir (input + register gizlenir)
       demoOnly: process.env.DEMO_ONLY === "true",
       // CHART_CONNECT_GAPS: Cizelge cizgileri bosluklara ragmen baglanir mi? VARSAYILAN true —

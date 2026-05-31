@@ -61,7 +61,9 @@ export const DiseaseScreen = memo(function DiseaseScreen({
   const { t } = useLanguage();
   const confirm = useConfirm();
   // Paydas (stakeholder): yalnizca secili ciftligin klasorlerini gorur (salt-okunur).
-  const { isStakeholder } = useAuth();
+  // isLockedDemo: kilitli canli demo (paylasilan hesap) — klasor olustur + tespit sil gizli.
+  // Tarama serbest; liste yalnizca bu cihazda cekilenleri gosterir (api.ts filtreler).
+  const { isStakeholder, isLockedDemo } = useAuth();
   const { selectedFarmId } = useDashboard();
   const navigation = useNavigation<DiseaseListScreenProps["navigation"]>();
   const route = useRoute<DiseaseListScreenProps["route"]>();
@@ -577,7 +579,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                     {t.disease.foldersSectionTitle} {folders.length > 0 ? `(${folders.length})` : ""}
                   </Text>
                 </TouchableOpacity>
-                {!isStakeholder && (
+                {!isStakeholder && !isLockedDemo && (
                   <TouchableOpacity
                     onPress={() => setShowCreateFolder(true)}
                     hitSlop={8}
@@ -766,7 +768,7 @@ export const DiseaseScreen = memo(function DiseaseScreen({
                             imageUrl: imageUrls[detection.detection_id],
                           })
                         }
-                        onDelete={() => handleDeleteDetection(detection.detection_id)}
+                        onDelete={isLockedDemo ? undefined : () => handleDeleteDetection(detection.detection_id)}
                       />
                     ))}
                     {hasMoreDetections && (

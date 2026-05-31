@@ -29,25 +29,26 @@ export const DemoOnlyLoginScreen = ({
   const [isLoading, setIsLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState<string | null>(null);
 
-  const awsDemoUsername = Constants.expoConfig?.extra?.awsDemoUsername || "";
-  const awsDemoPassword = Constants.expoConfig?.extra?.awsDemoPassword || "";
-  const hasAwsDemo = !!(awsDemoUsername && awsDemoPassword);
+  // Canli demo butonu yalnizca bir gorunurluk bayragiyla acilir — kimlik bilgisi
+  // uygulamada YOK; giris sunucudan (authAPI.demoLogin) token alir.
+  const hasAwsDemo = Constants.expoConfig?.extra?.liveDemoEnabled === true;
 
   // Local demo — backend gerek yok, AuthContext handleSkip token + user yaziyor
   const handleLocalDemo = () => {
     void onSkip();
   };
 
-  // Live server demo — AWS_DEMO_USERNAME/PASSWORD ile gercek backend'e baglanir
+  // Live server demo — sunucu DEMO_READONLY_USER_ID hesabi icin token uretir
+  // (parola istemcide degil). authAPI.demoLogin token+user'i saklar.
   const handleAwsDemo = async () => {
     if (!hasAwsDemo) {
-      showPopup("AWS demo credentials not configured");
+      showPopup("Canlı demo yapılandırılmadı");
       return;
     }
     setIsLoading(true);
     setServerStatus(t.login.connectingToServer);
     await authAPI.logout();
-    const response = await authAPI.login(awsDemoUsername, awsDemoPassword);
+    const response = await authAPI.demoLogin();
     setIsLoading(false);
     setServerStatus(null);
     if (response.success) {

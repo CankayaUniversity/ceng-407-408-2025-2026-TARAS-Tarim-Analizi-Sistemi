@@ -23,6 +23,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useConfirm } from "../../context/ConfirmContext";
+import { useAuth } from "../../context/AuthContext";
 import { getDiseaseTargetLabel, detectedDiseaseToTarget } from "../../utils/diseaseTargetLabels";
 import { spacing, s } from "../../utils/responsive";
 import { CompactStackHeader } from "../../components/CompactStackHeader";
@@ -34,6 +35,8 @@ export const DiseaseDetailScreen = ({ route, navigation }: DiseaseDetailScreenPr
   const { t, language } = useLanguage();
   const { showPopup } = usePopupMessage();
   const confirm = useConfirm();
+  // Kilitli canli demo: silme gizli (paylasilan hesap korunur; API de engeller).
+  const { isLockedDemo } = useAuth();
   const [heroAspect, setHeroAspect] = useState<number | null>(null);
 
   const confirmDelete = useCallback(async () => {
@@ -60,11 +63,15 @@ export const DiseaseDetailScreen = ({ route, navigation }: DiseaseDetailScreenPr
       <CompactStackHeader
         title={t.disease.detailTitle}
         dismissStyle
-        rightAction={{
-          icon: "trash-outline",
-          onPress: confirmDelete,
-          accessibilityLabel: "delete",
-        }}
+        rightAction={
+          isLockedDemo
+            ? undefined
+            : {
+                icon: "trash-outline",
+                onPress: confirmDelete,
+                accessibilityLabel: "delete",
+              }
+        }
       />
       <DetailBody
         detection={detection}

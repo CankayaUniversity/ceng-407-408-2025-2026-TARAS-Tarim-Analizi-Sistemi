@@ -31,12 +31,9 @@ import { Theme } from "../../utils/theme";
 import { s, vs, ms, TAB_H_PADDING } from "../../utils/responsive";
 
 // Surum bilgisi — app.config.js'den okunur
+// Yapi kodu (versionCode) artik kullaniciya gosterilmez, surum numarasi yeterli
 const APP_NAME = Constants.expoConfig?.name ?? "App";
 const APP_VERSION = Constants.expoConfig?.version ?? "?";
-const APP_BUILD =
-  Constants.expoConfig?.android?.versionCode ??
-  Constants.expoConfig?.ios?.buildNumber ??
-  "?";
 
 interface LanguageOption {
   code: Language;
@@ -136,6 +133,7 @@ const ManageRow = ({
   onAdd,
   icon,
   accessory,
+  hideAdd = false,
 }: {
   label: string;
   theme: Theme;
@@ -143,6 +141,8 @@ const ManageRow = ({
   onAdd: () => void;
   icon?: string;
   accessory?: ReactNode;
+  // Kilitli demoda "ekle" pill'i gizlenir (olusturma engelli); satir basligi kalir.
+  hideAdd?: boolean;
 }) => (
   <View
     style={{
@@ -167,7 +167,7 @@ const ManageRow = ({
     </View>
     <View style={{ flexDirection: "row", alignItems: "center", gap: s(6) }}>
       {accessory}
-      <AddPill theme={theme} label={actionLabel} onPress={onAdd} />
+      {!hideAdd && <AddPill theme={theme} label={actionLabel} onPress={onAdd} />}
     </View>
   </View>
 );
@@ -235,6 +235,7 @@ export const SettingsScreen = memo(function SettingsScreen({
   onManageMembers,
   onShareInvites,
   onProfileUpdated,
+  readOnly = false,
 }: SettingsScreenProps) {
   const { language, setLanguage, t } = useLanguage();
   const { showPopup } = usePopupMessage();
@@ -451,7 +452,7 @@ export const SettingsScreen = memo(function SettingsScreen({
       label: farm.name,
       icon: "barn",
       subtitle: fc > 0 ? `${fc} ${t.settings.fieldsConnected}` : undefined,
-      trailing: farm.is_owner ? (
+      trailing: farm.is_owner && !readOnly ? (
         deletingFarmId === farm.farm_id ? (
           <ActivityIndicator size="small" color={theme.danger} />
         ) : (
@@ -483,7 +484,7 @@ export const SettingsScreen = memo(function SettingsScreen({
     value: field.id,
     label: field.name,
     icon: "sprout",
-    trailing: canManageSelectedFarm
+    trailing: canManageSelectedFarm && !readOnly
       ? deletingFieldId === field.id
         ? <ActivityIndicator size="small" color={theme.danger} />
         : (
@@ -620,26 +621,30 @@ export const SettingsScreen = memo(function SettingsScreen({
           {/* Duzenle + Cikis — profil basliginin saginda. Düzenle artik tam-ekran modal acar
               (eski satir-ici form yerine), boylece ana ekran tek bakista sigar. Cikis kompakt ikon. */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: s(8) }}>
-            <TouchableOpacity
-              onPress={() => {
-                setEditingField(null);
-                setEditUsername(username);
-                setConfirmPassword("");
-                setNewPassword("");
-                setEditMode(true);
-              }}
-              style={{
-                paddingHorizontal: s(12),
-                paddingVertical: vs(8),
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: theme.primary + "40",
-              }}
-            >
-              <Text style={{ fontSize: ms(13, 0.3), fontWeight: "600", color: theme.primary }}>
-                {t.settings.editProfile}
-              </Text>
-            </TouchableOpacity>
+            {/* Kilitli demoda profil duzenleme gizli — paylasilan hesabin kimlik
+                bilgileri (sifre/kullanici adi) degistirilemesin. Cikis acik kalir. */}
+            {!readOnly && (
+              <TouchableOpacity
+                onPress={() => {
+                  setEditingField(null);
+                  setEditUsername(username);
+                  setConfirmPassword("");
+                  setNewPassword("");
+                  setEditMode(true);
+                }}
+                style={{
+                  paddingHorizontal: s(12),
+                  paddingVertical: vs(8),
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: theme.primary + "40",
+                }}
+              >
+                <Text style={{ fontSize: ms(13, 0.3), fontWeight: "600", color: theme.primary }}>
+                  {t.settings.editProfile}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={onLogout}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -678,6 +683,7 @@ export const SettingsScreen = memo(function SettingsScreen({
             theme={theme}
             actionLabel={t.disease.folderCreateButton}
             onAdd={onCreateFarm}
+            hideAdd={readOnly}
             accessory={
               hasFarms ? (
                 <>
@@ -755,6 +761,7 @@ export const SettingsScreen = memo(function SettingsScreen({
                     theme={theme}
                     actionLabel={t.disease.folderCreateButton}
                     onAdd={onCreateField}
+                    hideAdd={readOnly}
                   />
                 ) : (
                   <View
@@ -931,7 +938,7 @@ export const SettingsScreen = memo(function SettingsScreen({
           opacity: 0.5,
         }}
       >
-        {APP_NAME} v{APP_VERSION} ({APP_BUILD})
+        {APP_NAME} v{APP_VERSION}
       </Text>
       </ScrollView>
 

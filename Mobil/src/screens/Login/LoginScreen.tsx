@@ -24,6 +24,9 @@ import { vs, ms, s } from "../../utils/responsive";
 import LogoLight from "../../assets/Taras-logo-light.svg";
 import LogoDark from "../../assets/Taras-logo-dark.svg";
 
+// Surum bilgisi — app.config.js'den okunur
+const APP_VERSION = Constants.expoConfig?.version ?? "?";
+
 export const LoginScreen = ({
   theme,
   onLoginSuccess,
@@ -57,9 +60,9 @@ export const LoginScreen = ({
     outputRange: [vs(24), keyboardHeight + vs(24)],
   });
 
-  // AWS demo credentials from env
-  const awsDemoUsername = Constants.expoConfig?.extra?.awsDemoUsername || "";
-  const awsDemoPassword = Constants.expoConfig?.extra?.awsDemoPassword || "";
+  // Canli demo butonu gorunurluk bayragi — kimlik bilgisi uygulamada YOK; giris
+  // sunucudan (authAPI.demoLogin) token alir. Sir degil, sadece butonu acar/kapatir.
+  const liveDemoEnabled = Constants.expoConfig?.extra?.liveDemoEnabled === true;
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -100,9 +103,10 @@ export const LoginScreen = ({
     onSkip();
   };
 
-  // AWS demo login - sunucuya baglanir
+  // Canli demo — sunucu DEMO_READONLY_USER_ID hesabi icin token uretir (parola
+  // istemcide degil). Buton yalnizca liveDemoEnabled ise gosterilir.
   const handleAwsDemo = async () => {
-    if (!awsDemoUsername || !awsDemoPassword) {
+    if (!liveDemoEnabled) {
       showPopup("AWS demo credentials not configured");
       return;
     }
@@ -112,7 +116,7 @@ export const LoginScreen = ({
 
     await authAPI.logout();
 
-    const response = await authAPI.login(awsDemoUsername, awsDemoPassword);
+    const response = await authAPI.demoLogin();
     setIsLoading(false);
     setServerStatus(null);
 
@@ -242,7 +246,7 @@ export const LoginScreen = ({
             style={{
               paddingVertical: 10,
               paddingHorizontal: 16,
-              borderColor: theme.border,
+              borderColor: theme.primary,
             }}
             onPress={() => {
               // onLoginSuccess cagirma — dataSource'u "aws"a override eder, demo dallarini bozar
@@ -252,26 +256,26 @@ export const LoginScreen = ({
           >
             <Text
               className="text-center font-semibold"
-              style={{ color: theme.border, fontSize: ms(14, 0.3) }}
+              style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
             >
               {t.login.localDemoButton}
             </Text>
           </TouchableOpacity>
 
-          {awsDemoUsername && awsDemoPassword && (
+          {liveDemoEnabled && (
             <TouchableOpacity
               className="rounded-lg border"
               style={{
                 paddingVertical: 10,
                 paddingHorizontal: 16,
-                borderColor: theme.border,
+                borderColor: theme.primary,
               }}
               onPress={handleAwsDemo}
               disabled={isLoading}
             >
               <Text
                 className="text-center font-semibold"
-                style={{ color: theme.border, fontSize: ms(14, 0.3) }}
+                style={{ color: theme.primary, fontSize: ms(14, 0.3) }}
               >
                 {t.login.awsDemoButton}
               </Text>
@@ -296,6 +300,18 @@ export const LoginScreen = ({
             {language === "tr" ? "English" : "Türkçe"}
           </Text>
         </TouchableOpacity>
+
+        {/* Surum numarasi — logonun altinda soluk gosterilir */}
+        <Text
+          className="text-center"
+          style={{
+            fontSize: ms(11, 0.3),
+            color: theme.textSecondary,
+            opacity: 0.5,
+          }}
+        >
+          v{APP_VERSION}
+        </Text>
         </View>
 
         {/* Alt bosluk: klavye acilinca formun alti klavyenin uzerine kaydirilabilir kalir. */}

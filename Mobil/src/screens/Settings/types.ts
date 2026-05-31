@@ -33,6 +33,9 @@ export interface SettingsScreenProps {
   onManageMembers: () => void;
   onShareInvites: () => void;
   onProfileUpdated: (username: string, email: string) => void;
+  // Kilitli canli demo: profil duzenleme + ciftlik/tarla olustur-sil gizlenir
+  // (paylasilan demo hesabi korunur). Cikis ve goruntuleme acik kalir.
+  readOnly?: boolean;
 }
 
 export interface ThemeOption {

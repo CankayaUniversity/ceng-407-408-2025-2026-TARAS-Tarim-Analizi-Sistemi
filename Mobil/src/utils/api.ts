@@ -6,13 +6,11 @@ import { io, Socket } from "socket.io-client";
 import type { FieldData } from "./fieldPlaceholder";
 
 import { fetchWithTimeout } from "./fetchWithTimeout";
-import { secureSet, secureGet, secureRemove } from "./secureStorage";
+import { secureSet, secureGet, secureRemove, secureClearKey } from "./secureStorage";
 import type { CarbonLog } from "../screens/CarbonFootprint/types";
 
 // Environment variables from app.config.js
 export const API_HOST = Constants.expoConfig?.extra?.apiHost || "";
-const DEMO_USERNAME = Constants.expoConfig?.extra?.demoUsername || "";
-const DEMO_PASSWORD = Constants.expoConfig?.extra?.demoPassword || "";
 
 const API_BASE_URL = `${API_HOST}/api`;
 const TOKEN_KEY = "auth_token";
@@ -22,6 +20,30 @@ const USER_DATA_KEY = "user_data";
 export const DEMO_TOKEN = "DEMO_MODE_TOKEN";
 export const isDemoToken = (t: string | null | undefined): boolean =>
   t === DEMO_TOKEN;
+
+// DEMO_ONLY build bayragi (.env DEMO_ONLY=true → app.config extra.demoOnly).
+const DEMO_ONLY_BUILD = Constants.expoConfig?.extra?.demoOnly === true;
+
+// "Kilitli canli demo": DEMO_ONLY build + GERCEK (paylasilan llm_test) oturum.
+// Bu durumda TUM yazma islemleri engellenir — paylasilan demo hesabi griefing'e karsi
+// korunur (sifre/profil degisikligi, ciftlik/tarla/klasor olusturma-silme, karbon kaydi,
+// gateway eslesme, sulama tetikleme). Yerel demo (DEMO_TOKEN) bundan ETKILENMEZ: zaten
+// offline ve tum mutasyonlari no-op. Normal uretim build'inde (demoOnly=false) HER ZAMAN
+// false — gercek kullanicilar hicbir sekilde etkilenmez.
+// Guvenlik dayanagi: DEMO_ONLY build'de canli oturuma yalnizca "Canli Sunucu Demosu"
+// butonu (awsDemo = paylasilan llm_test) ile girilebilir; baska login/register yoktur.
+// Dolayisiyla demo build'deki her gercek token = paylasilan demo hesabidir.
+export const isLockedLiveDemo = (t: string | null | undefined): boolean =>
+  DEMO_ONLY_BUILD && !!t && !isDemoToken(t);
+
+// Kilitli demoda yazma denemesinde donen standart hata (UI bunu popup'ta gosterebilir).
+export const DEMO_READONLY_ERROR =
+  "Demo modunda bu işlem devre dışı (salt görüntüleme).";
+
+// Kilitli demoda hastalik listesi "bu cihazda gorseli yerel olan tespitler" ile sinirlidir
+// (kaynak: imageCache indeksi). Kullanici kendi taramasini cekince submitDetection gorseli
+// yerele kopyalar; getAllDetections de listeyi imageCache.listCachedIds ile filtreler.
+// Boylece ayri bir ID listesi tutmaya gerek yok — gorselin yerelde olmasi tek olcuttur.
 
 let socket: Socket | null = null;
 
@@ -100,6 +122,19 @@ async function authFetch<T>(
   const headers = await getAuthHeaders();
   if (!headers) return { success: false, error: "Oturum bulunamadı" };
 
+  // Kilitli canli demo: paylasilan hesabi korumak icin yazma metodlarini (POST/PUT/PATCH/
+  // DELETE) engelle. GET'ler serbest — goruntuleme tam calisir. Bu tek kontrol dashboard
+  // create/delete, klasor, karbon, gateway, sulama ve asistanin onayli yazmalarini birden
+  // kapsar. (Disease submit authFetch KULLANMAZ; taramalar bundan etkilenmez.)
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET") {
+    const tok = await secureGet(TOKEN_KEY);
+    if (isLockedLiveDemo(tok)) {
+      console.log("[DEMO] write blocked:", method, endpoint);
+      return { success: false, error: DEMO_READONLY_ERROR, status: 403 };
+    }
+  }
+
   const url = `${API_BASE_URL}${endpoint}`;
   console.log("[API]", options.method || "GET", endpoint);
 
@@ -153,15 +188,8 @@ export const authAPI = {
     username: string,
     password: string,
   ): Promise<ApiResponse<LoginData>> {
-    // Demo kullanici - offline mod
-    if (
-      username.toLowerCase() === DEMO_USERNAME.toLowerCase() &&
-      password === DEMO_PASSWORD
-    ) {
-      const demoUser = await persistDemoSession(DEMO_USERNAME);
-      return { success: true, data: { token: DEMO_TOKEN, user: demoUser } };
-    }
-
+    // Cevrimdisi demo artik yalnizca "Yerel Demo" butonuyla (enterDemoMode) acilir;
+    // login formuna gomulu magic-credential yolu kaldirildi (paketteki sir temizligi).
     try {
       console.log("[AUTH] login:", username);
       const res = await fetchWithTimeout(
@@ -184,6 +212,34 @@ export const authAPI = {
       return data;
     } catch (error) {
       console.log("[AUTH] err:", error);
+      return { success: false, error: "Sunucuya bağlanılamadı" };
+    }
+  },
+
+  // Canli demo girisi — istemci KIMLIK BILGISI GONDERMEZ. Sunucu, DEMO_READONLY_USER_ID
+  // hesabi icin token uretir (paylasilan demo hesabi; salt-okunur kilitli). Parola
+  // uygulama paketine gomulu degil. Basaride token+user'i saklar (login ile ayni akis).
+  async demoLogin(): Promise<ApiResponse<LoginData>> {
+    try {
+      console.log("[AUTH] demoLogin");
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/demo-login`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        },
+        15000,
+      );
+      const data = await res.json();
+      if (data.success && data.data?.token) {
+        await secureSet(TOKEN_KEY, data.data.token);
+        if (data.data?.user) {
+          await secureSet(USER_DATA_KEY, JSON.stringify(data.data.user));
+        }
+      }
+      return data;
+    } catch (error) {
+      console.log("[AUTH] demoLogin err:", error);
       return { success: false, error: "Sunucuya bağlanılamadı" };
     }
   },
@@ -239,6 +295,14 @@ export const authAPI = {
     email?: string;
     currentPassword: string;
   }): Promise<ApiResponse<{ username: string; email: string }>> {
+    // Kilitli demoda profil/kullanici-adi degisikligi yok (paylasilan hesap korunur).
+    // Bu fonksiyon authFetch kullanmadigi icin guard'i burada acikca tekrarliyoruz.
+    {
+      const tok = await secureGet(TOKEN_KEY);
+      if (isLockedLiveDemo(tok)) {
+        return { success: false, error: DEMO_READONLY_ERROR, status: 403 };
+      }
+    }
     try {
       const headers = await getAuthHeaders();
       if (!headers) return { success: false, error: "Oturum bulunamadı" };
@@ -285,6 +349,14 @@ export const authAPI = {
     currentPassword: string,
     newPassword: string,
   ): Promise<ApiResponse<null>> {
+    // Kilitli demoda sifre degisikligi YASAK — testçi sifreyi degistirip herkesi
+    // kilitleyebilirdi. authFetch kullanilmadigi icin guard burada acikca.
+    {
+      const tok = await secureGet(TOKEN_KEY);
+      if (isLockedLiveDemo(tok)) {
+        return { success: false, error: DEMO_READONLY_ERROR, status: 403 };
+      }
+    }
     try {
       const headers = await getAuthHeaders();
       if (!headers) return { success: false, error: "Oturum bulunamadı" };
@@ -330,6 +402,8 @@ export const authAPI = {
     const token = await secureGet(TOKEN_KEY);
     await secureRemove(TOKEN_KEY);
     await secureRemove(USER_DATA_KEY);
+    // Cihaz AES anahtarini da sil — cikista geride cozulebilir kalinti birakma
+    await secureClearKey();
     // Demo oturumu kapatiyorsak yerel demo state'ini de sil
     if (isDemoToken(token)) {
       try {
@@ -342,7 +416,7 @@ export const authAPI = {
   },
 
   async enterDemoMode(): Promise<User> {
-    return persistDemoSession(DEMO_USERNAME || "Demo");
+    return persistDemoSession("Demo");
   },
 
   async getToken() {
@@ -352,6 +426,34 @@ export const authAPI = {
   async isAuthenticated() {
     const token = await secureGet(TOKEN_KEY);
     return !!token;
+  },
+
+  // Saklanan (gercek) token'i backend'e karsi dogrular — acilista bayat/iptal JWT ile
+  // "girisli" kalmayi onler. Demo token bu yoldan GECMEZ (cevrimdisi; /auth/me'ye gitmez).
+  // Backend (auth.middleware): token yok -> 401, gecersiz/suresi gecmis -> 403, sunucu hatasi -> 500.
+  // Donus:
+  //   "valid"    — token gecerli, oturum surdurulur
+  //   "rejected" — 401/403 (token yok/bozuk/suresi gecmis) -> login ekranina don
+  //   "network"  — sunucuya ulasilamadi / 5xx -> mevcut oturuma guven (cevrimdisi acilis)
+  async validateSession(): Promise<"valid" | "rejected" | "network"> {
+    const token = await secureGet(TOKEN_KEY);
+    if (!token) return "rejected";
+    try {
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/auth/me`,
+        { headers: { Authorization: `Bearer ${token}` } },
+        8000,
+      );
+      // 401 (token yok) / 403 (gecersiz veya suresi gecmis) -> kesin reddet
+      if (res.status === 401 || res.status === 403) return "rejected";
+      // 5xx vb. -> sunucu sorunu, oturumu silme
+      if (!res.ok) return "network";
+      const body = await res.json();
+      return body.success ? "valid" : "network";
+    } catch {
+      // timeout / baglanti yok -> cevrimdisi acilisa izin ver
+      return "network";
+    }
   },
 };
 
@@ -1601,6 +1703,18 @@ export const diseaseAPI = {
 
       const json = await res.json();
       console.log("[DISEASE] submitted:", json.data?.detectionId?.slice(0, 8));
+      // Kilitli demoda: cekilen gorseli detection_id ile YERELE KOPYALA (indirme yok).
+      // Boylece (a) liste yalnizca bu cihazda gorseli olan tespitleri gosterir — testçiler
+      // birbirinin taramasini gormez; (b) kendi taramasi S3'ten indirilmeden hemen gozukur.
+      // Kaynak tek dogruluk: imageCache indeksi (bkz. getAllDetections + DiseaseScreen).
+      if (json?.success && json?.data?.detectionId && isLockedLiveDemo(token)) {
+        try {
+          const imageCache = await import("./imageCache");
+          await imageCache.saveLocalImage(json.data.detectionId, imageUri);
+        } catch {
+          // kopyalama basarisizsa o tarama listede gozukmez — kritik degil
+        }
+      }
       return json;
     } catch (error) {
       console.log("[DISEASE] submit err:", error);
@@ -1645,6 +1759,11 @@ export const diseaseAPI = {
       await seedIfEmpty(getDemoFields());
       const list = await listFolders();
       return { success: true, data: list };
+    }
+    // Kilitli demoda klasorler gizli: olusturma zaten engelli ve paylasilan hesabin
+    // klasorleri (baskasinin verisi) gosterilmemeli. Bos liste → "Klasörler" bolumu bos.
+    if (isLockedLiveDemo(token)) {
+      return { success: true, data: [] };
     }
     return authFetch(
       `/disease/folders${farmId ? `?farm_id=${encodeURIComponent(farmId)}` : ""}`,
@@ -1769,7 +1888,22 @@ export const diseaseAPI = {
       const detections = await listDetections();
       return { success: true, data: { count: detections.length, detections } };
     }
-    return authFetch("/disease/requests");
+    const res = await authFetch<{ count: number; detections: DiseaseDetection[] }>(
+      "/disease/requests",
+    );
+    // Kilitli demoda: paylasilan hesabin TUM tespitleri yerine YALNIZCA gorseli bu cihazda
+    // yerel cache'te olan tespitler gosterilir (testçiler birbirinin taramalarini gormesin).
+    // Kaynak: imageCache indeksi — kullanici kendi taramasini cekince submitDetection gorseli
+    // yerele kopyalar. Yereldeki gorseli olmayan tespit listelenmez ve indirilmez.
+    if (res.success && res.data && isLockedLiveDemo(token)) {
+      const imageCache = await import("./imageCache");
+      const cachedIds = new Set(await imageCache.listCachedIds());
+      const detections = res.data.detections.filter((d) =>
+        cachedIds.has(d.detection_id),
+      );
+      return { success: true, data: { count: detections.length, detections } };
+    }
+    return res;
   },
 
   async getImageUrl(
@@ -1788,6 +1922,22 @@ export const diseaseAPI = {
           expiresAt: new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
         },
       };
+    }
+    // Kilitli demoda S3'ten gorsel INDIRME yok: yalnizca yerel cache. Gorsel yereldeyse
+    // onun uri'sini don; degilse basarisiz (paylasilan hesabin baska gorselleri cekilmez).
+    if (isLockedLiveDemo(token)) {
+      const imageCache = await import("./imageCache");
+      if (await imageCache.hasLocal(detectionId)) {
+        return {
+          success: true,
+          data: {
+            imageUrl: imageCache.localPath(detectionId),
+            expiresIn: 3600 * 24 * 365,
+            expiresAt: new Date(Date.now() + 365 * 86400 * 1000).toISOString(),
+          },
+        };
+      }
+      return { success: false, error: DEMO_READONLY_ERROR };
     }
     return authFetch(`/disease/requests/${detectionId}/image`);
   },

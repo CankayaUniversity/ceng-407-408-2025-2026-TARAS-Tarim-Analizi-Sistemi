@@ -13,6 +13,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { useLanguage } from "../../context/LanguageContext";
 import { useTabReset } from "../../context/TabResetContext";
+import { useAuth } from "../../context/AuthContext";
 import { PressableDark } from "../../components/PressableDark";
 import type { NodeInfo } from "../../components/ColorPlane";
 import { HomeScreen } from "./HomeScreen";
@@ -36,6 +37,8 @@ const Stack = createNativeStackNavigator<HomeStackParamList>();
 const HomeMainScreen = () => {
   const { theme, isDark } = useTheme();
   const { dashboardData, refreshing, refresh, fields, setAddFieldModalOpen, canManageSelectedFarm, initialLoadDone } = useDashboard();
+  // Kilitli canli demo'da tarla ekleme gizli (paylasilan hesap; API de engeller).
+  const { isLockedDemo } = useAuth();
   const { t } = useLanguage();
   const isFocused = useIsFocused();
   const navigation = useNavigation<IrrigationDetailNavProps["navigation"]>();
@@ -56,8 +59,9 @@ const HomeMainScreen = () => {
         <Text style={{ fontSize: ms(13, 0.3), color: theme.textSecondary, marginTop: vs(6), textAlign: "center" }}>
           {t.home.noFieldsSubtitle}
         </Text>
-        {/* Tarla ekleme yalnizca secili ciftligi sahiplenen kullaniciya — paydas/farmer-uye salt-okunur. */}
-        {canManageSelectedFarm && (
+        {/* Tarla ekleme yalnizca secili ciftligi sahiplenen kullaniciya — paydas/farmer-uye salt-okunur.
+            Kilitli demoda da gizli (yazma engelli). */}
+        {canManageSelectedFarm && !isLockedDemo && (
           <PressableDark
             style={{
               flexDirection: "row",

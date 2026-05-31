@@ -65,3 +65,11 @@ export async function secureSet(key: string, value: string): Promise<void> {
 export async function secureRemove(key: string): Promise<void> {
   await AsyncStorage.removeItem(key);
 }
+
+// Cihaz AES anahtarini siler ve bellekteki kopyayi temizler. Cikista cagrilir ki
+// geride cozulebilir hicbir hassas kalinti kalmasin (token/user_data zaten silindikten
+// sonra). Sonraki secureSet otomatik yeni anahtar uretir.
+export async function secureClearKey(): Promise<void> {
+  cachedKey = null;
+  await AsyncStorage.removeItem(KEY_STORAGE);
+}

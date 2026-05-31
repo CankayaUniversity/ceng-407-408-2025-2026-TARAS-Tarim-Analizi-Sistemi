@@ -21,6 +21,7 @@ import { useLanguage } from "../../context/LanguageContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useDashboard } from "../../context/DashboardContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
+import { useAuth } from "../../context/AuthContext";
 import { ms, s, vs, spacing } from "../../utils/responsive";
 import { getUrgencyLabel, getUrgencyColor } from "../../utils/labels";
 import type { IrrigationDetailNavProps } from "../Home/HomeStack";
@@ -103,6 +104,8 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
   const { dashboardData, selectedFieldId, canEditSelectedFarm, zoneNameById } = useDashboard();
   const { t, language } = useLanguage();
   const { showPopup } = usePopupMessage();
+  // Kilitli canli demo'da sulama tetikleme (yazma) gizli (paylasilan hesap; API de engeller).
+  const { isLockedDemo } = useAuth();
 
   // Bolge basligi — FeaturedZoneCard ile AYNI cozum sirasi (kullanicinin tikladigi adla esit kalsin):
   // node'un kendi adi → context zone_id->zone_name haritasi → "Bölge N" index fallback'i.
@@ -461,8 +464,9 @@ export const IrrigationDetailScreen = ({ route, navigation }: IrrigationDetailNa
             </Text>
           ) : null}
         </View>
-        {/* Sulama onerisi calistir — yalnizca secili ciftligi sahiplenen (paydas salt-okunur) */}
-        {canEditSelectedFarm && (
+        {/* Sulama onerisi calistir — yalnizca secili ciftligi sahiplenen (paydas salt-okunur).
+            Kilitli demoda da gizli (yazma engelli). */}
+        {canEditSelectedFarm && !isLockedDemo && (
         <TouchableOpacity
           onPress={handleRunRecommendation}
           disabled={runningRecommendation}

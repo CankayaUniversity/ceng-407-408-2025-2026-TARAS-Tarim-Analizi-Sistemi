@@ -23,6 +23,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLanguage } from "../../context/LanguageContext";
 import { usePopupMessage } from "../../context/PopupMessageContext";
 import { useDashboard } from "../../context/DashboardContext";
+import { useAuth } from "../../context/AuthContext";
 import { useTabReset } from "../../context/TabResetContext";
 import { FocusableSection } from "../../components/FocusableSection";
 import { BottomSheet } from "../../components/BottomSheet";
@@ -78,6 +79,8 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
   const { t } = useLanguage();
   const { showPopup } = usePopupMessage();
   const { selectedFarmId: farmId } = useDashboard();
+  // Kilitli canli demo: karbon kaydi ekle/sil gizli (API de engeller). Goruntuleme acik.
+  const { isLockedDemo } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
 
   // Category → color / icon (MaterialCommunityIcons)
@@ -386,26 +389,28 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
                 {t.carbon.kgCO2}
               </Text>
             </View>
-            <TouchableOpacity
-              onPress={() => setShowAddModal(true)}
-              hitSlop={8}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 4,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 999,
-                backgroundColor: theme.primary + "15",
-                borderWidth: 1,
-                borderColor: theme.primary + "35",
-              }}
-            >
-              <Ionicons name="add" size={14} color={theme.primary} />
-              <Text style={{ color: theme.primary, fontSize: 12, fontWeight: "700" }}>
-                {t.carbon.addLog}
-              </Text>
-            </TouchableOpacity>
+            {!isLockedDemo && (
+              <TouchableOpacity
+                onPress={() => setShowAddModal(true)}
+                hitSlop={8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  backgroundColor: theme.primary + "15",
+                  borderWidth: 1,
+                  borderColor: theme.primary + "35",
+                }}
+              >
+                <Ionicons name="add" size={14} color={theme.primary} />
+                <Text style={{ color: theme.primary, fontSize: 12, fontWeight: "700" }}>
+                  {t.carbon.addLog}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Donut — dominates the page */}
@@ -572,17 +577,19 @@ export const CarbonFootprintScreen = memo(function CarbonFootprintScreen({
                             {log.emission_amount.toFixed(2)} {t.carbon.kgCO2}
                           </Text>
                         </View>
-                        <TouchableOpacity
-                          onPress={() => handleDelete(log)}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <Ionicons
-                            name="trash-outline"
-                            size={15}
-                            color={theme.textSecondary}
-                            style={{ padding: 2 }}
-                          />
-                        </TouchableOpacity>
+                        {!isLockedDemo && (
+                          <TouchableOpacity
+                            onPress={() => handleDelete(log)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Ionicons
+                              name="trash-outline"
+                              size={15}
+                              color={theme.textSecondary}
+                              style={{ padding: 2 }}
+                            />
+                          </TouchableOpacity>
+                        )}
                       </View>
 
                       {/* Bottom: date */}

@@ -19,7 +19,7 @@ import { s, vs } from "../../utils/responsive";
 
 export const SettingsContainer = () => {
   const { theme, isDark, themeMode, setThemeMode } = useTheme();
-  const { handleLogout, dataSource, username, refreshFromStorage } = useAuth();
+  const { handleLogout, dataSource, username, refreshFromStorage, isLockedDemo } = useAuth();
   const {
     farms,
     selectedFarmId,
@@ -86,7 +86,8 @@ export const SettingsContainer = () => {
   }, []);
 
   const onHardwareSetup = () => {
-    if (dataSource === "demo") {
+    // Yerel demo VEYA kilitli canli demo: donanim eslestirme (gateway register = yazma) yok.
+    if (dataSource === "demo" || isLockedDemo) {
       showPopup(t.disease.demoHardwareUnavailable);
       return;
     }
@@ -122,6 +123,7 @@ export const SettingsContainer = () => {
         onDeleteField={deleteField}
         onManageMembers={() => setMembersOpen(true)}
         onShareInvites={() => setInvitesOpen(true)}
+        readOnly={isLockedDemo}
         onProfileUpdated={(_username, newEmail) => {
           // Username degisince api.ts saklanan user'i tazeledi — AuthContext'i de yenile ki
           // salt-okunur gosterimdeki username prop'u guncellensin. Email lokal state'te tutulur.
